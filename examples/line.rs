@@ -21,12 +21,13 @@ fn main() {
             Vector3::new(0.0, 10.0, 0.0),
             Vector3::new(10.0, 0.0, 0.0),
         ],
+        .. three::Geometry::new()
     };
     let material = three::Material::LineBasic { color: 0x0000ff };
-    let line = factory.line(&geometry, material);
+    let line = factory.line(geometry, material);
 
     let mut scene = three::Scene::new();
-    scene.add(line);
+    scene.add(&line);
 
     let mut running = true;
     while running {
