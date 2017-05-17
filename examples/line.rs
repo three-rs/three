@@ -7,7 +7,8 @@ use cgmath::{Point3, Vector3};
 fn main() {
     let builder = glutin::WindowBuilder::new()
                                         .with_title("Three-rs line drawing example");
-    let (window, mut renderer, mut factory) = three::Renderer::new(builder);
+    let event_loop = glutin::EventsLoop::new();
+    let (window, mut renderer, mut factory) = three::Renderer::new(builder, &event_loop);
     let (width, height) = window.get_inner_size_pixels().unwrap();
 
     let mut camera = three::PerspectiveCamera::new(45.0, width as f32 / height as f32, 1.0, 500.0);
@@ -27,13 +28,17 @@ fn main() {
     let mut scene = three::Scene::new();
     scene.add(line);
 
-    'main: loop {
-        for event in window.poll_events() {
+    let mut running = true;
+    while running {
+        event_loop.poll_events(|glutin::Event::WindowEvent {event, ..}| {
+            use glutin::WindowEvent as Event;
+            use glutin::VirtualKeyCode as Key;
             match event {
-                glutin::Event::KeyboardInput(_, _, Some(glutin::VirtualKeyCode::Escape)) => break 'main,
+                Event::KeyboardInput(_, _, Some(Key::Escape), _) => running = false,
                 _ => ()
             }
-        }
+        });
+
         renderer.render(&scene, &camera);
         window.swap_buffers().unwrap();
     }

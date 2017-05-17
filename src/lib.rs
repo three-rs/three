@@ -55,8 +55,10 @@ pub struct Renderer {
 
 impl Renderer {
     #[cfg(feature = "opengl")]
-    pub fn new(builder: glutin::WindowBuilder) -> (glutin::Window, Renderer, Factory) {
-        let (window, device, mut factory, color, depth) = gfx_window_glutin::init(builder);
+    pub fn new(builder: glutin::WindowBuilder, event_loop: &glutin::EventsLoop)
+               -> (glutin::Window, Renderer, Factory) {
+        let (window, device, mut factory, color, depth) =
+            gfx_window_glutin::init(builder, event_loop);
         let renderer = Renderer {
             device: device,
             encoder: factory.create_command_buffer().into(),
