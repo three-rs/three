@@ -14,9 +14,14 @@ extern crate glutin;
 use cgmath::prelude::*;
 use cgmath::Transform as Transform_;
 use gfx::traits::{Device, FactoryExt};
+use std::sync::mpsc;
 
 
-pub type Transform = cgmath::Decomposed<cgmath::Vector3<f32>, cgmath::Quaternion<f32>>;
+pub type Position = cgmath::Point3<f32>;
+pub type Normal = cgmath::Vector3<f32>;
+pub type Orientation = cgmath::Quaternion<f32>;
+pub type Transform = cgmath::Decomposed<Normal, Orientation>;
+type ObjectId = usize;
 pub type ColorFormat = gfx::format::Srgba8;
 pub type DepthFormat = gfx::format::DepthStencil;
 
@@ -65,6 +70,7 @@ impl Node {
 pub struct Factory {
     graphics: back::Factory,
     node_store: froggy::Storage<Node>,
+    object_id: ObjectId,
 }
 
 pub struct Renderer {
@@ -73,12 +79,15 @@ pub struct Renderer {
     out_color: gfx::handle::RenderTargetView<back::Resources, ColorFormat>,
     out_depth: gfx::handle::DepthStencilView<back::Resources, DepthFormat>,
     pso_line: gfx::PipelineState<back::Resources, pipe::Meta>,
+    size: (u32, u32),
+    #[cfg(feature = "opengl")]
+    window: glutin::Window,
 }
 
+#[cfg(feature = "opengl")]
 impl Renderer {
-    #[cfg(feature = "opengl")]
     pub fn new(builder: glutin::WindowBuilder, event_loop: &glutin::EventsLoop)
-               -> (glutin::Window, Renderer, Factory) {
+               -> (Renderer, Factory) {
         let (window, device, mut gl_factory, color, depth) =
             gfx_window_glutin::init(builder, event_loop);
         let renderer = Renderer {
@@ -93,12 +102,20 @@ impl Renderer {
                     gfx::Primitive::LineStrip, rast, pipe::new()
                 ).unwrap()
             },
+            size: window.get_inner_size_pixels().unwrap(),
+            window: window,
         };
         let factory = Factory {
             graphics: gl_factory,
             node_store: froggy::Storage::new(),
+            object_id: 0,
         };
-        (window, renderer, factory)
+        (renderer, factory)
+    }
+
+    pub fn resize(&mut self) {
+        self.size = self.window.get_inner_size_pixels().unwrap();
+        gfx_window_glutin::update_views(&self.window, &mut self.out_color, &mut self.out_depth);
     }
 }
 
@@ -108,8 +125,8 @@ pub trait Camera {
 
 pub struct PerspectiveCamera {
     pub projection: cgmath::PerspectiveFov<f32>,
-    pub position: cgmath::Point3<f32>,
-    pub orientation: cgmath::Quaternion<f32>,
+    pub position: Position,
+    pub orientation: Orientation,
 }
 
 impl PerspectiveCamera {
@@ -121,8 +138,8 @@ impl PerspectiveCamera {
                 near: near,
                 far: far,
             },
-            position: cgmath::Point3::origin(),
-            orientation: cgmath::Quaternion::one(),
+            position: Position::origin(),
+            orientation: Orientation::one(),
         }
     }
 
@@ -132,7 +149,7 @@ impl PerspectiveCamera {
         let up = if dir.dot(z).abs() < 0.99 { z } else {
             cgmath::Vector3::unit_y()
         };
-        self.orientation = cgmath::Quaternion::look_at(dir, up);
+        self.orientation = Orientation::look_at(dir, up);
     }
 }
 
@@ -153,11 +170,10 @@ impl Camera for PerspectiveCamera {
 
 #[derive(Clone)]
 pub struct Geometry {
-    pub vertices: Vec<cgmath::Vector3<f32>>,
-    pub normals: Vec<cgmath::Vector3<f32>>,
+    pub vertices: Vec<Position>,
+    pub normals: Vec<Normal>,
     pub faces: Vec<[u16; 3]>,
-    pub vertices_need_update: bool,
-    pub normals_need_update: bool,
+    pub is_dynamic: bool,
 }
 
 impl Geometry {
@@ -166,11 +182,25 @@ impl Geometry {
             vertices: Vec::new(),
             normals: Vec::new(),
             faces: Vec::new(),
-            vertices_need_update: false,
-            normals_need_update: false,
+            is_dynamic: false,
+        }
+    }
+    pub fn from_vertices(verts: Vec<Position>) -> Geometry {
+        Geometry {
+            vertices: verts,
+            .. Geometry::new()
         }
     }
 }
+
+/*
+enum Message {
+    UpdateTransform(Transform),
+    Delete,
+}
+
+type ObjectMessage = (ObjectId, Message);
+*/
 
 pub type Color = u32;
 
@@ -180,71 +210,107 @@ pub enum Material {
 }
 
 #[derive(Clone)]
-struct Visual {
+struct GpuData {
     slice: gfx::Slice<back::Resources>,
     vertices: gfx::handle::Buffer<back::Resources, Vertex>,
-    material: Material,
 }
 
 #[derive(Clone)]
 pub struct Object {
-    pub geometry: Geometry,
-    visual: Visual,
-    node: NodePtr,
+    pub geometry: Option<Geometry>,
+    pub material: Material,
+    transform: Transform,
+    gpu_data: GpuData,
+}
+
+impl Drop for Object {
+    fn drop(&mut self) {
+ //       for tx in &self.message_tx {
+ //           let _ = tx.send((self.id, Message::Delete));
+ //       }
+    }
 }
 
 pub struct Scene {
     root_node: Node,
     lines: Vec<Object>,
-}
-
-//pub type ObjectPtr = froggy::Pointer<Object>;
-
-
-impl Factory {
-    pub fn line(&mut self, geom: Geometry, mat: Material) -> Object {
-        let vertices: Vec<_> = geom.vertices.iter().map(|v| Vertex {
-            pos: [v.x, v.y, v.z, 1.0],
-        }).collect();
-        let (vbuf, slice) = self.graphics.create_vertex_buffer_with_slice(&vertices, ());
-        Object {
-            geometry: geom,
-            visual: Visual {
-                slice: slice,
-                vertices: vbuf,
-                material: mat,
-            },
-            node: self.node_store.create(Node::new()),
-        }
-    }
+//    message_tx: mpsc::Sender<ObjectMessage>,
+//    message_rx: mpsc::Receiver<ObjectMessage>,
+//    nodes: froggy::Storage<SceneNode>,
 }
 
 impl Scene {
     pub fn new() -> Self {
+//        let (tx, rx) = mpsc::channel();
         Scene {
             root_node: Node::new(),
             lines: Vec::new(),
+//            message_tx: tx,
+//            message_rx: rx,
         }
     }
 
     pub fn add(&mut self, object: &Object) {
-        match object.visual.material {
+//        object.message_tx.push(self.message_tx.clone());
+        match object.material {
             Material::LineBasic {..} => {
                 self.lines.push(object.clone());
             },
         }
     }
+
+    fn update(&mut self) {
+//        while let Ok(message) = self.message_rx.try_recv() {
+//            match message {
+//                Message::UpdateTransform(_, _) => (),
+//                Message::Delete(_) => (),
+//            }
+//        }
+    }
 }
 
+
+impl Factory {
+    pub fn line(&mut self, geom: Geometry, mat: Material) -> Object {
+        self.object_id += 1;
+        let vertices: Vec<_> = geom.vertices.iter().map(|v| Vertex {
+            pos: [v.x, v.y, v.z, 1.0],
+        }).collect();
+        //TODO: dynamic geometry
+        let (vbuf, slice) = self.graphics.create_vertex_buffer_with_slice(&vertices, ());
+        Object {
+            geometry: if geom.is_dynamic { Some(geom) } else { None },
+            material: mat,
+            transform: Transform::one(),
+            gpu_data: GpuData {
+                slice: slice,
+                vertices: vbuf,
+            },
+//            node: self.node_store.create(Node::new()),
+//            id: self.object_id,
+//            message_tx: Vec::with_capacity(1),
+        }
+    }
+
+    // pub fn update(&self, ) //TODO: update dynamic geometry
+}
+
+
 impl Renderer {
+    pub fn get_aspect(&self) -> f32 {
+        self.size.0 as f32 / self.size.1 as f32
+    }
+
     pub fn render<C: Camera>(&mut self, scene: &Scene, cam: &C) {
+        //scene.update();
+
         self.device.cleanup();
         self.encoder.clear(&self.out_color, [0.0, 0.0, 0.0, 1.0]);
         self.encoder.clear_depth(&self.out_depth, 1.0);
 
         let mx_vp = cam.to_view_proj();
         for line in &scene.lines {
-            let color = match line.visual.material {
+            let color = match line.material {
                 Material::LineBasic { color } => {
                     [((color>>16)&0xFF) as f32 / 255.0,
                      ((color>>8) &0xFF) as f32 / 255.0,
@@ -253,14 +319,15 @@ impl Renderer {
                 },
             };
             let data = pipe::Data {
-                vbuf: line.visual.vertices.clone(),
+                vbuf: line.gpu_data.vertices.clone(),
                 mx_vp: mx_vp.into(),
                 color: color,
                 out_color: self.out_color.clone(),
             };
-            self.encoder.draw(&line.visual.slice, &self.pso_line, &data);
+            self.encoder.draw(&line.gpu_data.slice, &self.pso_line, &data);
         }
 
         self.encoder.flush(&mut self.device);
+        self.window.swap_buffers().unwrap();
     }
 }

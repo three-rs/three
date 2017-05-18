@@ -1,28 +1,21 @@
 extern crate three;
-extern crate cgmath;
 extern crate glutin;
-
-use cgmath::{Point3, Vector3};
 
 fn main() {
     let builder = glutin::WindowBuilder::new()
                                         .with_title("Three-rs line drawing example");
     let event_loop = glutin::EventsLoop::new();
-    let (window, mut renderer, mut factory) = three::Renderer::new(builder, &event_loop);
-    let (width, height) = window.get_inner_size_pixels().unwrap();
+    let (mut renderer, mut factory) = three::Renderer::new(builder, &event_loop);
 
-    let mut camera = three::PerspectiveCamera::new(45.0, width as f32 / height as f32, 1.0, 500.0);
-    camera.position = Point3::new(0.0, 0.0, 100.0);
-    camera.look_at(Point3::new(0.0, 0.0, 0.0));
+    let mut camera = three::PerspectiveCamera::new(45.0, renderer.get_aspect(), 1.0, 500.0);
+    camera.position = three::Position::new(0.0, 0.0, 100.0);
+    camera.look_at(three::Position::new(0.0, 0.0, 0.0));
 
-    let geometry = three::Geometry {
-        vertices: vec![
-            Vector3::new(-10.0, 0.0, 0.0),
-            Vector3::new(0.0, 10.0, 0.0),
-            Vector3::new(10.0, 0.0, 0.0),
-        ],
-        .. three::Geometry::new()
-    };
+    let geometry = three::Geometry::from_vertices(vec![
+        three::Position::new(-10.0, 0.0, 0.0),
+        three::Position::new(0.0, 10.0, 0.0),
+        three::Position::new(10.0, 0.0, 0.0),
+    ]);
     let material = three::Material::LineBasic { color: 0x0000ff };
     let line = factory.line(geometry, material);
 
@@ -35,12 +28,18 @@ fn main() {
             use glutin::WindowEvent as Event;
             use glutin::VirtualKeyCode as Key;
             match event {
-                Event::KeyboardInput(_, _, Some(Key::Escape), _) => running = false,
+                Event::Resized(..) => {
+                    renderer.resize();
+                    camera.projection.aspect = renderer.get_aspect();
+                }
+                Event::KeyboardInput(_, _, Some(Key::Escape), _) |
+                Event::Closed => {
+                    running = false
+                }
                 _ => ()
             }
         });
 
         renderer.render(&scene, &camera);
-        window.swap_buffers().unwrap();
     }
 }
