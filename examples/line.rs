@@ -17,10 +17,10 @@ fn main() {
         three::Position::new(10.0, 0.0, 0.0),
     ]);
     let material = three::Material::LineBasic { color: 0x0000ff };
-    let line = factory.line(geometry, material);
+    let mut line = factory.line(geometry, material);
 
-    let mut scene = three::Scene::new();
-    scene.add(&line);
+    let mut scene = factory.scene();
+    scene.add(&mut line, None);
 
     let mut running = true;
     while running {
@@ -40,6 +40,7 @@ fn main() {
             }
         });
 
+        scene.update();
         renderer.render(&scene, &camera);
     }
 }

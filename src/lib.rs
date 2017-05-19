@@ -21,9 +21,9 @@ pub type Position = cgmath::Point3<f32>;
 pub type Normal = cgmath::Vector3<f32>;
 pub type Orientation = cgmath::Quaternion<f32>;
 pub type Transform = cgmath::Decomposed<Normal, Orientation>;
-type ObjectId = usize;
 pub type ColorFormat = gfx::format::Srgba8;
 pub type DepthFormat = gfx::format::DepthStencil;
+type SceneId = usize;
 
 gfx_vertex_struct!(Vertex {
     pos: [f32; 4] = "a_Position",
@@ -32,6 +32,7 @@ gfx_vertex_struct!(Vertex {
 gfx_pipeline!(pipe {
     vbuf: gfx::VertexBuffer<Vertex> = (),
     mx_vp: gfx::Global<[[f32; 4]; 4]> = "u_ViewProj",
+    mx_world: gfx::Global<[[f32; 4]; 4]> = "u_World",
     color: gfx::Global<[f32; 4]> = "u_Color",
     out_color: gfx::RenderTarget<ColorFormat> = "Target0",
 });
@@ -40,8 +41,9 @@ const LINE_VS: &'static [u8] = b"
     #version 150 core
     in vec4 a_Position;
     uniform mat4 u_ViewProj;
+    uniform mat4 u_World;
     void main() {
-        gl_Position = u_ViewProj * a_Position;
+        gl_Position = u_ViewProj * u_World * a_Position;
     }
 ";
 const LINE_FS: &'static [u8] = b"
@@ -52,25 +54,9 @@ const LINE_FS: &'static [u8] = b"
     }
 ";
 
-type NodePtr = froggy::Pointer<Node>;
-struct Node {
-    transform: Transform,
-    children: Vec<NodePtr>,
-}
-
-impl Node {
-    fn new() -> Self {
-        Node {
-            transform: Transform::one(),
-            children: Vec::new(),
-        }
-    }
-}
-
 pub struct Factory {
     graphics: back::Factory,
-    node_store: froggy::Storage<Node>,
-    object_id: ObjectId,
+    scene_id: SceneId,
 }
 
 pub struct Renderer {
@@ -107,8 +93,7 @@ impl Renderer {
         };
         let factory = Factory {
             graphics: gl_factory,
-            node_store: froggy::Storage::new(),
-            object_id: 0,
+            scene_id: 0,
         };
         (renderer, factory)
     }
@@ -193,14 +178,15 @@ impl Geometry {
     }
 }
 
-/*
+
 enum Message {
-    UpdateTransform(Transform),
-    Delete,
+    SetTransform(froggy::WeakPointer<Node>, Transform),
+    SetMaterial(froggy::WeakPointer<Visual>, Material),
+    //Delete,
 }
 
-type ObjectMessage = (ObjectId, Message);
-*/
+type NodePtr = froggy::Pointer<Node>;
+type VisualPtr = froggy::Pointer<Visual>;
 
 pub type Color = u32;
 
@@ -209,70 +195,116 @@ pub enum Material {
     LineBasic { color: Color },
 }
 
+struct SceneLink {
+    id: SceneId,
+    node: NodePtr,
+    visual: VisualPtr,
+    tx: mpsc::Sender<Message>,
+}
+
+pub struct Object {
+    geometry: Option<Geometry>,
+    material: Material,
+    transform: Transform,
+    gpu_data: GpuData,
+    scenes: Vec<SceneLink>,
+}
+
+impl Object {
+    fn get_scene(&self, id: SceneId) -> Option<&SceneLink> {
+        self.scenes.iter().find(|link| link.id == id)
+    }
+}
+
+
+pub type Group = Object; //TODO
+
+struct Node {
+    local: Transform,
+    world: Transform,
+    parent: Option<NodePtr>,
+}
+
 #[derive(Clone)]
 struct GpuData {
     slice: gfx::Slice<back::Resources>,
     vertices: gfx::handle::Buffer<back::Resources, Vertex>,
 }
 
-#[derive(Clone)]
-pub struct Object {
-    pub geometry: Option<Geometry>,
-    pub material: Material,
-    transform: Transform,
+struct Visual {
+    material: Material,
     gpu_data: GpuData,
-}
-
-impl Drop for Object {
-    fn drop(&mut self) {
- //       for tx in &self.message_tx {
- //           let _ = tx.send((self.id, Message::Delete));
- //       }
-    }
+    node: NodePtr,
 }
 
 pub struct Scene {
-    root_node: Node,
-    lines: Vec<Object>,
-//    message_tx: mpsc::Sender<ObjectMessage>,
-//    message_rx: mpsc::Receiver<ObjectMessage>,
-//    nodes: froggy::Storage<SceneNode>,
+    nodes: froggy::Storage<Node>,
+    visuals: froggy::Storage<Visual>,
+    unique_id: SceneId,
+    message_tx: mpsc::Sender<Message>,
+    message_rx: mpsc::Receiver<Message>,
 }
 
 impl Scene {
-    pub fn new() -> Self {
-//        let (tx, rx) = mpsc::channel();
-        Scene {
-            root_node: Node::new(),
-            lines: Vec::new(),
-//            message_tx: tx,
-//            message_rx: rx,
+    pub fn add(&mut self, object: &mut Object, group: Option<&Group>) {
+        assert!(object.get_scene(self.unique_id).is_none(),
+            "Object is already in the scene");
+        let parent = group.map(|g| {
+            g.get_scene(self.unique_id)
+             .expect("Parent group is not in the scene")
+             .node.clone()
+        });
+        let node_ptr = self.nodes.create(Node {
+            local: object.transform.clone(),
+            world: Transform::one(),
+            parent: parent,
+        });
+        object.scenes.push(SceneLink {
+            id: self.unique_id,
+            node: node_ptr.clone(),
+            visual: self.visuals.create(Visual {
+                material: object.material.clone(),
+                gpu_data: object.gpu_data.clone(),
+                node: node_ptr,
+            }),
+            tx: self.message_tx.clone(),
+        });
+    }
+
+    pub fn process_messages(&mut self) {
+        while let Ok(message) = self.message_rx.try_recv() {
+            match message {
+                Message::SetTransform(_, _) => (),
+                Message::SetMaterial(_, _) => (),
+            }
         }
     }
 
-    pub fn add(&mut self, object: &Object) {
-//        object.message_tx.push(self.message_tx.clone());
-        match object.material {
-            Material::LineBasic {..} => {
-                self.lines.push(object.clone());
-            },
-        }
+    pub fn compute_transforms(&mut self) {
+        //TODO
     }
 
-    fn update(&mut self) {
-//        while let Ok(message) = self.message_rx.try_recv() {
-//            match message {
-//                Message::UpdateTransform(_, _) => (),
-//                Message::Delete(_) => (),
-//            }
-//        }
+    pub fn update(&mut self) {
+        self.process_messages();
+        self.compute_transforms();
     }
 }
 
 
 impl Factory {
-    pub fn line(&mut self, geom: Geometry, mat: Material) -> Object {
-        self.object_id += 1;
+    pub fn scene(&mut self) -> Scene {
+        self.scene_id += 1;
+        let (tx, rx) = mpsc::channel();
+        Scene {
+            nodes: froggy::Storage::new(),
+            visuals: froggy::Storage::new(),
+            unique_id: self.scene_id,
+            message_tx: tx,
+            message_rx: rx,
+        }
+    }
+
+    fn object(&mut self, geom: Geometry, mat: Material) -> Object {
         let vertices: Vec<_> = geom.vertices.iter().map(|v| Vertex {
             pos: [v.x, v.y, v.z, 1.0],
         }).collect();
@@ -286,10 +318,12 @@ impl Factory {
                 slice: slice,
                 vertices: vbuf,
             },
-//            node: self.node_store.create(Node::new()),
-//            id: self.object_id,
-//            message_tx: Vec::with_capacity(1),
+            scenes: Vec::with_capacity(1),
         }
+    }
+
+    pub fn line(&mut self, geom: Geometry, mat: Material) -> Object {
+        self.object(geom, mat)
     }
 
     // pub fn update(&self, ) //TODO: update dynamic geometry
@@ -302,15 +336,13 @@ impl Renderer {
     }
 
     pub fn render<C: Camera>(&mut self, scene: &Scene, cam: &C) {
-        //scene.update();
-
         self.device.cleanup();
         self.encoder.clear(&self.out_color, [0.0, 0.0, 0.0, 1.0]);
         self.encoder.clear_depth(&self.out_depth, 1.0);
 
         let mx_vp = cam.to_view_proj();
-        for line in &scene.lines {
-            let color = match line.material {
+        for visual in &scene.visuals {
+            let color = match visual.material {
                 Material::LineBasic { color } => {
                     [((color>>16)&0xFF) as f32 / 255.0,
                      ((color>>8) &0xFF) as f32 / 255.0,
@@ -318,13 +350,15 @@ impl Renderer {
                      1.0]
                 },
             };
+            let mx_world = cgmath::Matrix4::from(scene.nodes[&visual.node].world);
             let data = pipe::Data {
-                vbuf: line.gpu_data.vertices.clone(),
+                vbuf: visual.gpu_data.vertices.clone(),
                 mx_vp: mx_vp.into(),
+                mx_world: mx_world.into(),
                 color: color,
                 out_color: self.out_color.clone(),
             };
-            self.encoder.draw(&line.gpu_data.slice, &self.pso_line, &data);
+            self.encoder.draw(&visual.gpu_data.slice, &self.pso_line, &data);
         }
 
         self.encoder.flush(&mut self.device);
