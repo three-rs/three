@@ -14,6 +14,7 @@ extern crate glutin;
 use cgmath::prelude::*;
 use cgmath::Transform as Transform_;
 use gfx::traits::{Device, FactoryExt};
+use std::ops;
 use std::sync::mpsc;
 
 
@@ -203,16 +204,90 @@ struct SceneLink {
 }
 
 pub struct Object {
-    geometry: Option<Geometry>,
+    _geometry: Option<Geometry>,
     material: Material,
     transform: Transform,
     gpu_data: GpuData,
     scenes: Vec<SceneLink>,
 }
 
+pub struct TransformProxy<'a> {
+    value: &'a mut Transform,
+    links: &'a [SceneLink],
+}
+
+impl<'a> ops::Deref for TransformProxy<'a> {
+    type Target = Transform;
+    fn deref(&self) -> &Self::Target {
+        self.value
+    }
+}
+
+impl<'a> ops::DerefMut for TransformProxy<'a> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.value
+    }
+}
+
+impl<'a> Drop for TransformProxy<'a> {
+    fn drop(&mut self) {
+        for link in self.links {
+            let msg = Message::SetTransform(link.node.downgrade(), self.value.clone());
+            let _ = link.tx.send(msg);
+        }
+    }
+}
+
+pub struct MaterialProxy<'a> {
+    value: &'a mut Material,
+    links: &'a [SceneLink],
+}
+
+impl<'a> ops::Deref for MaterialProxy<'a> {
+    type Target = Material;
+    fn deref(&self) -> &Self::Target {
+        self.value
+    }
+}
+
+impl<'a> ops::DerefMut for MaterialProxy<'a> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.value
+    }
+}
+
+impl<'a> Drop for MaterialProxy<'a> {
+    fn drop(&mut self) {
+        for link in self.links {
+            let msg = Message::SetMaterial(link.visual.downgrade(), self.value.clone());
+            let _ = link.tx.send(msg);
+        }
+    }
+}
+
 impl Object {
     fn get_scene(&self, id: SceneId) -> Option<&SceneLink> {
         self.scenes.iter().find(|link| link.id == id)
+    }
+
+    pub fn transform(&self) -> &Transform {
+        &self.transform
+    }
+    pub fn transform_mut(&mut self) -> TransformProxy {
+        TransformProxy {
+            value: &mut self.transform,
+            links: &self.scenes,
+        }
+    }
+
+    pub fn material(&self) -> &Material {
+        &self.material
+    }
+    pub fn material_mut(&mut self) -> MaterialProxy {
+        MaterialProxy {
+            value: &mut self.material,
+            links: &self.scenes,
+        }
     }
 }
 
@@ -274,14 +349,28 @@ impl Scene {
     pub fn process_messages(&mut self) {
         while let Ok(message) = self.message_rx.try_recv() {
             match message {
-                Message::SetTransform(_, _) => (),
-                Message::SetMaterial(_, _) => (),
+                Message::SetTransform(pnode, transform) => {
+                    if let Ok(ref ptr) = pnode.upgrade() {
+                        self.nodes[ptr].local = transform;
+                    }
+                }
+                Message::SetMaterial(pvisual, material) => {
+                    if let Ok(ref ptr) = pvisual.upgrade() {
+                        self.visuals[ptr].material = material;
+                    }
+                }
             }
         }
     }
 
     pub fn compute_transforms(&mut self) {
-        //TODO
+        let mut cursor = self.nodes.cursor();
+        while let Some(mut item) = cursor.next() {
+            item.world = match item.parent {
+                Some(ref parent) => item.look_back(parent).unwrap().world.concat(&item.local),
+                None => item.local,
+            };
+        }
     }
 
     pub fn update(&mut self) {
@@ -311,7 +400,7 @@ impl Factory {
         //TODO: dynamic geometry
         let (vbuf, slice) = self.graphics.create_vertex_buffer_with_slice(&vertices, ());
         Object {
-            geometry: if geom.is_dynamic { Some(geom) } else { None },
+            _geometry: if geom.is_dynamic { Some(geom) } else { None },
             material: mat,
             transform: Transform::one(),
             gpu_data: GpuData {

@@ -1,5 +1,8 @@
-extern crate three;
+extern crate cgmath;
 extern crate glutin;
+extern crate three;
+
+use cgmath::prelude::*;
 
 fn main() {
     let builder = glutin::WindowBuilder::new()
@@ -22,6 +25,7 @@ fn main() {
     let mut scene = factory.scene();
     scene.add(&mut line, None);
 
+    let mut angle = 0f32;
     let mut running = true;
     while running {
         event_loop.poll_events(|glutin::Event::WindowEvent {event, ..}| {
@@ -39,6 +43,10 @@ fn main() {
                 _ => ()
             }
         });
+
+        angle += 0.01f32;
+        line.transform_mut().rot = three::Orientation::from_axis_angle(
+            cgmath::Vector3::unit_z(), cgmath::Rad(angle));
 
         scene.update();
         renderer.render(&scene, &camera);
