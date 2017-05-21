@@ -216,86 +216,40 @@ pub struct VisualObject {
     scenes: Vec<SceneLink<VisualPtr>>,
 }
 
-pub struct TransformProxy<'a> {
-    value: &'a mut Transform,
-    links: &'a [SceneLink<()>],
-}
+macro_rules! def_proxy {
+    ($name:ident<$visual:ty, $target:ty> = $message:ident($key:ident)) => {
+        pub struct $name<'a> {
+            value: &'a mut $target,
+            links: &'a [SceneLink<$visual>],
+        }
 
-impl<'a> ops::Deref for TransformProxy<'a> {
-    type Target = Transform;
-    fn deref(&self) -> &Self::Target {
-        self.value
-    }
-}
+        impl<'a> ops::Deref for $name<'a> {
+            type Target = $target;
+            fn deref(&self) -> &Self::Target {
+                self.value
+            }
+        }
 
-impl<'a> ops::DerefMut for TransformProxy<'a> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.value
-    }
-}
+        impl<'a> ops::DerefMut for $name<'a> {
+            fn deref_mut(&mut self) -> &mut Self::Target {
+                self.value
+            }
+        }
 
-impl<'a> Drop for TransformProxy<'a> {
-    fn drop(&mut self) {
-        for link in self.links {
-            let msg = Message::SetTransform(link.node.downgrade(), self.value.clone());
-            let _ = link.tx.send(msg);
+        impl<'a> Drop for $name<'a> {
+            fn drop(&mut self) {
+                for link in self.links {
+                    let msg = Message::$message(link.$key.downgrade(), self.value.clone());
+                    let _ = link.tx.send(msg);
+                }
+            }
         }
     }
 }
 
-pub struct TransformProxyVisual<'a> {
-    value: &'a mut Transform,
-    links: &'a [SceneLink<VisualPtr>],
-}
-
-impl<'a> ops::Deref for TransformProxyVisual<'a> {
-    type Target = Transform;
-    fn deref(&self) -> &Self::Target {
-        self.value
-    }
-}
-
-impl<'a> ops::DerefMut for TransformProxyVisual<'a> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.value
-    }
-}
-
-impl<'a> Drop for TransformProxyVisual<'a> {
-    fn drop(&mut self) {
-        for link in self.links {
-            let msg = Message::SetTransform(link.node.downgrade(), self.value.clone());
-            let _ = link.tx.send(msg);
-        }
-    }
-}
-
-pub struct MaterialProxy<'a> {
-    value: &'a mut Material,
-    links: &'a [SceneLink<VisualPtr>],
-}
-
-impl<'a> ops::Deref for MaterialProxy<'a> {
-    type Target = Material;
-    fn deref(&self) -> &Self::Target {
-        self.value
-    }
-}
-
-impl<'a> ops::DerefMut for MaterialProxy<'a> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.value
-    }
-}
-
-impl<'a> Drop for MaterialProxy<'a> {
-    fn drop(&mut self) {
-        for link in self.links {
-            let msg = Message::SetMaterial(link.visual.downgrade(), self.value.clone());
-            let _ = link.tx.send(msg);
-        }
-    }
-}
+def_proxy!(TransformProxy<(), Transform> = SetTransform(node));
+def_proxy!(TransformProxyVisual<VisualPtr, Transform> = SetTransform(node));
+def_proxy!(MaterialProxy<VisualPtr, Material> = SetMaterial(visual));
 
 impl Object {
     fn new() -> Self {
