@@ -20,7 +20,8 @@ mod window;
 
 pub use factory::{Factory, Geometry};
 pub use render::{ColorFormat, DepthFormat, Renderer};
-pub use scene::{Camera, PerspectiveCamera, Color, Material, Group, Mesh};
+pub use scene::{Camera, OrthographicCamera, PerspectiveCamera,
+                Color, Material, Group, Mesh};
 #[cfg(feature = "opengl")]
 pub use window::{Events, Window};
 #[cfg(feature = "opengl")]
