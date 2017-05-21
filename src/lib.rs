@@ -6,15 +6,17 @@ extern crate gfx;
 extern crate winit;
 // OpenGL
 #[cfg(feature = "opengl")]
-extern crate gfx_device_gl as back;
+extern crate gfx_device_gl;
 #[cfg(feature = "opengl")]
 extern crate gfx_window_glutin;
 #[cfg(feature = "opengl")]
 extern crate glutin;
 
+mod render;
 #[cfg(feature = "opengl")]
 mod window;
 
+pub use render::{ColorFormat, DepthFormat, Renderer};
 #[cfg(feature = "opengl")]
 pub use window::{Events, Window};
 #[cfg(feature = "opengl")]
@@ -24,116 +26,23 @@ use cgmath::prelude::*;
 use cgmath::Transform as Transform_;
 use genmesh::Triangulate;
 use genmesh::generators::{IndexedPolygon, SharedVertex};
-use gfx::traits::{Device, FactoryExt};
+use gfx::traits::FactoryExt;
 use std::ops;
 use std::sync::mpsc;
+
+use render::{BackendFactory, GpuData, Vertex};
 
 
 pub type Position = cgmath::Point3<f32>;
 pub type Normal = cgmath::Vector3<f32>;
 pub type Orientation = cgmath::Quaternion<f32>;
 pub type Transform = cgmath::Decomposed<Normal, Orientation>;
-pub type ColorFormat = gfx::format::Srgba8;
-pub type DepthFormat = gfx::format::DepthStencil;
 type SceneId = usize;
 
-gfx_vertex_struct!(Vertex {
-    pos: [f32; 4] = "a_Position",
-});
-
-gfx_pipeline!(pipe {
-    vbuf: gfx::VertexBuffer<Vertex> = (),
-    mx_vp: gfx::Global<[[f32; 4]; 4]> = "u_ViewProj",
-    mx_world: gfx::Global<[[f32; 4]; 4]> = "u_World",
-    color: gfx::Global<[f32; 4]> = "u_Color",
-    out_color: gfx::RenderTarget<ColorFormat> = "Target0",
-});
-
-const LINE_VS: &'static [u8] = b"
-    #version 150 core
-    in vec4 a_Position;
-    uniform mat4 u_ViewProj;
-    uniform mat4 u_World;
-    void main() {
-        gl_Position = u_ViewProj * u_World * a_Position;
-    }
-";
-const LINE_FS: &'static [u8] = b"
-    #version 150 core
-    uniform vec4 u_Color;
-    void main() {
-        gl_FragColor = u_Color;
-    }
-";
-
-const MESH_VS: &'static [u8] = b"
-    #version 150 core
-    in vec4 a_Position;
-    uniform mat4 u_ViewProj;
-    uniform mat4 u_World;
-    void main() {
-        gl_Position = u_ViewProj * u_World * a_Position;
-    }
-";
-const MESH_FS: &'static [u8] = b"
-    #version 150 core
-    uniform vec4 u_Color;
-    void main() {
-        gl_FragColor = u_Color;
-    }
-";
 
 pub struct Factory {
-    graphics: back::Factory,
+    backend: BackendFactory,
     scene_id: SceneId,
-}
-
-pub struct Renderer {
-    device: back::Device,
-    encoder: gfx::Encoder<back::Resources, back::CommandBuffer>,
-    out_color: gfx::handle::RenderTargetView<back::Resources, ColorFormat>,
-    out_depth: gfx::handle::DepthStencilView<back::Resources, DepthFormat>,
-    pso_line_basic: gfx::PipelineState<back::Resources, pipe::Meta>,
-    pso_mesh_basic: gfx::PipelineState<back::Resources, pipe::Meta>,
-    size: (u32, u32),
-    #[cfg(feature = "opengl")]
-    window: glutin::Window,
-}
-
-#[cfg(feature = "opengl")]
-impl Renderer {
-    pub fn new(builder: glutin::WindowBuilder, event_loop: &glutin::EventsLoop)
-               -> (Renderer, Factory) {
-        let (window, device, mut gl_factory, color, depth) =
-            gfx_window_glutin::init(builder, event_loop);
-        let prog_line = gl_factory.link_program(LINE_VS, LINE_FS).unwrap();
-        let prog_mesh = gl_factory.link_program(MESH_VS, MESH_FS).unwrap();
-        let rast_fill = gfx::state::Rasterizer::new_fill();
-        let renderer = Renderer {
-            device: device,
-            encoder: gl_factory.create_command_buffer().into(),
-            out_color: color,
-            out_depth: depth,
-            pso_line_basic: gl_factory.create_pipeline_from_program(&prog_line,
-                    gfx::Primitive::LineStrip, rast_fill, pipe::new()
-                ).unwrap(),
-            pso_mesh_basic: gl_factory.create_pipeline_from_program(&prog_mesh,
-                    gfx::Primitive::TriangleList, rast_fill, pipe::new()
-                ).unwrap(),
-            size: window.get_inner_size_pixels().unwrap(),
-            window: window,
-        };
-        let factory = Factory {
-            graphics: gl_factory,
-            scene_id: 0,
-        };
-        (renderer, factory)
-    }
-
-    pub fn resize(&mut self) {
-        self.size = self.window.get_inner_size_pixels().unwrap();
-        gfx_window_glutin::update_views(&self.window, &mut self.out_color, &mut self.out_depth);
-    }
 }
 
 pub trait Camera {
@@ -237,13 +146,6 @@ type NodePtr = froggy::Pointer<Node>;
 type VisualPtr = froggy::Pointer<Visual>;
 
 pub type Color = u32;
-
-fn color_to_f32(c: Color) -> [f32; 4] {
-    [((c>>16)&0xFF) as f32 / 255.0,
-     ((c>>8) &0xFF) as f32 / 255.0,
-     (c&0xFF) as f32 / 255.0,
-     1.0]
-}
 
 #[derive(Clone)]
 pub enum Material {
@@ -426,12 +328,6 @@ struct Node {
     parent: Option<NodePtr>,
 }
 
-#[derive(Clone)]
-struct GpuData {
-    slice: gfx::Slice<back::Resources>,
-    vertices: gfx::handle::Buffer<back::Resources, Vertex>,
-}
-
 struct Visual {
     material: Material,
     gpu_data: GpuData,
@@ -495,6 +391,13 @@ impl Scene {
 
 
 impl Factory {
+    pub fn new(backend: BackendFactory) -> Self {
+        Factory {
+            backend: backend,
+            scene_id: 0,
+        }
+    }
+
     pub fn scene(&mut self) -> Scene {
         self.scene_id += 1;
         let (tx, rx) = mpsc::channel();
@@ -519,10 +422,10 @@ impl Factory {
         }).collect();
         //TODO: dynamic geometry
         let (vbuf, slice) = if geom.faces.is_empty() {
-            self.graphics.create_vertex_buffer_with_slice(&vertices, ())
+            self.backend.create_vertex_buffer_with_slice(&vertices, ())
         } else {
             let faces: &[u16] = gfx::memory::cast_slice(&geom.faces);
-            self.graphics.create_vertex_buffer_with_slice(&vertices, faces)
+            self.backend.create_vertex_buffer_with_slice(&vertices, faces)
         };
         Mesh {
             object: VisualObject::new(mat, GpuData {
@@ -531,38 +434,5 @@ impl Factory {
             }),
             _geometry: if geom.is_dynamic { Some(geom) } else { None },
         }
-    }
-}
-
-
-impl Renderer {
-    pub fn get_aspect(&self) -> f32 {
-        self.size.0 as f32 / self.size.1 as f32
-    }
-
-    pub fn render<C: Camera>(&mut self, scene: &Scene, cam: &C) {
-        self.device.cleanup();
-        self.encoder.clear(&self.out_color, [0.0, 0.0, 0.0, 1.0]);
-        self.encoder.clear_depth(&self.out_depth, 1.0);
-
-        let mx_vp = cam.to_view_proj();
-        for visual in &scene.visuals {
-            let (pso, color) = match visual.material {
-                Material::LineBasic { color } => (&self.pso_line_basic, color),
-                Material::MeshBasic { color } => (&self.pso_mesh_basic, color),
-            };
-            let mx_world = cgmath::Matrix4::from(scene.nodes[&visual.node].world);
-            let data = pipe::Data {
-                vbuf: visual.gpu_data.vertices.clone(),
-                mx_vp: mx_vp.into(),
-                mx_world: mx_world.into(),
-                color: color_to_f32(color),
-                out_color: self.out_color.clone(),
-            };
-            self.encoder.draw(&visual.gpu_data.slice, pso, &data);
-        }
-
-        self.encoder.flush(&mut self.device);
-        self.window.swap_buffers().unwrap();
     }
 }
