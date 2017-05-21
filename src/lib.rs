@@ -259,10 +259,6 @@ impl Object {
         }
     }
 
-    fn get_scene(&self, id: SceneId) -> Option<&SceneLink<()>> {
-        self.scenes.iter().find(|link| link.id == id)
-    }
-
     pub fn transform(&self) -> &Transform {
         &self.transform
     }
@@ -275,7 +271,7 @@ impl Object {
     }
 
     pub fn attach(&mut self, scene: &mut Scene, group: Option<&Group>) {
-        assert!(self.get_scene(scene.unique_id).is_none(),
+        assert!(!self.scenes.iter().any(|link| link.id == scene.unique_id),
             "Object is already in the scene");
         let node_ptr = scene.make_node(self.transform.clone(), group);
         self.scenes.push(SceneLink {
@@ -296,10 +292,6 @@ impl VisualObject {
             gpu_data: gpu_data,
             scenes: Vec::with_capacity(1),
         }
-    }
-
-    fn get_scene(&self, id: SceneId) -> Option<&SceneLink<VisualPtr>> {
-        self.scenes.iter().find(|link| link.id == id)
     }
 
     pub fn transform(&self) -> &Transform {
@@ -325,7 +317,7 @@ impl VisualObject {
     }
 
     pub fn attach(&mut self, scene: &mut Scene, group: Option<&Group>) {
-        assert!(self.get_scene(scene.unique_id).is_none(),
+        assert!(!self.scenes.iter().any(|link| link.id == scene.unique_id),
             "VisualObject is already in the scene");
         let node_ptr = scene.make_node(self.transform.clone(), group);
         let visual_ptr = scene.visuals.create(Visual {
@@ -342,40 +334,35 @@ impl VisualObject {
     }
 }
 
-pub struct Line {
-    object: VisualObject,
-    _geometry: Option<Geometry>,
-}
-
-impl ops::Deref for Line {
-    type Target = VisualObject;
-    fn deref(&self) -> &Self::Target {
-        &self.object
-    }
-}
-
-impl ops::DerefMut for Line {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.object
-    }
-}
 
 pub struct Group {
     object: Object,
 }
 
-impl ops::Deref for Group {
-    type Target = Object;
-    fn deref(&self) -> &Self::Target {
-        &self.object
+pub struct Line {
+    object: VisualObject,
+    _geometry: Option<Geometry>,
+}
+
+macro_rules! deref {
+    ($name:ty = $object:ty) => {
+        impl ops::Deref for $name {
+            type Target = $object;
+            fn deref(&self) -> &Self::Target {
+                &self.object
+            }
+        }
+
+        impl ops::DerefMut for $name {
+            fn deref_mut(&mut self) -> &mut Self::Target {
+                &mut self.object
+            }
+        }
     }
 }
 
-impl ops::DerefMut for Group {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.object
-    }
-}
+deref!(Group = Object);
+deref!(Line = VisualObject);
 
 
 struct Node {
@@ -407,7 +394,7 @@ pub struct Scene {
 impl Scene {
     fn make_node(&mut self, transform: Transform, group: Option<&Group>) -> NodePtr {
         let parent = group.map(|g| {
-            g.get_scene(self.unique_id)
+            g.scenes.iter().find(|link| link.id == self.unique_id)
              .expect("Parent group is not in the scene")
              .node.clone()
         });
