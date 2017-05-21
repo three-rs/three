@@ -7,8 +7,8 @@ use gfx;
 use gfx::traits::FactoryExt;
 
 use render::{BackendFactory, GpuData, Vertex};
-use {Normal, Position, Material, Scene};
-use {Object, VisualObject, Group, Mesh};
+use scene::{Group, Mesh, Material};
+use {Normal, Position, Scene, VisualObject};
 
 
 pub type SceneId = usize;
@@ -39,9 +39,7 @@ impl Factory {
     }
 
     pub fn group(&mut self) -> Group {
-        Group {
-            object: Object::new(),
-        }
+        Group::new()
     }
 
     pub fn mesh(&mut self, geom: Geometry, mat: Material) -> Mesh {
@@ -55,13 +53,10 @@ impl Factory {
             let faces: &[u16] = gfx::memory::cast_slice(&geom.faces);
             self.backend.create_vertex_buffer_with_slice(&vertices, faces)
         };
-        Mesh {
-            object: VisualObject::new(mat, GpuData {
-                slice: slice,
-                vertices: vbuf,
-            }),
-            _geometry: if geom.is_dynamic { Some(geom) } else { None },
-        }
+        Mesh::new(VisualObject::new(mat, GpuData {
+            slice: slice,
+            vertices: vbuf,
+        }))
     }
 }
 
