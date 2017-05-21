@@ -196,24 +196,29 @@ pub enum Material {
     LineBasic { color: Color },
 }
 
-struct SceneLink {
+struct SceneLink<V> {
     id: SceneId,
     node: NodePtr,
-    visual: VisualPtr,
+    visual: V,
     tx: mpsc::Sender<Message>,
 }
 
 pub struct Object {
-    _geometry: Option<Geometry>,
-    material: Material,
     transform: Transform,
+    scenes: Vec<SceneLink<()>>,
+}
+
+pub struct VisualObject {
+    visible: bool,
+    transform: Transform,
+    material: Material,
     gpu_data: GpuData,
-    scenes: Vec<SceneLink>,
+    scenes: Vec<SceneLink<VisualPtr>>,
 }
 
 pub struct TransformProxy<'a> {
     value: &'a mut Transform,
-    links: &'a [SceneLink],
+    links: &'a [SceneLink<()>],
 }
 
 impl<'a> ops::Deref for TransformProxy<'a> {
@@ -238,9 +243,36 @@ impl<'a> Drop for TransformProxy<'a> {
     }
 }
 
+pub struct TransformProxyVisual<'a> {
+    value: &'a mut Transform,
+    links: &'a [SceneLink<VisualPtr>],
+}
+
+impl<'a> ops::Deref for TransformProxyVisual<'a> {
+    type Target = Transform;
+    fn deref(&self) -> &Self::Target {
+        self.value
+    }
+}
+
+impl<'a> ops::DerefMut for TransformProxyVisual<'a> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.value
+    }
+}
+
+impl<'a> Drop for TransformProxyVisual<'a> {
+    fn drop(&mut self) {
+        for link in self.links {
+            let msg = Message::SetTransform(link.node.downgrade(), self.value.clone());
+            let _ = link.tx.send(msg);
+        }
+    }
+}
+
 pub struct MaterialProxy<'a> {
     value: &'a mut Material,
-    links: &'a [SceneLink],
+    links: &'a [SceneLink<VisualPtr>],
 }
 
 impl<'a> ops::Deref for MaterialProxy<'a> {
@@ -266,15 +298,62 @@ impl<'a> Drop for MaterialProxy<'a> {
 }
 
 impl Object {
-    fn get_scene(&self, id: SceneId) -> Option<&SceneLink> {
+    fn new() -> Self {
+        Object {
+            transform: Transform::one(),
+            scenes: Vec::with_capacity(1),
+        }
+    }
+
+    fn get_scene(&self, id: SceneId) -> Option<&SceneLink<()>> {
         self.scenes.iter().find(|link| link.id == id)
     }
 
     pub fn transform(&self) -> &Transform {
         &self.transform
     }
+
     pub fn transform_mut(&mut self) -> TransformProxy {
         TransformProxy {
+            value: &mut self.transform,
+            links: &self.scenes,
+        }
+    }
+
+    pub fn attach(&mut self, scene: &mut Scene, group: Option<&Group>) {
+        assert!(self.get_scene(scene.unique_id).is_none(),
+            "Object is already in the scene");
+        let node_ptr = scene.make_node(self.transform.clone(), group);
+        self.scenes.push(SceneLink {
+            id: scene.unique_id,
+            node: node_ptr,
+            visual: (),
+            tx: scene.message_tx.clone(),
+        });
+    }
+}
+
+impl VisualObject {
+    fn new(material: Material, gpu_data: GpuData) -> Self {
+        VisualObject {
+            visible: true,
+            transform: Transform::one(),
+            material: material,
+            gpu_data: gpu_data,
+            scenes: Vec::with_capacity(1),
+        }
+    }
+
+    fn get_scene(&self, id: SceneId) -> Option<&SceneLink<VisualPtr>> {
+        self.scenes.iter().find(|link| link.id == id)
+    }
+
+    pub fn transform(&self) -> &Transform {
+        &self.transform
+    }
+
+    pub fn transform_mut(&mut self) -> TransformProxyVisual {
+        TransformProxyVisual {
             value: &mut self.transform,
             links: &self.scenes,
         }
@@ -283,16 +362,67 @@ impl Object {
     pub fn material(&self) -> &Material {
         &self.material
     }
+
     pub fn material_mut(&mut self) -> MaterialProxy {
         MaterialProxy {
             value: &mut self.material,
             links: &self.scenes,
         }
     }
+
+    pub fn attach(&mut self, scene: &mut Scene, group: Option<&Group>) {
+        assert!(self.get_scene(scene.unique_id).is_none(),
+            "VisualObject is already in the scene");
+        let node_ptr = scene.make_node(self.transform.clone(), group);
+        let visual_ptr = scene.visuals.create(Visual {
+            material: self.material.clone(),
+            gpu_data: self.gpu_data.clone(),
+            node: node_ptr.clone(),
+        });
+        self.scenes.push(SceneLink {
+            id: scene.unique_id,
+            node: node_ptr,
+            visual: visual_ptr,
+            tx: scene.message_tx.clone(),
+        });
+    }
 }
 
+pub struct Line {
+    object: VisualObject,
+    _geometry: Option<Geometry>,
+}
 
-pub type Group = Object; //TODO
+impl ops::Deref for Line {
+    type Target = VisualObject;
+    fn deref(&self) -> &Self::Target {
+        &self.object
+    }
+}
+
+impl ops::DerefMut for Line {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.object
+    }
+}
+
+pub struct Group {
+    object: Object,
+}
+
+impl ops::Deref for Group {
+    type Target = Object;
+    fn deref(&self) -> &Self::Target {
+        &self.object
+    }
+}
+
+impl ops::DerefMut for Group {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.object
+    }
+}
+
 
 struct Node {
     local: Transform,
@@ -321,29 +451,17 @@ pub struct Scene {
 }
 
 impl Scene {
-    pub fn add(&mut self, object: &mut Object, group: Option<&Group>) {
-        assert!(object.get_scene(self.unique_id).is_none(),
-            "Object is already in the scene");
+    fn make_node(&mut self, transform: Transform, group: Option<&Group>) -> NodePtr {
         let parent = group.map(|g| {
             g.get_scene(self.unique_id)
              .expect("Parent group is not in the scene")
              .node.clone()
         });
-        let node_ptr = self.nodes.create(Node {
-            local: object.transform.clone(),
+        self.nodes.create(Node {
+            local: transform,
             world: Transform::one(),
             parent: parent,
-        });
-        object.scenes.push(SceneLink {
-            id: self.unique_id,
-            node: node_ptr.clone(),
-            visual: self.visuals.create(Visual {
-                material: object.material.clone(),
-                gpu_data: object.gpu_data.clone(),
-                node: node_ptr,
-            }),
-            tx: self.message_tx.clone(),
-        });
+        })
     }
 
     pub fn process_messages(&mut self) {
@@ -393,26 +511,25 @@ impl Factory {
         }
     }
 
-    fn object(&mut self, geom: Geometry, mat: Material) -> Object {
+    pub fn group(&mut self) -> Group {
+        Group {
+            object: Object::new(),
+        }
+    }
+
+    pub fn line(&mut self, geom: Geometry, mat: Material) -> Line {
         let vertices: Vec<_> = geom.vertices.iter().map(|v| Vertex {
             pos: [v.x, v.y, v.z, 1.0],
         }).collect();
         //TODO: dynamic geometry
         let (vbuf, slice) = self.graphics.create_vertex_buffer_with_slice(&vertices, ());
-        Object {
-            _geometry: if geom.is_dynamic { Some(geom) } else { None },
-            material: mat,
-            transform: Transform::one(),
-            gpu_data: GpuData {
+        Line {
+            object: VisualObject::new(mat, GpuData {
                 slice: slice,
                 vertices: vbuf,
-            },
-            scenes: Vec::with_capacity(1),
+            }),
+            _geometry: if geom.is_dynamic { Some(geom) } else { None },
         }
-    }
-
-    pub fn line(&mut self, geom: Geometry, mat: Material) -> Object {
-        self.object(geom, mat)
     }
 
     // pub fn update(&self, ) //TODO: update dynamic geometry

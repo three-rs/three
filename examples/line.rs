@@ -23,7 +23,7 @@ fn main() {
     let mut line = factory.line(geometry, material);
 
     let mut scene = factory.scene();
-    scene.add(&mut line, None);
+    line.attach(&mut scene, None);
 
     let mut angle = 0f32;
     let mut running = true;
