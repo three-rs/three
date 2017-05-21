@@ -12,6 +12,14 @@ extern crate gfx_window_glutin;
 #[cfg(feature = "opengl")]
 extern crate glutin;
 
+#[cfg(feature = "opengl")]
+mod window;
+
+#[cfg(feature = "opengl")]
+pub use window::{Events, Window};
+#[cfg(feature = "opengl")]
+pub use glutin::VirtualKeyCode as Key;
+
 use cgmath::prelude::*;
 use cgmath::Transform as Transform_;
 use genmesh::Triangulate;
