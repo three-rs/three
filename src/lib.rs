@@ -12,10 +12,12 @@ extern crate gfx_window_glutin;
 #[cfg(feature = "opengl")]
 extern crate glutin;
 
+mod factory;
 mod render;
 #[cfg(feature = "opengl")]
 mod window;
 
+pub use factory::{Factory, Geometry};
 pub use render::{ColorFormat, DepthFormat, Renderer};
 #[cfg(feature = "opengl")]
 pub use window::{Events, Window};
@@ -24,26 +26,17 @@ pub use glutin::VirtualKeyCode as Key;
 
 use cgmath::prelude::*;
 use cgmath::Transform as Transform_;
-use genmesh::Triangulate;
-use genmesh::generators::{IndexedPolygon, SharedVertex};
-use gfx::traits::FactoryExt;
 use std::ops;
 use std::sync::mpsc;
 
-use render::{BackendFactory, GpuData, Vertex};
+use factory::SceneId;
+use render::GpuData;
 
 
 pub type Position = cgmath::Point3<f32>;
 pub type Normal = cgmath::Vector3<f32>;
 pub type Orientation = cgmath::Quaternion<f32>;
 pub type Transform = cgmath::Decomposed<Normal, Orientation>;
-type SceneId = usize;
-
-
-pub struct Factory {
-    backend: BackendFactory,
-    scene_id: SceneId,
-}
 
 pub trait Camera {
     fn to_view_proj(&self) -> cgmath::Matrix4<f32>;
@@ -94,47 +87,6 @@ impl Camera for PerspectiveCamera {
     }
 }
 
-#[derive(Clone)]
-pub struct Geometry {
-    pub vertices: Vec<Position>,
-    pub normals: Vec<Normal>,
-    pub faces: Vec<[u16; 3]>,
-    pub is_dynamic: bool,
-}
-
-impl Geometry {
-    pub fn empty() -> Geometry {
-        Geometry {
-            vertices: Vec::new(),
-            normals: Vec::new(),
-            faces: Vec::new(),
-            is_dynamic: false,
-        }
-    }
-
-    pub fn from_vertices(verts: Vec<Position>) -> Geometry {
-        Geometry {
-            vertices: verts,
-            .. Geometry::empty()
-        }
-    }
-
-    pub fn new_box(sx: f32, sy: f32, sz: f32) -> Geometry {
-        let cube = genmesh::generators::Cube::new();
-        Geometry {
-            vertices: cube.shared_vertex_iter()
-                          .map(|(x, y, z)| Position::new(x * sx, y * sy, z * sz))
-                          .collect(),
-            normals: Vec::new(),
-            faces: cube.indexed_polygon_iter()
-                       .triangulate()
-                       .map(|t| [t.x as u16, t.y as u16, t.z as u16])
-                       .collect(),
-            is_dynamic: false,
-        }
-    }
-}
-
 
 enum Message {
     SetTransform(froggy::WeakPointer<Node>, Transform),
@@ -166,7 +118,7 @@ pub struct Object {
 }
 
 pub struct VisualObject {
-    visible: bool,
+    _visible: bool,
     transform: Transform,
     material: Material,
     gpu_data: GpuData,
@@ -243,7 +195,7 @@ impl Object {
 impl VisualObject {
     fn new(material: Material, gpu_data: GpuData) -> Self {
         VisualObject {
-            visible: true,
+            _visible: true,
             transform: Transform::one(),
             material: material,
             gpu_data: gpu_data,
@@ -386,53 +338,5 @@ impl Scene {
     pub fn update(&mut self) {
         self.process_messages();
         self.compute_transforms();
-    }
-}
-
-
-impl Factory {
-    pub fn new(backend: BackendFactory) -> Self {
-        Factory {
-            backend: backend,
-            scene_id: 0,
-        }
-    }
-
-    pub fn scene(&mut self) -> Scene {
-        self.scene_id += 1;
-        let (tx, rx) = mpsc::channel();
-        Scene {
-            nodes: froggy::Storage::new(),
-            visuals: froggy::Storage::new(),
-            unique_id: self.scene_id,
-            message_tx: tx,
-            message_rx: rx,
-        }
-    }
-
-    pub fn group(&mut self) -> Group {
-        Group {
-            object: Object::new(),
-        }
-    }
-
-    pub fn mesh(&mut self, geom: Geometry, mat: Material) -> Mesh {
-        let vertices: Vec<_> = geom.vertices.iter().map(|v| Vertex {
-            pos: [v.x, v.y, v.z, 1.0],
-        }).collect();
-        //TODO: dynamic geometry
-        let (vbuf, slice) = if geom.faces.is_empty() {
-            self.backend.create_vertex_buffer_with_slice(&vertices, ())
-        } else {
-            let faces: &[u16] = gfx::memory::cast_slice(&geom.faces);
-            self.backend.create_vertex_buffer_with_slice(&vertices, faces)
-        };
-        Mesh {
-            object: VisualObject::new(mat, GpuData {
-                slice: slice,
-                vertices: vbuf,
-            }),
-            _geometry: if geom.is_dynamic { Some(geom) } else { None },
-        }
     }
 }
