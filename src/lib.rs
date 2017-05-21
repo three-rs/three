@@ -1,5 +1,6 @@
 extern crate cgmath;
 extern crate froggy;
+extern crate genmesh;
 #[macro_use]
 extern crate gfx;
 extern crate winit;
@@ -13,6 +14,8 @@ extern crate glutin;
 
 use cgmath::prelude::*;
 use cgmath::Transform as Transform_;
+use genmesh::Triangulate;
+use genmesh::generators::{IndexedPolygon, SharedVertex};
 use gfx::traits::{Device, FactoryExt};
 use std::ops;
 use std::sync::mpsc;
@@ -55,6 +58,23 @@ const LINE_FS: &'static [u8] = b"
     }
 ";
 
+const MESH_VS: &'static [u8] = b"
+    #version 150 core
+    in vec4 a_Position;
+    uniform mat4 u_ViewProj;
+    uniform mat4 u_World;
+    void main() {
+        gl_Position = u_ViewProj * u_World * a_Position;
+    }
+";
+const MESH_FS: &'static [u8] = b"
+    #version 150 core
+    uniform vec4 u_Color;
+    void main() {
+        gl_FragColor = u_Color;
+    }
+";
+
 pub struct Factory {
     graphics: back::Factory,
     scene_id: SceneId,
@@ -65,7 +85,8 @@ pub struct Renderer {
     encoder: gfx::Encoder<back::Resources, back::CommandBuffer>,
     out_color: gfx::handle::RenderTargetView<back::Resources, ColorFormat>,
     out_depth: gfx::handle::DepthStencilView<back::Resources, DepthFormat>,
-    pso_line: gfx::PipelineState<back::Resources, pipe::Meta>,
+    pso_line_basic: gfx::PipelineState<back::Resources, pipe::Meta>,
+    pso_mesh_basic: gfx::PipelineState<back::Resources, pipe::Meta>,
     size: (u32, u32),
     #[cfg(feature = "opengl")]
     window: glutin::Window,
@@ -77,18 +98,20 @@ impl Renderer {
                -> (Renderer, Factory) {
         let (window, device, mut gl_factory, color, depth) =
             gfx_window_glutin::init(builder, event_loop);
+        let prog_line = gl_factory.link_program(LINE_VS, LINE_FS).unwrap();
+        let prog_mesh = gl_factory.link_program(MESH_VS, MESH_FS).unwrap();
+        let rast_fill = gfx::state::Rasterizer::new_fill();
         let renderer = Renderer {
             device: device,
             encoder: gl_factory.create_command_buffer().into(),
             out_color: color,
             out_depth: depth,
-            pso_line: {
-                let prog = gl_factory.link_program(LINE_VS, LINE_FS).unwrap();
-                let rast = gfx::state::Rasterizer::new_fill();
-                gl_factory.create_pipeline_from_program(&prog,
-                    gfx::Primitive::LineStrip, rast, pipe::new()
-                ).unwrap()
-            },
+            pso_line_basic: gl_factory.create_pipeline_from_program(&prog_line,
+                    gfx::Primitive::LineStrip, rast_fill, pipe::new()
+                ).unwrap(),
+            pso_mesh_basic: gl_factory.create_pipeline_from_program(&prog_mesh,
+                    gfx::Primitive::TriangleList, rast_fill, pipe::new()
+                ).unwrap(),
             size: window.get_inner_size_pixels().unwrap(),
             window: window,
         };
@@ -163,7 +186,7 @@ pub struct Geometry {
 }
 
 impl Geometry {
-    pub fn new() -> Geometry {
+    pub fn empty() -> Geometry {
         Geometry {
             vertices: Vec::new(),
             normals: Vec::new(),
@@ -171,10 +194,26 @@ impl Geometry {
             is_dynamic: false,
         }
     }
+
     pub fn from_vertices(verts: Vec<Position>) -> Geometry {
         Geometry {
             vertices: verts,
-            .. Geometry::new()
+            .. Geometry::empty()
+        }
+    }
+
+    pub fn new_box(sx: f32, sy: f32, sz: f32) -> Geometry {
+        let cube = genmesh::generators::Cube::new();
+        Geometry {
+            vertices: cube.shared_vertex_iter()
+                          .map(|(x, y, z)| Position::new(x * sx, y * sy, z * sz))
+                          .collect(),
+            normals: Vec::new(),
+            faces: cube.indexed_polygon_iter()
+                       .triangulate()
+                       .map(|t| [t.x as u16, t.y as u16, t.z as u16])
+                       .collect(),
+            is_dynamic: false,
         }
     }
 }
@@ -191,9 +230,17 @@ type VisualPtr = froggy::Pointer<Visual>;
 
 pub type Color = u32;
 
+fn color_to_f32(c: Color) -> [f32; 4] {
+    [((c>>16)&0xFF) as f32 / 255.0,
+     ((c>>8) &0xFF) as f32 / 255.0,
+     (c&0xFF) as f32 / 255.0,
+     1.0]
+}
+
 #[derive(Clone)]
 pub enum Material {
     LineBasic { color: Color },
+    MeshBasic { color: Color },
 }
 
 struct SceneLink<V> {
@@ -339,7 +386,7 @@ pub struct Group {
     object: Object,
 }
 
-pub struct Line {
+pub struct Mesh {
     object: VisualObject,
     _geometry: Option<Geometry>,
 }
@@ -362,7 +409,7 @@ macro_rules! deref {
 }
 
 deref!(Group = Object);
-deref!(Line = VisualObject);
+deref!(Mesh = VisualObject);
 
 
 struct Node {
@@ -458,13 +505,18 @@ impl Factory {
         }
     }
 
-    pub fn line(&mut self, geom: Geometry, mat: Material) -> Line {
+    pub fn mesh(&mut self, geom: Geometry, mat: Material) -> Mesh {
         let vertices: Vec<_> = geom.vertices.iter().map(|v| Vertex {
             pos: [v.x, v.y, v.z, 1.0],
         }).collect();
         //TODO: dynamic geometry
-        let (vbuf, slice) = self.graphics.create_vertex_buffer_with_slice(&vertices, ());
-        Line {
+        let (vbuf, slice) = if geom.faces.is_empty() {
+            self.graphics.create_vertex_buffer_with_slice(&vertices, ())
+        } else {
+            let faces: &[u16] = gfx::memory::cast_slice(&geom.faces);
+            self.graphics.create_vertex_buffer_with_slice(&vertices, faces)
+        };
+        Mesh {
             object: VisualObject::new(mat, GpuData {
                 slice: slice,
                 vertices: vbuf,
@@ -472,8 +524,6 @@ impl Factory {
             _geometry: if geom.is_dynamic { Some(geom) } else { None },
         }
     }
-
-    // pub fn update(&self, ) //TODO: update dynamic geometry
 }
 
 
@@ -489,23 +539,19 @@ impl Renderer {
 
         let mx_vp = cam.to_view_proj();
         for visual in &scene.visuals {
-            let color = match visual.material {
-                Material::LineBasic { color } => {
-                    [((color>>16)&0xFF) as f32 / 255.0,
-                     ((color>>8) &0xFF) as f32 / 255.0,
-                     (color&0xFF) as f32 / 255.0,
-                     1.0]
-                },
+            let (pso, color) = match visual.material {
+                Material::LineBasic { color } => (&self.pso_line_basic, color),
+                Material::MeshBasic { color } => (&self.pso_mesh_basic, color),
             };
             let mx_world = cgmath::Matrix4::from(scene.nodes[&visual.node].world);
             let data = pipe::Data {
                 vbuf: visual.gpu_data.vertices.clone(),
                 mx_vp: mx_vp.into(),
                 mx_world: mx_world.into(),
-                color: color,
+                color: color_to_f32(color),
                 out_color: self.out_color.clone(),
             };
-            self.encoder.draw(&visual.gpu_data.slice, &self.pso_line, &data);
+            self.encoder.draw(&visual.gpu_data.slice, pso, &data);
         }
 
         self.encoder.flush(&mut self.device);

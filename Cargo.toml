@@ -12,6 +12,7 @@ default = ["opengl"]
 [dependencies]
 cgmath = "0.14"
 froggy = "0.3"
+genmesh = "0.4"
 gfx = "0.15"
 winit = "0.6"
 # OpenGL
