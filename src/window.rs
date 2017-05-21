@@ -1,7 +1,11 @@
 use std::collections::HashSet;
 use std::time;
 use glutin;
-use {Key, Renderer, Factory, PerspectiveCamera, Scene};
+
+use {Key, Scene};
+use render::Renderer;
+use factory::Factory;
+use scene::Camera;
 
 
 struct Input {
@@ -14,17 +18,17 @@ pub struct Events {
     pub keys: HashSet<Key>,
 }
 
-pub struct Window {
+pub struct Window<C> {
     event_loop: glutin::EventsLoop,
     input: Input,
     pub renderer: Renderer,
     pub factory: Factory,
     pub scene: Scene,
-    pub camera: PerspectiveCamera,
+    pub camera: C,
 }
 
-impl Window {
-    pub fn new(title: &str, cam: PerspectiveCamera) -> Window {
+impl<C: Camera> Window<C> {
+    pub fn new(title: &str, camera: C) -> Self {
         let builder = glutin::WindowBuilder::new()
                              .with_title(title)
                              .with_vsync();
@@ -40,7 +44,7 @@ impl Window {
             renderer: renderer,
             factory: factory,
             scene: scene,
-            camera: cam,
+            camera: camera,
         }
     }
 
@@ -86,7 +90,7 @@ impl Window {
 
     pub fn render(&mut self) {
         self.scene.update();
-        self.camera.projection.aspect = self.renderer.get_aspect();
+        self.camera.set_aspect(self.renderer.get_aspect());
         self.renderer.render(&self.scene, &self.camera);
     }
 }

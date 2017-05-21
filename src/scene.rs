@@ -12,7 +12,9 @@ use factory::{Geometry, SceneId};
 
 
 pub trait Camera {
+    //TODO: combine into a single method?
     fn to_view_proj(&self) -> cgmath::Matrix4<f32>;
+    fn set_aspect(&mut self, f32);
 }
 
 pub struct PerspectiveCamera {
@@ -57,6 +59,10 @@ impl Camera for PerspectiveCamera {
 
         let mx_view = cgmath::Matrix4::from(transform.inverse_transform().unwrap());
         mx_proj * mx_view
+    }
+
+    fn set_aspect(&mut self, aspect: f32) {
+        self.projection.aspect = aspect;
     }
 }
 
