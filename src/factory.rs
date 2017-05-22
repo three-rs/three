@@ -7,26 +7,49 @@ use froggy;
 use genmesh::Triangulate;
 use genmesh::generators::{self, IndexedPolygon, SharedVertex};
 use gfx;
+use gfx::handle as h;
 use gfx::traits::{Factory as Factory_, FactoryExt};
 use image;
 
 use render::{BackendFactory, BackendResources, GpuData, Vertex};
-use scene::{Group, Mesh, Material};
+use scene::{Group, Mesh, Sprite, Material};
 use {Normal, Position, Scene, VisualObject};
 
+
+const QUAD: [Vertex; 4] = [
+    Vertex {
+        pos: [-1.0, -1.0, 0.0, 1.0],
+    },
+    Vertex {
+        pos: [1.0, -1.0, 0.0, 1.0],
+    },
+    Vertex {
+        pos: [-1.0, 1.0, 0.0, 1.0],
+    },
+    Vertex {
+        pos: [1.0, 1.0, 0.0, 1.0],
+    },
+];
 
 pub type SceneId = usize;
 
 pub struct Factory {
     backend: BackendFactory,
     scene_id: SceneId,
+    quad: GpuData,
 }
 
 impl Factory {
-    pub fn new(backend: BackendFactory) -> Self {
+    #[doc(hidden)]
+    pub fn new(mut backend: BackendFactory) -> Self {
+        let (vbuf, slice) = backend.create_vertex_buffer_with_slice(&QUAD, ());
         Factory {
             backend: backend,
             scene_id: 0,
+            quad: GpuData {
+                slice: slice,
+                vertices: vbuf,
+            }
         }
     }
 
@@ -61,6 +84,10 @@ impl Factory {
             slice: slice,
             vertices: vbuf,
         }))
+    }
+
+    pub fn sprite(&mut self, mat: Material) -> Sprite {
+        Sprite::new(VisualObject::new(mat, self.quad.clone()))
     }
 }
 
@@ -107,8 +134,26 @@ impl Geometry {
 }
 
 
+#[derive(Clone)]
 pub struct Texture {
-    view: gfx::handle::ShaderResourceView<BackendResources, [f32; 4]>
+    view: h::ShaderResourceView<BackendResources, [f32; 4]>,
+    sampler: h::Sampler<BackendResources>,
+}
+
+impl Texture {
+    #[doc(hidden)]
+    pub fn new(view: h::ShaderResourceView<BackendResources, [f32; 4]>,
+               sampler: h::Sampler<BackendResources>) -> Self {
+        Texture {
+            view: view,
+            sampler: sampler,
+        }
+    }
+
+    #[doc(hidden)]
+    pub fn to_param(&self) -> (h::ShaderResourceView<BackendResources, [f32; 4]>, h::Sampler<BackendResources>) {
+        (self.view.clone(), self.sampler.clone())
+    }
 }
 
 impl Factory {
@@ -139,14 +184,15 @@ impl Factory {
                         .unwrap_or_else(|e| panic!("Unable to open {}: {:?}", path_str, e));
         let img = image::load(BufReader::new(file), format)
                         .unwrap_or_else(|e| panic!("Unable to decode {}: {:?}", path_str, e))
-                        .to_rgba();
+                        .flipv().to_rgba();
         let (width, height) = img.dimensions();
         let kind = t::Kind::D2(width as t::Size, height as t::Size, t::AaMode::Single);
         let (_, view) = self.backend.create_texture_immutable_u8::<gfx::format::Rgba8>(kind, &[&img])
                                     .unwrap_or_else(|e| panic!("Unable to create GPU texture for {}: {:?}", path_str, e));
 
         Texture {
-            view:view
+            view: view,
+            sampler: self.backend.create_sampler_linear(),
         }
     }
 }

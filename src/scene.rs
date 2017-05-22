@@ -8,7 +8,7 @@ use froggy::{Pointer};
 
 use {Position, Orientation, Object, VisualObject, Message,
      Node, Visual, Scene, Transform};
-use factory::{Geometry, SceneId};
+use factory::{Geometry, SceneId, Texture};
 
 
 macro_rules! deref {
@@ -127,7 +127,7 @@ impl Camera for OrthographicCamera {
 }
 
 deref!(PerspectiveCamera : projection = cgmath::PerspectiveFov<f32>);
-deref!(OrthographicCamera :projection = cgmath::Ortho<f32>);
+deref!(OrthographicCamera : projection = cgmath::Ortho<f32>);
 
 
 pub type Color = u32;
@@ -136,6 +136,7 @@ pub type Color = u32;
 pub enum Material {
     LineBasic { color: Color },
     MeshBasic { color: Color },
+    Sprite { map: Texture },
 }
 
 pub struct SceneLink<V> {
@@ -252,6 +253,7 @@ pub struct Group {
 }
 
 impl Group {
+    #[doc(hidden)]
     pub fn new() -> Self {
         Group {
             object: Object::new(),
@@ -265,6 +267,7 @@ pub struct Mesh {
 }
 
 impl Mesh {
+    #[doc(hidden)]
     pub fn new(object: VisualObject) -> Self {
         Mesh {
             object: object,
@@ -273,8 +276,22 @@ impl Mesh {
     }
 }
 
+pub struct Sprite {
+    object: VisualObject,
+}
+
+impl Sprite {
+    #[doc(hidden)]
+    pub fn new(object: VisualObject) -> Self {
+        Sprite {
+            object: object,
+        }
+    }
+}
+
 deref!(Group : object = Object);
 deref!(Mesh : object = VisualObject);
+deref!(Sprite : object = VisualObject);
 
 
 impl Scene {

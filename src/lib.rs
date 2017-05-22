@@ -22,7 +22,7 @@ mod window;
 pub use factory::{Factory, Geometry, Texture};
 pub use render::{ColorFormat, DepthFormat, Renderer};
 pub use scene::{Camera, OrthographicCamera, PerspectiveCamera,
-                Color, Material, Group, Mesh};
+                Color, Material, Group, Mesh, Sprite};
 #[cfg(feature = "opengl")]
 pub use window::{Events, Window};
 #[cfg(feature = "opengl")]
