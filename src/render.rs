@@ -20,6 +20,8 @@ pub type DepthFormat = gfx::format::DepthStencil;
 
 gfx_vertex_struct!(Vertex {
     pos: [f32; 4] = "a_Position",
+    uv: [f32; 2] = "a_TexCoord",
+    normal: [gfx::format::I8Norm; 4] = "a_Normal",
 });
 
 gfx_pipeline!(pipe {
@@ -52,6 +54,8 @@ const LINE_FS: &'static [u8] = b"
 const MESH_VS: &'static [u8] = b"
     #version 150 core
     in vec4 a_Position;
+    in vec2 a_TexCoord;
+    out vec2 v_TexCoord;
     uniform mat4 u_ViewProj;
     uniform mat4 u_World;
     void main() {
@@ -60,6 +64,7 @@ const MESH_VS: &'static [u8] = b"
 ";
 const MESH_FS: &'static [u8] = b"
     #version 150 core
+    in vec2 v_TexCoord; //TODO
     uniform vec4 u_Color;
     void main() {
         gl_FragColor = u_Color;
@@ -69,11 +74,12 @@ const MESH_FS: &'static [u8] = b"
 const SPRITE_VS: &'static [u8] = b"
     #version 150 core
     in vec4 a_Position;
+    in vec2 a_TexCoord;
     out vec2 v_TexCoord;
     uniform mat4 u_ViewProj;
     uniform mat4 u_World;
     void main() {
-        v_TexCoord = a_Position.xy*0.5 + 0.5;
+        v_TexCoord = a_TexCoord;
         gl_Position = u_ViewProj * u_World * a_Position;
     }
 ";

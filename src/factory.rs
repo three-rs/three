@@ -7,6 +7,7 @@ use froggy;
 use genmesh::Triangulate;
 use genmesh::generators::{self, IndexedPolygon, SharedVertex};
 use gfx;
+use gfx::format::I8Norm;
 use gfx::handle as h;
 use gfx::traits::{Factory as Factory_, FactoryExt};
 use image;
@@ -16,18 +17,28 @@ use scene::{Group, Mesh, Sprite, Material};
 use {Normal, Position, Scene, VisualObject};
 
 
+const NORMAL_Z: [I8Norm; 4] = [I8Norm(0), I8Norm(0), I8Norm(1), I8Norm(0)];
+
 const QUAD: [Vertex; 4] = [
     Vertex {
         pos: [-1.0, -1.0, 0.0, 1.0],
+        uv: [0.0, 0.0],
+        normal: NORMAL_Z,
     },
     Vertex {
         pos: [1.0, -1.0, 0.0, 1.0],
+        uv: [1.0, 0.0],
+        normal: NORMAL_Z,
     },
     Vertex {
         pos: [-1.0, 1.0, 0.0, 1.0],
+        uv: [0.0, 1.0],
+        normal: NORMAL_Z,
     },
     Vertex {
         pos: [1.0, 1.0, 0.0, 1.0],
+        uv: [1.0, 1.0],
+        normal: NORMAL_Z,
     },
 ];
 
@@ -72,6 +83,8 @@ impl Factory {
     pub fn mesh(&mut self, geom: Geometry, mat: Material) -> Mesh {
         let vertices: Vec<_> = geom.vertices.iter().map(|v| Vertex {
             pos: [v.x, v.y, v.z, 1.0],
+            uv: [0.0, 0.0], //TODO
+            normal: NORMAL_Z, //TODO
         }).collect();
         //TODO: dynamic geometry
         let (vbuf, slice) = if geom.faces.is_empty() {
