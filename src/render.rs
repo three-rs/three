@@ -9,6 +9,7 @@ use gfx_window_glutin;
 use glutin;
 
 pub use self::back::Factory as BackendFactory;
+pub use self::back::Resources as BackendResources;
 use factory::Factory;
 use scene::{Camera, Color, Material};
 use {Scene};

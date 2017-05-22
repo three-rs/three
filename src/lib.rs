@@ -3,6 +3,7 @@ extern crate froggy;
 extern crate genmesh;
 #[macro_use]
 extern crate gfx;
+extern crate image;
 extern crate winit;
 // OpenGL
 #[cfg(feature = "opengl")]
@@ -18,7 +19,7 @@ mod scene;
 #[cfg(feature = "opengl")]
 mod window;
 
-pub use factory::{Factory, Geometry};
+pub use factory::{Factory, Geometry, Texture};
 pub use render::{ColorFormat, DepthFormat, Renderer};
 pub use scene::{Camera, OrthographicCamera, PerspectiveCamera,
                 Color, Material, Group, Mesh};
