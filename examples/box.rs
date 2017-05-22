@@ -14,7 +14,7 @@ fn main() {
     mesh.attach(&mut win.scene, None);
 
     let mut angle = cgmath::Rad::zero();
-    let speed = 15.0;
+    let speed = 1.5;
     while let Some(events) = win.update() {
         let old_angle = angle;
         if events.keys.contains(&three::Key::Left) {

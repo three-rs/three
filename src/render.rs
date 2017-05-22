@@ -18,21 +18,6 @@ use {Scene};
 pub type ColorFormat = gfx::format::Srgba8;
 pub type DepthFormat = gfx::format::DepthStencil;
 
-//TODO: remove
-const BLEND_REPLACE: gfx::state::Blend = gfx::state::Blend {
-    color: gfx::state::BlendChannel {
-        equation: gfx::state::Equation::Add,
-        source: gfx::state::Factor::One,
-        destination: gfx::state::Factor::Zero,
-    },
-    alpha: gfx::state::BlendChannel {
-        equation: gfx::state::Equation::Add,
-        source: gfx::state::Factor::One,
-        destination: gfx::state::Factor::Zero,
-    },
-};
-
-
 gfx_vertex_struct!(Vertex {
     pos: [f32; 4] = "a_Position",
 });
@@ -44,7 +29,7 @@ gfx_pipeline!(pipe {
     color: gfx::Global<[f32; 4]> = "u_Color",
     tex_map: gfx::TextureSampler<[f32; 4]> = "t_Map",
     out_color: gfx::BlendTarget<ColorFormat> =
-        ("Target0", gfx::state::MASK_ALL, BLEND_REPLACE),
+        ("Target0", gfx::state::MASK_ALL, gfx::preset::blend::REPLACE),
 });
 
 const LINE_VS: &'static [u8] = b"

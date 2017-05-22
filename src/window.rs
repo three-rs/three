@@ -80,7 +80,7 @@ impl<C: Camera> Window<C> {
             let dt = now - self.input.last_time;
             self.input.last_time = now;
             Some(Events {
-                time_delta: dt.as_secs() as f32 + 1e-10 * dt.subsec_nanos() as f32,
+                time_delta: dt.as_secs() as f32 + 1e-9 * dt.subsec_nanos() as f32,
                 keys: keys.clone(),
             })
         } else {
