@@ -1,6 +1,6 @@
 use cgmath;
 use gfx;
-use gfx::traits::{Device, FactoryExt};
+use gfx::traits::{Device, Factory as Factory_, FactoryExt};
 #[cfg(feature = "opengl")]
 use gfx_device_gl as back;
 #[cfg(feature = "opengl")]
@@ -10,13 +10,28 @@ use glutin;
 
 pub use self::back::Factory as BackendFactory;
 pub use self::back::Resources as BackendResources;
-use factory::Factory;
+use factory::{Factory, Texture};
 use scene::{Camera, Color, Material};
 use {Scene};
 
 
 pub type ColorFormat = gfx::format::Srgba8;
 pub type DepthFormat = gfx::format::DepthStencil;
+
+//TODO: remove
+const BLEND_REPLACE: gfx::state::Blend = gfx::state::Blend {
+    color: gfx::state::BlendChannel {
+        equation: gfx::state::Equation::Add,
+        source: gfx::state::Factor::One,
+        destination: gfx::state::Factor::Zero,
+    },
+    alpha: gfx::state::BlendChannel {
+        equation: gfx::state::Equation::Add,
+        source: gfx::state::Factor::One,
+        destination: gfx::state::Factor::Zero,
+    },
+};
+
 
 gfx_vertex_struct!(Vertex {
     pos: [f32; 4] = "a_Position",
@@ -27,7 +42,9 @@ gfx_pipeline!(pipe {
     mx_vp: gfx::Global<[[f32; 4]; 4]> = "u_ViewProj",
     mx_world: gfx::Global<[[f32; 4]; 4]> = "u_World",
     color: gfx::Global<[f32; 4]> = "u_Color",
-    out_color: gfx::RenderTarget<ColorFormat> = "Target0",
+    tex_map: gfx::TextureSampler<[f32; 4]> = "t_Map",
+    out_color: gfx::BlendTarget<ColorFormat> =
+        ("Target0", gfx::state::MASK_ALL, BLEND_REPLACE),
 });
 
 const LINE_VS: &'static [u8] = b"
@@ -64,6 +81,27 @@ const MESH_FS: &'static [u8] = b"
     }
 ";
 
+const SPRITE_VS: &'static [u8] = b"
+    #version 150 core
+    in vec4 a_Position;
+    out vec2 v_TexCoord;
+    uniform mat4 u_ViewProj;
+    uniform mat4 u_World;
+    void main() {
+        v_TexCoord = a_Position.xy*0.5 + 0.5;
+        gl_Position = u_ViewProj * u_World * a_Position;
+    }
+";
+const SPRITE_FS: &'static [u8] = b"
+    #version 150 core
+    in vec2 v_TexCoord;
+    uniform sampler2D t_Map;
+    void main() {
+        gl_FragColor = texture(t_Map, v_TexCoord);
+    }
+";
+
+
 fn color_to_f32(c: Color) -> [f32; 4] {
     [((c>>16)&0xFF) as f32 / 255.0,
      ((c>>8) &0xFF) as f32 / 255.0,
@@ -86,6 +124,8 @@ pub struct Renderer {
     out_depth: gfx::handle::DepthStencilView<back::Resources, DepthFormat>,
     pso_line_basic: gfx::PipelineState<back::Resources, pipe::Meta>,
     pso_mesh_basic: gfx::PipelineState<back::Resources, pipe::Meta>,
+    pso_sprite: gfx::PipelineState<back::Resources, pipe::Meta>,
+    map_default: Texture,
     size: (u32, u32),
     #[cfg(feature = "opengl")]
     window: glutin::Window,
@@ -99,18 +139,29 @@ impl Renderer {
             gfx_window_glutin::init(builder, event_loop);
         let prog_line = gl_factory.link_program(LINE_VS, LINE_FS).unwrap();
         let prog_mesh = gl_factory.link_program(MESH_VS, MESH_FS).unwrap();
+        let prog_sprite = gl_factory.link_program(SPRITE_VS, SPRITE_FS).unwrap();
         let rast_fill = gfx::state::Rasterizer::new_fill();
+        let (_, srv_white) = gl_factory.create_texture_immutable::<gfx::format::Rgba8>(
+            gfx::texture::Kind::D2(1, 1, gfx::texture::AaMode::Single), &[&[[0xFF; 4]]]
+            ).unwrap();
+        let sampler = gl_factory.create_sampler_linear();
         let renderer = Renderer {
             device: device,
             encoder: gl_factory.create_command_buffer().into(),
             out_color: color,
             out_depth: depth,
             pso_line_basic: gl_factory.create_pipeline_from_program(&prog_line,
-                    gfx::Primitive::LineStrip, rast_fill, pipe::new()
+                gfx::Primitive::LineStrip, rast_fill, pipe::new()
                 ).unwrap(),
             pso_mesh_basic: gl_factory.create_pipeline_from_program(&prog_mesh,
-                    gfx::Primitive::TriangleList, rast_fill, pipe::new()
+                gfx::Primitive::TriangleList, rast_fill, pipe::new()
                 ).unwrap(),
+            pso_sprite: gl_factory.create_pipeline_from_program(&prog_sprite,
+                gfx::Primitive::TriangleStrip, rast_fill, pipe::Init {
+                    out_color: ("Target0", gfx::state::MASK_ALL, gfx::preset::blend::ALPHA),
+                    .. pipe::new()
+                }).unwrap(),
+            map_default: Texture::new(srv_white, sampler),
             size: window.get_inner_size_pixels().unwrap(),
             window: window,
         };
@@ -134,9 +185,10 @@ impl Renderer {
 
         let mx_vp = cam.to_view_proj();
         for visual in &scene.visuals {
-            let (pso, color) = match visual.material {
-                Material::LineBasic { color } => (&self.pso_line_basic, color),
-                Material::MeshBasic { color } => (&self.pso_mesh_basic, color),
+            let (pso, color, map) = match visual.material {
+                Material::LineBasic { color } => (&self.pso_line_basic, color, None),
+                Material::MeshBasic { color } => (&self.pso_mesh_basic, color, None),
+                Material::Sprite { ref map } => (&self.pso_sprite, !0, Some(map)),
             };
             let mx_world = cgmath::Matrix4::from(scene.nodes[&visual.node].world);
             let data = pipe::Data {
@@ -144,6 +196,7 @@ impl Renderer {
                 mx_vp: mx_vp.into(),
                 mx_world: mx_world.into(),
                 color: color_to_f32(color),
+                tex_map: map.unwrap_or(&self.map_default).to_param(),
                 out_color: self.out_color.clone(),
             };
             self.encoder.draw(&visual.gpu_data.slice, pso, &data);
