@@ -130,14 +130,38 @@ impl Geometry {
         }
     }
 
-    pub fn new_box(sx: f32, sy: f32, sz: f32) -> Geometry {
-        let cube = generators::Cube::new();
+    pub fn new_box(sx: f32, sy: f32, sz: f32) -> Self {
+        let gen = generators::Cube::new();
+        let function = |(x, y, z)| {
+            Position::new(x * sx, y * sy, z * sz)
+        };
         Geometry {
-            vertices: cube.shared_vertex_iter()
-                          .map(|(x, y, z)| Position::new(x * sx, y * sy, z * sz))
+            vertices: gen.shared_vertex_iter()
+                          .map(function)
                           .collect(),
             normals: Vec::new(),
-            faces: cube.indexed_polygon_iter()
+            faces: gen.indexed_polygon_iter()
+                       .triangulate()
+                       .map(|t| [t.x as u16, t.y as u16, t.z as u16])
+                       .collect(),
+            is_dynamic: false,
+        }
+    }
+
+    pub fn new_cylinder(radius_top: f32, radius_bottom: f32, height: f32,
+                        radius_segments: usize) -> Self
+    {
+        let gen = generators::Cylinder::new(radius_segments);
+        let function = |(x, y, z)| {
+            let scale = z * radius_top + (1.0 - z) * radius_bottom;
+            Position::new(x * scale, y * scale, z * height)
+        };
+        Geometry {
+            vertices: gen.shared_vertex_iter()
+                          .map(function)
+                          .collect(),
+            normals: Vec::new(),
+            faces: gen.indexed_polygon_iter()
                        .triangulate()
                        .map(|t| [t.x as u16, t.y as u16, t.z as u16])
                        .collect(),

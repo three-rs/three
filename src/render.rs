@@ -131,7 +131,7 @@ impl Renderer {
         let prog_line = gl_factory.link_program(LINE_VS, LINE_FS).unwrap();
         let prog_mesh = gl_factory.link_program(MESH_VS, MESH_FS).unwrap();
         let prog_sprite = gl_factory.link_program(SPRITE_VS, SPRITE_FS).unwrap();
-        let rast_fill = gfx::state::Rasterizer::new_fill();
+        let rast_fill = gfx::state::Rasterizer::new_fill().with_cull_back();
         let (_, srv_white) = gl_factory.create_texture_immutable::<gfx::format::Rgba8>(
             gfx::texture::Kind::D2(1, 1, gfx::texture::AaMode::Single), &[&[[0xFF; 4]]]
             ).unwrap();

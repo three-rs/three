@@ -12,7 +12,7 @@ default = ["opengl"]
 [dependencies]
 cgmath = "0.14"
 froggy = "0.3"
-genmesh = "0.4"
+genmesh = "0.4.2"
 gfx = "0.15"
 image = "0.13"
 winit = "0.6"
@@ -20,3 +20,6 @@ winit = "0.6"
 gfx_device_gl = { version = "0.14", optional = true }
 gfx_window_glutin = { version = "0.16", optional = true }
 glutin = { version = "0.8", optional = true }
+
+[dev-dependencies]
+rand = "0.3"
