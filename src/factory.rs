@@ -133,7 +133,7 @@ impl Geometry {
     pub fn new_box(sx: f32, sy: f32, sz: f32) -> Self {
         let gen = generators::Cube::new();
         let function = |(x, y, z)| {
-            Position::new(x * sx, y * sy, z * sz)
+            Position::new(x * 0.5 * sx, y * 0.5 * sy, z * 0.5 * sz)
         };
         Geometry {
             vertices: gen.shared_vertex_iter()
@@ -153,8 +153,10 @@ impl Geometry {
     {
         let gen = generators::Cylinder::new(radius_segments);
         let function = |(x, y, z)| {
-            let scale = z * radius_top + (1.0 - z) * radius_bottom;
-            Position::new(x * scale, y * scale, z * height)
+            let scale = (z + 1.0) * 0.5 * radius_top +
+                        (1.0 - z) * 0.5 * radius_bottom;
+            //three,js has height along the Y axis for some reason
+            Position::new(y * scale, z * 0.5 * height, x * scale)
         };
         Geometry {
             vertices: gen.shared_vertex_iter()
