@@ -79,11 +79,6 @@ impl Object {
             tx: &self.tx,
         }
     }
-
-    pub fn attach<P: AsRef<Pointer<Node>>>(&mut self, parent: &P) {
-        let msg = Operation::SetParent(parent.as_ref().clone());
-        let _ = self.tx.send((self.node.downgrade(), msg));
-    }
 }
 
 impl VisualObject {
@@ -112,6 +107,11 @@ impl Group {
             object,
         }
     }
+
+    pub fn add<P: AsRef<Pointer<Node>>>(&mut self, child: &P) {
+        let msg = Operation::SetParent(self.object.node.clone());
+        let _ = self.object.tx.send((child.as_ref().downgrade(), msg));
+    }
 }
 
 impl AsRef<Pointer<Node>> for Group {
@@ -135,6 +135,12 @@ impl Mesh {
     }
 }
 
+impl AsRef<Pointer<Node>> for Mesh {
+    fn as_ref(&self) -> &Pointer<Node> {
+        &self.object.node
+    }
+}
+
 pub struct Sprite {
     object: VisualObject,
 }
@@ -148,6 +154,12 @@ impl Sprite {
     }
 }
 
+impl AsRef<Pointer<Node>> for Sprite {
+    fn as_ref(&self) -> &Pointer<Node> {
+        &self.object.node
+    }
+}
+
 deref!(VisualObject : inner = Object);
 deref!(Group : object = Object);
 deref!(Mesh : object = VisualObject);
@@ -155,49 +167,8 @@ deref!(Sprite : object = VisualObject);
 
 
 impl Scene {
-    /*fn make_node(&mut self, transform: Transform, group: Option<&Group>)
-                 -> Pointer<Node> {
-        let parent = group.map(|g| {
-            g.scenes.iter().find(|link| link.id == self.unique_id)
-             .expect("Parent group is not in the scene")
-             .node.clone()
-        });
-        self.nodes.create(Node {
-            local: transform,
-            world: Transform::one(),
-            parent: parent,
-        })
+    pub fn add<P: AsRef<Pointer<Node>>>(&mut self, child: &P) {
+        let msg = Operation::SetParent(self.node.clone());
+        let _ = self.tx.send((child.as_ref().downgrade(), msg));
     }
-
-    pub fn process_messages(&mut self) {
-        while let Ok(message) = self.message_rx.try_recv() {
-            match message {
-                Message::SetTransform(pnode, transform) => {
-                    if let Ok(ref ptr) = pnode.upgrade() {
-                        self.nodes[ptr].local = transform;
-                    }
-                }
-                Message::SetMaterial(pvisual, material) => {
-                    if let Ok(ref ptr) = pvisual.upgrade() {
-                        self.visuals[ptr].material = material;
-                    }
-                }
-            }
-        }
-    }
-
-    pub fn compute_transforms(&mut self) {
-        let mut cursor = self.nodes.cursor();
-        while let Some(mut item) = cursor.next() {
-            item.world = match item.parent {
-                Some(ref parent) => item.look_back(parent).unwrap().world.concat(&item.local),
-                None => item.local,
-            };
-        }
-    }
-
-    pub fn update(&mut self) {
-        self.process_messages();
-        self.compute_transforms();
-    }*/
 }

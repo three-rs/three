@@ -184,6 +184,7 @@ impl Renderer {
 
         let mx_vp = cam.to_view_proj();
         let mut hub = scene.hub.lock().unwrap();
+        hub.process_messages();
         for (visual, transform) in hub.visualize(scene.unique_id) {
             //TODO: batch per PSO
             let (pso, color, map) = match visual.material {
