@@ -1,13 +1,11 @@
 use std::ops;
 use std::sync::mpsc;
 
-use cgmath::{Transform as Transform_};
+use froggy::Pointer;
 
-use froggy::{Pointer};
-
-use {Object, VisualObject, Message,
-     Node, Visual, Scene, Transform};
-use factory::{Geometry, SceneId, Texture};
+use {Object, VisualObject, Message, Operation,
+     Node, Scene, Transform};
+use factory::{Geometry, Texture};
 
 
 macro_rules! deref {
@@ -36,18 +34,12 @@ pub enum Material {
     Sprite { map: Texture },
 }
 
-pub struct SceneLink<V> {
-    id: SceneId,
-    node: Pointer<Node>,
-    visual: V,
-    tx: mpsc::Sender<Message>,
-}
-
 macro_rules! def_proxy {
-    ($name:ident<$visual:ty, $target:ty> = $message:ident($key:ident)) => {
+    ($name:ident<$target:ty> = $message:ident($key:ident)) => {
         pub struct $name<'a> {
             value: &'a mut $target,
-            links: &'a [SceneLink<$visual>],
+            node: &'a Pointer<Node>,
+            tx: &'a mpsc::Sender<Message>,
         }
 
         impl<'a> ops::Deref for $name<'a> {
@@ -65,18 +57,15 @@ macro_rules! def_proxy {
 
         impl<'a> Drop for $name<'a> {
             fn drop(&mut self) {
-                for link in self.links {
-                    let msg = Message::$message(link.$key.downgrade(), self.value.clone());
-                    let _ = link.tx.send(msg);
-                }
+                let msg = Operation::$message(self.value.clone());
+                let _ = self.tx.send((self.node.downgrade(), msg));
             }
         }
     }
 }
 
-def_proxy!(TransformProxy<(), Transform> = SetTransform(node));
-def_proxy!(TransformProxyVisual<Pointer<Visual>, Transform> = SetTransform(node));
-def_proxy!(MaterialProxy<Pointer<Visual>, Material> = SetMaterial(visual));
+def_proxy!(TransformProxy<Transform> = SetTransform(node));
+def_proxy!(MaterialProxy<Material> = SetMaterial(visual));
 
 impl Object {
     pub fn transform(&self) -> &Transform {
@@ -86,61 +75,28 @@ impl Object {
     pub fn transform_mut(&mut self) -> TransformProxy {
         TransformProxy {
             value: &mut self.transform,
-            links: &self.scenes,
+            node: &self.node,
+            tx: &self.tx,
         }
     }
 
-    pub fn attach(&mut self, scene: &mut Scene, group: Option<&Group>) {
-        assert!(!self.scenes.iter().any(|link| link.id == scene.unique_id),
-            "Object is already in the scene");
-        let node_ptr = scene.make_node(self.transform.clone(), group);
-        self.scenes.push(SceneLink {
-            id: scene.unique_id,
-            node: node_ptr,
-            visual: (),
-            tx: scene.message_tx.clone(),
-        });
+    pub fn attach<P: AsRef<Pointer<Node>>>(&mut self, parent: &P) {
+        let msg = Operation::SetParent(parent.as_ref().clone());
+        let _ = self.tx.send((self.node.downgrade(), msg));
     }
 }
 
 impl VisualObject {
-    pub fn transform(&self) -> &Transform {
-        &self.transform
-    }
-
-    pub fn transform_mut(&mut self) -> TransformProxyVisual {
-        TransformProxyVisual {
-            value: &mut self.transform,
-            links: &self.scenes,
-        }
-    }
-
     pub fn material(&self) -> &Material {
-        &self.material
+        &self.visual.material
     }
 
     pub fn material_mut(&mut self) -> MaterialProxy {
         MaterialProxy {
-            value: &mut self.material,
-            links: &self.scenes,
+            value: &mut self.visual.material,
+            node: &self.inner.node,
+            tx: &self.inner.tx,
         }
-    }
-
-    pub fn attach(&mut self, scene: &mut Scene, group: Option<&Group>) {
-        assert!(!self.scenes.iter().any(|link| link.id == scene.unique_id),
-            "VisualObject is already in the scene");
-        let node_ptr = scene.make_node(self.transform.clone(), group);
-        let visual_ptr = scene.visuals.create(Visual {
-            material: self.material.clone(),
-            gpu_data: self.gpu_data.clone(),
-            node: node_ptr.clone(),
-        });
-        self.scenes.push(SceneLink {
-            id: scene.unique_id,
-            node: node_ptr,
-            visual: visual_ptr,
-            tx: scene.message_tx.clone(),
-        });
     }
 }
 
@@ -151,10 +107,16 @@ pub struct Group {
 
 impl Group {
     #[doc(hidden)]
-    pub fn new() -> Self {
+    pub fn new(object: Object) -> Self {
         Group {
-            object: Object::new(),
+            object,
         }
+    }
+}
+
+impl AsRef<Pointer<Node>> for Group {
+    fn as_ref(&self) -> &Pointer<Node> {
+        &self.object.node
     }
 }
 
@@ -167,7 +129,7 @@ impl Mesh {
     #[doc(hidden)]
     pub fn new(object: VisualObject) -> Self {
         Mesh {
-            object: object,
+            object,
             _geometry: None,
         }
     }
@@ -181,18 +143,19 @@ impl Sprite {
     #[doc(hidden)]
     pub fn new(object: VisualObject) -> Self {
         Sprite {
-            object: object,
+            object,
         }
     }
 }
 
+deref!(VisualObject : inner = Object);
 deref!(Group : object = Object);
 deref!(Mesh : object = VisualObject);
 deref!(Sprite : object = VisualObject);
 
 
 impl Scene {
-    fn make_node(&mut self, transform: Transform, group: Option<&Group>)
+    /*fn make_node(&mut self, transform: Transform, group: Option<&Group>)
                  -> Pointer<Node> {
         let parent = group.map(|g| {
             g.scenes.iter().find(|link| link.id == self.unique_id)
@@ -236,5 +199,5 @@ impl Scene {
     pub fn update(&mut self) {
         self.process_messages();
         self.compute_transforms();
-    }
+    }*/
 }
