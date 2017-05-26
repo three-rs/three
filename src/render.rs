@@ -183,13 +183,15 @@ impl Renderer {
         self.encoder.clear_depth(&self.out_depth, 1.0);
 
         let mx_vp = cam.to_view_proj();
-        for visual in &scene.visuals {
+        let mut hub = scene.hub.lock().unwrap();
+        for (visual, transform) in hub.visualize(scene.unique_id) {
+            //TODO: batch per PSO
             let (pso, color, map) = match visual.material {
                 Material::LineBasic { color } => (&self.pso_line_basic, color, None),
                 Material::MeshBasic { color } => (&self.pso_mesh_basic, color, None),
                 Material::Sprite { ref map } => (&self.pso_sprite, !0, Some(map)),
             };
-            let mx_world = cgmath::Matrix4::from(scene.nodes[&visual.node].world);
+            let mx_world = cgmath::Matrix4::from(transform);
             let data = pipe::Data {
                 vbuf: visual.gpu_data.vertices.clone(),
                 mx_vp: mx_vp.into(),

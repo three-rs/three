@@ -96,7 +96,6 @@ impl<C: Camera> Window<C> {
     }
 
     pub fn render(&mut self) {
-        self.scene.update();
         self.camera.set_aspect(self.renderer.get_aspect());
         self.renderer.render(&self.scene, &self.camera);
     }

@@ -1,9 +1,7 @@
 use std::io::BufReader;
 use std::fs::File;
 use std::path::Path;
-use std::sync::mpsc;
 
-use froggy;
 use genmesh::Triangulate;
 use genmesh::generators::{self, IndexedPolygon, SharedVertex};
 use gfx;
@@ -14,7 +12,7 @@ use image;
 
 use render::{BackendFactory, BackendResources, GpuData, Vertex};
 use scene::{Group, Mesh, Sprite, Material};
-use {Normal, Position, Scene, VisualObject};
+use {Hub, HubPtr, Node, Normal, Position, Scene, Visual, VisualObject};
 
 
 const NORMAL_Z: [I8Norm; 4] = [I8Norm(0), I8Norm(0), I8Norm(1), I8Norm(0)];
@@ -47,37 +45,41 @@ pub type SceneId = usize;
 pub struct Factory {
     backend: BackendFactory,
     scene_id: SceneId,
+    hub: HubPtr,
     quad: GpuData,
 }
 
 impl Factory {
     #[doc(hidden)]
     pub fn new(mut backend: BackendFactory) -> Self {
+        let hub = Hub::new();
         let (vbuf, slice) = backend.create_vertex_buffer_with_slice(&QUAD, ());
         Factory {
             backend: backend,
             scene_id: 0,
+            hub: hub.into_ptr(),
             quad: GpuData {
                 slice: slice,
                 vertices: vbuf,
-            }
+            },
         }
     }
 
     pub fn scene(&mut self) -> Scene {
         self.scene_id += 1;
-        let (tx, rx) = mpsc::channel();
+        let node = self.hub.lock().unwrap().nodes.create(Node {
+            scene: Some(self.scene_id),
+            .. Node::new()
+        });
         Scene {
-            nodes: froggy::Storage::new(),
-            visuals: froggy::Storage::new(),
             unique_id: self.scene_id,
-            message_tx: tx,
-            message_rx: rx,
+            node: node,
+            hub: self.hub.clone(),
         }
     }
 
     pub fn group(&mut self) -> Group {
-        Group::new()
+        Group::new(self.hub.lock().unwrap().spawn())
     }
 
     pub fn mesh(&mut self, geom: Geometry, mat: Material) -> Mesh {
@@ -93,14 +95,26 @@ impl Factory {
             let faces: &[u16] = gfx::memory::cast_slice(&geom.faces);
             self.backend.create_vertex_buffer_with_slice(&vertices, faces)
         };
-        Mesh::new(VisualObject::new(mat, GpuData {
-            slice: slice,
-            vertices: vbuf,
-        }))
+        Mesh::new(VisualObject {
+            inner: self.hub.lock().unwrap().spawn(),
+            visual: Visual {
+                material: mat,
+                gpu_data: GpuData {
+                    slice: slice,
+                    vertices: vbuf,
+                },
+            }
+        })
     }
 
     pub fn sprite(&mut self, mat: Material) -> Sprite {
-        Sprite::new(VisualObject::new(mat, self.quad.clone()))
+        Sprite::new(VisualObject {
+            inner: self.hub.lock().unwrap().spawn(),
+            visual: Visual {
+                material: mat,
+                gpu_data: self.quad.clone(),
+            },
+        })
     }
 }
 

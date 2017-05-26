@@ -1,7 +1,7 @@
 use std::ops;
 
 use cgmath::prelude::*;
-use cgmath::{self, Transform as Transform_};
+use cgmath;
 
 use {Position, Orientation};
 

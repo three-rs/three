@@ -29,11 +29,10 @@ pub use window::{Events, Window};
 #[cfg(feature = "opengl")]
 pub use glutin::VirtualKeyCode as Key;
 
-use std::sync::mpsc;
+use std::sync::{mpsc, Arc, Mutex};
 
 use factory::SceneId;
 use render::GpuData;
-use scene::SceneLink;
 
 
 pub type Position = cgmath::Point3<f32>;
@@ -41,62 +40,110 @@ pub type Normal = cgmath::Vector3<f32>;
 pub type Orientation = cgmath::Quaternion<f32>;
 pub type Transform = cgmath::Decomposed<Normal, Orientation>;
 
-struct Node {
-    local: Transform,
-    world: Transform,
-    parent: Option<froggy::Pointer<Node>>,
-}
 
 struct Visual {
     material: Material,
     gpu_data: GpuData,
-    node: froggy::Pointer<Node>,
+}
+
+/// Fat node of the scene graph.
+pub struct Node {
+    visible: bool,
+    local: Transform,
+    world: Transform,
+    parent: Option<froggy::Pointer<Node>>,
+    scene: Option<SceneId>,
+    visual: Option<Visual>,
+}
+
+impl Node {
+    fn new() -> Self {
+        Node {
+            visible: true,
+            local: cgmath::Transform::one(),
+            world: cgmath::Transform::one(),
+            parent: None,
+            scene: None,
+            visual: None,
+        }
+    }
 }
 
 pub struct Object {
+    visible: bool,
     transform: Transform,
-    scenes: Vec<SceneLink<()>>,
-}
-
-impl Object {
-    fn new() -> Self {
-        Object {
-            transform: cgmath::Transform::one(),
-            scenes: Vec::with_capacity(1),
-        }
-    }
+    node: froggy::Pointer<Node>,
+    tx: mpsc::Sender<Message>,
 }
 
 pub struct VisualObject {
-    _visible: bool,
-    transform: Transform,
-    material: Material,
-    gpu_data: GpuData,
-    scenes: Vec<SceneLink<froggy::Pointer<Visual>>>,
+    inner: Object,
+    visual: Visual,
 }
 
-impl VisualObject {
-    fn new(material: Material, gpu_data: GpuData) -> Self {
-        VisualObject {
-            _visible: true,
-            transform: cgmath::Transform::one(),
-            material: material,
-            gpu_data: gpu_data,
-            scenes: Vec::with_capacity(1),
-        }
-    }
-}
-
-enum Message {
-    SetTransform(froggy::WeakPointer<Node>, Transform),
-    SetMaterial(froggy::WeakPointer<Visual>, Material),
+type Message = (froggy::WeakPointer<Node>, Operation);
+enum Operation {
+    SetParent(froggy::Pointer<Node>),
+    SetTransform(Transform),
+    SetMaterial(Material),
     //Delete,
 }
 
-pub struct Scene {
+struct VisualIter<'a> {
+    _dummy: &'a (),
+}
+
+impl<'a> Iterator for VisualIter<'a> {
+    type Item = (&'a Visual, Transform);
+    fn next(&mut self) -> Option<Self::Item> {
+        unimplemented!()
+    }
+}
+
+type HubPtr = Arc<Mutex<Hub>>;
+struct Hub {
     nodes: froggy::Storage<Node>,
-    visuals: froggy::Storage<Visual>,
-    unique_id: SceneId,
     message_tx: mpsc::Sender<Message>,
     message_rx: mpsc::Receiver<Message>,
+}
+
+impl Hub {
+    fn new() -> Self {
+        let (tx, rx) = mpsc::channel();
+        Hub {
+            nodes: froggy::Storage::new(),
+            message_tx: tx,
+            message_rx: rx,
+        }
+    }
+
+    fn spawn(&mut self) -> Object {
+        Object {
+            visible: true,
+            transform: cgmath::Transform::one(),
+            node: self.nodes.create(Node::new()),
+            tx: self.message_tx.clone(),
+        }
+    }
+
+    fn into_ptr(self) -> HubPtr {
+        Arc::new(Mutex::new(self))
+    }
+
+    fn visualize(&mut self, _scene_id: SceneId) -> VisualIter {
+        unimplemented!()
+    }
+}
+
+
+pub struct Scene {
+    unique_id: SceneId,
+    node: froggy::Pointer<Node>,
+    hub: HubPtr,
+}
+
+impl AsRef<froggy::Pointer<Node>> for Scene {
+    fn as_ref(&self) -> &froggy::Pointer<Node> {
+        &self.node
+    }
 }
