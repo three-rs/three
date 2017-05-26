@@ -33,6 +33,8 @@ gfx_pipeline!(pipe {
     tex_map: gfx::TextureSampler<[f32; 4]> = "t_Map",
     out_color: gfx::BlendTarget<ColorFormat> =
         ("Target0", gfx::state::MASK_ALL, gfx::preset::blend::REPLACE),
+    out_depth: gfx::DepthTarget<DepthFormat> =
+        gfx::preset::depth::LESS_EQUAL_WRITE,
 });
 
 const LINE_VS: &'static [u8] = b"
@@ -195,6 +197,7 @@ impl Renderer {
                 color: color_to_f32(color),
                 tex_map: map.unwrap_or(&self.map_default).to_param(),
                 out_color: self.out_color.clone(),
+                out_depth: self.out_depth.clone(),
             };
             self.encoder.draw(&visual.gpu_data.slice, pso, &data);
         }
