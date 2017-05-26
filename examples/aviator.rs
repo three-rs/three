@@ -96,10 +96,14 @@ impl AirPlane {
         let mut group = factory.group();
         group.attach(scene, None);
 
-        let mut cockpit = factory.mesh(
-            three::Geometry::new_box(60.0, 50.0, 50.0),
-            three::Material::MeshBasic{ color: 0xFF0000 }
-        );
+        let mut cockpit = {
+            let mut geo = three::Geometry::new_box(80.0, 50.0, 50.0);
+            geo.vertices[3] += cgmath::vec3(0.0, -10.0, 20.0);
+            geo.vertices[2] += cgmath::vec3(0.0, -10.0,  -20.0);
+            geo.vertices[1] += cgmath::vec3(0.0, 30.0, 20.0);
+            geo.vertices[0] += cgmath::vec3(0.0, 30.0, -20.0);
+            factory.mesh(geo, three::Material::MeshBasic{ color: 0xFF0000 })
+        };
         let mut engine = factory.mesh(
             three::Geometry::new_box(20.0, 50.0, 50.0),
             three::Material::MeshBasic{ color: 0xFFFFFF }
@@ -195,7 +199,7 @@ fn main() {
         airplane.update(dt, events.mouse_pos);
 
         if let (mut t, 0) = (sea.transform_mut(), 0) {
-            t.rot = t.rot * three::Orientation::from_angle_y(cgmath::Rad(0.005 * dt));
+            t.rot = three::Orientation::from_angle_z(cgmath::Rad(0.005 * dt)) * t.rot;
         }
         if let (mut t, 0) = (sky.group.transform_mut(), 0) {
             t.rot = t.rot * three::Orientation::from_angle_z(cgmath::Rad(0.01 * dt));
