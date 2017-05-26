@@ -130,8 +130,37 @@ impl Hub {
         Arc::new(Mutex::new(self))
     }
 
+    fn process_messages(&mut self) {
+        while let Ok((pnode, operation)) = self.message_rx.try_recv() {
+            let node = match pnode.upgrade() {
+                Ok(ptr) => &mut self.nodes[&ptr],
+                Err(_) => continue,
+            };
+            match operation {
+                Operation::SetParent(_parent) => {
+                    unimplemented!()
+                }
+                Operation::SetTransform(transform) => {
+                    node.local = transform;
+                }
+                Operation::SetMaterial(material) => {
+                    node.visual.as_mut().unwrap().material = material;
+                }
+            }
+        }
+    }
+
     fn visualize(&mut self, _scene_id: SceneId) -> VisualIter {
         unimplemented!()
+        /*
+        let mut cursor = self.nodes.cursor();
+        while let Some(mut item) = cursor.next() {
+            item.world = match item.parent {
+                Some(ref parent) => item.look_back(parent).unwrap().world.concat(&item.local),
+                None => item.local,
+            };
+        }
+        */
     }
 }
 
@@ -139,11 +168,6 @@ impl Hub {
 pub struct Scene {
     unique_id: SceneId,
     node: froggy::Pointer<Node>,
+    tx: mpsc::Sender<Message>,
     hub: HubPtr,
-}
-
-impl AsRef<froggy::Pointer<Node>> for Scene {
-    fn as_ref(&self) -> &froggy::Pointer<Node> {
-        &self.node
-    }
 }

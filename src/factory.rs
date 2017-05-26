@@ -67,13 +67,15 @@ impl Factory {
 
     pub fn scene(&mut self) -> Scene {
         self.scene_id += 1;
-        let node = self.hub.lock().unwrap().nodes.create(Node {
+        let mut hub = self.hub.lock().unwrap();
+        let node = hub.nodes.create(Node {
             scene: Some(self.scene_id),
             .. Node::new()
         });
         Scene {
             unique_id: self.scene_id,
             node: node,
+            tx: hub.message_tx.clone(),
             hub: self.hub.clone(),
         }
     }
