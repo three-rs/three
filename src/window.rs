@@ -3,9 +3,9 @@ use std::time;
 use glutin;
 
 use {Key, Scene};
+use camera::Camera;
 use render::Renderer;
 use factory::Factory;
-use scene::Camera;
 
 
 struct Input {

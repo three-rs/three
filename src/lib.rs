@@ -13,16 +13,17 @@ extern crate gfx_window_glutin;
 #[cfg(feature = "opengl")]
 extern crate glutin;
 
+mod camera;
 mod factory;
 mod render;
 mod scene;
 #[cfg(feature = "opengl")]
 mod window;
 
+pub use camera::{Camera, OrthographicCamera, PerspectiveCamera};
 pub use factory::{Factory, Geometry, Texture};
 pub use render::{ColorFormat, DepthFormat, Renderer};
-pub use scene::{Camera, OrthographicCamera, PerspectiveCamera,
-                Color, Material, Group, Mesh, Sprite};
+pub use scene::{Color, Material, Group, Mesh, Sprite};
 #[cfg(feature = "opengl")]
 pub use window::{Events, Window};
 #[cfg(feature = "opengl")]

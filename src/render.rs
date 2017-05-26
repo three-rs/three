@@ -10,8 +10,9 @@ use glutin;
 
 pub use self::back::Factory as BackendFactory;
 pub use self::back::Resources as BackendResources;
+use camera::Camera;
 use factory::{Factory, Texture};
-use scene::{Camera, Color, Material};
+use scene::{Color, Material};
 use {Scene};
 
 
