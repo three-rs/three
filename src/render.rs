@@ -1,4 +1,4 @@
-use cgmath;
+use cgmath::{Matrix4, Transform as Transform_};
 use gfx;
 use gfx::traits::{Device, Factory as Factory_, FactoryExt};
 #[cfg(feature = "opengl")]
@@ -13,7 +13,7 @@ pub use self::back::Resources as BackendResources;
 use camera::Camera;
 use factory::{Factory, Texture};
 use scene::{Color, Material};
-use {Scene};
+use {Hub, Visual, Scene, SceneId, Transform};
 
 
 pub type ColorFormat = gfx::format::Srgba8;
@@ -111,6 +111,38 @@ pub struct GpuData {
 }
 
 
+impl Hub {
+    fn visualize<F>(&mut self, scene_id: SceneId, mut fun: F)
+        where F: FnMut(&Visual, &Transform)
+    {
+        let mut cursor = self.nodes.cursor_alive();
+        while let Some(mut item) = cursor.next() {
+            if !item.visible {
+                item.world_visible = false;
+                continue
+            }
+            let (visibility, affilation, transform) = match item.parent {
+                Some(ref parent_ptr) => {
+                    let parent = item.look_back(parent_ptr).unwrap();
+                    (parent.world_visible, parent.scene_id,
+                     parent.world_transform.concat(&item.transform))
+                },
+                None => (true, item.scene_id, item.transform),
+            };
+            item.world_visible = visibility;
+            item.scene_id = affilation;
+            item.world_transform = transform;
+
+            if visibility && affilation == Some(scene_id) {
+                if let Some(ref visual) = item.visual {
+                    fun(visual, &item.world_transform);
+                }
+            }
+        }
+    }
+}
+
+
 pub struct Renderer {
     device: back::Device,
     encoder: gfx::Encoder<back::Resources, back::CommandBuffer>,
@@ -192,7 +224,7 @@ impl Renderer {
                 Material::MeshBasic { color } => (&self.pso_mesh_basic, color, None),
                 Material::Sprite { ref map } => (&self.pso_sprite, !0, Some(map)),
             };
-            let mx_world = cgmath::Matrix4::from(*transform);
+            let mx_world = Matrix4::from(*transform);
             let data = pipe::Data {
                 vbuf: visual.gpu_data.vertices.clone(),
                 mx_vp: mx_vp.into(),

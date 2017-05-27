@@ -31,7 +31,6 @@ pub use glutin::VirtualKeyCode as Key;
 
 use std::sync::{mpsc, Arc, Mutex};
 
-use cgmath::Transform as Transform_;
 use factory::SceneId;
 use render::GpuData;
 
@@ -57,26 +56,6 @@ pub struct Node {
     parent: Option<froggy::Pointer<Node>>,
     scene_id: Option<SceneId>,
     visual: Option<Visual>,
-}
-
-impl Node {
-    fn new() -> Self {
-        Node {
-            visible: true,
-            world_visible: false,
-            transform: cgmath::Transform::one(),
-            world_transform: cgmath::Transform::one(),
-            parent: None,
-            scene_id: None,
-            visual: None,
-        }
-    }
-    fn new_visual(visual: Visual) -> Self {
-        Node {
-            visual: Some(visual),
-            .. Self::new()
-        }
-    }
 }
 
 pub struct Object {
@@ -107,38 +86,14 @@ struct Hub {
 }
 
 impl Hub {
-    fn new() -> Self {
+    fn new() -> HubPtr {
         let (tx, rx) = mpsc::channel();
-        Hub {
+        let hub = Hub {
             nodes: froggy::Storage::new(),
             message_tx: tx,
             message_rx: rx,
-        }
-    }
-
-    fn spawn(&mut self) -> Object {
-        Object {
-            visible: true,
-            transform: cgmath::Transform::one(),
-            node: self.nodes.create(Node::new()),
-            tx: self.message_tx.clone(),
-        }
-    }
-
-    fn spawn_visual(&mut self, visual: Visual) -> VisualObject {
-        VisualObject {
-            inner: Object {
-                visible: true,
-                transform: cgmath::Transform::one(),
-                node: self.nodes.create(Node::new_visual(visual.clone())),
-                tx: self.message_tx.clone(),
-            },
-            visual: visual,
-        }
-    }
-
-    fn into_ptr(self) -> HubPtr {
-        Arc::new(Mutex::new(self))
+        };
+        Arc::new(Mutex::new(hub))
     }
 
     fn process_messages(&mut self) {
@@ -164,37 +119,7 @@ impl Hub {
         }
         self.nodes.sync_pending();
     }
-
-    fn visualize<F>(&mut self, scene_id: SceneId, mut fun: F)
-        where F: FnMut(&Visual, &Transform)
-    {
-        let mut cursor = self.nodes.cursor_alive();
-        while let Some(mut item) = cursor.next() {
-            if !item.visible {
-                item.world_visible = false;
-                continue
-            }
-            let (visibility, affilation, transform) = match item.parent {
-                Some(ref parent_ptr) => {
-                    let parent = item.look_back(parent_ptr).unwrap();
-                    (parent.world_visible, parent.scene_id,
-                     parent.world_transform.concat(&item.transform))
-                },
-                None => (true, item.scene_id, item.transform),
-            };
-            item.world_visible = visibility;
-            item.scene_id = affilation;
-            item.world_transform = transform;
-
-            if visibility && affilation == Some(scene_id) {
-                if let Some(ref visual) = item.visual {
-                    fun(visual, &item.world_transform);
-                }
-            }
-        }
-    }
 }
-
 
 pub struct Scene {
     unique_id: SceneId,

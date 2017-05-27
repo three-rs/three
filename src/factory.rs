@@ -2,6 +2,7 @@ use std::io::BufReader;
 use std::fs::File;
 use std::path::Path;
 
+use cgmath::Transform as Transform_;
 use genmesh::Triangulate;
 use genmesh::generators::{self, IndexedPolygon, SharedVertex};
 use gfx;
@@ -12,7 +13,8 @@ use image;
 
 use render::{BackendFactory, BackendResources, GpuData, Vertex};
 use scene::{Group, Mesh, Sprite, Material};
-use {Hub, HubPtr, Node, Normal, Position, Scene, Visual};
+use {Hub, HubPtr, Node, Normal, Position, Transform,
+     Visual, Object, VisualObject, Scene};
 
 
 const NORMAL_Z: [I8Norm; 4] = [I8Norm(0), I8Norm(0), I8Norm(1), I8Norm(0)];
@@ -40,6 +42,51 @@ const QUAD: [Vertex; 4] = [
     },
 ];
 
+
+impl Node {
+    fn new() -> Self {
+        Node {
+            visible: true,
+            world_visible: false,
+            transform: Transform::one(),
+            world_transform: Transform::one(),
+            parent: None,
+            scene_id: None,
+            visual: None,
+        }
+    }
+    fn new_visual(visual: Visual) -> Self {
+        Node {
+            visual: Some(visual),
+            .. Self::new()
+        }
+    }
+}
+
+impl Hub {
+    fn spawn(&mut self) -> Object {
+        Object {
+            visible: true,
+            transform: Transform::one(),
+            node: self.nodes.create(Node::new()),
+            tx: self.message_tx.clone(),
+        }
+    }
+
+    fn spawn_visual(&mut self, visual: Visual) -> VisualObject {
+        VisualObject {
+            inner: Object {
+                visible: true,
+                transform: Transform::one(),
+                node: self.nodes.create(Node::new_visual(visual.clone())),
+                tx: self.message_tx.clone(),
+            },
+            visual: visual,
+        }
+    }
+}
+
+
 pub type SceneId = usize;
 
 pub struct Factory {
@@ -52,12 +99,11 @@ pub struct Factory {
 impl Factory {
     #[doc(hidden)]
     pub fn new(mut backend: BackendFactory) -> Self {
-        let hub = Hub::new();
         let (vbuf, slice) = backend.create_vertex_buffer_with_slice(&QUAD, ());
         Factory {
             backend: backend,
             scene_id: 0,
-            hub: hub.into_ptr(),
+            hub: Hub::new(),
             quad: GpuData {
                 slice: slice,
                 vertices: vbuf,
