@@ -69,7 +69,7 @@ impl Factory {
         self.scene_id += 1;
         let mut hub = self.hub.lock().unwrap();
         let node = hub.nodes.create(Node {
-            scene: Some(self.scene_id),
+            scene_id: Some(self.scene_id),
             .. Node::new()
         });
         Scene {

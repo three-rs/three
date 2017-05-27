@@ -185,14 +185,14 @@ impl Renderer {
         let mx_vp = cam.to_view_proj();
         let mut hub = scene.hub.lock().unwrap();
         hub.process_messages();
-        for (visual, transform) in hub.visualize(scene.unique_id) {
+        hub.visualize(scene.unique_id, |visual, transform| {
             //TODO: batch per PSO
             let (pso, color, map) = match visual.material {
                 Material::LineBasic { color } => (&self.pso_line_basic, color, None),
                 Material::MeshBasic { color } => (&self.pso_mesh_basic, color, None),
                 Material::Sprite { ref map } => (&self.pso_sprite, !0, Some(map)),
             };
-            let mx_world = cgmath::Matrix4::from(transform);
+            let mx_world = cgmath::Matrix4::from(*transform);
             let data = pipe::Data {
                 vbuf: visual.gpu_data.vertices.clone(),
                 mx_vp: mx_vp.into(),
@@ -203,7 +203,7 @@ impl Renderer {
                 out_depth: self.out_depth.clone(),
             };
             self.encoder.draw(&visual.gpu_data.slice, pso, &data);
-        }
+        });
 
         self.encoder.flush(&mut self.device);
         self.window.swap_buffers().unwrap();
