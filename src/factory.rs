@@ -12,7 +12,7 @@ use image;
 
 use render::{BackendFactory, BackendResources, GpuData, Vertex};
 use scene::{Group, Mesh, Sprite, Material};
-use {Hub, HubPtr, Node, Normal, Position, Scene, Visual, VisualObject};
+use {Hub, HubPtr, Node, Normal, Position, Scene, Visual};
 
 
 const NORMAL_Z: [I8Norm; 4] = [I8Norm(0), I8Norm(0), I8Norm(1), I8Norm(0)];
@@ -97,26 +97,20 @@ impl Factory {
             let faces: &[u16] = gfx::memory::cast_slice(&geom.faces);
             self.backend.create_vertex_buffer_with_slice(&vertices, faces)
         };
-        Mesh::new(VisualObject {
-            inner: self.hub.lock().unwrap().spawn(),
-            visual: Visual {
-                material: mat,
-                gpu_data: GpuData {
-                    slice: slice,
-                    vertices: vbuf,
-                },
-            }
-        })
+        Mesh::new(self.hub.lock().unwrap().spawn_visual(Visual {
+            material: mat,
+            gpu_data: GpuData {
+                slice: slice,
+                vertices: vbuf,
+            },
+        }))
     }
 
     pub fn sprite(&mut self, mat: Material) -> Sprite {
-        Sprite::new(VisualObject {
-            inner: self.hub.lock().unwrap().spawn(),
-            visual: Visual {
-                material: mat,
-                gpu_data: self.quad.clone(),
-            },
-        })
+        Sprite::new(self.hub.lock().unwrap().spawn_visual(Visual {
+            material: mat,
+            gpu_data: self.quad.clone(),
+        }))
     }
 }
 

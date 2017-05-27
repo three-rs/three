@@ -42,6 +42,7 @@ pub type Orientation = cgmath::Quaternion<f32>;
 pub type Transform = cgmath::Decomposed<Normal, Orientation>;
 
 
+#[derive(Clone)]
 struct Visual {
     material: Material,
     gpu_data: GpuData,
@@ -68,6 +69,12 @@ impl Node {
             parent: None,
             scene_id: None,
             visual: None,
+        }
+    }
+    fn new_visual(visual: Visual) -> Self {
+        Node {
+            visual: Some(visual),
+            .. Self::new()
         }
     }
 }
@@ -118,6 +125,18 @@ impl Hub {
         }
     }
 
+    fn spawn_visual(&mut self, visual: Visual) -> VisualObject {
+        VisualObject {
+            inner: Object {
+                visible: true,
+                transform: cgmath::Transform::one(),
+                node: self.nodes.create(Node::new_visual(visual.clone())),
+                tx: self.message_tx.clone(),
+            },
+            visual: visual,
+        }
+    }
+
     fn into_ptr(self) -> HubPtr {
         Arc::new(Mutex::new(self))
     }
@@ -163,7 +182,6 @@ impl Hub {
                 },
                 None => (true, item.scene_id, item.transform),
             };
-
             item.world_visible = visibility;
             item.scene_id = affilation;
             item.world_transform = transform;

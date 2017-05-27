@@ -10,8 +10,8 @@ fn main() {
         three::Position::new(10.0, 0.0, 0.0),
     ]);
     let material = three::Material::LineBasic { color: 0x0000ff };
-    let mut line = win.factory.mesh(geometry, material);
-    line.attach(&mut win.scene, None);
+    let line = win.factory.mesh(geometry, material);
+    win.scene.add(&line);
 
     while let Some(_events) = win.update() {
         win.render();

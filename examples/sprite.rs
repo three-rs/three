@@ -9,7 +9,7 @@ fn main() {
     };
     let mut sprite = win.factory.sprite(material);
     sprite.transform_mut().scale = 8.0;
-    sprite.attach(&mut win.scene, None);
+    win.scene.add(&sprite);
 
     while let Some(_events) = win.update() {
         win.render();
