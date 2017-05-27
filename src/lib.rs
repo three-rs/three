@@ -31,6 +31,7 @@ pub use glutin::VirtualKeyCode as Key;
 
 use std::sync::{mpsc, Arc, Mutex};
 
+use cgmath::Transform as Transform_;
 use factory::SceneId;
 use render::GpuData;
 
@@ -49,10 +50,11 @@ struct Visual {
 /// Fat node of the scene graph.
 pub struct Node {
     visible: bool,
-    local: Transform,
-    world: Transform,
+    world_visible: bool,
+    transform: Transform,
+    world_transform: Transform,
     parent: Option<froggy::Pointer<Node>>,
-    scene: Option<SceneId>,
+    scene_id: Option<SceneId>,
     visual: Option<Visual>,
 }
 
@@ -60,10 +62,11 @@ impl Node {
     fn new() -> Self {
         Node {
             visible: true,
-            local: cgmath::Transform::one(),
-            world: cgmath::Transform::one(),
+            world_visible: false,
+            transform: cgmath::Transform::one(),
+            world_transform: cgmath::Transform::one(),
             parent: None,
-            scene: None,
+            scene_id: None,
             visual: None,
         }
     }
@@ -84,20 +87,9 @@ pub struct VisualObject {
 type Message = (froggy::WeakPointer<Node>, Operation);
 enum Operation {
     SetParent(froggy::Pointer<Node>),
+    SetVisible(bool),
     SetTransform(Transform),
     SetMaterial(Material),
-    //Delete,
-}
-
-struct VisualIter<'a> {
-    _dummy: &'a (),
-}
-
-impl<'a> Iterator for VisualIter<'a> {
-    type Item = (&'a Visual, Transform);
-    fn next(&mut self) -> Option<Self::Item> {
-        unimplemented!()
-    }
 }
 
 type HubPtr = Arc<Mutex<Hub>>;
@@ -137,30 +129,51 @@ impl Hub {
                 Err(_) => continue,
             };
             match operation {
-                Operation::SetParent(_parent) => {
-                    unimplemented!()
+                Operation::SetParent(parent) => {
+                    node.parent = Some(parent);
+                }
+                Operation::SetVisible(visible) => {
+                    node.visible = visible;
                 }
                 Operation::SetTransform(transform) => {
-                    node.local = transform;
+                    node.transform = transform;
                 }
                 Operation::SetMaterial(material) => {
                     node.visual.as_mut().unwrap().material = material;
                 }
             }
         }
+        self.nodes.sync_pending();
     }
 
-    fn visualize(&mut self, _scene_id: SceneId) -> VisualIter {
-        unimplemented!()
-        /*
-        let mut cursor = self.nodes.cursor();
+    fn visualize<F>(&mut self, scene_id: SceneId, mut fun: F)
+        where F: FnMut(&Visual, &Transform)
+    {
+        let mut cursor = self.nodes.cursor_alive();
         while let Some(mut item) = cursor.next() {
-            item.world = match item.parent {
-                Some(ref parent) => item.look_back(parent).unwrap().world.concat(&item.local),
-                None => item.local,
+            if !item.visible {
+                item.world_visible = false;
+                continue
+            }
+            let (visibility, affilation, transform) = match item.parent {
+                Some(ref parent_ptr) => {
+                    let parent = item.look_back(parent_ptr).unwrap();
+                    (parent.world_visible, parent.scene_id,
+                     parent.world_transform.concat(&item.transform))
+                },
+                None => (true, item.scene_id, item.transform),
             };
+
+            item.world_visible = visibility;
+            item.scene_id = affilation;
+            item.world_transform = transform;
+
+            if visibility && affilation == Some(scene_id) {
+                if let Some(ref visual) = item.visual {
+                    fun(visual, &item.world_transform);
+                }
+            }
         }
-        */
     }
 }
 
