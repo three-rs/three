@@ -8,23 +8,6 @@ use {Object, VisualObject, Message, Operation,
 use factory::{Geometry, Texture};
 
 
-macro_rules! deref {
-    ($name:ty : $field:ident = $object:ty) => {
-        impl ops::Deref for $name {
-            type Target = $object;
-            fn deref(&self) -> &Self::Target {
-                &self.$field
-            }
-        }
-
-        impl ops::DerefMut for $name {
-            fn deref_mut(&mut self) -> &mut Self::Target {
-                &mut self.$field
-            }
-        }
-    }
-}
-
 pub type Color = u32;
 
 #[derive(Clone)]
@@ -66,6 +49,14 @@ macro_rules! def_proxy {
 
 def_proxy!(TransformProxy<Transform> = SetTransform(node));
 def_proxy!(MaterialProxy<Material> = SetMaterial(visual));
+
+impl<'a> TransformProxy<'a> {
+    pub fn rotate(&mut self, x: f32, y: f32, z: f32) {
+        use cgmath::{Euler, Quaternion, Rad};
+        let rot = Euler::new(Rad(x), Rad(y), Rad(z));
+        self.value.rot = Quaternion::from(rot) * self.value.rot;
+    }
+}
 
 impl Object {
     pub fn is_visible(&self) -> bool {
@@ -170,15 +161,32 @@ impl AsRef<Pointer<Node>> for Sprite {
     }
 }
 
-deref!(VisualObject : inner = Object);
-deref!(Group : object = Object);
-deref!(Mesh : object = VisualObject);
-deref!(Sprite : object = VisualObject);
-
-
 impl Scene {
     pub fn add<P: AsRef<Pointer<Node>>>(&mut self, child: &P) {
         let msg = Operation::SetParent(self.node.clone());
         let _ = self.tx.send((child.as_ref().downgrade(), msg));
     }
 }
+
+
+macro_rules! deref {
+    ($name:ty : $field:ident = $object:ty) => {
+        impl ops::Deref for $name {
+            type Target = $object;
+            fn deref(&self) -> &Self::Target {
+                &self.$field
+            }
+        }
+
+        impl ops::DerefMut for $name {
+            fn deref_mut(&mut self) -> &mut Self::Target {
+                &mut self.$field
+            }
+        }
+    }
+}
+
+deref!(VisualObject : inner = Object);
+deref!(Group : object = Object);
+deref!(Mesh : object = VisualObject);
+deref!(Sprite : object = VisualObject);

@@ -139,8 +139,7 @@ impl AirPlane {
     }
 
     fn update(&mut self, dt: f32, target: (f32, f32)) {
-        let mut pt = self.propeller_group.transform_mut();
-        pt.rot = pt.rot * three::Orientation::from_angle_x(cgmath::Rad(0.3 * dt));
+        self.propeller_group.transform_mut().rotate(0.3 * dt, 0.0, 0.0);
         self.group.transform_mut().disp =
             cgmath::vec3(0.0 + target.0 * 100.0, 100.0 + target.1 * 75.0, 0.0);
     }
@@ -188,12 +187,8 @@ fn main() {
 
         airplane.update(dt, events.mouse_pos);
 
-        if let (mut t, 0) = (sea.transform_mut(), 0) {
-            t.rot = three::Orientation::from_angle_z(cgmath::Rad(0.005 * dt)) * t.rot;
-        }
-        if let (mut t, 0) = (sky.group.transform_mut(), 0) {
-            t.rot = three::Orientation::from_angle_z(cgmath::Rad(0.01 * dt)) * t.rot;
-        }
+        sea.transform_mut().rotate(0.0, 0.0, 0.005 * dt);
+        sky.group.transform_mut().rotate(0.0, 0.0, 0.01 * dt);
 
         win.render();
     }

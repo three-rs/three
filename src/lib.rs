@@ -39,7 +39,7 @@ use render::GpuData;
 pub type Position = cgmath::Point3<f32>;
 pub type Normal = cgmath::Vector3<f32>;
 pub type Orientation = cgmath::Quaternion<f32>;
-pub type Transform = cgmath::Decomposed<Normal, Orientation>;
+pub type Transform = cgmath::Decomposed<cgmath::Vector3<f32>, Orientation>;
 
 
 #[derive(Clone)]
