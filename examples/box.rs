@@ -8,10 +8,10 @@ fn main() {
     cam.position = three::Position::new(0.0, 0.0, 5.0);
     let mut win = three::Window::new("Three-rs box mesh drawing example", cam);
 
-    let geometry = three::Geometry::new_box(1.0, 1.0, 1.0);
+    let geometry = three::Geometry::new_box(3.0, 2.0, 1.0);
     let material = three::Material::MeshBasic { color: 0x00ff00 };
     let mut mesh = win.factory.mesh(geometry, material);
-    mesh.attach(&mut win.scene, None);
+    win.scene.add(&mesh);
 
     let mut angle = cgmath::Rad::zero();
     let speed = 1.5;

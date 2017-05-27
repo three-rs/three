@@ -16,16 +16,11 @@ struct Cloud {
 }
 
 impl Cloud {
-    fn new<R: rand::Rng>(rng: &mut R,
-        factory: &mut three::Factory,
-        scene: &mut three::Scene,
-        parent: &three::Group,
-    ) -> Self {
+    fn new<R: rand::Rng>(rng: &mut R, factory: &mut three::Factory) -> Self {
         let mut cloud = Cloud {
             group: factory.group(),
             meshes: Vec::new()
         };
-        cloud.group.attach(scene, Some(parent));
         let geo = three::Geometry::new_box(20.0, 20.0, 20.0);
         let material = three::Material::MeshBasic{ color: 0xFFFFFF };
         for i in 0 .. rng.gen_range(3, 6) {
@@ -36,7 +31,7 @@ impl Cloud {
                 rot: rot.normalize(),
                 disp: cgmath::vec3(i as f32 * 15.0, rng.next_f32() * 10.0, rng.next_f32() * 10.0),
             };
-            m.attach(scene, Some(&cloud.group));
+            cloud.group.add(&m);
             cloud.meshes.push(m);
         }
         cloud
@@ -49,19 +44,15 @@ struct Sky {
 }
 
 impl Sky {
-    fn new<R: rand::Rng>(rng: &mut R,
-        factory: &mut three::Factory,
-        scene: &mut three::Scene,
-    ) -> Self {
+    fn new<R: rand::Rng>(rng: &mut R, factory: &mut three::Factory) -> Self {
         let mut sky = Sky {
             group: factory.group(),
             clouds: Vec::new(),
         };
-        sky.group.attach(scene, None);
         let num = 20i32;
         let step_angle = PI * 2.0 / num as f32;
         for i in 0 .. num {
-            let mut c = Cloud::new(rng, factory, scene, &sky.group);
+            let mut c = Cloud::new(rng, factory);
             let angle = cgmath::Rad(i as f32 * step_angle);
             let dist = rng.gen_range(750.0, 950.0);
             *c.group.transform_mut() = three::Transform {
@@ -71,6 +62,7 @@ impl Sky {
                                    angle.sin() * dist,
                                    rng.gen_range(-800.0, -400.0)),
             };
+            sky.group.add(&c.group);
             sky.clouds.push(c);
         }
         sky
@@ -89,14 +81,10 @@ struct AirPlane {
 }
 
 impl AirPlane {
-    fn new(
-        factory: &mut three::Factory,
-        scene: &mut three::Scene,
-    ) -> Self {
+    fn new(factory: &mut three::Factory) -> Self {
         let mut group = factory.group();
-        group.attach(scene, None);
 
-        let mut cockpit = {
+        let cockpit = {
             let mut geo = three::Geometry::new_box(80.0, 50.0, 50.0);
             geo.vertices[3] += cgmath::vec3(0.0, -10.0, 20.0);
             geo.vertices[2] += cgmath::vec3(0.0, -10.0,  -20.0);
@@ -104,39 +92,39 @@ impl AirPlane {
             geo.vertices[0] += cgmath::vec3(0.0, 30.0, -20.0);
             factory.mesh(geo, three::Material::MeshBasic{ color: 0xFF0000 })
         };
+        group.add(&cockpit);
         let mut engine = factory.mesh(
             three::Geometry::new_box(20.0, 50.0, 50.0),
             three::Material::MeshBasic{ color: 0xFFFFFF }
         );
         engine.transform_mut().disp.x = 40.0;
+        group.add(&engine);
         let mut tail = factory.mesh(
             three::Geometry::new_box(15.0, 20.0, 5.0),
             three::Material::MeshBasic{ color: 0xFF0000 }
         );
         tail.transform_mut().disp = cgmath::vec3(-35.0, 25.0, 0.0);
-        let mut wing = factory.mesh(
+        group.add(&tail);
+        let wing = factory.mesh(
             three::Geometry::new_box(40.0, 8.0, 150.0),
             three::Material::MeshBasic{ color: 0xFF0000 }
         );
+        group.add(&wing);
 
         let mut propeller_group = factory.group();
         propeller_group.transform_mut().disp = cgmath::vec3(50.0, 0.0, 0.0);
-        propeller_group.attach(scene, Some(&group));
-        let mut propeller = factory.mesh(
+        group.add(&propeller_group);
+        let propeller = factory.mesh(
             three::Geometry::new_box(20.0, 10.0, 10.0),
             three::Material::MeshBasic{ color: 0xa52a2a }
         );
-        propeller.attach(scene, Some(&propeller_group));
+        propeller_group.add(&propeller);
         let mut blade = factory.mesh(
             three::Geometry::new_box(1.0, 100.0, 20.0),
             three::Material::MeshBasic{ color: 0x23190f }
         );
         blade.transform_mut().disp = cgmath::vec3(8.0, 0.0, 0.0);
-        blade.attach(scene, Some(&propeller_group));
-
-        for mesh in [&mut cockpit, &mut engine, &mut tail, &mut wing].iter_mut() {
-            mesh.attach(scene, Some(&group));
-        }
+        propeller_group.add(&blade);
 
         AirPlane {
             group,
@@ -180,17 +168,19 @@ fn main() {
         rot: three::Orientation::from_angle_x(-cgmath::Rad::turn_div_4()),
         disp: cgmath::vec3(0.0, -600.0, 0.0),
     };
-    sea.attach(&mut win.scene, None);
+    win.scene.add(&sea);
 
-    let mut sky = Sky::new(&mut rng, &mut win.factory, &mut win.scene);
+    let mut sky = Sky::new(&mut rng, &mut win.factory);
     sky.group.transform_mut().disp.y = -600.0;
+    win.scene.add(&sky.group);
 
-    let mut airplane = AirPlane::new(&mut win.factory, &mut win.scene);
+    let mut airplane = AirPlane::new(&mut win.factory);
     *airplane.group.transform_mut() = three::Transform {
         scale: 0.25,
         rot: three::Orientation::one(),
         disp: cgmath::vec3(0.0, 100.0, 0.0),
     };
+    win.scene.add(&airplane.group);
 
     while let Some(events) = win.update() {
         // assume the original velocities are given for 60fps
@@ -202,7 +192,7 @@ fn main() {
             t.rot = three::Orientation::from_angle_z(cgmath::Rad(0.005 * dt)) * t.rot;
         }
         if let (mut t, 0) = (sky.group.transform_mut(), 0) {
-            t.rot = t.rot * three::Orientation::from_angle_z(cgmath::Rad(0.01 * dt));
+            t.rot = three::Orientation::from_angle_z(cgmath::Rad(0.01 * dt)) * t.rot;
         }
 
         win.render();
