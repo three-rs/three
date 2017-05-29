@@ -86,10 +86,12 @@ impl AirPlane {
 
         let cockpit = {
             let mut geo = three::Geometry::new_box(80.0, 50.0, 50.0);
-            geo.vertices[3] += cgmath::vec3(0.0, -10.0, 20.0);
-            geo.vertices[2] += cgmath::vec3(0.0, -10.0,  -20.0);
-            geo.vertices[1] += cgmath::vec3(0.0, 30.0, 20.0);
-            geo.vertices[0] += cgmath::vec3(0.0, 30.0, -20.0);
+            for v in geo.vertices.iter_mut() {
+                if v.x < 0.0 {
+                    v.z += if v.y > 0.0 {-20.0} else {20.0};
+                    v.y += if v.y > 0.0 {-10.0} else {30.0};
+                }
+            }
             factory.mesh(geo, three::Material::MeshBasic{ color: 0xFF0000 })
         };
         group.add(&cockpit);

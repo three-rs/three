@@ -1,9 +1,10 @@
+use std::cmp;
 use std::io::BufReader;
 use std::fs::File;
 use std::path::Path;
 
 use cgmath::Transform as Transform_;
-use genmesh::Triangulate;
+use genmesh::{Triangulate, Vertex as GenVertex};
 use genmesh::generators::{self, IndexedPolygon, SharedVertex};
 use gfx;
 use gfx::format::I8Norm;
@@ -131,11 +132,20 @@ impl Factory {
     }
 
     pub fn mesh(&mut self, geom: Geometry, mat: Material) -> Mesh {
-        let vertices: Vec<_> = geom.vertices.iter().map(|v| Vertex {
-            pos: [v.x, v.y, v.z, 1.0],
-            uv: [0.0, 0.0], //TODO
-            normal: NORMAL_Z, //TODO
-        }).collect();
+        let vertices: Vec<_> = if geom.normals.is_empty() {
+            geom.vertices.iter().map(|v| Vertex {
+                pos: [v.x, v.y, v.z, 1.0],
+                uv: [0.0, 0.0], //TODO
+                normal: NORMAL_Z,
+            }).collect()
+        } else {
+            let f2i = |x: f32| I8Norm(cmp::min(cmp::max((x * 127.) as isize, -128), 127) as i8);
+            geom.vertices.iter().zip(geom.normals.iter()).map(|(v, n)| Vertex {
+                pos: [v.x, v.y, v.z, 1.0],
+                uv: [0.0, 0.0], //TODO
+                normal: [f2i(n.x), f2i(n.y), f2i(n.z), I8Norm(0)],
+            }).collect()
+        };
         //TODO: dynamic geometry
         let (vbuf, slice) = if geom.faces.is_empty() {
             self.backend.create_vertex_buffer_with_slice(&vertices, ())
@@ -188,14 +198,16 @@ impl Geometry {
 
     pub fn new_box(sx: f32, sy: f32, sz: f32) -> Self {
         let gen = generators::Cube::new();
-        let function = |(x, y, z)| {
-            Position::new(x * 0.5 * sx, y * 0.5 * sy, z * 0.5 * sz)
+        let function = |GenVertex{ pos, ..}| {
+            Position::new(pos[0] * 0.5 * sx, pos[1] * 0.5 * sy, pos[2] * 0.5 * sz)
         };
         Geometry {
             vertices: gen.shared_vertex_iter()
-                          .map(function)
-                          .collect(),
-            normals: Vec::new(),
+                         .map(function)
+                         .collect(),
+            normals: gen.shared_vertex_iter()
+                        .map(|v| Normal::from(v.normal))
+                        .collect(),
             faces: gen.indexed_polygon_iter()
                        .triangulate()
                        .map(|t| [t.x as u16, t.y as u16, t.z as u16])
@@ -208,17 +220,19 @@ impl Geometry {
                         radius_segments: usize) -> Self
     {
         let gen = generators::Cylinder::new(radius_segments);
-        let function = |(x, y, z)| {
-            let scale = (z + 1.0) * 0.5 * radius_top +
-                        (1.0 - z) * 0.5 * radius_bottom;
+        let function = |GenVertex{ pos, ..}| {
+            let scale = (pos[2] + 1.0) * 0.5 * radius_top +
+                        (1.0 - pos[2]) * 0.5 * radius_bottom;
             //three,js has height along the Y axis for some reason
-            Position::new(y * scale, z * 0.5 * height, x * scale)
+            Position::new(pos[1] * scale, pos[2] * 0.5 * height, pos[0] * scale)
         };
         Geometry {
             vertices: gen.shared_vertex_iter()
                           .map(function)
                           .collect(),
-            normals: Vec::new(),
+            normals: gen.shared_vertex_iter()
+                        .map(|v| Normal::from(v.normal))
+                        .collect(),
             faces: gen.indexed_polygon_iter()
                        .triangulate()
                        .map(|t| [t.x as u16, t.y as u16, t.z as u16])
