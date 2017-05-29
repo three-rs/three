@@ -15,40 +15,58 @@ use factory::{Factory, Texture};
 use scene::{Color, Material};
 use {Hub, Visual, Scene, SceneId, Transform};
 
-
 pub type ColorFormat = gfx::format::Srgba8;
 pub type DepthFormat = gfx::format::DepthStencil;
+pub type ConstantBuffer = gfx::handle::Buffer<back::Resources, Locals>;
 
-gfx_vertex_struct!(Vertex {
-    pos: [f32; 4] = "a_Position",
-    uv: [f32; 2] = "a_TexCoord",
-    normal: [gfx::format::I8Norm; 4] = "a_Normal",
-});
+gfx_defines!{
+    vertex Vertex {
+        pos: [f32; 4] = "a_Position",
+        uv: [f32; 2] = "a_TexCoord",
+        normal: [gfx::format::I8Norm; 4] = "a_Normal",
+    }
 
-gfx_pipeline!(pipe {
-    vbuf: gfx::VertexBuffer<Vertex> = (),
-    mx_vp: gfx::Global<[[f32; 4]; 4]> = "u_ViewProj",
-    mx_world: gfx::Global<[[f32; 4]; 4]> = "u_World",
-    color: gfx::Global<[f32; 4]> = "u_Color",
-    tex_map: gfx::TextureSampler<[f32; 4]> = "t_Map",
-    out_color: gfx::BlendTarget<ColorFormat> =
-        ("Target0", gfx::state::MASK_ALL, gfx::preset::blend::REPLACE),
-    out_depth: gfx::DepthTarget<DepthFormat> =
-        gfx::preset::depth::LESS_EQUAL_WRITE,
-});
+    constant Locals {
+        mx_world: [[f32; 4]; 4] = "u_World",
+        color: [f32; 4] = "u_Color",
+    }
+
+    constant Globals {
+        mx_vp: [[f32; 4]; 4] = "u_ViewProj",
+    }
+
+    pipeline pipe {
+        vbuf: gfx::VertexBuffer<Vertex> = (),
+        cb_locals: gfx::ConstantBuffer<Locals> = "cb_Locals",
+        cb_globals: gfx::ConstantBuffer<Globals> = "cb_Globals",
+        tex_map: gfx::TextureSampler<[f32; 4]> = "t_Map",
+        out_color: gfx::BlendTarget<ColorFormat> =
+            ("Target0", gfx::state::MASK_ALL, gfx::preset::blend::REPLACE),
+        out_depth: gfx::DepthTarget<DepthFormat> =
+            gfx::preset::depth::LESS_EQUAL_WRITE,
+    }
+}
 
 const BASIC_VS: &'static [u8] = b"
     #version 150 core
     in vec4 a_Position;
-    uniform mat4 u_ViewProj;
-    uniform mat4 u_World;
+    uniform cb_Globals {
+        mat4 u_ViewProj;
+    };
+    uniform cb_Locals {
+        mat4 u_World;
+        vec4 u_Color;
+    };
     void main() {
         gl_Position = u_ViewProj * u_World * a_Position;
     }
 ";
 const BASIC_FS: &'static [u8] = b"
     #version 150 core
-    uniform vec4 u_Color;
+    uniform cb_Locals {
+        mat4 u_World;
+        vec4 u_Color;
+    };
     void main() {
         gl_FragColor = u_Color;
     }
@@ -59,8 +77,13 @@ const SPRITE_VS: &'static [u8] = b"
     in vec4 a_Position;
     in vec2 a_TexCoord;
     out vec2 v_TexCoord;
-    uniform mat4 u_ViewProj;
-    uniform mat4 u_World;
+    uniform cb_Globals {
+        mat4 u_ViewProj;
+    };
+    uniform cb_Locals {
+        mat4 u_World;
+        vec4 u_Color;
+    };
     void main() {
         v_TexCoord = a_TexCoord;
         gl_Position = u_ViewProj * u_World * a_Position;
@@ -93,7 +116,7 @@ pub struct GpuData {
 
 impl Hub {
     fn visualize<F>(&mut self, scene_id: SceneId, mut fun: F)
-        where F: FnMut(&Visual, &Transform)
+        where F: FnMut(&Visual<ConstantBuffer>, &Transform)
     {
         let mut cursor = self.nodes.cursor_alive();
         while let Some(mut item) = cursor.next() {
@@ -126,6 +149,7 @@ impl Hub {
 pub struct Renderer {
     device: back::Device,
     encoder: gfx::Encoder<back::Resources, back::CommandBuffer>,
+    const_buf: gfx::handle::Buffer<back::Resources, Globals>,
     out_color: gfx::handle::RenderTargetView<back::Resources, ColorFormat>,
     out_depth: gfx::handle::DepthStencilView<back::Resources, DepthFormat>,
     pso_line_basic: gfx::PipelineState<back::Resources, pipe::Meta>,
@@ -153,6 +177,7 @@ impl Renderer {
         let renderer = Renderer {
             device: device,
             encoder: gl_factory.create_command_buffer().into(),
+            const_buf: gl_factory.create_constant_buffer(1),
             out_color: color,
             out_depth: depth,
             pso_line_basic: gl_factory.create_pipeline_from_program(&prog_basic,
@@ -192,8 +217,10 @@ impl Renderer {
         self.device.cleanup();
         self.encoder.clear(&self.out_color, [0.0, 0.0, 0.0, 1.0]);
         self.encoder.clear_depth(&self.out_depth, 1.0);
+        self.encoder.update_constant_buffer(&self.const_buf, &Globals {
+            mx_vp: cam.to_view_proj().into(),
+        });
 
-        let mx_vp = cam.to_view_proj();
         let mut hub = scene.hub.lock().unwrap();
         hub.process_messages();
         hub.visualize(scene.unique_id, |visual, transform| {
@@ -203,12 +230,15 @@ impl Renderer {
                 Material::MeshBasic { color } => (&self.pso_mesh_basic, color, None),
                 Material::Sprite { ref map } => (&self.pso_sprite, !0, Some(map)),
             };
-            let mx_world = Matrix4::from(*transform);
+            self.encoder.update_constant_buffer(&visual.const_buf, &Locals {
+                mx_world: Matrix4::from(*transform).into(),
+                color: color_to_f32(color),
+            });
+            //TODO: avoid excessive cloning
             let data = pipe::Data {
                 vbuf: visual.gpu_data.vertices.clone(),
-                mx_vp: mx_vp.into(),
-                mx_world: mx_world.into(),
-                color: color_to_f32(color),
+                cb_locals: visual.const_buf.clone(),
+                cb_globals: self.const_buf.clone(),
                 tex_map: map.unwrap_or(&self.map_default).to_param(),
                 out_color: self.out_color.clone(),
                 out_depth: self.out_depth.clone(),

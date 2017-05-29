@@ -32,7 +32,7 @@ pub use glutin::VirtualKeyCode as Key;
 use std::sync::{mpsc, Arc, Mutex};
 
 use factory::SceneId;
-use render::GpuData;
+use render::{ConstantBuffer, GpuData};
 
 
 pub type Position = cgmath::Point3<f32>;
@@ -42,8 +42,9 @@ pub type Transform = cgmath::Decomposed<cgmath::Vector3<f32>, Orientation>;
 
 
 #[derive(Clone)]
-struct Visual {
+struct Visual<C> {
     material: Material,
+    const_buf: C,
     gpu_data: GpuData,
 }
 
@@ -55,7 +56,7 @@ pub struct Node {
     world_transform: Transform,
     parent: Option<froggy::Pointer<Node>>,
     scene_id: Option<SceneId>,
-    visual: Option<Visual>,
+    visual: Option<Visual<ConstantBuffer>>,
 }
 
 pub struct Object {
@@ -67,7 +68,7 @@ pub struct Object {
 
 pub struct VisualObject {
     inner: Object,
-    visual: Visual,
+    visual: Visual<()>,
 }
 
 type Message = (froggy::WeakPointer<Node>, Operation);

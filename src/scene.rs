@@ -106,7 +106,9 @@ impl VisualObject {
         hub.process_messages();
         let node = &hub.nodes[&self.node];
         self.inner.transform = node.transform;
-        self.visual = node.visual.clone().unwrap();
+        let vis = node.visual.as_ref().unwrap();
+        self.visual.material = vis.material.clone();
+        self.visual.gpu_data = vis.gpu_data.clone();
     }
 }
 
