@@ -37,7 +37,7 @@ gfx_pipeline!(pipe {
         gfx::preset::depth::LESS_EQUAL_WRITE,
 });
 
-const LINE_VS: &'static [u8] = b"
+const BASIC_VS: &'static [u8] = b"
     #version 150 core
     in vec4 a_Position;
     uniform mat4 u_ViewProj;
@@ -46,28 +46,8 @@ const LINE_VS: &'static [u8] = b"
         gl_Position = u_ViewProj * u_World * a_Position;
     }
 ";
-const LINE_FS: &'static [u8] = b"
+const BASIC_FS: &'static [u8] = b"
     #version 150 core
-    uniform vec4 u_Color;
-    void main() {
-        gl_FragColor = u_Color;
-    }
-";
-
-const MESH_VS: &'static [u8] = b"
-    #version 150 core
-    in vec4 a_Position;
-    in vec2 a_TexCoord;
-    out vec2 v_TexCoord;
-    uniform mat4 u_ViewProj;
-    uniform mat4 u_World;
-    void main() {
-        gl_Position = u_ViewProj * u_World * a_Position;
-    }
-";
-const MESH_FS: &'static [u8] = b"
-    #version 150 core
-    in vec2 v_TexCoord; //TODO
     uniform vec4 u_Color;
     void main() {
         gl_FragColor = u_Color;
@@ -163,8 +143,7 @@ impl Renderer {
                -> (Self, Factory) {
         let (window, device, mut gl_factory, color, depth) =
             gfx_window_glutin::init(builder, event_loop);
-        let prog_line = gl_factory.link_program(LINE_VS, LINE_FS).unwrap();
-        let prog_mesh = gl_factory.link_program(MESH_VS, MESH_FS).unwrap();
+        let prog_basic = gl_factory.link_program(BASIC_VS, BASIC_FS).unwrap();
         let prog_sprite = gl_factory.link_program(SPRITE_VS, SPRITE_FS).unwrap();
         let rast_fill = gfx::state::Rasterizer::new_fill().with_cull_back();
         let (_, srv_white) = gl_factory.create_texture_immutable::<gfx::format::Rgba8>(
@@ -176,10 +155,10 @@ impl Renderer {
             encoder: gl_factory.create_command_buffer().into(),
             out_color: color,
             out_depth: depth,
-            pso_line_basic: gl_factory.create_pipeline_from_program(&prog_line,
+            pso_line_basic: gl_factory.create_pipeline_from_program(&prog_basic,
                 gfx::Primitive::LineStrip, rast_fill, pipe::new()
                 ).unwrap(),
-            pso_mesh_basic: gl_factory.create_pipeline_from_program(&prog_mesh,
+            pso_mesh_basic: gl_factory.create_pipeline_from_program(&prog_basic,
                 gfx::Primitive::TriangleList, rast_fill, pipe::new()
                 ).unwrap(),
             pso_sprite: gl_factory.create_pipeline_from_program(&prog_sprite,

@@ -80,6 +80,12 @@ impl Object {
             tx: &self.tx,
         }
     }
+
+    pub fn sync(&mut self, scene: &Scene) {
+        let mut hub = scene.hub.lock().unwrap();
+        hub.process_messages();
+        self.transform = hub.nodes[&self.node].transform;
+    }
 }
 
 impl VisualObject {
@@ -93,6 +99,14 @@ impl VisualObject {
             node: &self.inner.node,
             tx: &self.inner.tx,
         }
+    }
+
+    pub fn sync(&mut self, scene: &Scene) {
+        let mut hub = scene.hub.lock().unwrap();
+        hub.process_messages();
+        let node = &hub.nodes[&self.node];
+        self.inner.transform = node.transform;
+        self.visual = node.visual.clone().unwrap();
     }
 }
 
