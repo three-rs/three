@@ -184,16 +184,18 @@ impl Factory {
 
     pub fn ambient_light(&mut self, color: Color, intensity: f32) -> AmbientLight {
         AmbientLight::new(self.hub.lock().unwrap().spawn_light(LightData {
-            color,
+            color_front: color,
+            color_back: 0,
             int_ambient: intensity,
             int_direct: 0.0,
         }))
     }
 
-    pub fn hemisphere_light(&mut self, sky_color: Color, _ground_color: Color,
+    pub fn hemisphere_light(&mut self, sky_color: Color, ground_color: Color,
                             intensity: f32) -> HemisphereLight {
         HemisphereLight::new(self.hub.lock().unwrap().spawn_light(LightData {
-            color: sky_color, //TODO
+            color_front: sky_color,
+            color_back: ground_color | 0x010101, //can't be zero
             int_ambient: intensity,
             int_direct: 0.0,
         }))
@@ -201,7 +203,8 @@ impl Factory {
 
     pub fn directional_light(&mut self, color: Color, intensity: f32) -> DirectionalLight {
         DirectionalLight::new(self.hub.lock().unwrap().spawn_light(LightData {
-            color,
+            color_front: color,
+            color_back: 0,
             int_ambient: 0.0,
             int_direct: intensity,
         }))

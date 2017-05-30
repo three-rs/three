@@ -61,13 +61,14 @@ impl<T> VisualData<T> {
 
 #[derive(Clone)]
 struct LightData {
-    color: Color,
+    color_front: Color,
+    color_back: Color,
     int_ambient: f32,
     int_direct: f32,
 }
 
 enum ShadowConfig {
-    None,
+    //None,
     Ortho(Shadow<OrthographicCamera>),
 }
 

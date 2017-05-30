@@ -35,6 +35,7 @@ gfx_defines!{
     constant LightParam {
         pos: [f32; 4] = "pos",
         color: [f32; 4] = "color",
+        color_back: [f32; 4] = "color_back",
         intensity: [f32; 4] = "intensity",
     }
 
@@ -92,6 +93,7 @@ const PHONG_VS: &'static [u8] = b"
     struct Light {
         vec4 pos;
         vec4 color;
+        vec4 color_back;
         vec4 intensity;
     };
     uniform b_Lights {
@@ -124,6 +126,7 @@ const PHONG_FS: &'static [u8] = b"
     struct Light {
         vec4 pos;
         vec4 color;
+        vec4 color_back;
         vec4 intensity;
     };
     uniform b_Lights {
@@ -143,8 +146,14 @@ const PHONG_FS: &'static [u8] = b"
         for(uint i=0U; i<4U && i < u_NumLights; ++i) {
             Light light = u_Lights[i];
             vec3 dir = light.pos.xyz - light.pos.w * v_World.xyz;
-            float kd = max(0.0, light.intensity.y * dot(normal, normalize(dir)));
-            color += u_Color * light.color * (light.intensity.x + kd);
+            float dot_nl = dot(normal, normalize(dir));
+            if (dot(light.color_back, light.color_back) > 0.0) {
+                vec4 irradiance = mix(light.color_back, light.color, dot_nl*0.5 + 0.5);
+                color += light.intensity.x * u_Color * irradiance;
+            } else {
+                float kd = light.intensity.x + light.intensity.y * max(0.0, dot_nl);
+                color += u_Color * light.color * kd;
+            }
             float ks = dot(normal, normalize(v_Half[i]));
             if (ks > 0.0) {
                 color += light.color * pow(ks, light.intensity.z);
@@ -296,7 +305,8 @@ impl Renderer {
                 let p = node.world_transform.disp;
                 lights.push(LightParam {
                     pos: [p.x, p.y, p.z, 1.0],
-                    color: color_to_f32(light.color),
+                    color: color_to_f32(light.color_front),
+                    color_back: color_to_f32(light.color_back),
                     intensity: [light.int_ambient, light.int_direct, 0.0, 0.0],
                 });
             }

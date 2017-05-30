@@ -155,7 +155,6 @@ fn main() {
     let mut win = three::Window::new("Three-rs box mesh drawing example", cam);
 
     //TODO: win.scene.fog = Some(three::Fog::new(...));
-    //TODO: create lights
     //TODO: Phong materials
     //TODO: cast/receive shadows
 
@@ -167,9 +166,9 @@ fn main() {
         camera: three::OrthographicCamera::new(-400.0, 400.0, 400.0, -400.0, 1.0, 1000.0),
         resolution: [2048, 2048],
     });
-    win.scene.add(&dir_light);
-    let ambient_light = win.factory.ambient_light(0xdc8874, 0.5);
-    win.scene.add(&ambient_light);
+    //win.scene.add(&dir_light); //TODO
+    let _ambient_light = win.factory.ambient_light(0xdc8874, 0.5);
+    //win.scene.add(&ambient_light); //too bright?
 
     let mut sea = {
         let geo = three::Geometry::new_cylinder(600.0, 600.0, 800.0, 40);
