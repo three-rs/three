@@ -13,7 +13,7 @@ pub use self::back::Resources as BackendResources;
 use camera::Camera;
 use factory::{Factory, Texture};
 use scene::{Color, Material};
-use {Hub, Visual, Scene, SceneId, Transform};
+use {Hub, SubNode, VisualData, Scene, SceneId, Transform};
 
 pub type ColorFormat = gfx::format::Srgba8;
 pub type DepthFormat = gfx::format::DepthStencil;
@@ -117,7 +117,7 @@ pub struct GpuData {
 
 impl Hub {
     fn visualize<F>(&mut self, scene_id: SceneId, mut fun: F)
-        where F: FnMut(&Visual<ConstantBuffer>, &Transform)
+        where F: FnMut(&VisualData<ConstantBuffer>, &Transform)
     {
         let mut cursor = self.nodes.cursor_alive();
         while let Some(mut item) = cursor.next() {
@@ -138,8 +138,8 @@ impl Hub {
             item.world_transform = transform;
 
             if visibility && affilation == Some(scene_id) {
-                if let Some(ref visual) = item.visual {
-                    fun(visual, &item.world_transform);
+                if let SubNode::Visual(ref data) = item.sub_node {
+                    fun(data, &item.world_transform);
                 }
             }
         }
@@ -238,16 +238,17 @@ impl Renderer {
                 Material::LineBasic { color } => (&self.pso_line_basic, color, None),
                 Material::MeshBasic { color, wireframe: false } => (&self.pso_mesh_basic_fill, color, None),
                 Material::MeshBasic { color, wireframe: true } => (&self.pso_mesh_basic_wireframe, color, None),
+                Material::MeshLambert { color } => (&self.pso_mesh_basic_fill, color, None), //TEMP
                 Material::Sprite { ref map } => (&self.pso_sprite, !0, Some(map)),
             };
-            self.encoder.update_constant_buffer(&visual.const_buf, &Locals {
+            self.encoder.update_constant_buffer(&visual.payload, &Locals {
                 mx_world: Matrix4::from(*transform).into(),
                 color: color_to_f32(color),
             });
             //TODO: avoid excessive cloning
             let data = pipe::Data {
                 vbuf: visual.gpu_data.vertices.clone(),
-                cb_locals: visual.const_buf.clone(),
+                cb_locals: visual.payload.clone(),
                 cb_globals: self.const_buf.clone(),
                 tex_map: map.unwrap_or(&self.map_default).to_param(),
                 out_color: self.out_color.clone(),

@@ -3,8 +3,8 @@ use std::sync::mpsc;
 
 use froggy::Pointer;
 
-use {Object, VisualObject, Message, Operation,
-     Node, Scene, Transform};
+use {Object, VisualObject, LightObject, Message, Operation,
+     Node, SubNode, Scene, Transform};
 use factory::{Geometry, Texture};
 
 
@@ -14,6 +14,7 @@ pub type Color = u32;
 pub enum Material {
     LineBasic { color: Color },
     MeshBasic { color: Color, wireframe: bool },
+    MeshLambert { color: Color },
     Sprite { map: Texture },
 }
 
@@ -90,12 +91,12 @@ impl Object {
 
 impl VisualObject {
     pub fn material(&self) -> &Material {
-        &self.visual.material
+        &self.data.material
     }
 
     pub fn material_mut(&mut self) -> MaterialProxy {
         MaterialProxy {
-            value: &mut self.visual.material,
+            value: &mut self.data.material,
             node: &self.inner.node,
             tx: &self.inner.tx,
         }
@@ -106,9 +107,9 @@ impl VisualObject {
         hub.process_messages();
         let node = &hub.nodes[&self.node];
         self.inner.transform = node.transform;
-        let vis = node.visual.as_ref().unwrap();
-        self.visual.material = vis.material.clone();
-        self.visual.gpu_data = vis.gpu_data.clone();
+        if let SubNode::Visual(ref data) = node.sub_node {
+            self.data = data.drop_payload();
+        }
     }
 }
 
@@ -203,6 +204,7 @@ macro_rules! deref {
 }
 
 deref!(VisualObject : inner = Object);
+deref!(LightObject : inner = Object);
 deref!(Group : object = Object);
 deref!(Mesh : object = VisualObject);
 deref!(Sprite : object = VisualObject);

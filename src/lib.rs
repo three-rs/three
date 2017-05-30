@@ -41,11 +41,33 @@ pub type Orientation = cgmath::Quaternion<f32>;
 pub type Transform = cgmath::Decomposed<cgmath::Vector3<f32>, Orientation>;
 
 
-#[derive(Clone)]
-struct Visual<C> {
+struct VisualData<T> {
     material: Material,
-    const_buf: C,
     gpu_data: GpuData,
+    payload: T,
+}
+
+impl<T> VisualData<T> {
+    fn drop_payload(&self) -> VisualData<()> {
+        VisualData {
+            material: self.material.clone(),
+            gpu_data: self.gpu_data.clone(),
+            payload: (),
+        }
+    }
+}
+
+#[derive(Clone)]
+struct LightData {
+    color: Color,
+    int_ambient: f32,
+    int_direct: f32,
+}
+
+enum SubNode {
+    Empty,
+    Visual(VisualData<ConstantBuffer>),
+    Light(LightData),
 }
 
 /// Fat node of the scene graph.
@@ -56,7 +78,7 @@ pub struct Node {
     world_transform: Transform,
     parent: Option<froggy::Pointer<Node>>,
     scene_id: Option<SceneId>,
-    visual: Option<Visual<ConstantBuffer>>,
+    sub_node: SubNode,
 }
 
 pub struct Object {
@@ -68,7 +90,12 @@ pub struct Object {
 
 pub struct VisualObject {
     inner: Object,
-    visual: Visual<()>,
+    data: VisualData<()>,
+}
+
+pub struct LightObject {
+    inner: Object,
+    data: LightData,
 }
 
 type Message = (froggy::WeakPointer<Node>, Operation);
@@ -114,7 +141,9 @@ impl Hub {
                     node.transform = transform;
                 }
                 Operation::SetMaterial(material) => {
-                    node.visual.as_mut().unwrap().material = material;
+                    if let SubNode::Visual(ref mut data) = node.sub_node {
+                        data.material = material;
+                    }
                 }
             }
         }

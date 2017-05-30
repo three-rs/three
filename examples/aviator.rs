@@ -22,7 +22,7 @@ impl Cloud {
             meshes: Vec::new()
         };
         let geo = three::Geometry::new_box(20.0, 20.0, 20.0);
-        let material = three::Material::MeshBasic{ color: 0xFFFFFF };
+        let material = three::Material::MeshLambert{ color: 0xFFFFFF };
         for i in 0 .. rng.gen_range(3, 6) {
             let mut m = factory.mesh(geo.clone(), material.clone());
             let rot: three::Orientation = rng.gen();
@@ -92,24 +92,24 @@ impl AirPlane {
                     v.y += if v.y > 0.0 {-10.0} else {30.0};
                 }
             }
-            factory.mesh(geo, three::Material::MeshBasic{ color: 0xFF0000 })
+            factory.mesh(geo, three::Material::MeshLambert{ color: 0xFF0000 })
         };
         group.add(&cockpit);
         let mut engine = factory.mesh(
             three::Geometry::new_box(20.0, 50.0, 50.0),
-            three::Material::MeshBasic{ color: 0xFFFFFF }
+            three::Material::MeshLambert{ color: 0xFFFFFF }
         );
         engine.transform_mut().disp.x = 40.0;
         group.add(&engine);
         let mut tail = factory.mesh(
             three::Geometry::new_box(15.0, 20.0, 5.0),
-            three::Material::MeshBasic{ color: 0xFF0000 }
+            three::Material::MeshLambert{ color: 0xFF0000 }
         );
         tail.transform_mut().disp = cgmath::vec3(-35.0, 25.0, 0.0);
         group.add(&tail);
         let wing = factory.mesh(
             three::Geometry::new_box(40.0, 8.0, 150.0),
-            three::Material::MeshBasic{ color: 0xFF0000 }
+            three::Material::MeshLambert{ color: 0xFF0000 }
         );
         group.add(&wing);
 
@@ -118,12 +118,12 @@ impl AirPlane {
         group.add(&propeller_group);
         let propeller = factory.mesh(
             three::Geometry::new_box(20.0, 10.0, 10.0),
-            three::Material::MeshBasic{ color: 0xa52a2a }
+            three::Material::MeshLambert{ color: 0xa52a2a }
         );
         propeller_group.add(&propeller);
         let mut blade = factory.mesh(
             three::Geometry::new_box(1.0, 100.0, 20.0),
-            three::Material::MeshBasic{ color: 0x23190f }
+            three::Material::MeshLambert{ color: 0x23190f }
         );
         blade.transform_mut().disp = cgmath::vec3(8.0, 0.0, 0.0);
         propeller_group.add(&blade);
@@ -159,9 +159,12 @@ fn main() {
     //TODO: Phong materials
     //TODO: cast/receive shadows
 
+    //let ambient = win.factory.ambient_light(0xdc8874, 0.5);
+    //win.scene.add(&ambient);
+
     let mut sea = {
         let geo = three::Geometry::new_cylinder(600.0, 600.0, 800.0, 40);
-        let material = three::Material::MeshBasic{ color: 0x0000FF };
+        let material = three::Material::MeshLambert{ color: 0x0000FF };
         win.factory.mesh(geo, material)
     };
     *sea.transform_mut() = three::Transform {

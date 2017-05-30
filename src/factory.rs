@@ -13,9 +13,9 @@ use gfx::traits::{Factory as Factory_, FactoryExt};
 use image;
 
 use render::{BackendFactory, BackendResources, ConstantBuffer, GpuData, Vertex};
-use scene::{Group, Mesh, Sprite, Material};
-use {Hub, HubPtr, Node, Normal, Position, Transform,
-     Visual, Object, VisualObject, Scene};
+use scene::{Color, Group, Mesh, Sprite, Material};
+use {Hub, HubPtr, Node, SubNode, Normal, Position, Transform,
+     VisualData, LightData, Object, VisualObject, LightObject, Scene};
 
 
 const NORMAL_Z: [I8Norm; 4] = [I8Norm(0), I8Norm(0), I8Norm(1), I8Norm(0)];
@@ -44,8 +44,8 @@ const QUAD: [Vertex; 4] = [
 ];
 
 
-impl Node {
-    fn new() -> Self {
+impl From<SubNode> for Node {
+    fn from(sub: SubNode) -> Self {
         Node {
             visible: true,
             world_visible: false,
@@ -53,13 +53,7 @@ impl Node {
             world_transform: Transform::one(),
             parent: None,
             scene_id: None,
-            visual: None,
-        }
-    }
-    fn new_visual(visual: Visual<ConstantBuffer>) -> Self {
-        Node {
-            visual: Some(visual),
-            .. Self::new()
+            sub_node: sub,
         }
     }
 }
@@ -69,24 +63,34 @@ impl Hub {
         Object {
             visible: true,
             transform: Transform::one(),
-            node: self.nodes.create(Node::new()),
+            node: self.nodes.create(SubNode::Empty.into()),
             tx: self.message_tx.clone(),
         }
     }
 
-    fn spawn_visual(&mut self, visual: Visual<ConstantBuffer>) -> VisualObject {
+    fn spawn_visual(&mut self, data: VisualData<ConstantBuffer>)
+                    -> VisualObject
+    {
         VisualObject {
+            data: data.drop_payload(),
             inner: Object {
                 visible: true,
                 transform: Transform::one(),
-                node: self.nodes.create(Node::new_visual(visual.clone())),
+                node: self.nodes.create(SubNode::Visual(data).into()),
                 tx: self.message_tx.clone(),
             },
-            visual: Visual {
-                material: visual.material,
-                const_buf: (),
-                gpu_data: visual.gpu_data,
+        }
+    }
+
+    fn spawn_light(&mut self, data: LightData) -> LightObject {
+        LightObject {
+            inner: Object {
+                visible: true,
+                transform: Transform::one(),
+                node: self.nodes.create(SubNode::Light(data.clone()).into()),
+                tx: self.message_tx.clone(),
             },
+            data,
         }
     }
 }
@@ -121,7 +125,7 @@ impl Factory {
         let mut hub = self.hub.lock().unwrap();
         let node = hub.nodes.create(Node {
             scene_id: Some(self.scene_id),
-            .. Node::new()
+            .. SubNode::Empty.into()
         });
         Scene {
             unique_id: self.scene_id,
@@ -158,9 +162,9 @@ impl Factory {
             let faces: &[u16] = gfx::memory::cast_slice(&geom.faces);
             self.backend.create_vertex_buffer_with_slice(&vertices, faces)
         };
-        Mesh::new(self.hub.lock().unwrap().spawn_visual(Visual {
+        Mesh::new(self.hub.lock().unwrap().spawn_visual(VisualData {
             material: mat,
-            const_buf: cbuf,
+            payload: cbuf,
             gpu_data: GpuData {
                 slice: slice,
                 vertices: vbuf,
@@ -170,11 +174,19 @@ impl Factory {
 
     pub fn sprite(&mut self, mat: Material) -> Sprite {
         let cbuf = self.backend.create_constant_buffer(1);
-        Sprite::new(self.hub.lock().unwrap().spawn_visual(Visual {
+        Sprite::new(self.hub.lock().unwrap().spawn_visual(VisualData {
             material: mat,
-            const_buf: cbuf,
+            payload: cbuf,
             gpu_data: self.quad.clone(),
         }))
+    }
+
+    pub fn ambient_light(&mut self, color: Color, intensity: f32) -> LightObject {
+        self.hub.lock().unwrap().spawn_light(LightData {
+            color,
+            int_ambient: intensity,
+            int_direct: 0.0
+        })
     }
 }
 
