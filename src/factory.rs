@@ -13,7 +13,8 @@ use gfx::traits::{Factory as Factory_, FactoryExt};
 use image;
 
 use render::{BackendFactory, BackendResources, ConstantBuffer, GpuData, Vertex};
-use scene::{Color, Group, Mesh, Sprite, Material};
+use scene::{Color, Group, Mesh, Sprite, Material,
+            AmbientLight, HemisphereLight, DirectionalLight};
 use {Hub, HubPtr, Node, SubNode, Normal, Position, Transform,
      VisualData, LightData, Object, VisualObject, LightObject, Scene};
 
@@ -181,12 +182,29 @@ impl Factory {
         }))
     }
 
-    pub fn ambient_light(&mut self, color: Color, intensity: f32) -> LightObject {
-        self.hub.lock().unwrap().spawn_light(LightData {
+    pub fn ambient_light(&mut self, color: Color, intensity: f32) -> AmbientLight {
+        AmbientLight::new(self.hub.lock().unwrap().spawn_light(LightData {
             color,
             int_ambient: intensity,
-            int_direct: 0.0
-        })
+            int_direct: 0.0,
+        }))
+    }
+
+    pub fn hemisphere_light(&mut self, sky_color: Color, _ground_color: Color,
+                            intensity: f32) -> HemisphereLight {
+        HemisphereLight::new(self.hub.lock().unwrap().spawn_light(LightData {
+            color: sky_color, //TODO
+            int_ambient: intensity,
+            int_direct: 0.0,
+        }))
+    }
+
+    pub fn directional_light(&mut self, color: Color, intensity: f32) -> DirectionalLight {
+        DirectionalLight::new(self.hub.lock().unwrap().spawn_light(LightData {
+            color,
+            int_ambient: 0.0,
+            int_direct: intensity,
+        }))
     }
 }
 

@@ -23,7 +23,8 @@ mod window;
 pub use camera::{Camera, OrthographicCamera, PerspectiveCamera};
 pub use factory::{Factory, Geometry, Texture};
 pub use render::{ColorFormat, DepthFormat, Renderer};
-pub use scene::{Color, Material, Group, Mesh, Sprite};
+pub use scene::{Color, Material, Group, Mesh, Sprite, Shadow,
+                AmbientLight, HemisphereLight, DirectionalLight};
 #[cfg(feature = "opengl")]
 pub use window::{Events, Window};
 #[cfg(feature = "opengl")]
@@ -63,6 +64,11 @@ struct LightData {
     color: Color,
     int_ambient: f32,
     int_direct: f32,
+}
+
+enum ShadowConfig {
+    None,
+    Ortho(Shadow<OrthographicCamera>),
 }
 
 enum SubNode {
@@ -105,6 +111,7 @@ enum Operation {
     SetVisible(bool),
     SetTransform(Transform),
     SetMaterial(Material),
+    SetShadow(ShadowConfig),
 }
 
 type HubPtr = Arc<Mutex<Hub>>;
@@ -144,6 +151,11 @@ impl Hub {
                 Operation::SetMaterial(material) => {
                     if let SubNode::Visual(ref mut data) = node.sub_node {
                         data.material = material;
+                    }
+                }
+                Operation::SetShadow(_shadow) => {
+                    if let SubNode::Light(ref mut _data) = node.sub_node {
+                        //data.shadow = shadow;
                     }
                 }
             }

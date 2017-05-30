@@ -4,7 +4,8 @@ use std::sync::mpsc;
 use froggy::Pointer;
 
 use {Object, VisualObject, LightObject, Message, Operation,
-     Node, SubNode, Scene, Transform};
+     Node, SubNode, Scene, Transform, ShadowConfig};
+use camera::OrthographicCamera;
 use factory::{Geometry, Texture};
 
 
@@ -16,6 +17,12 @@ pub enum Material {
     MeshBasic { color: Color, wireframe: bool },
     MeshLambert { color: Color },
     Sprite { map: Texture },
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Shadow<C> {
+    pub camera: C,
+    pub resolution: [u16; 2],
 }
 
 macro_rules! def_proxy {
@@ -132,12 +139,6 @@ impl Group {
     }
 }
 
-impl AsRef<Pointer<Node>> for Group {
-    fn as_ref(&self) -> &Pointer<Node> {
-        &self.object.node
-    }
-}
-
 pub struct Mesh {
     object: VisualObject,
     _geometry: Option<Geometry>,
@@ -150,12 +151,6 @@ impl Mesh {
             object,
             _geometry: None,
         }
-    }
-}
-
-impl AsRef<Pointer<Node>> for Mesh {
-    fn as_ref(&self) -> &Pointer<Node> {
-        &self.object.node
     }
 }
 
@@ -172,17 +167,58 @@ impl Sprite {
     }
 }
 
-impl AsRef<Pointer<Node>> for Sprite {
-    fn as_ref(&self) -> &Pointer<Node> {
-        &self.object.node
+
+pub struct AmbientLight {
+    object: LightObject,
+}
+
+impl AmbientLight {
+    #[doc(hidden)]
+    pub fn new(object: LightObject) -> Self {
+        AmbientLight {
+            object,
+        }
     }
 }
 
-impl AsRef<Pointer<Node>> for LightObject {
-    fn as_ref(&self) -> &Pointer<Node> {
-        &self.inner.node
+pub struct HemisphereLight {
+    object: LightObject,
+}
+
+impl HemisphereLight {
+    #[doc(hidden)]
+    pub fn new(object: LightObject) -> Self {
+        HemisphereLight {
+            object,
+        }
     }
 }
+
+pub struct DirectionalLight {
+    object: LightObject,
+    has_shadow: bool,
+}
+
+impl DirectionalLight {
+    #[doc(hidden)]
+    pub fn new(object: LightObject) -> Self {
+        DirectionalLight {
+            object,
+            has_shadow: false,
+        }
+    }
+
+    pub fn has_shadow(&self) -> bool {
+        self.has_shadow
+    }
+
+    pub fn set_shadow(&mut self, shadow: Shadow<OrthographicCamera>) {
+        self.has_shadow = true;
+        let msg = Operation::SetShadow(ShadowConfig::Ortho(shadow));
+        let _ = self.tx.send((self.node.downgrade(), msg));
+    }
+}
+
 
 impl Scene {
     pub fn add<P: AsRef<Pointer<Node>>>(&mut self, child: &P) {
@@ -191,6 +227,19 @@ impl Scene {
     }
 }
 
+macro_rules! as_node {
+    ($($name:ident),*) => {
+        $(
+            impl AsRef<Pointer<Node>> for $name {
+                fn as_ref(&self) -> &Pointer<Node> {
+                    &self.object.node
+                }
+            }
+        )*
+    }
+}
+
+as_node!(Group, Mesh, Sprite, AmbientLight, HemisphereLight, DirectionalLight);
 
 macro_rules! deref {
     ($name:ty : $field:ident = $object:ty) => {
@@ -214,3 +263,6 @@ deref!(LightObject : inner = Object);
 deref!(Group : object = Object);
 deref!(Mesh : object = VisualObject);
 deref!(Sprite : object = VisualObject);
+deref!(AmbientLight : object = LightObject);
+deref!(HemisphereLight : object = LightObject);
+deref!(DirectionalLight : object = LightObject);

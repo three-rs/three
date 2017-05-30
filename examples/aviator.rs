@@ -159,8 +159,17 @@ fn main() {
     //TODO: Phong materials
     //TODO: cast/receive shadows
 
-    let ambient = win.factory.ambient_light(0xdc8874, 0.5);
-    win.scene.add(&ambient);
+    let hemi_light = win.factory.hemisphere_light(0xaaaaaa, 0x000000, 0.9);
+    win.scene.add(&hemi_light);
+    let mut dir_light = win.factory.directional_light(0xffffff, 0.9);
+    dir_light.transform_mut().disp = cgmath::vec3(150.0, 350.0, 350.0);
+    dir_light.set_shadow(three::Shadow {
+        camera: three::OrthographicCamera::new(-400.0, 400.0, 400.0, -400.0, 1.0, 1000.0),
+        resolution: [2048, 2048],
+    });
+    win.scene.add(&dir_light);
+    let ambient_light = win.factory.ambient_light(0xdc8874, 0.5);
+    win.scene.add(&ambient_light);
 
     let mut sea = {
         let geo = three::Geometry::new_cylinder(600.0, 600.0, 800.0, 40);

@@ -12,6 +12,7 @@ pub trait Camera {
     fn set_aspect(&mut self, f32);
 }
 
+#[derive(Clone)]
 pub struct PerspectiveCamera {
     projection: cgmath::PerspectiveFov<f32>,
     pub position: Position,
@@ -61,6 +62,7 @@ impl Camera for PerspectiveCamera {
     }
 }
 
+#[derive(Clone)]
 pub struct OrthographicCamera {
     projection: cgmath::Ortho<f32>,
     base_aspect: f32,
