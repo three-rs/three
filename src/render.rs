@@ -114,6 +114,7 @@ const PHONG_VS: &'static [u8] = b"
     void main() {
         vec4 world = u_World * a_Position;
         v_World = world.xyz;
+        //TODO: this doesn't work right for the cylinder, investigate
         v_Normal = normalize(mat3(u_World) * a_Normal.xyz);
         for(uint i=0U; i<4U && i < u_NumLights; ++i) {
             vec3 dir = u_Lights[i].pos.xyz - u_Lights[i].pos.w * world.xyz;
@@ -153,11 +154,12 @@ const PHONG_FS: &'static [u8] = b"
             Light light = u_Lights[i];
             vec3 dir = light.pos.xyz - light.pos.w * v_World.xyz;
             float dot_nl = dot(normal, normalize(dir));
+            // hemisphere light test
             if (dot(light.color_back, light.color_back) > 0.0) {
                 vec4 irradiance = mix(light.color_back, light.color, dot_nl*0.5 + 0.5);
                 color += light.intensity.y * u_Color * irradiance;
-            } else if (dot_nl > 0.0) {
-                float kd = light.intensity.x + light.intensity.y * dot_nl;
+            } else {
+                float kd = light.intensity.x + light.intensity.y * max(0.0, dot_nl);
                 color += u_Color * light.color * kd;
             }
             if (dot_nl > 0.0 && light.intensity.z > 0.0) {
@@ -198,11 +200,18 @@ const SPRITE_FS: &'static [u8] = b"
 ";
 
 
-fn color_to_f32(c: Color) -> [f32; 4] {
-    [((c>>16)&0xFF) as f32 / 255.0,
-     ((c>>8) &0xFF) as f32 / 255.0,
-     (c&0xFF) as f32 / 255.0,
-     1.0]
+/// sRGB to linear conversion from:
+/// https://www.khronos.org/registry/OpenGL/extensions/EXT/EXT_texture_sRGB_decode.txt
+fn decode_color(c: Color) -> [f32; 4] {
+    let f = |xu: u32| {
+        let x = (xu & 0xFF) as f32 / 255.0;
+        if x > 0.04045 {
+            ((x + 0.055) / 1.055).powf(2.4)
+        } else {
+            x / 12.92
+        }
+    };
+    [f(c>>16), f(c>>8), f(c), 0.0]
 }
 
 //TODO: private fields?
@@ -316,8 +325,7 @@ impl Renderer {
                 let mut intensity = [0.0, light.intensity, 0.0, 0.0];
                 match light.sub_light {
                     SubLight::Ambient => {
-                        intensity[0] = intensity[1];
-                        intensity[1] = 0.0;
+                        intensity = [light.intensity, 0.0, 0.0, 0.0];
                     }
                     SubLight::Directional => {
                         p = d.extend(0.0);
@@ -334,8 +342,8 @@ impl Renderer {
                     pos: p.into(),
                     dir: d.extend(0.0).into(),
                     focus: [0.0, 0.0, 0.0, 0.0],
-                    color: color_to_f32(light.color),
-                    color_back: color_to_f32(color_back),
+                    color: decode_color(light.color),
+                    color_back: decode_color(color_back),
                     intensity: intensity,
                 });
             }
@@ -371,7 +379,7 @@ impl Renderer {
             };
             self.encoder.update_constant_buffer(&visual.payload, &Locals {
                 mx_world: Matrix4::from(node.world_transform).into(),
-                color: color_to_f32(color),
+                color: decode_color(color),
             });
             //TODO: avoid excessive cloning
             let data = pipe::Data {

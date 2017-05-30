@@ -152,7 +152,7 @@ fn main() {
     let mut rng = rand::thread_rng();
     let mut cam = three::PerspectiveCamera::new(60.0, 0.0, 1.0, 1000.0);
     cam.position = three::Position::new(0.0, 100.0, 200.0);
-    let mut win = three::Window::new("Three-rs box mesh drawing example", cam);
+    let mut win = three::Window::new("Three-rs aviator example", cam);
 
     //TODO: win.scene.fog = Some(three::Fog::new(...));
     //TODO: Phong materials
@@ -167,8 +167,8 @@ fn main() {
         resolution: [2048, 2048],
     });
     //win.scene.add(&dir_light); //TODO
-    let _ambient_light = win.factory.ambient_light(0xdc8874, 0.5);
-    //win.scene.add(&ambient_light); //too bright?
+    let ambient_light = win.factory.ambient_light(0xdc8874, 0.5);
+    win.scene.add(&ambient_light);
 
     let mut sea = {
         let geo = three::Geometry::new_cylinder(600.0, 600.0, 800.0, 40);

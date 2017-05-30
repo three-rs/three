@@ -342,7 +342,7 @@ impl Factory {
                         .flipv().to_rgba();
         let (width, height) = img.dimensions();
         let kind = t::Kind::D2(width as t::Size, height as t::Size, t::AaMode::Single);
-        let (_, view) = self.backend.create_texture_immutable_u8::<gfx::format::Rgba8>(kind, &[&img])
+        let (_, view) = self.backend.create_texture_immutable_u8::<gfx::format::Srgba8>(kind, &[&img])
                                     .unwrap_or_else(|e| panic!("Unable to create GPU texture for {}: {:?}", path_str, e));
 
         Texture {
