@@ -9,7 +9,7 @@ fn main() {
     light.transform_mut().disp = three::Vector::new(0.0, 5.0, 5.0);
     win.scene.add(&light);
 
-    let geometry = three::Geometry::new_box(2.0, 2.0, 2.0);
+    let geometry = three::Geometry::new_cylinder(1.0, 2.0, 2.0, 5);
     let mut materials = vec![
         three::Material::MeshBasic{ color: 0xffffff, wireframe: false },
         three::Material::MeshLambert{ color: 0xffffff },
@@ -25,7 +25,7 @@ fn main() {
         mesh
     }).collect();
 
-    let speed = 1.5;
+    let speed = 5.0;
     while let Some(events) = win.update() {
         if events.keys.contains(&three::Key::Left) {
             light.transform_mut().disp.x -= speed * events.time_delta;
