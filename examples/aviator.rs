@@ -159,8 +159,8 @@ fn main() {
     //TODO: Phong materials
     //TODO: cast/receive shadows
 
-    //let ambient = win.factory.ambient_light(0xdc8874, 0.5);
-    //win.scene.add(&ambient);
+    let ambient = win.factory.ambient_light(0xdc8874, 0.5);
+    win.scene.add(&ambient);
 
     let mut sea = {
         let geo = three::Geometry::new_cylinder(600.0, 600.0, 800.0, 40);

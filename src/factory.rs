@@ -90,7 +90,7 @@ impl Hub {
                 node: self.nodes.create(SubNode::Light(data.clone()).into()),
                 tx: self.message_tx.clone(),
             },
-            data,
+            _data: data,
         }
     }
 }

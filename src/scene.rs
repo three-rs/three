@@ -178,6 +178,12 @@ impl AsRef<Pointer<Node>> for Sprite {
     }
 }
 
+impl AsRef<Pointer<Node>> for LightObject {
+    fn as_ref(&self) -> &Pointer<Node> {
+        &self.inner.node
+    }
+}
+
 impl Scene {
     pub fn add<P: AsRef<Pointer<Node>>>(&mut self, child: &P) {
         let msg = Operation::SetParent(self.node.clone());

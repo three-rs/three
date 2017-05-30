@@ -31,6 +31,7 @@ pub use glutin::VirtualKeyCode as Key;
 
 use std::sync::{mpsc, Arc, Mutex};
 
+use cgmath::Transform as Transform_;
 use factory::SceneId;
 use render::{ConstantBuffer, GpuData};
 
@@ -95,7 +96,7 @@ pub struct VisualObject {
 
 pub struct LightObject {
     inner: Object,
-    data: LightData,
+    _data: LightData,
 }
 
 type Message = (froggy::WeakPointer<Node>, Operation);
@@ -148,6 +149,27 @@ impl Hub {
             }
         }
         self.nodes.sync_pending();
+    }
+
+    fn update_graph(&mut self) {
+        let mut cursor = self.nodes.cursor_alive();
+        while let Some(mut item) = cursor.next() {
+            if !item.visible {
+                item.world_visible = false;
+                continue
+            }
+            let (visibility, affilation, transform) = match item.parent {
+                Some(ref parent_ptr) => {
+                    let parent = item.look_back(parent_ptr).unwrap();
+                    (parent.world_visible, parent.scene_id,
+                     parent.world_transform.concat(&item.transform))
+                },
+                None => (true, item.scene_id, item.transform),
+            };
+            item.world_visible = visibility;
+            item.scene_id = affilation;
+            item.world_transform = transform;
+        }
     }
 }
 

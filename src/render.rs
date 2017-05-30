@@ -1,4 +1,4 @@
-use cgmath::{Matrix4, Transform as Transform_};
+use cgmath::Matrix4;
 use gfx;
 use gfx::traits::{Device, Factory as Factory_, FactoryExt};
 #[cfg(feature = "opengl")]
@@ -13,11 +13,12 @@ pub use self::back::Resources as BackendResources;
 use camera::Camera;
 use factory::{Factory, Texture};
 use scene::{Color, Material};
-use {Hub, SubNode, VisualData, Scene, SceneId, Transform};
+use {SubNode, Scene};
 
 pub type ColorFormat = gfx::format::Srgba8;
 pub type DepthFormat = gfx::format::DepthStencil;
 pub type ConstantBuffer = gfx::handle::Buffer<back::Resources, Locals>;
+const MAX_LIGHTS: usize = 4;
 
 gfx_defines!{
     vertex Vertex {
@@ -31,14 +32,22 @@ gfx_defines!{
         color: [f32; 4] = "u_Color",
     }
 
+    constant LightParam {
+        pos: [f32; 4] = "pos",
+        color: [f32; 4] = "color",
+        intensity: [f32; 4] = "intensity",
+    }
+
     constant Globals {
         mx_vp: [[f32; 4]; 4] = "u_ViewProj",
+        num_lights: u32 = "u_NumLights",
     }
 
     pipeline pipe {
         vbuf: gfx::VertexBuffer<Vertex> = (),
-        cb_locals: gfx::ConstantBuffer<Locals> = "cb_Locals",
-        cb_globals: gfx::ConstantBuffer<Globals> = "cb_Globals",
+        cb_locals: gfx::ConstantBuffer<Locals> = "b_Locals",
+        cb_lights: gfx::ConstantBuffer<LightParam> = "b_Lights",
+        cb_globals: gfx::ConstantBuffer<Globals> = "b_Globals",
         tex_map: gfx::TextureSampler<[f32; 4]> = "t_Map",
         out_color: gfx::BlendTarget<ColorFormat> =
             ("Target0", gfx::state::MASK_ALL, gfx::preset::blend::REPLACE),
@@ -51,10 +60,10 @@ const BASIC_VS: &'static [u8] = b"
     #version 150 core
     in vec4 a_Position;
     in vec4 a_Normal;
-    uniform cb_Globals {
+    uniform b_Globals {
         mat4 u_ViewProj;
     };
-    uniform cb_Locals {
+    uniform b_Locals {
         mat4 u_World;
         vec4 u_Color;
     };
@@ -64,7 +73,7 @@ const BASIC_VS: &'static [u8] = b"
 ";
 const BASIC_FS: &'static [u8] = b"
     #version 150 core
-    uniform cb_Locals {
+    uniform b_Locals {
         mat4 u_World;
         vec4 u_Color;
     };
@@ -73,15 +82,87 @@ const BASIC_FS: &'static [u8] = b"
     }
 ";
 
+const PHONG_VS: &'static [u8] = b"
+    #version 150 core
+    in vec4 a_Position;
+    in vec4 a_Normal;
+    out vec3 v_World;
+    out vec3 v_Normal;
+    out vec3 v_Half[4];
+    struct Light {
+        vec4 pos;
+        vec4 color;
+        vec4 intensity;
+    };
+    uniform b_Lights {
+        Light u_Lights[4];
+    };
+    uniform b_Globals {
+        mat4 u_ViewProj;
+        uint u_NumLights;
+    };
+    uniform b_Locals {
+        mat4 u_World;
+        vec4 u_Color;
+    };
+    void main() {
+        vec4 world = u_World * a_Position;
+        v_World = world.xyz;
+        v_Normal = normalize(mat3(u_World) * a_Normal.xyz);
+        for(uint i=0U; i<4U && i < u_NumLights; ++i) {
+            vec3 dir = u_Lights[i].pos.xyz - u_Lights[i].pos.w * world.xyz;
+            v_Half[i] = normalize(v_Normal + normalize(dir));
+        }
+        gl_Position = u_ViewProj * world;
+    }
+";
+const PHONG_FS: &'static [u8] = b"
+    #version 150 core
+    in vec3 v_World;
+    in vec3 v_Normal;
+    in vec3 v_Half[4];
+    struct Light {
+        vec4 pos;
+        vec4 color;
+        vec4 intensity;
+    };
+    uniform b_Lights {
+        Light u_Lights[4];
+    };
+    uniform b_Globals {
+        mat4 u_ViewProj;
+        uint u_NumLights;
+    };
+    uniform b_Locals {
+        mat4 u_World;
+        vec4 u_Color;
+    };
+    void main() {
+        vec4 color = vec4(0.0);
+        vec3 normal = normalize(v_Normal);
+        for(uint i=0U; i<4U && i < u_NumLights; ++i) {
+            Light light = u_Lights[i];
+            vec3 dir = light.pos.xyz - light.pos.w * v_World.xyz;
+            float kd = max(0.0, light.intensity.y * dot(normal, normalize(dir)));
+            color += u_Color * light.color * (light.intensity.x + kd);
+            float ks = dot(normal, normalize(v_Half[i]));
+            if (ks > 0.0) {
+                color += light.color * pow(ks, light.intensity.z);
+            }
+        }
+        gl_FragColor = color;
+    }
+";
+
 const SPRITE_VS: &'static [u8] = b"
     #version 150 core
     in vec4 a_Position;
     in vec2 a_TexCoord;
     out vec2 v_TexCoord;
-    uniform cb_Globals {
+    uniform b_Globals {
         mat4 u_ViewProj;
     };
-    uniform cb_Locals {
+    uniform b_Locals {
         mat4 u_World;
         vec4 u_Color;
     };
@@ -114,48 +195,17 @@ pub struct GpuData {
     pub vertices: gfx::handle::Buffer<back::Resources, Vertex>,
 }
 
-
-impl Hub {
-    fn visualize<F>(&mut self, scene_id: SceneId, mut fun: F)
-        where F: FnMut(&VisualData<ConstantBuffer>, &Transform)
-    {
-        let mut cursor = self.nodes.cursor_alive();
-        while let Some(mut item) = cursor.next() {
-            if !item.visible {
-                item.world_visible = false;
-                continue
-            }
-            let (visibility, affilation, transform) = match item.parent {
-                Some(ref parent_ptr) => {
-                    let parent = item.look_back(parent_ptr).unwrap();
-                    (parent.world_visible, parent.scene_id,
-                     parent.world_transform.concat(&item.transform))
-                },
-                None => (true, item.scene_id, item.transform),
-            };
-            item.world_visible = visibility;
-            item.scene_id = affilation;
-            item.world_transform = transform;
-
-            if visibility && affilation == Some(scene_id) {
-                if let SubNode::Visual(ref data) = item.sub_node {
-                    fun(data, &item.world_transform);
-                }
-            }
-        }
-    }
-}
-
-
 pub struct Renderer {
     device: back::Device,
     encoder: gfx::Encoder<back::Resources, back::CommandBuffer>,
     const_buf: gfx::handle::Buffer<back::Resources, Globals>,
+    light_buf: gfx::handle::Buffer<back::Resources, LightParam>,
     out_color: gfx::handle::RenderTargetView<back::Resources, ColorFormat>,
     out_depth: gfx::handle::DepthStencilView<back::Resources, DepthFormat>,
     pso_line_basic: gfx::PipelineState<back::Resources, pipe::Meta>,
     pso_mesh_basic_fill: gfx::PipelineState<back::Resources, pipe::Meta>,
     pso_mesh_basic_wireframe: gfx::PipelineState<back::Resources, pipe::Meta>,
+    pso_mesh_phong: gfx::PipelineState<back::Resources, pipe::Meta>,
     pso_sprite: gfx::PipelineState<back::Resources, pipe::Meta>,
     map_default: Texture,
     size: (u32, u32),
@@ -170,6 +220,7 @@ impl Renderer {
         let (window, device, mut gl_factory, color, depth) =
             gfx_window_glutin::init(builder, event_loop);
         let prog_basic = gl_factory.link_program(BASIC_VS, BASIC_FS).unwrap();
+        let prog_phong = gl_factory.link_program(PHONG_VS, PHONG_FS).unwrap();
         let prog_sprite = gl_factory.link_program(SPRITE_VS, SPRITE_FS).unwrap();
         let rast_fill = gfx::state::Rasterizer::new_fill().with_cull_back();
         let rast_wire = gfx::state::Rasterizer {
@@ -184,6 +235,7 @@ impl Renderer {
             device: device,
             encoder: gl_factory.create_command_buffer().into(),
             const_buf: gl_factory.create_constant_buffer(1),
+            light_buf: gl_factory.create_constant_buffer(MAX_LIGHTS),
             out_color: color,
             out_depth: depth,
             pso_line_basic: gl_factory.create_pipeline_from_program(&prog_basic,
@@ -194,6 +246,9 @@ impl Renderer {
                 ).unwrap(),
             pso_mesh_basic_wireframe: gl_factory.create_pipeline_from_program(&prog_basic,
                 gfx::Primitive::TriangleList, rast_wire, pipe::new(),
+                ).unwrap(),
+            pso_mesh_phong:  gl_factory.create_pipeline_from_program(&prog_phong,
+                gfx::Primitive::TriangleList, rast_fill, pipe::new()
                 ).unwrap(),
             pso_sprite: gl_factory.create_pipeline_from_program(&prog_sprite,
                 gfx::Primitive::TriangleStrip, rast_fill, pipe::Init {
@@ -223,39 +278,74 @@ impl Renderer {
     }
 
     pub fn render<C: Camera>(&mut self, scene: &Scene, cam: &C) {
+        let mut hub = scene.hub.lock().unwrap();
+        hub.process_messages();
+        hub.update_graph();
+
+        // gather lights
+        let mut lights = Vec::new();
+        for node in hub.nodes.iter_alive() {
+            if node.scene_id != Some(scene.unique_id) {
+                continue
+            }
+            if let SubNode::Light(ref light) = node.sub_node {
+                if lights.len() == MAX_LIGHTS {
+                    //error!("Max number of lights ({}) reached", MAX_LIGHTS);
+                    break;
+                }
+                let p = node.world_transform.disp;
+                lights.push(LightParam {
+                    pos: [p.x, p.y, p.z, 1.0],
+                    color: color_to_f32(light.color),
+                    intensity: [light.int_ambient, light.int_direct, 0.0, 0.0],
+                });
+            }
+        }
+
+        // prepare target and globals
         self.device.cleanup();
         self.encoder.clear(&self.out_color, [0.0, 0.0, 0.0, 1.0]);
         self.encoder.clear_depth(&self.out_depth, 1.0);
         self.encoder.update_constant_buffer(&self.const_buf, &Globals {
             mx_vp: cam.to_view_proj().into(),
+            num_lights: lights.len() as u32,
         });
+        self.encoder.update_buffer(&self.light_buf, &lights, 0).unwrap();
 
-        let mut hub = scene.hub.lock().unwrap();
-        hub.process_messages();
-        hub.visualize(scene.unique_id, |visual, transform| {
+        // render everything
+        for node in hub.nodes.iter_alive() {
+            if node.scene_id != Some(scene.unique_id) {
+                continue;
+            }
+            let visual = match node.sub_node {
+                SubNode::Visual(ref data) => data,
+                _ => continue
+            };
+
             //TODO: batch per PSO
             let (pso, color, map) = match visual.material {
                 Material::LineBasic { color } => (&self.pso_line_basic, color, None),
                 Material::MeshBasic { color, wireframe: false } => (&self.pso_mesh_basic_fill, color, None),
                 Material::MeshBasic { color, wireframe: true } => (&self.pso_mesh_basic_wireframe, color, None),
-                Material::MeshLambert { color } => (&self.pso_mesh_basic_fill, color, None), //TEMP
+                Material::MeshLambert { color } => (&self.pso_mesh_phong, color, None),
                 Material::Sprite { ref map } => (&self.pso_sprite, !0, Some(map)),
             };
             self.encoder.update_constant_buffer(&visual.payload, &Locals {
-                mx_world: Matrix4::from(*transform).into(),
+                mx_world: Matrix4::from(node.world_transform).into(),
                 color: color_to_f32(color),
             });
             //TODO: avoid excessive cloning
             let data = pipe::Data {
                 vbuf: visual.gpu_data.vertices.clone(),
                 cb_locals: visual.payload.clone(),
+                cb_lights: self.light_buf.clone(),
                 cb_globals: self.const_buf.clone(),
                 tex_map: map.unwrap_or(&self.map_default).to_param(),
                 out_color: self.out_color.clone(),
                 out_depth: self.out_depth.clone(),
             };
             self.encoder.draw(&visual.gpu_data.slice, pso, &data);
-        });
+        }
 
         self.encoder.flush(&mut self.device);
         self.window.swap_buffers().unwrap();
