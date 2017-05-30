@@ -6,7 +6,7 @@ use cgmath::prelude::*;
 fn main() {
     let mut cam = three::PerspectiveCamera::new(75.0, 0.0, 1.0, 50.0);
     cam.position = three::Position::new(0.0, 0.0, 5.0);
-    let mut win = three::Window::new("Three-rs box mesh drawing example", cam);
+    let mut win = three::Window::new("Three-rs shapes example", cam);
 
     let mut mesh = {
         let geometry = three::Geometry::new_box(3.0, 2.0, 1.0);
