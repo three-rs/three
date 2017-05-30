@@ -286,6 +286,28 @@ impl Geometry {
             is_dynamic: false,
         }
     }
+
+    pub fn new_sphere(radius: f32, width_segments: usize,
+                      height_segments: usize) -> Self
+    {
+        let gen = generators::SphereUV::new(width_segments, height_segments);
+        let function = |GenVertex{ pos, ..}| {
+            Position::new(pos[0] * radius, pos[1] * radius, pos[2] * radius)
+        };
+        Geometry {
+            vertices: gen.shared_vertex_iter()
+                         .map(function)
+                         .collect(),
+            normals: gen.shared_vertex_iter()
+                        .map(|v| Normal::from(v.normal))
+                        .collect(),
+            faces: gen.indexed_polygon_iter()
+                       .triangulate()
+                       .map(|t| [t.x as u16, t.y as u16, t.z as u16])
+                       .collect(),
+            is_dynamic: false,
+        }
+    }
 }
 
 

@@ -13,7 +13,7 @@ fn main() {
         let material = three::Material::MeshBasic { color: 0x00ff00, wireframe: true };
         win.factory.mesh(geometry, material)
     };
-    mbox.transform_mut().disp.x = -4.0;
+    mbox.transform_mut().disp = cgmath::vec3(-3.0, -3.0, 0.0);
     win.scene.add(&mbox);
 
     let mut mcyl = {
@@ -21,8 +21,16 @@ fn main() {
         let material = three::Material::MeshBasic { color: 0xff0000, wireframe: true };
         win.factory.mesh(geometry, material)
     };
-    mcyl.transform_mut().disp.x = 0.0;
+    mcyl.transform_mut().disp = cgmath::vec3(3.0, -3.0, 0.0);
     win.scene.add(&mcyl);
+
+    let mut msphere = {
+        let geometry = three::Geometry::new_sphere(2.0, 5, 5);
+        let material = three::Material::MeshBasic { color: 0xff0000, wireframe: true };
+        win.factory.mesh(geometry, material)
+    };
+    msphere.transform_mut().disp = cgmath::vec3(-3.0, 3.0, 0.0);
+    win.scene.add(&msphere);
 
     let mut mline = {
         let geometry = three::Geometry::from_vertices(vec![
@@ -33,7 +41,7 @@ fn main() {
         let material = three::Material::LineBasic { color: 0x0000ff };
         win.factory.mesh(geometry, material)
     };
-    mline.transform_mut().disp.x = 4.0;
+    mline.transform_mut().disp = cgmath::vec3(3.0, 3.0, 0.0);
     win.scene.add(&mline);
 
     let mut angle = cgmath::Rad::zero();
@@ -51,6 +59,7 @@ fn main() {
             mbox.transform_mut().rot = rot;
             mcyl.transform_mut().rot = rot;
             mline.transform_mut().rot = rot;
+            msphere.transform_mut().rot = rot;
         }
 
         win.render();
