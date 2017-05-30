@@ -25,6 +25,12 @@ pub struct Shadow<C> {
     pub resolution: [u16; 2],
 }
 
+#[derive(Clone, Debug)]
+pub struct WorldNode {
+    pub transform: Transform,
+    pub visible: bool,
+}
+
 macro_rules! def_proxy {
     ($name:ident<$target:ty> = $message:ident($key:ident)) => {
         pub struct $name<'a> {
@@ -89,10 +95,16 @@ impl Object {
         }
     }
 
-    pub fn sync(&mut self, scene: &Scene) {
+    pub fn sync(&mut self, scene: &Scene) -> WorldNode {
         let mut hub = scene.hub.lock().unwrap();
         hub.process_messages();
-        self.transform = hub.nodes[&self.node].transform;
+        let node = &hub.nodes[&self.node];
+        assert_eq!(node.scene_id, Some(scene.unique_id));
+        self.transform = node.transform;
+        WorldNode {
+            transform: node.world_transform,
+            visible: node.world_visible,
+        }
     }
 }
 
@@ -109,13 +121,18 @@ impl VisualObject {
         }
     }
 
-    pub fn sync(&mut self, scene: &Scene) {
+    pub fn sync(&mut self, scene: &Scene) -> WorldNode {
         let mut hub = scene.hub.lock().unwrap();
         hub.process_messages();
         let node = &hub.nodes[&self.node];
+        assert_eq!(node.scene_id, Some(scene.unique_id));
         self.inner.transform = node.transform;
         if let SubNode::Visual(ref data) = node.sub_node {
             self.data = data.drop_payload();
+        }
+        WorldNode {
+            transform: node.world_transform,
+            visible: node.world_visible,
         }
     }
 }
