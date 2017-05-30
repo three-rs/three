@@ -217,7 +217,7 @@ impl Factory {
 }
 
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Geometry {
     pub vertices: Vec<Position>,
     pub normals: Vec<Normal>,
@@ -266,18 +266,21 @@ impl Geometry {
                         radius_segments: usize) -> Self
     {
         let gen = generators::Cylinder::new(radius_segments);
-        let function = |GenVertex{ pos, ..}| {
+        //Three.js has height along the Y axis for some reason
+        let f_pos = |GenVertex{ pos, ..}| {
             let scale = (pos[2] + 1.0) * 0.5 * radius_top +
                         (1.0 - pos[2]) * 0.5 * radius_bottom;
-            //three,js has height along the Y axis for some reason
             Position::new(pos[1] * scale, pos[2] * 0.5 * height, pos[0] * scale)
+        };
+        let f_normal = |GenVertex{ normal, ..}| {
+            Normal::from([normal[1], normal[2], normal[0]])
         };
         Geometry {
             vertices: gen.shared_vertex_iter()
-                          .map(function)
-                          .collect(),
+                         .map(f_pos)
+                         .collect(),
             normals: gen.shared_vertex_iter()
-                        .map(|v| Normal::from(v.normal))
+                        .map(f_normal)
                         .collect(),
             faces: gen.indexed_polygon_iter()
                        .triangulate()

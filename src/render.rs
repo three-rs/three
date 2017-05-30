@@ -114,7 +114,6 @@ const PHONG_VS: &'static [u8] = b"
     void main() {
         vec4 world = u_World * a_Position;
         v_World = world.xyz;
-        //TODO: this doesn't work right for the cylinder, investigate
         v_Normal = normalize(mat3(u_World) * a_Normal.xyz);
         for(uint i=0U; i<4U && i < u_NumLights; ++i) {
             vec3 dir = u_Lights[i].pos.xyz - u_Lights[i].pos.w * world.xyz;
