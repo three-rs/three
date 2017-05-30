@@ -10,7 +10,7 @@ fn main() {
 
     let mut mesh = {
         let geometry = three::Geometry::new_box(3.0, 2.0, 1.0);
-        let material = three::Material::MeshBasic { color: 0x00ff00 };
+        let material = three::Material::MeshBasic { color: 0x00ff00, wireframe: true };
         win.factory.mesh(geometry, material)
     };
     mesh.transform_mut().disp.x = -2.0;

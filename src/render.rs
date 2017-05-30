@@ -50,6 +50,7 @@ gfx_defines!{
 const BASIC_VS: &'static [u8] = b"
     #version 150 core
     in vec4 a_Position;
+    in vec4 a_Normal;
     uniform cb_Globals {
         mat4 u_ViewProj;
     };
@@ -153,7 +154,8 @@ pub struct Renderer {
     out_color: gfx::handle::RenderTargetView<back::Resources, ColorFormat>,
     out_depth: gfx::handle::DepthStencilView<back::Resources, DepthFormat>,
     pso_line_basic: gfx::PipelineState<back::Resources, pipe::Meta>,
-    pso_mesh_basic: gfx::PipelineState<back::Resources, pipe::Meta>,
+    pso_mesh_basic_fill: gfx::PipelineState<back::Resources, pipe::Meta>,
+    pso_mesh_basic_wireframe: gfx::PipelineState<back::Resources, pipe::Meta>,
     pso_sprite: gfx::PipelineState<back::Resources, pipe::Meta>,
     map_default: Texture,
     size: (u32, u32),
@@ -170,6 +172,10 @@ impl Renderer {
         let prog_basic = gl_factory.link_program(BASIC_VS, BASIC_FS).unwrap();
         let prog_sprite = gl_factory.link_program(SPRITE_VS, SPRITE_FS).unwrap();
         let rast_fill = gfx::state::Rasterizer::new_fill().with_cull_back();
+        let rast_wire = gfx::state::Rasterizer {
+            method: gfx::state::RasterMethod::Line(1),
+            .. rast_fill
+        };
         let (_, srv_white) = gl_factory.create_texture_immutable::<gfx::format::Rgba8>(
             gfx::texture::Kind::D2(1, 1, gfx::texture::AaMode::Single), &[&[[0xFF; 4]]]
             ).unwrap();
@@ -183,8 +189,11 @@ impl Renderer {
             pso_line_basic: gl_factory.create_pipeline_from_program(&prog_basic,
                 gfx::Primitive::LineStrip, rast_fill, pipe::new()
                 ).unwrap(),
-            pso_mesh_basic: gl_factory.create_pipeline_from_program(&prog_basic,
+            pso_mesh_basic_fill: gl_factory.create_pipeline_from_program(&prog_basic,
                 gfx::Primitive::TriangleList, rast_fill, pipe::new()
+                ).unwrap(),
+            pso_mesh_basic_wireframe: gl_factory.create_pipeline_from_program(&prog_basic,
+                gfx::Primitive::TriangleList, rast_wire, pipe::new(),
                 ).unwrap(),
             pso_sprite: gl_factory.create_pipeline_from_program(&prog_sprite,
                 gfx::Primitive::TriangleStrip, rast_fill, pipe::Init {
@@ -227,7 +236,8 @@ impl Renderer {
             //TODO: batch per PSO
             let (pso, color, map) = match visual.material {
                 Material::LineBasic { color } => (&self.pso_line_basic, color, None),
-                Material::MeshBasic { color } => (&self.pso_mesh_basic, color, None),
+                Material::MeshBasic { color, wireframe: false } => (&self.pso_mesh_basic_fill, color, None),
+                Material::MeshBasic { color, wireframe: true } => (&self.pso_mesh_basic_wireframe, color, None),
                 Material::Sprite { ref map } => (&self.pso_sprite, !0, Some(map)),
             };
             self.encoder.update_constant_buffer(&visual.const_buf, &Locals {

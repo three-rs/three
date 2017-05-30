@@ -13,7 +13,7 @@ pub type Color = u32;
 #[derive(Clone)]
 pub enum Material {
     LineBasic { color: Color },
-    MeshBasic { color: Color },
+    MeshBasic { color: Color, wireframe: bool },
     Sprite { map: Texture },
 }
 
