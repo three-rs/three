@@ -24,7 +24,7 @@ pub use camera::{Camera, OrthographicCamera, PerspectiveCamera};
 pub use factory::{Factory, Geometry, Texture};
 pub use render::{ColorFormat, DepthFormat, Renderer};
 pub use scene::{Color, Material, Group, Mesh, Sprite, Shadow,
-                AmbientLight, HemisphereLight, DirectionalLight};
+                AmbientLight, DirectionalLight, HemisphereLight, PointLight};
 #[cfg(feature = "opengl")]
 pub use window::{Events, Window};
 #[cfg(feature = "opengl")]
@@ -38,9 +38,10 @@ use render::{ConstantBuffer, GpuData};
 
 
 pub type Position = cgmath::Point3<f32>;
+pub type Vector = cgmath::Vector3<f32>;
 pub type Normal = cgmath::Vector3<f32>;
 pub type Orientation = cgmath::Quaternion<f32>;
-pub type Transform = cgmath::Decomposed<cgmath::Vector3<f32>, Orientation>;
+pub type Transform = cgmath::Decomposed<Vector, Orientation>;
 
 
 struct VisualData<T> {
@@ -59,12 +60,19 @@ impl<T> VisualData<T> {
     }
 }
 
+#[derive(Clone, Debug)]
+enum SubLight {
+    Ambient,
+    Directional,
+    Hemisphere{ ground: Color },
+    Point,
+}
+
 #[derive(Clone)]
 struct LightData {
-    color_front: Color,
-    color_back: Color,
-    int_ambient: f32,
-    int_direct: f32,
+    color: Color,
+    intensity: f32,
+    sub_light: SubLight,
 }
 
 enum ShadowConfig {

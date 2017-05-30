@@ -1,4 +1,4 @@
-use cgmath::Matrix4;
+use cgmath::{Matrix4, Vector3};
 use gfx;
 use gfx::traits::{Device, Factory as Factory_, FactoryExt};
 #[cfg(feature = "opengl")]
@@ -13,7 +13,7 @@ pub use self::back::Resources as BackendResources;
 use camera::Camera;
 use factory::{Factory, Texture};
 use scene::{Color, Material};
-use {SubNode, Scene};
+use {SubLight, SubNode, Scene};
 
 pub type ColorFormat = gfx::format::Srgba8;
 pub type DepthFormat = gfx::format::DepthStencil;
@@ -34,6 +34,8 @@ gfx_defines!{
 
     constant LightParam {
         pos: [f32; 4] = "pos",
+        dir: [f32; 4] = "dir",
+        focus: [f32; 4] = "focus",
         color: [f32; 4] = "color",
         color_back: [f32; 4] = "color_back",
         intensity: [f32; 4] = "intensity",
@@ -92,6 +94,8 @@ const PHONG_VS: &'static [u8] = b"
     out vec3 v_Half[4];
     struct Light {
         vec4 pos;
+        vec4 dir;
+        vec4 focus;
         vec4 color;
         vec4 color_back;
         vec4 intensity;
@@ -125,6 +129,8 @@ const PHONG_FS: &'static [u8] = b"
     in vec3 v_Half[4];
     struct Light {
         vec4 pos;
+        vec4 dir;
+        vec4 focus;
         vec4 color;
         vec4 color_back;
         vec4 intensity;
@@ -149,14 +155,16 @@ const PHONG_FS: &'static [u8] = b"
             float dot_nl = dot(normal, normalize(dir));
             if (dot(light.color_back, light.color_back) > 0.0) {
                 vec4 irradiance = mix(light.color_back, light.color, dot_nl*0.5 + 0.5);
-                color += light.intensity.x * u_Color * irradiance;
-            } else {
-                float kd = light.intensity.x + light.intensity.y * max(0.0, dot_nl);
+                color += light.intensity.y * u_Color * irradiance;
+            } else if (dot_nl > 0.0) {
+                float kd = light.intensity.x + light.intensity.y * dot_nl;
                 color += u_Color * light.color * kd;
             }
-            float ks = dot(normal, normalize(v_Half[i]));
-            if (ks > 0.0) {
-                color += light.color * pow(ks, light.intensity.z);
+            if (dot_nl > 0.0 && light.intensity.z > 0.0) {
+                float ks = dot(normal, normalize(v_Half[i]));
+                if (ks > 0.0) {
+                    color += light.color * pow(ks, light.intensity.z);
+                }
             }
         }
         gl_FragColor = color;
@@ -302,12 +310,33 @@ impl Renderer {
                     //error!("Max number of lights ({}) reached", MAX_LIGHTS);
                     break;
                 }
-                let p = node.world_transform.disp;
+                let mut color_back = 0;
+                let mut p = node.world_transform.disp.extend(1.0);
+                let d = node.world_transform.rot * Vector3::unit_z();
+                let mut intensity = [0.0, light.intensity, 0.0, 0.0];
+                match light.sub_light {
+                    SubLight::Ambient => {
+                        intensity[0] = intensity[1];
+                        intensity[1] = 0.0;
+                    }
+                    SubLight::Directional => {
+                        p = d.extend(0.0);
+                    }
+                    SubLight::Hemisphere{ ground } => {
+                        color_back = ground | 0x010101; // can't be 0
+                        p = d.extend(0.0);
+                    }
+                    SubLight::Point => {
+                        //empty
+                    }
+                }
                 lights.push(LightParam {
-                    pos: [p.x, p.y, p.z, 1.0],
-                    color: color_to_f32(light.color_front),
-                    color_back: color_to_f32(light.color_back),
-                    intensity: [light.int_ambient, light.int_direct, 0.0, 0.0],
+                    pos: p.into(),
+                    dir: d.extend(0.0).into(),
+                    focus: [0.0, 0.0, 0.0, 0.0],
+                    color: color_to_f32(light.color),
+                    color_back: color_to_f32(color_back),
+                    intensity: intensity,
                 });
             }
         }

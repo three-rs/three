@@ -181,19 +181,6 @@ impl AmbientLight {
     }
 }
 
-pub struct HemisphereLight {
-    object: LightObject,
-}
-
-impl HemisphereLight {
-    #[doc(hidden)]
-    pub fn new(object: LightObject) -> Self {
-        HemisphereLight {
-            object,
-        }
-    }
-}
-
 pub struct DirectionalLight {
     object: LightObject,
     has_shadow: bool,
@@ -219,6 +206,32 @@ impl DirectionalLight {
     }
 }
 
+pub struct HemisphereLight {
+    object: LightObject,
+}
+
+impl HemisphereLight {
+    #[doc(hidden)]
+    pub fn new(object: LightObject) -> Self {
+        HemisphereLight {
+            object,
+        }
+    }
+}
+
+pub struct PointLight {
+    object: LightObject,
+}
+
+impl PointLight {
+    #[doc(hidden)]
+    pub fn new(object: LightObject) -> Self {
+        PointLight {
+            object,
+        }
+    }
+}
+
 
 impl Scene {
     pub fn add<P: AsRef<Pointer<Node>>>(&mut self, child: &P) {
@@ -239,7 +252,7 @@ macro_rules! as_node {
     }
 }
 
-as_node!(Group, Mesh, Sprite, AmbientLight, HemisphereLight, DirectionalLight);
+as_node!(Group, Mesh, Sprite, AmbientLight, DirectionalLight, HemisphereLight, PointLight);
 
 macro_rules! deref {
     ($name:ty : $field:ident = $object:ty) => {
@@ -266,3 +279,4 @@ deref!(Sprite : object = VisualObject);
 deref!(AmbientLight : object = LightObject);
 deref!(HemisphereLight : object = LightObject);
 deref!(DirectionalLight : object = LightObject);
+deref!(PointLight : object = LightObject);

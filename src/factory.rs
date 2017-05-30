@@ -14,8 +14,8 @@ use image;
 
 use render::{BackendFactory, BackendResources, ConstantBuffer, GpuData, Vertex};
 use scene::{Color, Group, Mesh, Sprite, Material,
-            AmbientLight, HemisphereLight, DirectionalLight};
-use {Hub, HubPtr, Node, SubNode, Normal, Position, Transform,
+            AmbientLight, DirectionalLight, HemisphereLight, PointLight};
+use {Hub, HubPtr, SubLight, Node, SubNode, Normal, Position, Transform,
      VisualData, LightData, Object, VisualObject, LightObject, Scene};
 
 
@@ -184,29 +184,34 @@ impl Factory {
 
     pub fn ambient_light(&mut self, color: Color, intensity: f32) -> AmbientLight {
         AmbientLight::new(self.hub.lock().unwrap().spawn_light(LightData {
-            color_front: color,
-            color_back: 0,
-            int_ambient: intensity,
-            int_direct: 0.0,
+            color,
+            intensity,
+            sub_light: SubLight::Ambient,
+        }))
+    }
+
+    pub fn directional_light(&mut self, color: Color, intensity: f32) -> DirectionalLight {
+        DirectionalLight::new(self.hub.lock().unwrap().spawn_light(LightData {
+            color,
+            intensity,
+            sub_light: SubLight::Directional,
         }))
     }
 
     pub fn hemisphere_light(&mut self, sky_color: Color, ground_color: Color,
                             intensity: f32) -> HemisphereLight {
         HemisphereLight::new(self.hub.lock().unwrap().spawn_light(LightData {
-            color_front: sky_color,
-            color_back: ground_color | 0x010101, //can't be zero
-            int_ambient: intensity,
-            int_direct: 0.0,
+            color: sky_color,
+            intensity,
+            sub_light: SubLight::Hemisphere{ ground: ground_color },
         }))
     }
 
-    pub fn directional_light(&mut self, color: Color, intensity: f32) -> DirectionalLight {
-        DirectionalLight::new(self.hub.lock().unwrap().spawn_light(LightData {
-            color_front: color,
-            color_back: 0,
-            int_ambient: 0.0,
-            int_direct: intensity,
+    pub fn point_light(&mut self, color: Color, intensity: f32) -> PointLight {
+        PointLight::new(self.hub.lock().unwrap().spawn_light(LightData {
+            color,
+            intensity,
+            sub_light: SubLight::Point,
         }))
     }
 }
