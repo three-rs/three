@@ -11,6 +11,15 @@ extern crate three;
 use std::f32::consts::PI;
 use cgmath::prelude::*;
 
+
+const COLOR_BACKGROUND: three::Color = 0xf0e0b6;
+const COLOR_RED: three::Color = 0xf25346;
+const COLOR_WHITE: three::Color = 0xd8d0d1;
+const COLOR_BROWN: three::Color = 0x59332e;
+//const COLOR_PINK: three::Color = 0xF5986E;
+const COLOR_BROWN_DARK: three::Color = 0x23190f;
+const COLOR_BLUE: three::Color = 0x68c3c0;
+
 struct Cloud {
     group: three::Group,
     meshes: Vec<three::Mesh>,
@@ -23,7 +32,7 @@ impl Cloud {
             meshes: Vec::new()
         };
         let geo = three::Geometry::new_box(20.0, 20.0, 20.0);
-        let material = three::Material::MeshLambert{ color: 0xFFFFFF };
+        let material = three::Material::MeshLambert{ color: COLOR_WHITE };
         for i in 0 .. rng.gen_range(3, 6) {
             let mut m = factory.mesh(geo.clone(), material.clone());
             let rot: three::Orientation = rng.gen();
@@ -93,24 +102,24 @@ impl AirPlane {
                     v.y += if v.y > 0.0 {-10.0} else {30.0};
                 }
             }
-            factory.mesh(geo, three::Material::MeshLambert{ color: 0xFF0000 })
+            factory.mesh(geo, three::Material::MeshLambert{ color: COLOR_RED })
         };
         group.add(&cockpit);
         let mut engine = factory.mesh(
             three::Geometry::new_box(20.0, 50.0, 50.0),
-            three::Material::MeshLambert{ color: 0xFFFFFF }
+            three::Material::MeshLambert{ color: COLOR_WHITE }
         );
         engine.transform_mut().disp.x = 40.0;
         group.add(&engine);
         let mut tail = factory.mesh(
             three::Geometry::new_box(15.0, 20.0, 5.0),
-            three::Material::MeshLambert{ color: 0xFF0000 }
+            three::Material::MeshLambert{ color: COLOR_RED }
         );
         tail.transform_mut().disp = cgmath::vec3(-35.0, 25.0, 0.0);
         group.add(&tail);
         let wing = factory.mesh(
             three::Geometry::new_box(40.0, 8.0, 150.0),
-            three::Material::MeshLambert{ color: 0xFF0000 }
+            three::Material::MeshLambert{ color: COLOR_RED }
         );
         group.add(&wing);
 
@@ -119,12 +128,12 @@ impl AirPlane {
         group.add(&propeller_group);
         let propeller = factory.mesh(
             three::Geometry::new_box(20.0, 10.0, 10.0),
-            three::Material::MeshLambert{ color: 0xa52a2a }
+            three::Material::MeshLambert{ color: COLOR_BROWN }
         );
         propeller_group.add(&propeller);
         let mut blade = factory.mesh(
             three::Geometry::new_box(1.0, 100.0, 20.0),
-            three::Material::MeshLambert{ color: 0x23190f }
+            three::Material::MeshLambert{ color: COLOR_BROWN_DARK }
         );
         blade.transform_mut().disp = cgmath::vec3(8.0, 0.0, 0.0);
         propeller_group.add(&blade);
@@ -154,7 +163,7 @@ fn main() {
     let mut rng = rand::thread_rng();
 
     let mut win = three::Window::new("Three-rs aviator example");
-    win.scene.background = three::Background::Color(0xB0A090);
+    win.scene.background = three::Background::Color(COLOR_BACKGROUND);
 
     let mut cam = win.factory.perspective_camera(60.0, 0.0, 1.0, 1000.0);
     cam.transform_mut().disp = three::Vector::new(0.0, 100.0, 200.0);
@@ -175,7 +184,7 @@ fn main() {
 
     let mut sea = {
         let geo = three::Geometry::new_cylinder(600.0, 600.0, 800.0, 40);
-        let material = three::Material::MeshLambert{ color: 0x0000FF };
+        let material = three::Material::MeshLambert{ color: COLOR_BLUE };
         win.factory.mesh(geo, material)
     };
     *sea.transform_mut() = three::Transform {
