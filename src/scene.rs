@@ -231,9 +231,17 @@ impl DirectionalLight {
         self.has_shadow
     }
 
-    pub fn set_shadow(&mut self, map: ShadowMap, proj: Ortho<f32>) {
+    pub fn set_shadow(&mut self, map: ShadowMap,
+                      width: f32, height: f32, near: f32, far: f32) {
         self.has_shadow = true;
-        let sp = ShadowProjection::Ortho(proj);
+        let sp = ShadowProjection::Ortho(Ortho {
+            left: -0.5 * width,
+            right: 0.5 * width,
+            bottom: -0.5 * height,
+            top: 0.5 * height,
+            near,
+            far,
+        });
         self.data.shadow = Some((map.clone(), sp.clone()));
         let msg = Operation::SetShadow(map, sp);
         let _ = self.tx.send((self.node.downgrade(), msg));

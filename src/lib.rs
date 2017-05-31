@@ -126,7 +126,7 @@ pub type OrthographicCamera = Camera<cgmath::Ortho<f32>>;
 pub type PerspectiveCamera = Camera<cgmath::PerspectiveFov<f32>>;
 
 pub trait Projection {
-    fn get_matrix(&self, aspect: f32) -> cgmath::Matrix4<f32>;
+    fn get_matrix(&self, aspect: Option<f32>) -> cgmath::Matrix4<f32>;
 }
 
 type Message = (froggy::WeakPointer<Node>, Operation);

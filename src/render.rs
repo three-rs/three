@@ -1,4 +1,4 @@
-use cgmath::{ortho, Matrix4, Vector3, Transform as Transform_};
+use cgmath::{Matrix4, Vector3, Transform as Transform_};
 use gfx;
 use gfx::traits::{Device, Factory as Factory_, FactoryExt};
 #[cfg(feature = "opengl")]
@@ -12,8 +12,7 @@ pub use self::back::Factory as BackendFactory;
 pub use self::back::Resources as BackendResources;
 use factory::{Factory, Texture};
 use scene::{Color, Background, Material};
-use {SubLight, SubNode, Scene, ShadowProjection, Transform,
-     Camera, Projection};
+use {SubLight, SubNode, Scene, ShadowProjection, Camera, Projection};
 
 pub type ColorFormat = gfx::format::Srgba8;
 pub type DepthFormat = gfx::format::DepthStencil;
@@ -364,8 +363,7 @@ impl Renderer {
         // gather lights
         struct ShadowRequest {
             target: gfx::handle::DepthStencilView<back::Resources, ShadowFormat>,
-            projection: ShadowProjection,
-            world_transform: Transform,
+            matrix: Matrix4<f32>,
         }
         let mut lights = Vec::new();
         let mut shadow_requests = Vec::new();
@@ -379,10 +377,14 @@ impl Renderer {
                     break;
                 }
                 if let Some((ref map, ref projection)) = light.shadow {
+                    let mx_proj = match projection {
+                        &ShadowProjection::Ortho(ref p) => p.get_matrix(None),
+                    };
+                    let mx_view = Matrix4::from(
+                        node.world_transform.inverse_transform().unwrap());
                     shadow_requests.push(ShadowRequest {
                         target: map.to_target(),
-                        projection: projection.clone(),
-                        world_transform: node.world_transform,
+                        matrix: mx_view * mx_proj,
                     });
                 }
                 let mut color_back = 0;
@@ -418,15 +420,8 @@ impl Renderer {
         // render shadow maps
         for request in shadow_requests.drain(..) {
             self.encoder.clear_depth(&request.target, 1.0);
-            let mx_proj = match request.projection {
-                ShadowProjection::Ortho(p) => {
-                    ortho(p.left, p.right, p.bottom, p.top, p.near, p.far)
-                }
-            };
-            let mx_view = Matrix4::from(
-                request.world_transform.inverse_transform().unwrap());
             self.encoder.update_constant_buffer(&self.const_buf, &Globals {
-                mx_vp: (mx_proj * mx_view).into(),
+                mx_vp: request.matrix.into(),
                 num_lights: 0,
             });
             for node in hub.nodes.iter_alive() {
@@ -454,8 +449,13 @@ impl Renderer {
 
         // prepare target and globals
         let mx_vp = {
-            let w = hub.nodes[&camera.object.node].world_transform;
-            let p = camera.projection.get_matrix(self.get_aspect());
+            let p = camera.projection.get_matrix(Some(self.get_aspect()));
+            let node = &hub.nodes[&camera.object.node];
+            let w = match node.scene_id {
+                Some(id) if id == scene.unique_id => node.world_transform,
+                Some(_) => panic!("Camera does not belong to this scene"),
+                None => node.transform,
+            };
             p * Matrix4::from(w.inverse_transform().unwrap())
         };
         match scene.background {

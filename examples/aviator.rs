@@ -167,6 +167,7 @@ fn main() {
 
     let mut cam = win.factory.perspective_camera(60.0, 0.0, 1.0, 1000.0);
     cam.transform_mut().disp = three::Vector::new(0.0, 100.0, 200.0);
+    win.scene.add(&cam);
 
     //TODO: win.scene.fog = Some(three::Fog::new(...));
     //TODO: Phong materials
@@ -177,7 +178,7 @@ fn main() {
     let mut dir_light = win.factory.directional_light(0xffffff, 0.9);
     dir_light.transform_mut().disp = cgmath::vec3(150.0, 350.0, 350.0);
     let shadow_map = win.factory.shadow_map(2048, 2048);
-    //dir_light.set_shadow(shadow_map, cgmath::Ortho::new(-400.0, 400.0, -400.0, 400.0, 1.0, 1000.0));
+    dir_light.set_shadow(shadow_map, 800.0, 800.0, 1.0, 1000.0);
     win.scene.add(&dir_light);
     let ambient_light = win.factory.ambient_light(0xdc8874, 0.5);
     win.scene.add(&ambient_light);
