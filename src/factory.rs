@@ -3,7 +3,7 @@ use std::io::BufReader;
 use std::fs::File;
 use std::path::Path;
 
-use cgmath::Transform as Transform_;
+use cgmath::{self, Transform as Transform_};
 use genmesh::{Triangulate, Vertex as GenVertex};
 use genmesh::generators::{self, IndexedPolygon, SharedVertex};
 use gfx;
@@ -16,7 +16,8 @@ use render::{BackendFactory, BackendResources, ConstantBuffer, GpuData, Vertex, 
 use scene::{Color, Background, Group, Mesh, Sprite, Material,
             AmbientLight, DirectionalLight, HemisphereLight, PointLight};
 use {Hub, HubPtr, SubLight, Node, SubNode, Normal, Position, Transform,
-     VisualData, LightData, Object, VisualObject, LightObject, Scene};
+     VisualData, LightData, Object, VisualObject, LightObject, Scene,
+     Camera, OrthographicCamera, PerspectiveCamera};
 
 
 const NORMAL_Z: [I8Norm; 4] = [I8Norm(0), I8Norm(0), I8Norm(1), I8Norm(0)];
@@ -156,6 +157,27 @@ impl Factory {
             tx: hub.message_tx.clone(),
             hub: self.hub.clone(),
             background: Background::Color(0),
+        }
+    }
+
+    pub fn orthographic_camera(&mut self, left: f32, right: f32, top: f32, bottom: f32,
+                               near: f32, far: f32) -> OrthographicCamera {
+        Camera {
+            object: self.hub.lock().unwrap().spawn(),
+            projection: cgmath::Ortho{ left, right, bottom, top, near, far },
+        }
+    }
+
+    pub fn perspective_camera(&mut self, fov: f32, aspect: f32,
+                              near: f32, far: f32) -> PerspectiveCamera {
+        Camera {
+            object: self.hub.lock().unwrap().spawn(),
+            projection: cgmath::PerspectiveFov {
+                fovy: cgmath::Deg(fov).into(),
+                aspect: aspect,
+                near: near,
+                far: far,
+            },
         }
     }
 

@@ -2,8 +2,7 @@ use std::collections::HashSet;
 use std::time;
 use glutin;
 
-use {Key, Scene};
-use camera::Camera;
+use {Camera, Projection, Key, Scene};
 use render::Renderer;
 use factory::Factory;
 
@@ -20,17 +19,16 @@ pub struct Events {
     pub mouse_pos: (f32, f32),
 }
 
-pub struct Window<C> {
+pub struct Window {
     event_loop: glutin::EventsLoop,
     input: Input,
     pub renderer: Renderer,
     pub factory: Factory,
     pub scene: Scene,
-    pub camera: C,
 }
 
-impl<C: Camera> Window<C> {
-    pub fn new(title: &str, camera: C) -> Self {
+impl Window {
+    pub fn new(title: &str) -> Self {
         let builder = glutin::WindowBuilder::new()
                              .with_title(title)
                              .with_vsync();
@@ -38,16 +36,15 @@ impl<C: Camera> Window<C> {
         let (renderer, mut factory) = Renderer::new(builder, &event_loop);
         let scene = factory.scene();
         Window {
-            event_loop: event_loop,
+            event_loop,
             input: Input {
                 last_time: time::Instant::now(),
                 keys: HashSet::new(),
                 mouse_pos: (0.0, 0.0),
             },
-            renderer: renderer,
-            factory: factory,
-            scene: scene,
-            camera: camera,
+            renderer,
+            factory,
+            scene,
         }
     }
 
@@ -95,8 +92,7 @@ impl<C: Camera> Window<C> {
         }
     }
 
-    pub fn render(&mut self) {
-        self.camera.set_aspect(self.renderer.get_aspect());
-        self.renderer.render(&self.scene, &self.camera);
+    pub fn render<P: Projection>(&mut self, camera: &Camera<P>) {
+        self.renderer.render(&self.scene, camera);
     }
 }

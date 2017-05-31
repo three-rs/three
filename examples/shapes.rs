@@ -4,9 +4,9 @@ extern crate three;
 use cgmath::prelude::*;
 
 fn main() {
-    let mut cam = three::PerspectiveCamera::new(75.0, 0.0, 1.0, 50.0);
-    cam.position = three::Position::new(0.0, 0.0, 10.0);
-    let mut win = three::Window::new("Three-rs shapes example", cam);
+    let mut win = three::Window::new("Three-rs shapes example");
+    let mut cam = win.factory.perspective_camera(75.0, 0.0, 1.0, 50.0);
+    cam.transform_mut().disp = three::Vector::new(0.0, 0.0, 10.0);
 
     let mut mbox = {
         let geometry = three::Geometry::new_box(3.0, 2.0, 1.0);
@@ -62,6 +62,6 @@ fn main() {
             msphere.transform_mut().rot = rot;
         }
 
-        win.render();
+        win.render(&cam);
     }
 }

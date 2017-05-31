@@ -3,6 +3,7 @@
     https://tympanus.net/codrops/2016/04/26/the-aviator-animating-basic-3d-scene-threejs/
 */
 
+extern crate env_logger;
 extern crate cgmath;
 extern crate rand;
 extern crate three;
@@ -149,12 +150,15 @@ impl AirPlane {
 
 
 fn main() {
+    env_logger::init().unwrap();
     let mut rng = rand::thread_rng();
-    let mut cam = three::PerspectiveCamera::new(60.0, 0.0, 1.0, 1000.0);
-    cam.position = three::Position::new(0.0, 100.0, 200.0);
-    let mut win = three::Window::new("Three-rs aviator example", cam);
 
+    let mut win = three::Window::new("Three-rs aviator example");
     win.scene.background = three::Background::Color(0xB0A090);
+
+    let mut cam = win.factory.perspective_camera(60.0, 0.0, 1.0, 1000.0);
+    cam.transform_mut().disp = three::Vector::new(0.0, 100.0, 200.0);
+
     //TODO: win.scene.fog = Some(three::Fog::new(...));
     //TODO: Phong materials
     //TODO: cast/receive shadows
@@ -165,7 +169,7 @@ fn main() {
     dir_light.transform_mut().disp = cgmath::vec3(150.0, 350.0, 350.0);
     let shadow_map = win.factory.shadow_map(2048, 2048);
     //dir_light.set_shadow(shadow_map, cgmath::Ortho::new(-400.0, 400.0, -400.0, 400.0, 1.0, 1000.0));
-    //win.scene.add(&dir_light); //TODO
+    win.scene.add(&dir_light);
     let ambient_light = win.factory.ambient_light(0xdc8874, 0.5);
     win.scene.add(&ambient_light);
 
@@ -202,6 +206,6 @@ fn main() {
         sea.transform_mut().rotate(0.0, 0.0, 0.005 * dt);
         sky.group.transform_mut().rotate(0.0, 0.0, 0.01 * dt);
 
-        win.render();
+        win.render(&cam);
     }
 }

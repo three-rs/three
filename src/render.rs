@@ -10,10 +10,10 @@ use glutin;
 
 pub use self::back::Factory as BackendFactory;
 pub use self::back::Resources as BackendResources;
-use camera::Camera;
 use factory::{Factory, Texture};
 use scene::{Color, Background, Material};
-use {SubLight, SubNode, Scene, ShadowProjection, Transform};
+use {SubLight, SubNode, Scene, ShadowProjection, Transform,
+     Camera, Projection};
 
 pub type ColorFormat = gfx::format::Srgba8;
 pub type DepthFormat = gfx::format::DepthStencil;
@@ -270,7 +270,7 @@ pub struct Renderer {
     pso_sprite: gfx::PipelineState<back::Resources, pipe::Meta>,
     pso_shadow: gfx::PipelineState<back::Resources, shadow_pipe::Meta>,
     map_default: Texture<[f32; 4]>,
-    shadow_default: Texture<f32>,
+    _shadow_default: Texture<f32>,
     size: (u32, u32),
     pub shadow: ShadowType,
     #[cfg(feature = "opengl")]
@@ -332,7 +332,7 @@ impl Renderer {
                 gfx::Primitive::TriangleList, rast_fill, shadow_pipe::new()
                 ).unwrap(),
             map_default: Texture::new(srv_white, sampler),
-            shadow_default: Texture::new(srv_shadow, sampler_shadow),
+            _shadow_default: Texture::new(srv_shadow, sampler_shadow),
             shadow: ShadowType::Basic,
             size: window.get_inner_size_pixels().unwrap(),
             window: window,
@@ -355,7 +355,7 @@ impl Renderer {
          1.0 - 2.0 * y as f32 / self.size.1 as f32)
     }
 
-    pub fn render<C: Camera>(&mut self, scene: &Scene, cam: &C) {
+    pub fn render<P: Projection>(&mut self, scene: &Scene, camera: &Camera<P>) {
         self.device.cleanup();
         let mut hub = scene.hub.lock().unwrap();
         hub.process_messages();
@@ -453,6 +453,11 @@ impl Renderer {
         }
 
         // prepare target and globals
+        let mx_vp = {
+            let w = hub.nodes[&camera.object.node].world_transform;
+            let p = camera.projection.get_matrix(self.get_aspect());
+            p * Matrix4::from(w.inverse_transform().unwrap())
+        };
         match scene.background {
             Background::Color(color) => {
                 self.encoder.clear(&self.out_color, decode_color(color));
@@ -460,7 +465,7 @@ impl Renderer {
         }
         self.encoder.clear_depth(&self.out_depth, 1.0);
         self.encoder.update_constant_buffer(&self.const_buf, &Globals {
-            mx_vp: cam.to_view_proj().into(),
+            mx_vp: mx_vp.into(),
             num_lights: lights.len() as u32,
         });
         self.encoder.update_buffer(&self.light_buf, &lights, 0).unwrap();

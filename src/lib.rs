@@ -22,7 +22,6 @@ mod scene;
 #[cfg(feature = "opengl")]
 mod window;
 
-pub use camera::{Camera, OrthographicCamera, PerspectiveCamera};
 pub use factory::{Factory, Geometry, ShadowMap, Texture};
 pub use render::{ColorFormat, DepthFormat, Renderer, ShadowType};
 pub use scene::{Color, Background, Material, WorldNode,
@@ -116,6 +115,18 @@ pub struct VisualObject {
 pub struct LightObject {
     inner: Object,
     data: LightData,
+}
+
+pub struct Camera<P> {
+    object: Object,
+    projection: P,
+}
+
+pub type OrthographicCamera = Camera<cgmath::Ortho<f32>>;
+pub type PerspectiveCamera = Camera<cgmath::PerspectiveFov<f32>>;
+
+pub trait Projection {
+    fn get_matrix(&self, aspect: f32) -> cgmath::Matrix4<f32>;
 }
 
 type Message = (froggy::WeakPointer<Node>, Operation);

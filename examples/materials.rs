@@ -1,9 +1,9 @@
 extern crate three;
 
 fn main() {
-    let mut cam = three::PerspectiveCamera::new(75.0, 0.0, 1.0, 50.0);
-    cam.position = three::Position::new(0.0, 0.0, 10.0);
-    let mut win = three::Window::new("Three-rs materials example", cam);
+    let mut win = three::Window::new("Three-rs materials example");
+    let mut cam = win.factory.perspective_camera(75.0, 0.0, 1.0, 50.0);
+    cam.transform_mut().disp = three::Vector::new(0.0, 0.0, 10.0);
 
     let mut light = win.factory.point_light(0xffffff, 0.5);
     light.transform_mut().disp = three::Vector::new(0.0, 5.0, 5.0);
@@ -34,6 +34,6 @@ fn main() {
             light.transform_mut().disp.x += speed * events.time_delta;
         }
 
-        win.render();
+        win.render(&cam);
     }
 }

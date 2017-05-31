@@ -5,7 +5,8 @@ use cgmath::Ortho;
 use froggy::Pointer;
 
 use {Object, VisualObject, LightObject, Message, Operation,
-     Node, SubNode, Scene, ShadowProjection, Transform};
+     Node, SubNode, Scene, ShadowProjection,
+     Position, Orientation, Transform};
 use factory::{Geometry, ShadowMap, Texture};
 
 
@@ -69,6 +70,20 @@ impl<'a> TransformProxy<'a> {
         use cgmath::{Euler, Quaternion, Rad};
         let rot = Euler::new(Rad(x), Rad(y), Rad(z));
         self.value.rot = Quaternion::from(rot) * self.value.rot;
+    }
+
+    pub fn look_at(&mut self, eye: Position, target: Position) {
+        use cgmath::{EuclideanSpace, InnerSpace, Rotation, Vector3};
+        let dir = (eye - target).normalize();
+        let z = Vector3::unit_z();
+        let up = if dir.dot(z).abs() < 0.99 { z } else {
+            Vector3::unit_y()
+        };
+        *self.value = Transform {
+            disp: eye.to_vec(),
+            rot: Orientation::look_at(dir, up),
+            scale: 1.0,
+        };
     }
 }
 
