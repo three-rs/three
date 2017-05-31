@@ -11,6 +11,12 @@ use factory::{Geometry, Texture};
 
 pub type Color = u32;
 
+#[derive(Clone, Debug, PartialEq)]
+pub enum Background {
+    Color(Color),
+    //TODO: texture, cubemap
+}
+
 #[derive(Clone)]
 pub enum Material {
     LineBasic { color: Color },
@@ -269,7 +275,8 @@ macro_rules! as_node {
     }
 }
 
-as_node!(Group, Mesh, Sprite, AmbientLight, DirectionalLight, HemisphereLight, PointLight);
+as_node!(Group, Mesh, Sprite, AmbientLight,
+         DirectionalLight, HemisphereLight, PointLight);
 
 macro_rules! deref {
     ($name:ty : $field:ident = $object:ty) => {

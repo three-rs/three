@@ -154,6 +154,7 @@ fn main() {
     cam.position = three::Position::new(0.0, 100.0, 200.0);
     let mut win = three::Window::new("Three-rs aviator example", cam);
 
+    win.scene.background = three::Background::Color(0xB0A090);
     //TODO: win.scene.fog = Some(three::Fog::new(...));
     //TODO: Phong materials
     //TODO: cast/receive shadows

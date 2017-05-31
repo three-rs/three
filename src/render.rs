@@ -12,7 +12,7 @@ pub use self::back::Factory as BackendFactory;
 pub use self::back::Resources as BackendResources;
 use camera::Camera;
 use factory::{Factory, Texture};
-use scene::{Color, Material};
+use scene::{Color, Background, Material};
 use {SubLight, SubNode, Scene};
 
 pub type ColorFormat = gfx::format::Srgba8;
@@ -350,7 +350,11 @@ impl Renderer {
 
         // prepare target and globals
         self.device.cleanup();
-        self.encoder.clear(&self.out_color, [0.0, 0.0, 0.0, 1.0]);
+        match scene.background {
+            Background::Color(color) => {
+                self.encoder.clear(&self.out_color, decode_color(color));
+            }
+        }
         self.encoder.clear_depth(&self.out_depth, 1.0);
         self.encoder.update_constant_buffer(&self.const_buf, &Globals {
             mx_vp: cam.to_view_proj().into(),

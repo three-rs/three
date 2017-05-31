@@ -23,7 +23,8 @@ mod window;
 pub use camera::{Camera, OrthographicCamera, PerspectiveCamera};
 pub use factory::{Factory, Geometry, Texture};
 pub use render::{ColorFormat, DepthFormat, Renderer};
-pub use scene::{Color, Material, Group, Mesh, Sprite, Shadow, WorldNode,
+pub use scene::{Color, Background, Material, Shadow, WorldNode,
+                Group, Mesh, Sprite,
                 AmbientLight, DirectionalLight, HemisphereLight, PointLight};
 #[cfg(feature = "opengl")]
 pub use window::{Events, Window};
@@ -199,4 +200,5 @@ pub struct Scene {
     node: froggy::Pointer<Node>,
     tx: mpsc::Sender<Message>,
     hub: HubPtr,
+    pub background: scene::Background,
 }

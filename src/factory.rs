@@ -13,7 +13,7 @@ use gfx::traits::{Factory as Factory_, FactoryExt};
 use image;
 
 use render::{BackendFactory, BackendResources, ConstantBuffer, GpuData, Vertex};
-use scene::{Color, Group, Mesh, Sprite, Material,
+use scene::{Color, Background, Group, Mesh, Sprite, Material,
             AmbientLight, DirectionalLight, HemisphereLight, PointLight};
 use {Hub, HubPtr, SubLight, Node, SubNode, Normal, Position, Transform,
      VisualData, LightData, Object, VisualObject, LightObject, Scene};
@@ -133,6 +133,7 @@ impl Factory {
             node: node,
             tx: hub.message_tx.clone(),
             hub: self.hub.clone(),
+            background: Background::Color(0),
         }
     }
 
