@@ -12,7 +12,7 @@ use gfx::handle as h;
 use gfx::traits::{Factory as Factory_, FactoryExt};
 use image;
 
-use render::{BackendFactory, BackendResources, ConstantBuffer, GpuData, Vertex};
+use render::{BackendFactory, BackendResources, ConstantBuffer, GpuData, Vertex, ShadowFormat};
 use scene::{Color, Background, Group, Mesh, Sprite, Material,
             AmbientLight, DirectionalLight, HemisphereLight, PointLight};
 use {Hub, HubPtr, SubLight, Node, SubNode, Normal, Position, Transform,
@@ -91,8 +91,30 @@ impl Hub {
                 node: self.nodes.create(SubNode::Light(data.clone()).into()),
                 tx: self.message_tx.clone(),
             },
-            _data: data,
+            data,
         }
+    }
+}
+
+
+#[derive(Clone)]
+pub struct ShadowMap {
+    resource: gfx::handle::ShaderResourceView<BackendResources, f32>,
+    target: gfx::handle::DepthStencilView<BackendResources, ShadowFormat>,
+}
+
+impl ShadowMap {
+    #[doc(hidden)]
+    pub fn to_target(&self) -> gfx::handle::DepthStencilView<BackendResources, ShadowFormat> {
+        self.target.clone()
+    }
+
+    #[doc(hidden)]
+    pub fn to_param(&self, sampler: &gfx::handle::Sampler<BackendResources>)
+                    -> (gfx::handle::ShaderResourceView<BackendResources, f32>,
+                        gfx::handle::Sampler<BackendResources>)
+    {
+        (self.resource.clone(), sampler.clone())
     }
 }
 
@@ -188,6 +210,7 @@ impl Factory {
             color,
             intensity,
             sub_light: SubLight::Ambient,
+            shadow: None,
         }))
     }
 
@@ -196,6 +219,7 @@ impl Factory {
             color,
             intensity,
             sub_light: SubLight::Directional,
+            shadow: None,
         }))
     }
 
@@ -205,6 +229,7 @@ impl Factory {
             color: sky_color,
             intensity,
             sub_light: SubLight::Hemisphere{ ground: ground_color },
+            shadow: None,
         }))
     }
 
@@ -213,7 +238,17 @@ impl Factory {
             color,
             intensity,
             sub_light: SubLight::Point,
+            shadow: None,
         }))
+    }
+
+    pub fn shadow_map(&mut self, width: u16, height: u16) -> ShadowMap {
+        let (_, resource, target) = self.backend.create_depth_stencil::<ShadowFormat>(
+            width, height).unwrap();
+        ShadowMap {
+            resource,
+            target,
+        }
     }
 }
 
@@ -316,29 +351,29 @@ impl Geometry {
 
 
 #[derive(Clone)]
-pub struct Texture {
-    view: h::ShaderResourceView<BackendResources, [f32; 4]>,
+pub struct Texture<T> {
+    view: h::ShaderResourceView<BackendResources, T>,
     sampler: h::Sampler<BackendResources>,
 }
 
-impl Texture {
+impl<T> Texture<T> {
     #[doc(hidden)]
-    pub fn new(view: h::ShaderResourceView<BackendResources, [f32; 4]>,
+    pub fn new(view: h::ShaderResourceView<BackendResources, T>,
                sampler: h::Sampler<BackendResources>) -> Self {
         Texture {
-            view: view,
-            sampler: sampler,
+            view,
+            sampler,
         }
     }
 
     #[doc(hidden)]
-    pub fn to_param(&self) -> (h::ShaderResourceView<BackendResources, [f32; 4]>, h::Sampler<BackendResources>) {
+    pub fn to_param(&self) -> (h::ShaderResourceView<BackendResources, T>, h::Sampler<BackendResources>) {
         (self.view.clone(), self.sampler.clone())
     }
 }
 
 impl Factory {
-    pub fn load_texture(&mut self, path_str: &str) -> Texture {
+    pub fn load_texture(&mut self, path_str: &str) -> Texture<[f32; 4]> {
         use gfx::texture as t;
         use image::ImageFormat as F;
 
@@ -372,7 +407,7 @@ impl Factory {
                                     .unwrap_or_else(|e| panic!("Unable to create GPU texture for {}: {:?}", path_str, e));
 
         Texture {
-            view: view,
+            view,
             sampler: self.backend.create_sampler_linear(),
         }
     }

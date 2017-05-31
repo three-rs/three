@@ -1,12 +1,12 @@
 use std::ops;
 use std::sync::mpsc;
 
+use cgmath::Ortho;
 use froggy::Pointer;
 
 use {Object, VisualObject, LightObject, Message, Operation,
-     Node, SubNode, Scene, Transform, ShadowConfig};
-use camera::OrthographicCamera;
-use factory::{Geometry, Texture};
+     Node, SubNode, Scene, ShadowProjection, Transform};
+use factory::{Geometry, ShadowMap, Texture};
 
 
 pub type Color = u32;
@@ -22,13 +22,7 @@ pub enum Material {
     LineBasic { color: Color },
     MeshBasic { color: Color, wireframe: bool },
     MeshLambert { color: Color },
-    Sprite { map: Texture },
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct Shadow<C> {
-    pub camera: C,
-    pub resolution: [u16; 2],
+    Sprite { map: Texture<[f32; 4]> },
 }
 
 #[derive(Clone, Debug)]
@@ -222,9 +216,11 @@ impl DirectionalLight {
         self.has_shadow
     }
 
-    pub fn set_shadow(&mut self, shadow: Shadow<OrthographicCamera>) {
+    pub fn set_shadow(&mut self, map: ShadowMap, proj: Ortho<f32>) {
         self.has_shadow = true;
-        let msg = Operation::SetShadow(ShadowConfig::Ortho(shadow));
+        let sp = ShadowProjection::Ortho(proj);
+        self.data.shadow = Some((map.clone(), sp.clone()));
+        let msg = Operation::SetShadow(map, sp);
         let _ = self.tx.send((self.node.downgrade(), msg));
     }
 }

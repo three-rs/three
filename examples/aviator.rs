@@ -163,10 +163,8 @@ fn main() {
     win.scene.add(&hemi_light);
     let mut dir_light = win.factory.directional_light(0xffffff, 0.9);
     dir_light.transform_mut().disp = cgmath::vec3(150.0, 350.0, 350.0);
-    dir_light.set_shadow(three::Shadow {
-        camera: three::OrthographicCamera::new(-400.0, 400.0, 400.0, -400.0, 1.0, 1000.0),
-        resolution: [2048, 2048],
-    });
+    let shadow_map = win.factory.shadow_map(2048, 2048);
+    //dir_light.set_shadow(shadow_map, cgmath::Ortho::new(-400.0, 400.0, -400.0, 400.0, 1.0, 1000.0));
     //win.scene.add(&dir_light); //TODO
     let ambient_light = win.factory.ambient_light(0xdc8874, 0.5);
     win.scene.add(&ambient_light);

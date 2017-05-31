@@ -15,6 +15,7 @@ froggy = "0.3"
 genmesh = "0.5"
 gfx = "0.16"
 image = "0.13"
+log = "0.3"
 winit = "0.6"
 # OpenGL
 gfx_device_gl = { version = "0.14", optional = true }

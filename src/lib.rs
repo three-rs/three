@@ -4,6 +4,8 @@ extern crate genmesh;
 #[macro_use]
 extern crate gfx;
 extern crate image;
+#[macro_use]
+extern crate log;
 extern crate winit;
 // OpenGL
 #[cfg(feature = "opengl")]
@@ -21,9 +23,9 @@ mod scene;
 mod window;
 
 pub use camera::{Camera, OrthographicCamera, PerspectiveCamera};
-pub use factory::{Factory, Geometry, Texture};
-pub use render::{ColorFormat, DepthFormat, Renderer};
-pub use scene::{Color, Background, Material, Shadow, WorldNode,
+pub use factory::{Factory, Geometry, ShadowMap, Texture};
+pub use render::{ColorFormat, DepthFormat, Renderer, ShadowType};
+pub use scene::{Color, Background, Material, WorldNode,
                 Group, Mesh, Sprite,
                 AmbientLight, DirectionalLight, HemisphereLight, PointLight};
 #[cfg(feature = "opengl")]
@@ -70,15 +72,16 @@ enum SubLight {
 }
 
 #[derive(Clone)]
+enum ShadowProjection {
+    Ortho(cgmath::Ortho<f32>),
+}
+
+#[derive(Clone)]
 struct LightData {
     color: Color,
     intensity: f32,
     sub_light: SubLight,
-}
-
-enum ShadowConfig {
-    //None,
-    Ortho(Shadow<OrthographicCamera>),
+    shadow: Option<(ShadowMap, ShadowProjection)>,
 }
 
 enum SubNode {
@@ -112,7 +115,7 @@ pub struct VisualObject {
 
 pub struct LightObject {
     inner: Object,
-    _data: LightData,
+    data: LightData,
 }
 
 type Message = (froggy::WeakPointer<Node>, Operation);
@@ -121,7 +124,7 @@ enum Operation {
     SetVisible(bool),
     SetTransform(Transform),
     SetMaterial(Material),
-    SetShadow(ShadowConfig),
+    SetShadow(ShadowMap, ShadowProjection),
 }
 
 type HubPtr = Arc<Mutex<Hub>>;
@@ -163,9 +166,9 @@ impl Hub {
                         data.material = material;
                     }
                 }
-                Operation::SetShadow(_shadow) => {
-                    if let SubNode::Light(ref mut _data) = node.sub_node {
-                        //data.shadow = shadow;
+                Operation::SetShadow(map, proj) => {
+                    if let SubNode::Light(ref mut data) = node.sub_node {
+                        data.shadow = Some((map, proj));
                     }
                 }
             }

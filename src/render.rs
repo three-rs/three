@@ -1,4 +1,4 @@
-use cgmath::{Matrix4, Vector3};
+use cgmath::{ortho, Matrix4, Vector3, Transform as Transform_};
 use gfx;
 use gfx::traits::{Device, Factory as Factory_, FactoryExt};
 #[cfg(feature = "opengl")]
@@ -13,10 +13,11 @@ pub use self::back::Resources as BackendResources;
 use camera::Camera;
 use factory::{Factory, Texture};
 use scene::{Color, Background, Material};
-use {SubLight, SubNode, Scene};
+use {SubLight, SubNode, Scene, ShadowProjection, Transform};
 
 pub type ColorFormat = gfx::format::Srgba8;
 pub type DepthFormat = gfx::format::DepthStencil;
+pub type ShadowFormat = gfx::format::Depth;
 pub type ConstantBuffer = gfx::handle::Buffer<back::Resources, Locals>;
 const MAX_LIGHTS: usize = 4;
 
@@ -55,6 +56,14 @@ gfx_defines!{
         out_color: gfx::BlendTarget<ColorFormat> =
             ("Target0", gfx::state::MASK_ALL, gfx::preset::blend::REPLACE),
         out_depth: gfx::DepthTarget<DepthFormat> =
+            gfx::preset::depth::LESS_EQUAL_WRITE,
+    }
+
+    pipeline shadow_pipe {
+        vbuf: gfx::VertexBuffer<Vertex> = (),
+        cb_locals: gfx::ConstantBuffer<Locals> = "b_Locals",
+        cb_globals: gfx::ConstantBuffer<Globals> = "b_Globals",
+        target: gfx::DepthTarget<ShadowFormat> =
             gfx::preset::depth::LESS_EQUAL_WRITE,
     }
 }
@@ -198,6 +207,24 @@ const SPRITE_FS: &'static [u8] = b"
     }
 ";
 
+const SHADOW_VS: &'static [u8] = b"
+    #version 150 core
+    in vec4 a_Position;
+    uniform b_Globals {
+        mat4 u_ViewProj;
+    };
+    uniform b_Locals {
+        mat4 u_World;
+    };
+    void main() {
+        gl_Position = u_ViewProj * u_World * a_Position;
+    }
+";
+const SHADOW_FS: &'static [u8] = b"
+    #version 150 core
+    void main() {}
+";
+
 
 /// sRGB to linear conversion from:
 /// https://www.khronos.org/registry/OpenGL/extensions/EXT/EXT_texture_sRGB_decode.txt
@@ -220,6 +247,15 @@ pub struct GpuData {
     pub vertices: gfx::handle::Buffer<back::Resources, Vertex>,
 }
 
+pub enum ShadowType {
+    /// Force no shadows.
+    Off,
+    /// Basic (and fast) single-sample shadows.
+    Basic,
+    /// Percentage-closest filter (PCF).
+    Pcf,
+}
+
 pub struct Renderer {
     device: back::Device,
     encoder: gfx::Encoder<back::Resources, back::CommandBuffer>,
@@ -232,8 +268,11 @@ pub struct Renderer {
     pso_mesh_basic_wireframe: gfx::PipelineState<back::Resources, pipe::Meta>,
     pso_mesh_phong: gfx::PipelineState<back::Resources, pipe::Meta>,
     pso_sprite: gfx::PipelineState<back::Resources, pipe::Meta>,
-    map_default: Texture,
+    pso_shadow: gfx::PipelineState<back::Resources, shadow_pipe::Meta>,
+    map_default: Texture<[f32; 4]>,
+    shadow_default: Texture<f32>,
     size: (u32, u32),
+    pub shadow: ShadowType,
     #[cfg(feature = "opengl")]
     window: glutin::Window,
 }
@@ -242,20 +281,29 @@ impl Renderer {
     #[cfg(feature = "opengl")]
     pub fn new(builder: glutin::WindowBuilder, event_loop: &glutin::EventsLoop)
                -> (Self, Factory) {
+        use gfx::texture as t;
         let (window, device, mut gl_factory, color, depth) =
             gfx_window_glutin::init(builder, event_loop);
         let prog_basic = gl_factory.link_program(BASIC_VS, BASIC_FS).unwrap();
         let prog_phong = gl_factory.link_program(PHONG_VS, PHONG_FS).unwrap();
         let prog_sprite = gl_factory.link_program(SPRITE_VS, SPRITE_FS).unwrap();
+        let prog_shadow = gl_factory.link_program(SHADOW_VS, SHADOW_FS).unwrap();
         let rast_fill = gfx::state::Rasterizer::new_fill().with_cull_back();
         let rast_wire = gfx::state::Rasterizer {
             method: gfx::state::RasterMethod::Line(1),
             .. rast_fill
         };
         let (_, srv_white) = gl_factory.create_texture_immutable::<gfx::format::Rgba8>(
-            gfx::texture::Kind::D2(1, 1, gfx::texture::AaMode::Single), &[&[[0xFF; 4]]]
+            t::Kind::D2(1, 1, t::AaMode::Single), &[&[[0xFF; 4]]]
+            ).unwrap();
+        let (_, srv_shadow) = gl_factory.create_texture_immutable::<ShadowFormat>(
+            t::Kind::D2(1, 1, t::AaMode::Single), &[&[0f32]]
             ).unwrap();
         let sampler = gl_factory.create_sampler_linear();
+        let sampler_shadow = gl_factory.create_sampler(t::SamplerInfo {
+            comparison: Some(gfx::state::Comparison::Less),
+            .. t::SamplerInfo::new(t::FilterMethod::Bilinear, t::WrapMode::Clamp)
+        });
         let renderer = Renderer {
             device: device,
             encoder: gl_factory.create_command_buffer().into(),
@@ -280,7 +328,12 @@ impl Renderer {
                     out_color: ("Target0", gfx::state::MASK_ALL, gfx::preset::blend::ALPHA),
                     .. pipe::new()
                 }).unwrap(),
+            pso_shadow: gl_factory.create_pipeline_from_program(&prog_shadow,
+                gfx::Primitive::TriangleList, rast_fill, shadow_pipe::new()
+                ).unwrap(),
             map_default: Texture::new(srv_white, sampler),
+            shadow_default: Texture::new(srv_shadow, sampler_shadow),
+            shadow: ShadowType::Basic,
             size: window.get_inner_size_pixels().unwrap(),
             window: window,
         };
@@ -303,20 +356,34 @@ impl Renderer {
     }
 
     pub fn render<C: Camera>(&mut self, scene: &Scene, cam: &C) {
+        self.device.cleanup();
         let mut hub = scene.hub.lock().unwrap();
         hub.process_messages();
         hub.update_graph();
 
         // gather lights
+        struct ShadowRequest {
+            target: gfx::handle::DepthStencilView<back::Resources, ShadowFormat>,
+            projection: ShadowProjection,
+            world_transform: Transform,
+        }
         let mut lights = Vec::new();
+        let mut shadow_requests = Vec::new();
         for node in hub.nodes.iter_alive() {
             if node.scene_id != Some(scene.unique_id) {
                 continue
             }
             if let SubNode::Light(ref light) = node.sub_node {
                 if lights.len() == MAX_LIGHTS {
-                    //error!("Max number of lights ({}) reached", MAX_LIGHTS);
+                    error!("Max number of lights ({}) reached", MAX_LIGHTS);
                     break;
+                }
+                if let Some((ref map, ref projection)) = light.shadow {
+                    shadow_requests.push(ShadowRequest {
+                        target: map.to_target(),
+                        projection: projection.clone(),
+                        world_transform: node.world_transform,
+                    });
                 }
                 let mut color_back = 0;
                 let mut p = node.world_transform.disp.extend(1.0);
@@ -348,8 +415,44 @@ impl Renderer {
             }
         }
 
+        // render shadow maps
+        for request in shadow_requests.drain(..) {
+            self.encoder.clear_depth(&request.target, 1.0);
+            let mx_proj = match request.projection {
+                ShadowProjection::Ortho(p) => {
+                    ortho(p.left, p.right, p.bottom, p.top, p.near, p.far)
+                }
+            };
+            let mx_view = Matrix4::from(
+                request.world_transform.inverse_transform().unwrap());
+            self.encoder.update_constant_buffer(&self.const_buf, &Globals {
+                mx_vp: (mx_proj * mx_view).into(),
+                num_lights: 0,
+            });
+            for node in hub.nodes.iter_alive() {
+                if node.scene_id != Some(scene.unique_id) {
+                    continue;
+                }
+                let visual = match node.sub_node {
+                    SubNode::Visual(ref data) => data,
+                    _ => continue
+                };
+                self.encoder.update_constant_buffer(&visual.payload, &Locals {
+                    mx_world: Matrix4::from(node.world_transform).into(),
+                    color: [0.0; 4],
+                });
+                //TODO: avoid excessive cloning
+                let data = shadow_pipe::Data {
+                    vbuf: visual.gpu_data.vertices.clone(),
+                    cb_locals: visual.payload.clone(),
+                    cb_globals: self.const_buf.clone(),
+                    target: request.target.clone(),
+                };
+                self.encoder.draw(&visual.gpu_data.slice, &self.pso_shadow, &data);
+            }
+        }
+
         // prepare target and globals
-        self.device.cleanup();
         match scene.background {
             Background::Color(color) => {
                 self.encoder.clear(&self.out_color, decode_color(color));
