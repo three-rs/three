@@ -17,7 +17,7 @@ use {SubLight, SubNode, Scene, ShadowProjection, Transform};
 
 pub type ColorFormat = gfx::format::Srgba8;
 pub type DepthFormat = gfx::format::DepthStencil;
-pub type ShadowFormat = gfx::format::Depth;
+pub type ShadowFormat = gfx::format::Depth32F;
 pub type ConstantBuffer = gfx::handle::Buffer<back::Resources, Locals>;
 const MAX_LIGHTS: usize = 4;
 
@@ -296,8 +296,8 @@ impl Renderer {
         let (_, srv_white) = gl_factory.create_texture_immutable::<gfx::format::Rgba8>(
             t::Kind::D2(1, 1, t::AaMode::Single), &[&[[0xFF; 4]]]
             ).unwrap();
-        let (_, srv_shadow) = gl_factory.create_texture_immutable::<ShadowFormat>(
-            t::Kind::D2(1, 1, t::AaMode::Single), &[&[0f32]]
+        let (_, srv_shadow) = gl_factory.create_texture_immutable::<(gfx::format::R32, gfx::format::Float)>(
+            t::Kind::D2(1, 1, t::AaMode::Single), &[&[0x3F000000]]
             ).unwrap();
         let sampler = gl_factory.create_sampler_linear();
         let sampler_shadow = gl_factory.create_sampler(t::SamplerInfo {
