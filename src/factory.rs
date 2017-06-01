@@ -111,11 +111,8 @@ impl ShadowMap {
     }
 
     #[doc(hidden)]
-    pub fn to_param(&self, sampler: &gfx::handle::Sampler<BackendResources>)
-                    -> (gfx::handle::ShaderResourceView<BackendResources, f32>,
-                        gfx::handle::Sampler<BackendResources>)
-    {
-        (self.resource.clone(), sampler.clone())
+    pub fn to_resource(&self) -> gfx::handle::ShaderResourceView<BackendResources, f32> {
+        self.resource.clone()
     }
 }
 

@@ -33,12 +33,14 @@ gfx_defines!{
     }
 
     constant LightParam {
+        projection: [[f32; 4]; 4] = "projection",
         pos: [f32; 4] = "pos",
         dir: [f32; 4] = "dir",
         focus: [f32; 4] = "focus",
         color: [f32; 4] = "color",
         color_back: [f32; 4] = "color_back",
         intensity: [f32; 4] = "intensity",
+        shadow_params: [i32; 4] = "shadow_params",
     }
 
     constant Globals {
@@ -52,6 +54,8 @@ gfx_defines!{
         cb_lights: gfx::ConstantBuffer<LightParam> = "b_Lights",
         cb_globals: gfx::ConstantBuffer<Globals> = "b_Globals",
         tex_map: gfx::TextureSampler<[f32; 4]> = "t_Map",
+        shadow_map0: gfx::TextureSampler<f32> = "t_Shadow0",
+        shadow_map1: gfx::TextureSampler<f32> = "t_Shadow1",
         out_color: gfx::BlendTarget<ColorFormat> =
             ("Target0", gfx::state::MASK_ALL, gfx::preset::blend::REPLACE),
         out_depth: gfx::DepthTarget<DepthFormat> =
@@ -101,12 +105,14 @@ const PHONG_VS: &'static [u8] = b"
     out vec3 v_Normal;
     out vec3 v_Half[4];
     struct Light {
+        mat4 projection;
         vec4 pos;
         vec4 dir;
         vec4 focus;
         vec4 color;
         vec4 color_back;
         vec4 intensity;
+        ivec4 shadow_params;
     };
     uniform b_Lights {
         Light u_Lights[4];
@@ -135,13 +141,17 @@ const PHONG_FS: &'static [u8] = b"
     in vec3 v_World;
     in vec3 v_Normal;
     in vec3 v_Half[4];
+    uniform sampler2DShadow t_Shadow0;
+    uniform sampler2DShadow t_Shadow1;
     struct Light {
+        mat4 projection;
         vec4 pos;
         vec4 dir;
         vec4 focus;
         vec4 color;
         vec4 color_back;
         vec4 intensity;
+        ivec4 shadow_params;
     };
     uniform b_Lights {
         Light u_Lights[4];
@@ -159,20 +169,31 @@ const PHONG_FS: &'static [u8] = b"
         vec3 normal = normalize(v_Normal);
         for(uint i=0U; i<4U && i < u_NumLights; ++i) {
             Light light = u_Lights[i];
+            vec4 lit_space = light.projection * vec4(v_World, 1.0);
+            float shadow = 1.0;
+            if (light.shadow_params[0] == 0) {
+                shadow = texture(t_Shadow0, 0.5 * lit_space.xyz / lit_space.w + 0.5);
+            }
+            if (light.shadow_params[0] == 1) {
+                shadow = texture(t_Shadow1, 0.5 * lit_space.xyz / lit_space.w + 0.5);
+            }
+            if (shadow == 0.0) {
+                continue;
+            }
             vec3 dir = light.pos.xyz - light.pos.w * v_World.xyz;
             float dot_nl = dot(normal, normalize(dir));
             // hemisphere light test
             if (dot(light.color_back, light.color_back) > 0.0) {
                 vec4 irradiance = mix(light.color_back, light.color, dot_nl*0.5 + 0.5);
-                color += light.intensity.y * u_Color * irradiance;
+                color += shadow * light.intensity.y * u_Color * irradiance;
             } else {
                 float kd = light.intensity.x + light.intensity.y * max(0.0, dot_nl);
-                color += u_Color * light.color * kd;
+                color += shadow * kd * u_Color * light.color;
             }
             if (dot_nl > 0.0 && light.intensity.z > 0.0) {
                 float ks = dot(normal, normalize(v_Half[i]));
                 if (ks > 0.0) {
-                    color += light.color * pow(ks, light.intensity.z);
+                    color += shadow * pow(ks, light.intensity.z) * light.color;
                 }
             }
         }
@@ -269,7 +290,7 @@ pub struct Renderer {
     pso_sprite: gfx::PipelineState<back::Resources, pipe::Meta>,
     pso_shadow: gfx::PipelineState<back::Resources, shadow_pipe::Meta>,
     map_default: Texture<[f32; 4]>,
-    _shadow_default: Texture<f32>,
+    shadow_default: Texture<f32>,
     size: (u32, u32),
     pub shadow: ShadowType,
     #[cfg(feature = "opengl")]
@@ -290,6 +311,10 @@ impl Renderer {
         let rast_fill = gfx::state::Rasterizer::new_fill().with_cull_back();
         let rast_wire = gfx::state::Rasterizer {
             method: gfx::state::RasterMethod::Line(1),
+            .. rast_fill
+        };
+        let rast_shadow = gfx::state::Rasterizer {
+            offset: Some(gfx::state::Offset(1, 1)),
             .. rast_fill
         };
         let (_, srv_white) = gl_factory.create_texture_immutable::<gfx::format::Rgba8>(
@@ -328,10 +353,10 @@ impl Renderer {
                     .. pipe::new()
                 }).unwrap(),
             pso_shadow: gl_factory.create_pipeline_from_program(&prog_shadow,
-                gfx::Primitive::TriangleList, rast_fill, shadow_pipe::new()
+                gfx::Primitive::TriangleList, rast_shadow, shadow_pipe::new()
                 ).unwrap(),
             map_default: Texture::new(srv_white, sampler),
-            _shadow_default: Texture::new(srv_shadow, sampler_shadow),
+            shadow_default: Texture::new(srv_shadow, sampler_shadow),
             shadow: ShadowType::Basic,
             size: window.get_inner_size_pixels().unwrap(),
             window: window,
@@ -363,6 +388,7 @@ impl Renderer {
         // gather lights
         struct ShadowRequest {
             target: gfx::handle::DepthStencilView<back::Resources, ShadowFormat>,
+            resource: gfx::handle::ShaderResourceView<back::Resources, f32>,
             matrix: Matrix4<f32>,
         }
         let mut lights = Vec::new();
@@ -376,7 +402,7 @@ impl Renderer {
                     error!("Max number of lights ({}) reached", MAX_LIGHTS);
                     break;
                 }
-                if let Some((ref map, ref projection)) = light.shadow {
+                let shadow_index = if let Some((ref map, ref projection)) = light.shadow {
                     let target = map.to_target();
                     let dim = target.get_dimensions();
                     let aspect = dim.0 as f32 / dim.1 as f32;
@@ -387,9 +413,13 @@ impl Renderer {
                         node.world_transform.inverse_transform().unwrap());
                     shadow_requests.push(ShadowRequest {
                         target,
+                        resource: map.to_resource(),
                         matrix: mx_proj * mx_view,
                     });
-                }
+                    shadow_requests.len() as i32 - 1
+                } else {
+                    -1
+                };
                 let mut color_back = 0;
                 let mut p = node.world_transform.disp.extend(1.0);
                 let d = node.world_transform.rot * Vector3::unit_z();
@@ -409,19 +439,26 @@ impl Renderer {
                         //empty
                     }
                 }
+                let projection = if shadow_index >= 0 {
+                    shadow_requests[shadow_index as usize].matrix.into()
+                } else {
+                    [[0.0; 4]; 4]
+                };
                 lights.push(LightParam {
+                    projection,
                     pos: p.into(),
                     dir: d.extend(0.0).into(),
                     focus: [0.0, 0.0, 0.0, 0.0],
                     color: decode_color(light.color),
                     color_back: decode_color(color_back),
-                    intensity: intensity,
+                    intensity,
+                    shadow_params: [shadow_index, 0, 0, 0],
                 });
             }
         }
 
         // render shadow maps
-        for request in shadow_requests.drain(..) {
+        for request in &shadow_requests {
             self.encoder.clear_depth(&request.target, 1.0);
             self.encoder.update_constant_buffer(&self.const_buf, &Globals {
                 mx_vp: request.matrix.into(),
@@ -474,6 +511,15 @@ impl Renderer {
         self.encoder.update_buffer(&self.light_buf, &lights, 0).unwrap();
 
         // render everything
+        let (shadow_default, shadow_sampler) = self.shadow_default.to_param();
+        let shadow0 = match shadow_requests.get(0) {
+            Some(ref request) => request.resource.clone(),
+            None => shadow_default.clone(),
+        };
+        let shadow1 = match shadow_requests.get(1) {
+            Some(ref request) => request.resource.clone(),
+            None => shadow_default.clone(),
+        };
         for node in hub.nodes.iter_alive() {
             if node.scene_id != Some(scene.unique_id) {
                 continue;
@@ -502,6 +548,8 @@ impl Renderer {
                 cb_lights: self.light_buf.clone(),
                 cb_globals: self.const_buf.clone(),
                 tex_map: map.unwrap_or(&self.map_default).to_param(),
+                shadow_map0: (shadow0.clone(), shadow_sampler.clone()),
+                shadow_map1: (shadow1.clone(), shadow_sampler.clone()),
                 out_color: self.out_color.clone(),
                 out_depth: self.out_depth.clone(),
             };
