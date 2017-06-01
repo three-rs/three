@@ -5,6 +5,10 @@
 
 Totally not inspired Rust 3D library! Ok, maybe, just a tiny bit... by [Three.JS](http://threejs.org).
 
+## Screenshots
+
+![Aviator](Aviator.png)
+
 ## Motivation and Goals
 
   1. Ergonomics is first priority. Being able to prototype quickly and code intuitively is more important than capturing all the 3D features. We already have a solid foundation with [gfx-rs](https://github.com/gfx-rs/gfx), so let's make some use of it by providing a nice higher-level abstraction.
