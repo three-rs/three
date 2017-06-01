@@ -377,14 +377,17 @@ impl Renderer {
                     break;
                 }
                 if let Some((ref map, ref projection)) = light.shadow {
+                    let target = map.to_target();
+                    let dim = target.get_dimensions();
+                    let aspect = dim.0 as f32 / dim.1 as f32;
                     let mx_proj = match projection {
-                        &ShadowProjection::Ortho(ref p) => p.get_matrix(None),
+                        &ShadowProjection::Ortho(ref p) => p.get_matrix(aspect),
                     };
                     let mx_view = Matrix4::from(
                         node.world_transform.inverse_transform().unwrap());
                     shadow_requests.push(ShadowRequest {
-                        target: map.to_target(),
-                        matrix: mx_view * mx_proj,
+                        target,
+                        matrix: mx_proj * mx_view,
                     });
                 }
                 let mut color_back = 0;
@@ -449,7 +452,7 @@ impl Renderer {
 
         // prepare target and globals
         let mx_vp = {
-            let p = camera.projection.get_matrix(Some(self.get_aspect()));
+            let p = camera.projection.get_matrix(self.get_aspect());
             let node = &hub.nodes[&camera.object.node];
             let w = match node.scene_id {
                 Some(id) if id == scene.unique_id => node.world_transform,

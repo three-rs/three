@@ -25,12 +25,9 @@ impl<P> ops::DerefMut for Camera<P> {
 }
 
 impl Projection for cgmath::Ortho<f32> {
-    fn get_matrix(&self, aspect: Option<f32>) -> cgmath::Matrix4<f32> {
+    fn get_matrix(&self, aspect: f32) -> cgmath::Matrix4<f32> {
         let center = 0.5 * (self.left + self.right);
-        let offset = match aspect {
-            Some(aspect) => 0.5 * aspect * (self.top - self.bottom),
-            None => center - self.left,
-        };
+        let offset = 0.5 * aspect * (self.top - self.bottom);
         cgmath::ortho(center - offset, center + offset,
                       self.bottom, self.top,
                       self.near, self.far)
@@ -38,8 +35,8 @@ impl Projection for cgmath::Ortho<f32> {
 }
 
 impl Projection for cgmath::PerspectiveFov<f32> {
-    fn get_matrix(&self, aspect: Option<f32>) -> cgmath::Matrix4<f32> {
-        cgmath::perspective(self.fovy, aspect.unwrap_or(self.aspect),
+    fn get_matrix(&self, aspect: f32) -> cgmath::Matrix4<f32> {
+        cgmath::perspective(self.fovy, aspect,
                             self.near, self.far)
     }
 }

@@ -176,7 +176,8 @@ fn main() {
     let hemi_light = win.factory.hemisphere_light(0xaaaaaa, 0x000000, 0.9);
     win.scene.add(&hemi_light);
     let mut dir_light = win.factory.directional_light(0xffffff, 0.9);
-    dir_light.transform_mut().disp = cgmath::vec3(150.0, 350.0, 350.0);
+    dir_light.transform_mut().look_at(three::Position::new(150.0, 350.0, 350.0),
+                                      three::Position::new(0.0, 0.0, 0.0));
     let shadow_map = win.factory.shadow_map(2048, 2048);
     dir_light.set_shadow(shadow_map, 800.0, 800.0, 1.0, 1000.0);
     win.scene.add(&dir_light);
