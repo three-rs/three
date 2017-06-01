@@ -321,12 +321,13 @@ impl Renderer {
             t::Kind::D2(1, 1, t::AaMode::Single), &[&[[0xFF; 4]]]
             ).unwrap();
         let (_, srv_shadow) = gl_factory.create_texture_immutable::<(gfx::format::R32, gfx::format::Float)>(
-            t::Kind::D2(1, 1, t::AaMode::Single), &[&[0x3F000000]]
+            t::Kind::D2(1, 1, t::AaMode::Single), &[&[0x3F800000]]
             ).unwrap();
         let sampler = gl_factory.create_sampler_linear();
         let sampler_shadow = gl_factory.create_sampler(t::SamplerInfo {
             comparison: Some(gfx::state::Comparison::Less),
-            .. t::SamplerInfo::new(t::FilterMethod::Bilinear, t::WrapMode::Clamp)
+            border: t::PackedColor(!0), // clamp to 1.0
+            .. t::SamplerInfo::new(t::FilterMethod::Bilinear, t::WrapMode::Border)
         });
         let renderer = Renderer {
             device: device,
