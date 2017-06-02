@@ -5,6 +5,20 @@ authors = ["Dzmitry Malyshau <kvarkus@gmail.com>"]
 
 [lib]
 
+[[example]]
+name = "materials"
+
+[[example]]
+name = "shapes"
+
+[[example]]
+name = "sprite"
+
+[[example]]
+name = "aviator"
+path = "examples/aviator/main.rs"
+
+
 [features]
 default = ["opengl"]
 "opengl" = ["gfx_device_gl", "gfx_window_glutin", "glutin"]

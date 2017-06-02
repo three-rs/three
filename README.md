@@ -7,7 +7,7 @@ Totally not inspired Rust 3D library! Ok, maybe, just a tiny bit... by [Three.JS
 
 ## Screenshots
 
-![Aviator](Aviator.png)
+![Aviator](examples/aviator/shot.png)
 
 ## Motivation and Goals
 
