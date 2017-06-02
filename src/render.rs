@@ -1,4 +1,5 @@
 use cgmath::{Matrix4, Vector3, Transform as Transform_};
+use froggy;
 use gfx;
 use gfx::traits::{Device, Factory as Factory_, FactoryExt};
 #[cfg(feature = "opengl")]
@@ -10,7 +11,7 @@ use glutin;
 
 pub use self::back::Factory as BackendFactory;
 pub use self::back::Resources as BackendResources;
-use factory::{Factory, Texture};
+use factory::{Factory, ShadowMap, Texture};
 use scene::{Color, Background, Material};
 use {SubLight, SubNode, Scene, ShadowProjection, Camera, Projection};
 
@@ -312,6 +313,14 @@ pub enum ShadowType {
     Pcf,
 }
 
+struct DebugQuad {
+    resource: gfx::handle::RawShaderResourceView<back::Resources>,
+    pos: [i32; 2],
+    size: [i32; 2],
+}
+
+pub struct DebugQuadHandle(froggy::Pointer<DebugQuad>);
+
 pub struct Renderer {
     device: back::Device,
     encoder: gfx::Encoder<back::Resources, back::CommandBuffer>,
@@ -329,6 +338,7 @@ pub struct Renderer {
     pso_quad: gfx::PipelineState<back::Resources, quad_pipe::Meta>,
     map_default: Texture<[f32; 4]>,
     shadow_default: Texture<f32>,
+    debug_quads: froggy::Storage<DebugQuad>,
     size: (u32, u32),
     pub shadow: ShadowType,
 }
@@ -351,7 +361,7 @@ impl Renderer {
             .. rast_fill
         };
         let rast_shadow = gfx::state::Rasterizer {
-            offset: Some(gfx::state::Offset(1, 1)),
+            offset: Some(gfx::state::Offset(2, 2)),
             .. rast_fill
         };
         let (_, srv_white) = gl_factory.create_texture_immutable::<gfx::format::Rgba8>(
@@ -400,6 +410,7 @@ impl Renderer {
             map_default: Texture::new(srv_white, sampler),
             shadow_default: Texture::new(srv_shadow, sampler_shadow),
             shadow: ShadowType::Basic,
+            debug_quads: froggy::Storage::new(),
             size: window.get_inner_size_pixels().unwrap(),
         };
         let factory = Factory::new(gl_factory);
@@ -597,32 +608,51 @@ impl Renderer {
             self.encoder.draw(&visual.gpu_data.slice, pso, &data);
         }
 
+        // draw debug quads
+        for quad in self.debug_quads.iter_alive() {
+            let pos = [
+                if quad.pos[0] >= 0 {
+                    quad.pos[0]
+                } else {
+                    self.size.0 as i32 + quad.pos[0] - quad.size[0]
+                },
+                if quad.pos[1] >= 0 {
+                    quad.pos[1]
+                } else {
+                    self.size.1 as i32 + quad.pos[1] - quad.size[1]
+                },
+            ];
+            let (p0x, p0y) = self.map_to_ndc(pos[0], pos[1]);
+            let (p1x, p1y) = self.map_to_ndc(pos[0] + quad.size[0], pos[1] + quad.size[1]);
+            self.encoder.update_constant_buffer(&self.quad_buf, &QuadParams {
+                rect: [p0x, p0y, p1x, p1y],
+            });
+            let slice = gfx::Slice {
+                start: 0,
+                end: 4,
+                base_vertex: 0,
+                instances: None,
+                buffer: gfx::IndexBuffer::Auto,
+            };
+            let data = quad_pipe::Data {
+                params: self.quad_buf.clone(),
+                resource: quad.resource.clone(),
+                sampler: self.map_default.to_param().1,
+                target: self.out_color.clone(),
+            };
+            self.encoder.draw(&slice, &self.pso_quad, &data);
+        }
+
         self.encoder.flush(&mut self.device);
     }
 
-    pub fn draw_quad<T>(&mut self, view: &gfx::handle::ShaderResourceView<back::Resources, T>,
-                        _num_components: u8, pos: [u16; 2], size: [u16; 2]) {
+    pub fn debug_shadow_quad(&mut self, map: &ShadowMap, _num_components: u8,
+                             pos: [i16; 2], size: [u16; 2]) -> DebugQuadHandle {
         use gfx::memory::Typed;
-
-        let (p0x, p0y) = self.map_to_ndc(pos[0] as i32, pos[1] as i32);
-        let (p1x, p1y) = self.map_to_ndc((pos[0] + size[0]) as i32, (pos[1] + size[1]) as i32);
-        self.encoder.update_constant_buffer(&self.quad_buf, &QuadParams {
-            rect: [p0x, p0y, p1x, p1y],
-        });
-        let slice = gfx::Slice {
-            start: 0,
-            end: 4,
-            base_vertex: 0,
-            instances: None,
-            buffer: gfx::IndexBuffer::Auto,
-        };
-        let data = quad_pipe::Data {
-            params: self.quad_buf.clone(),
-            resource: view.raw().clone(),
-            sampler: self.map_default.to_param().1,
-            target: self.out_color.clone(),
-        };
-        self.encoder.draw(&slice, &self.pso_quad, &data);
-        self.encoder.flush(&mut self.device);
+        DebugQuadHandle(self.debug_quads.create(DebugQuad {
+            resource: map.to_resource().raw().clone(),
+            pos: [pos[0] as i32, pos[1] as i32],
+            size: [size[0] as i32, size[1] as i32],
+        }))
     }
 }
