@@ -6,6 +6,9 @@ authors = ["Dzmitry Malyshau <kvarkus@gmail.com>"]
 [lib]
 
 [[example]]
+name = "lights"
+
+[[example]]
 name = "materials"
 
 [[example]]
