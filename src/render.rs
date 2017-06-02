@@ -69,6 +69,17 @@ gfx_defines!{
         target: gfx::DepthTarget<ShadowFormat> =
             gfx::preset::depth::LESS_EQUAL_WRITE,
     }
+
+    constant QuadParams {
+        rect: [f32; 4] = "u_Rect",
+    }
+
+    pipeline quad_pipe {
+        params: gfx::ConstantBuffer<QuadParams> = "b_Params",
+        resource: gfx::RawShaderResource = "t_Input",
+        sampler: gfx::Sampler = "t_Input",
+        target: gfx::RenderTarget<ColorFormat> = "Target0",
+    }
 }
 
 const BASIC_VS: &'static [u8] = b"
@@ -245,6 +256,31 @@ const SHADOW_FS: &'static [u8] = b"
     void main() {}
 ";
 
+const QUAD_VS: &'static [u8] = b"
+    #version 150 core
+    out vec2 v_TexCoord;
+    uniform b_Params {
+        vec4 u_Rect;
+    };
+    void main() {
+        v_TexCoord = gl_VertexID==0 ? vec2(1.0, 0.0) :
+                     gl_VertexID==1 ? vec2(0.0, 0.0) :
+                     gl_VertexID==2 ? vec2(1.0, 1.0) :
+                                      vec2(0.0, 1.0) ;
+        vec2 pos = mix(u_Rect.xy, u_Rect.zw, v_TexCoord);
+        gl_Position = vec4(pos, 0.0, 1.0);
+    }
+";
+const QUAD_FS: &'static [u8] = b"
+    #version 150 core
+    in vec2 v_TexCoord;
+    uniform sampler2D t_Input;
+    void main() {
+        gl_FragColor = texture(t_Input, v_TexCoord);
+    }
+";
+
+
 
 /// sRGB to linear conversion from:
 /// https://www.khronos.org/registry/OpenGL/extensions/EXT/EXT_texture_sRGB_decode.txt
@@ -280,6 +316,7 @@ pub struct Renderer {
     device: back::Device,
     encoder: gfx::Encoder<back::Resources, back::CommandBuffer>,
     const_buf: gfx::handle::Buffer<back::Resources, Globals>,
+    quad_buf: gfx::handle::Buffer<back::Resources, QuadParams>,
     light_buf: gfx::handle::Buffer<back::Resources, LightParam>,
     out_color: gfx::handle::RenderTargetView<back::Resources, ColorFormat>,
     out_depth: gfx::handle::DepthStencilView<back::Resources, DepthFormat>,
@@ -289,18 +326,17 @@ pub struct Renderer {
     pso_mesh_phong: gfx::PipelineState<back::Resources, pipe::Meta>,
     pso_sprite: gfx::PipelineState<back::Resources, pipe::Meta>,
     pso_shadow: gfx::PipelineState<back::Resources, shadow_pipe::Meta>,
+    pso_quad: gfx::PipelineState<back::Resources, quad_pipe::Meta>,
     map_default: Texture<[f32; 4]>,
     shadow_default: Texture<f32>,
     size: (u32, u32),
     pub shadow: ShadowType,
-    #[cfg(feature = "opengl")]
-    window: glutin::Window,
 }
 
 impl Renderer {
     #[cfg(feature = "opengl")]
     pub fn new(builder: glutin::WindowBuilder, event_loop: &glutin::EventsLoop)
-               -> (Self, Factory) {
+               -> (Self, glutin::Window, Factory) {
         use gfx::texture as t;
         let (window, device, mut gl_factory, color, depth) =
             gfx_window_glutin::init(builder, event_loop);
@@ -308,6 +344,7 @@ impl Renderer {
         let prog_phong = gl_factory.link_program(PHONG_VS, PHONG_FS).unwrap();
         let prog_sprite = gl_factory.link_program(SPRITE_VS, SPRITE_FS).unwrap();
         let prog_shadow = gl_factory.link_program(SHADOW_VS, SHADOW_FS).unwrap();
+        let prog_quad = gl_factory.link_program(QUAD_VS, QUAD_FS).unwrap();
         let rast_fill = gfx::state::Rasterizer::new_fill().with_cull_back();
         let rast_wire = gfx::state::Rasterizer {
             method: gfx::state::RasterMethod::Line(1),
@@ -333,6 +370,7 @@ impl Renderer {
             device: device,
             encoder: gl_factory.create_command_buffer().into(),
             const_buf: gl_factory.create_constant_buffer(1),
+            quad_buf: gl_factory.create_constant_buffer(1),
             light_buf: gl_factory.create_constant_buffer(MAX_LIGHTS),
             out_color: color,
             out_depth: depth,
@@ -356,19 +394,21 @@ impl Renderer {
             pso_shadow: gl_factory.create_pipeline_from_program(&prog_shadow,
                 gfx::Primitive::TriangleList, rast_shadow, shadow_pipe::new()
                 ).unwrap(),
+            pso_quad: gl_factory.create_pipeline_from_program(&prog_quad,
+                gfx::Primitive::TriangleStrip, rast_fill, quad_pipe::new()
+                ).unwrap(),
             map_default: Texture::new(srv_white, sampler),
             shadow_default: Texture::new(srv_shadow, sampler_shadow),
             shadow: ShadowType::Basic,
             size: window.get_inner_size_pixels().unwrap(),
-            window: window,
         };
         let factory = Factory::new(gl_factory);
-        (renderer, factory)
+        (renderer, window, factory)
     }
 
-    pub fn resize(&mut self) {
-        self.size = self.window.get_inner_size_pixels().unwrap();
-        gfx_window_glutin::update_views(&self.window, &mut self.out_color, &mut self.out_depth);
+    pub fn resize(&mut self, window: &glutin::Window) {
+        self.size = window.get_inner_size_pixels().unwrap();
+        gfx_window_glutin::update_views(window, &mut self.out_color, &mut self.out_depth);
     }
 
     pub fn get_aspect(&self) -> f32 {
@@ -558,6 +598,31 @@ impl Renderer {
         }
 
         self.encoder.flush(&mut self.device);
-        self.window.swap_buffers().unwrap();
+    }
+
+    pub fn draw_quad<T>(&mut self, view: &gfx::handle::ShaderResourceView<back::Resources, T>,
+                        _num_components: u8, pos: [u16; 2], size: [u16; 2]) {
+        use gfx::memory::Typed;
+
+        let (p0x, p0y) = self.map_to_ndc(pos[0] as i32, pos[1] as i32);
+        let (p1x, p1y) = self.map_to_ndc((pos[0] + size[0]) as i32, (pos[1] + size[1]) as i32);
+        self.encoder.update_constant_buffer(&self.quad_buf, &QuadParams {
+            rect: [p0x, p0y, p1x, p1y],
+        });
+        let slice = gfx::Slice {
+            start: 0,
+            end: 4,
+            base_vertex: 0,
+            instances: None,
+            buffer: gfx::IndexBuffer::Auto,
+        };
+        let data = quad_pipe::Data {
+            params: self.quad_buf.clone(),
+            resource: view.raw().clone(),
+            sampler: self.map_default.to_param().1,
+            target: self.out_color.clone(),
+        };
+        self.encoder.draw(&slice, &self.pso_quad, &data);
+        self.encoder.flush(&mut self.device);
     }
 }

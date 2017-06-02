@@ -152,6 +152,12 @@ impl VisualObject {
     }
 }
 
+impl LightObject {
+    pub fn get_shadow(&self) -> Option<&ShadowMap> {
+        self.data.shadow.as_ref().map(|&(ref shadow, _)| shadow)
+    }
+}
+
 
 pub struct Group {
     object: Object,

@@ -21,6 +21,7 @@ pub struct Events {
 
 pub struct Window {
     event_loop: glutin::EventsLoop,
+    window: glutin::Window,
     input: Input,
     pub renderer: Renderer,
     pub factory: Factory,
@@ -33,10 +34,11 @@ impl Window {
                              .with_title(title)
                              .with_vsync();
         let event_loop = glutin::EventsLoop::new();
-        let (renderer, mut factory) = Renderer::new(builder, &event_loop);
+        let (renderer, window, mut factory) = Renderer::new(builder, &event_loop);
         let scene = factory.scene();
         Window {
             event_loop,
+            window,
             input: Input {
                 last_time: time::Instant::now(),
                 keys: HashSet::new(),
@@ -53,13 +55,16 @@ impl Window {
         let renderer = &mut self.renderer;
         let input = &mut self.input;
 
+        self.window.swap_buffers().unwrap();
+        let window = &self.window;
+
         self.event_loop.poll_events(|glutin::Event::WindowEvent {event, ..}| {
             use glutin::ElementState::*;
             use glutin::WindowEvent::*;
             use glutin::VirtualKeyCode as Key;
             match event {
                 Resized(..) => {
-                    renderer.resize();
+                    renderer.resize(window);
                 }
                 KeyboardInput(_, _, Some(Key::Escape), _) |
                 Closed => {

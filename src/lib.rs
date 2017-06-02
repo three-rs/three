@@ -19,6 +19,7 @@ mod camera;
 mod factory;
 mod render;
 mod scene;
+mod util;
 #[cfg(feature = "opengl")]
 mod window;
 
@@ -27,6 +28,7 @@ pub use render::{ColorFormat, DepthFormat, Renderer, ShadowType};
 pub use scene::{Color, Background, Material, WorldNode,
                 Group, Mesh, Sprite,
                 AmbientLight, DirectionalLight, HemisphereLight, PointLight};
+pub use util::{ShadowMapViewer};
 #[cfg(feature = "opengl")]
 pub use window::{Events, Window};
 #[cfg(feature = "opengl")]
