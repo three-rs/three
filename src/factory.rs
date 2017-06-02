@@ -4,7 +4,7 @@ use std::fs::File;
 use std::path::Path;
 
 use cgmath::{self, Transform as Transform_};
-use genmesh::{Triangulate, Vertex as GenVertex};
+use genmesh::{EmitTriangles, Triangulate, Vertex as GenVertex};
 use genmesh::generators::{self, IndexedPolygon, SharedVertex};
 use gfx;
 use gfx::format::I8Norm;
@@ -297,17 +297,18 @@ impl Geometry {
         }
     }
 
-    pub fn new_box(sx: f32, sy: f32, sz: f32) -> Self {
-        let gen = generators::Cube::new();
-        let function = |GenVertex{ pos, ..}| {
-            Position::new(pos[0] * 0.5 * sx, pos[1] * 0.5 * sy, pos[2] * 0.5 * sz)
-        };
+    fn generate<P, G, Fpos, Fnor>(gen: G, fpos: Fpos, fnor: Fnor) -> Self where
+        P: EmitTriangles<Vertex=usize>,
+        G: IndexedPolygon<P> + SharedVertex<GenVertex>,
+        Fpos: Fn(GenVertex) -> Position,
+        Fnor: Fn(GenVertex) -> Normal,
+    {
         Geometry {
             vertices: gen.shared_vertex_iter()
-                         .map(function)
+                         .map(fpos)
                          .collect(),
             normals: gen.shared_vertex_iter()
-                        .map(|v| Normal::from(v.normal))
+                        .map(fnor)
                         .collect(),
             faces: gen.indexed_polygon_iter()
                        .triangulate()
@@ -315,56 +316,51 @@ impl Geometry {
                        .collect(),
             is_dynamic: false,
         }
+    }
+
+    pub fn new_plane(sx: f32, sy: f32) -> Self {
+        Self::generate(generators::Plane::new(),
+            |GenVertex{ pos, ..}| {
+                Position::new(pos[0] * 0.5 * sx, pos[1] * 0.5 * sy, 0.0)
+            },
+            |v| Normal::from(v.normal)
+        )
+    }
+
+    pub fn new_box(sx: f32, sy: f32, sz: f32) -> Self {
+        Self::generate(generators::Cube::new(),
+            |GenVertex{ pos, ..}| {
+                Position::new(pos[0] * 0.5 * sx, pos[1] * 0.5 * sy, pos[2] * 0.5 * sz)
+            },
+            |v| Normal::from(v.normal)
+        )
     }
 
     pub fn new_cylinder(radius_top: f32, radius_bottom: f32, height: f32,
                         radius_segments: usize) -> Self
     {
-        let gen = generators::Cylinder::new(radius_segments);
-        //Three.js has height along the Y axis for some reason
-        let f_pos = |GenVertex{ pos, ..}| {
-            let scale = (pos[2] + 1.0) * 0.5 * radius_top +
-                        (1.0 - pos[2]) * 0.5 * radius_bottom;
-            Position::new(pos[1] * scale, pos[2] * 0.5 * height, pos[0] * scale)
-        };
-        let f_normal = |GenVertex{ normal, ..}| {
-            Normal::from([normal[1], normal[2], normal[0]])
-        };
-        Geometry {
-            vertices: gen.shared_vertex_iter()
-                         .map(f_pos)
-                         .collect(),
-            normals: gen.shared_vertex_iter()
-                        .map(f_normal)
-                        .collect(),
-            faces: gen.indexed_polygon_iter()
-                       .triangulate()
-                       .map(|t| [t.x as u16, t.y as u16, t.z as u16])
-                       .collect(),
-            is_dynamic: false,
-        }
+        Self::generate(generators::Cylinder::new(radius_segments),
+            //Three.js has height along the Y axis for some reason
+            |GenVertex{ pos, ..}| {
+                let scale = (pos[2] + 1.0) * 0.5 * radius_top +
+                            (1.0 - pos[2]) * 0.5 * radius_bottom;
+                Position::new(pos[1] * scale, pos[2] * 0.5 * height, pos[0] * scale)
+            },
+            |GenVertex{ normal, ..}| {
+                Normal::from([normal[1], normal[2], normal[0]])
+            },
+        )
     }
 
     pub fn new_sphere(radius: f32, width_segments: usize,
                       height_segments: usize) -> Self
     {
-        let gen = generators::SphereUV::new(width_segments, height_segments);
-        let function = |GenVertex{ pos, ..}| {
-            Position::new(pos[0] * radius, pos[1] * radius, pos[2] * radius)
-        };
-        Geometry {
-            vertices: gen.shared_vertex_iter()
-                         .map(function)
-                         .collect(),
-            normals: gen.shared_vertex_iter()
-                        .map(|v| Normal::from(v.normal))
-                        .collect(),
-            faces: gen.indexed_polygon_iter()
-                       .triangulate()
-                       .map(|t| [t.x as u16, t.y as u16, t.z as u16])
-                       .collect(),
-            is_dynamic: false,
-        }
+        Self::generate(generators::SphereUV::new(width_segments, height_segments),
+            |GenVertex{ pos, ..}| {
+                Position::new(pos[0] * radius, pos[1] * radius, pos[2] * radius)
+            },
+            |v| Normal::from(v.normal)
+        )
     }
 }
 
