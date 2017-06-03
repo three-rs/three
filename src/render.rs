@@ -31,6 +31,7 @@ gfx_defines!{
     constant Locals {
         mx_world: [[f32; 4]; 4] = "u_World",
         color: [f32; 4] = "u_Color",
+        uv_range: [f32; 4] = "u_UvRange",
     }
 
     constant LightParam {
@@ -93,6 +94,7 @@ const BASIC_VS: &'static [u8] = b"
     uniform b_Locals {
         mat4 u_World;
         vec4 u_Color;
+        vec4 u_UvRange;
     };
     void main() {
         gl_Position = u_ViewProj * u_World * a_Position;
@@ -103,6 +105,7 @@ const BASIC_FS: &'static [u8] = b"
     uniform b_Locals {
         mat4 u_World;
         vec4 u_Color;
+        vec4 u_UvRange;
     };
     void main() {
         gl_FragColor = u_Color;
@@ -136,6 +139,7 @@ const PHONG_VS: &'static [u8] = b"
     uniform b_Locals {
         mat4 u_World;
         vec4 u_Color;
+        vec4 u_UvRange;
     };
     void main() {
         vec4 world = u_World * a_Position;
@@ -175,6 +179,7 @@ const PHONG_FS: &'static [u8] = b"
     uniform b_Locals {
         mat4 u_World;
         vec4 u_Color;
+        vec4 u_UvRange;
     };
     void main() {
         vec4 color = vec4(0.0);
@@ -224,9 +229,10 @@ const SPRITE_VS: &'static [u8] = b"
     uniform b_Locals {
         mat4 u_World;
         vec4 u_Color;
+        vec4 u_UvRange;
     };
     void main() {
-        v_TexCoord = a_TexCoord;
+        v_TexCoord = mix(u_UvRange.xy, u_UvRange.zw, a_TexCoord);
         gl_Position = u_ViewProj * u_World * a_Position;
     }
 ";
@@ -247,6 +253,8 @@ const SHADOW_VS: &'static [u8] = b"
     };
     uniform b_Locals {
         mat4 u_World;
+        vec4 u_Color;
+        vec4 u_UvRange;
     };
     void main() {
         gl_Position = u_ViewProj * u_World * a_Position;
@@ -407,8 +415,8 @@ impl Renderer {
             pso_quad: gl_factory.create_pipeline_from_program(&prog_quad,
                 gfx::Primitive::TriangleStrip, rast_fill, quad_pipe::new()
                 ).unwrap(),
-            map_default: Texture::new(srv_white, sampler),
-            shadow_default: Texture::new(srv_shadow, sampler_shadow),
+            map_default: Texture::new(srv_white, sampler, [1, 1]),
+            shadow_default: Texture::new(srv_shadow, sampler_shadow, [1, 1]),
             shadow: ShadowType::Basic,
             debug_quads: froggy::Storage::new(),
             size: window.get_inner_size_pixels().unwrap(),
@@ -527,6 +535,7 @@ impl Renderer {
                 self.encoder.update_constant_buffer(&visual.payload, &Locals {
                     mx_world: Matrix4::from(node.world_transform).into(),
                     color: [0.0; 4],
+                    uv_range: [0.0; 4],
                 });
                 //TODO: avoid excessive cloning
                 let data = shadow_pipe::Data {
@@ -589,9 +598,14 @@ impl Renderer {
                 Material::MeshLambert { color } => (&self.pso_mesh_phong, color, None),
                 Material::Sprite { ref map } => (&self.pso_sprite, !0, Some(map)),
             };
+            let uv_range = match map {
+                Some(ref map) => map.get_uv_range(),
+                None => [0.0; 4],
+            };
             self.encoder.update_constant_buffer(&visual.payload, &Locals {
                 mx_world: Matrix4::from(node.world_transform).into(),
                 color: decode_color(color),
+                uv_range,
             });
             //TODO: avoid excessive cloning
             let data = pipe::Data {

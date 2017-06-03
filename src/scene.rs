@@ -203,6 +203,11 @@ impl Sprite {
             object,
         }
     }
+
+    pub fn set_texel_range(&mut self, base: [i16; 2], size: [u16; 2]) {
+        let msg = Operation::SetTexelRange(base, size);
+        let _ = self.object.tx.send((self.node.downgrade(), msg));
+    }
 }
 
 

@@ -135,6 +135,7 @@ enum Operation {
     SetVisible(bool),
     SetTransform(Transform),
     SetMaterial(Material),
+    SetTexelRange([i16; 2], [u16; 2]),
     SetShadow(ShadowMap, ShadowProjection),
 }
 
@@ -175,6 +176,14 @@ impl Hub {
                 Operation::SetMaterial(material) => {
                     if let SubNode::Visual(ref mut data) = node.sub_node {
                         data.material = material;
+                    }
+                }
+                Operation::SetTexelRange(base, size) => {
+                    if let SubNode::Visual(ref mut data) = node.sub_node {
+                        match data.material {
+                            Material::Sprite { ref mut map } => map.set_texel_range(base, size),
+                            _ => panic!("Unsupported material for texel range request")
+                        }
                     }
                 }
                 Operation::SetShadow(map, proj) => {

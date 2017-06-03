@@ -369,21 +369,46 @@ impl Geometry {
 pub struct Texture<T> {
     view: h::ShaderResourceView<BackendResources, T>,
     sampler: h::Sampler<BackendResources>,
+    total_size: [u32; 2],
+    tex0: [f32; 2],
+    tex1: [f32; 2],
 }
 
 impl<T> Texture<T> {
     #[doc(hidden)]
     pub fn new(view: h::ShaderResourceView<BackendResources, T>,
-               sampler: h::Sampler<BackendResources>) -> Self {
+               sampler: h::Sampler<BackendResources>,
+               total_size: [u32; 2]) -> Self {
         Texture {
             view,
             sampler,
+            total_size,
+            tex0: [0.0; 2],
+            tex1: [0.0; 2],
         }
     }
 
     #[doc(hidden)]
     pub fn to_param(&self) -> (h::ShaderResourceView<BackendResources, T>, h::Sampler<BackendResources>) {
         (self.view.clone(), self.sampler.clone())
+    }
+
+    pub fn set_texel_range(&mut self, base: [i16; 2], size: [u16; 2]) {
+        self.tex0 = [
+            base[0] as f32,
+            self.total_size[1] as f32 - base[1] as f32 - size[1] as f32,
+        ];
+        self.tex1 = [
+            base[0] as f32 + size[0] as f32,
+            self.total_size[1] as f32 - base[1] as f32,
+        ];
+    }
+
+    pub fn get_uv_range(&self) -> [f32; 4] {
+        [self.tex0[0] / self.total_size[0] as f32,
+         self.tex0[1] / self.total_size[1] as f32,
+         self.tex1[0] / self.total_size[0] as f32,
+         self.tex1[1] / self.total_size[1] as f32]
     }
 }
 
@@ -421,9 +446,6 @@ impl Factory {
         let (_, view) = self.backend.create_texture_immutable_u8::<gfx::format::Srgba8>(kind, &[&img])
                                     .unwrap_or_else(|e| panic!("Unable to create GPU texture for {}: {:?}", path_str, e));
 
-        Texture {
-            view,
-            sampler: self.backend.create_sampler_linear(),
-        }
+        Texture::new(view, self.backend.create_sampler_linear(), [width, height])
     }
 }
