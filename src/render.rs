@@ -181,8 +181,8 @@ const PHONG_FS: &'static [u8] = b"
         vec3 normal = normalize(v_Normal);
         for(uint i=0U; i<4U && i < u_NumLights; ++i) {
             Light light = u_Lights[i];
-            vec4 lit_space = light.projection * vec4(v_World, 1.0);
             float shadow = 1.0;
+            vec4 lit_space = light.projection * vec4(v_World, 1.0);
             if (light.shadow_params[0] == 0) {
                 shadow = texture(t_Shadow0, 0.5 * lit_space.xyz / lit_space.w + 0.5);
             }
@@ -446,7 +446,7 @@ impl Renderer {
         let mut lights = Vec::new();
         let mut shadow_requests = Vec::new();
         for node in hub.nodes.iter_alive() {
-            if node.scene_id != Some(scene.unique_id) {
+            if !node.visible || node.scene_id != Some(scene.unique_id) {
                 continue
             }
             if let SubNode::Light(ref light) = node.sub_node {
@@ -517,7 +517,7 @@ impl Renderer {
                 num_lights: 0,
             });
             for node in hub.nodes.iter_alive() {
-                if node.scene_id != Some(scene.unique_id) {
+                if !node.visible || node.scene_id != Some(scene.unique_id) {
                     continue;
                 }
                 let visual = match node.sub_node {
@@ -573,7 +573,7 @@ impl Renderer {
             None => shadow_default.clone(),
         };
         for node in hub.nodes.iter_alive() {
-            if node.scene_id != Some(scene.unique_id) {
+            if !node.visible || node.scene_id != Some(scene.unique_id) {
                 continue;
             }
             let visual = match node.sub_node {
@@ -609,6 +609,7 @@ impl Renderer {
         }
 
         // draw debug quads
+        self.debug_quads.sync_pending();
         for quad in self.debug_quads.iter_alive() {
             let pos = [
                 if quad.pos[0] >= 0 {

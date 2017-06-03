@@ -10,12 +10,14 @@ use factory::Factory;
 struct Input {
     last_time: time::Instant,
     keys: HashSet<Key>,
+    hit: HashSet<Key>,
     mouse_pos: (f32, f32), // normalized to NDC
 }
 
 pub struct Events {
     pub time_delta: f32,
     pub keys: HashSet<Key>,
+    pub hit: HashSet<Key>,
     pub mouse_pos: (f32, f32),
 }
 
@@ -42,6 +44,7 @@ impl Window {
             input: Input {
                 last_time: time::Instant::now(),
                 keys: HashSet::new(),
+                hit: HashSet::new(),
                 mouse_pos: (0.0, 0.0),
             },
             renderer,
@@ -54,6 +57,7 @@ impl Window {
         let mut running = true;
         let renderer = &mut self.renderer;
         let input = &mut self.input;
+        input.hit.clear();
 
         self.window.swap_buffers().unwrap();
         let window = &self.window;
@@ -72,6 +76,7 @@ impl Window {
                 }
                 KeyboardInput(Pressed, _, Some(key), _) => {
                     input.keys.insert(key);
+                    input.hit.insert(key);
                 }
                 KeyboardInput(Released, _, Some(key), _) => {
                     input.keys.remove(&key);
@@ -90,6 +95,7 @@ impl Window {
             Some(Events {
                 time_delta: dt.as_secs() as f32 + 1e-9 * dt.subsec_nanos() as f32,
                 keys: input.keys.clone(),
+                hit: input.hit.clone(),
                 mouse_pos: input.mouse_pos,
             })
         } else {

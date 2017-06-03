@@ -81,7 +81,7 @@ impl<'a> TransformProxy<'a> {
         };
         *self.value = Transform {
             disp: eye.to_vec(),
-            rot: Orientation::look_at(dir, up),
+            rot: Orientation::look_at(dir, up).invert(),
             scale: 1.0,
         };
     }
@@ -300,8 +300,14 @@ macro_rules! as_node {
     }
 }
 
-as_node!(Group, Mesh, Sprite, AmbientLight,
-         DirectionalLight, HemisphereLight, PointLight);
+impl AsRef<Pointer<Node>> for LightObject {
+    fn as_ref(&self) -> &Pointer<Node> {
+        &self.node
+    }
+}
+
+as_node!(Group, Mesh, Sprite,
+         AmbientLight, DirectionalLight, HemisphereLight, PointLight);
 
 macro_rules! deref {
     ($name:ty : $field:ident = $object:ty) => {
