@@ -55,7 +55,7 @@ fn main() {
     let mut anim = Animator {
         cell_size: [96, 96],
         cell_counts: [5, 13],
-        duration: 0.2,
+        duration: 0.1,
         repeat: true,
         current: [0, 0],
         remainder: 0.0,

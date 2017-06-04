@@ -1,10 +1,15 @@
 #version 150 core
+
 in vec3 v_World;
 in vec3 v_Normal;
 in vec3 v_Half[4];
 in vec4 v_ShadowCoord[4];
+
+out vec4 Target0;
+
 uniform sampler2DShadow t_Shadow0;
 uniform sampler2DShadow t_Shadow1;
+
 struct Light {
     mat4 projection;
     vec4 pos;
@@ -28,6 +33,7 @@ uniform b_Locals {
     vec4 u_MatParams;
     vec4 u_UvRange;
 };
+
 void main() {
     vec4 color = vec4(0.0);
     vec3 normal = normalize(v_Normal);
@@ -62,5 +68,5 @@ void main() {
             }
         }
     }
-    gl_FragColor = color;
+    Target0 = color;
 }
