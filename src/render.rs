@@ -31,6 +31,7 @@ gfx_defines!{
     constant Locals {
         mx_world: [[f32; 4]; 4] = "u_World",
         color: [f32; 4] = "u_Color",
+        mat_params: [f32; 4] = "u_MatParams",
         uv_range: [f32; 4] = "u_UvRange",
     }
 
@@ -94,6 +95,7 @@ const BASIC_VS: &'static [u8] = b"
     uniform b_Locals {
         mat4 u_World;
         vec4 u_Color;
+        vec4 u_MatParams;
         vec4 u_UvRange;
     };
     void main() {
@@ -105,6 +107,7 @@ const BASIC_FS: &'static [u8] = b"
     uniform b_Locals {
         mat4 u_World;
         vec4 u_Color;
+        vec4 u_MatParams;
         vec4 u_UvRange;
     };
     void main() {
@@ -119,6 +122,7 @@ const PHONG_VS: &'static [u8] = b"
     out vec3 v_World;
     out vec3 v_Normal;
     out vec3 v_Half[4];
+    out vec4 v_ShadowCoord[4];
     struct Light {
         mat4 projection;
         vec4 pos;
@@ -139,6 +143,7 @@ const PHONG_VS: &'static [u8] = b"
     uniform b_Locals {
         mat4 u_World;
         vec4 u_Color;
+        vec4 u_MatParams;
         vec4 u_UvRange;
     };
     void main() {
@@ -146,8 +151,10 @@ const PHONG_VS: &'static [u8] = b"
         v_World = world.xyz;
         v_Normal = normalize(mat3(u_World) * a_Normal.xyz);
         for(uint i=0U; i<4U && i < u_NumLights; ++i) {
-            vec3 dir = u_Lights[i].pos.xyz - u_Lights[i].pos.w * world.xyz;
+            Light light = u_Lights[i];
+            vec3 dir = light.pos.xyz - light.pos.w * world.xyz;
             v_Half[i] = normalize(v_Normal + normalize(dir));
+            v_ShadowCoord[i] = light.projection * world;
         }
         gl_Position = u_ViewProj * world;
     }
@@ -157,6 +164,7 @@ const PHONG_FS: &'static [u8] = b"
     in vec3 v_World;
     in vec3 v_Normal;
     in vec3 v_Half[4];
+    in vec4 v_ShadowCoord[4];
     uniform sampler2DShadow t_Shadow0;
     uniform sampler2DShadow t_Shadow1;
     struct Light {
@@ -179,15 +187,17 @@ const PHONG_FS: &'static [u8] = b"
     uniform b_Locals {
         mat4 u_World;
         vec4 u_Color;
+        vec4 u_MatParams;
         vec4 u_UvRange;
     };
     void main() {
         vec4 color = vec4(0.0);
         vec3 normal = normalize(v_Normal);
+        float glossiness = u_MatParams.x;
         for(uint i=0U; i<4U && i < u_NumLights; ++i) {
             Light light = u_Lights[i];
+            vec4 lit_space = v_ShadowCoord[i];
             float shadow = 1.0;
-            vec4 lit_space = light.projection * vec4(v_World, 1.0);
             if (light.shadow_params[0] == 0) {
                 shadow = texture(t_Shadow0, 0.5 * lit_space.xyz / lit_space.w + 0.5);
             }
@@ -207,10 +217,10 @@ const PHONG_FS: &'static [u8] = b"
                 float kd = light.intensity.x + light.intensity.y * max(0.0, dot_nl);
                 color += shadow * kd * u_Color * light.color;
             }
-            if (dot_nl > 0.0 && light.intensity.z > 0.0) {
+            if (dot_nl > 0.0 && glossiness > 0.0) {
                 float ks = dot(normal, normalize(v_Half[i]));
                 if (ks > 0.0) {
-                    color += shadow * pow(ks, light.intensity.z) * light.color;
+                    color += shadow * pow(ks, glossiness) * light.color;
                 }
             }
         }
@@ -229,6 +239,7 @@ const SPRITE_VS: &'static [u8] = b"
     uniform b_Locals {
         mat4 u_World;
         vec4 u_Color;
+        vec4 u_MatParams;
         vec4 u_UvRange;
     };
     void main() {
@@ -254,6 +265,7 @@ const SHADOW_VS: &'static [u8] = b"
     uniform b_Locals {
         mat4 u_World;
         vec4 u_Color;
+        vec4 u_MatParams;
         vec4 u_UvRange;
     };
     void main() {
@@ -535,6 +547,7 @@ impl Renderer {
                 self.encoder.update_constant_buffer(&visual.payload, &Locals {
                     mx_world: Matrix4::from(node.world_transform).into(),
                     color: [0.0; 4],
+                    mat_params: [0.0; 4],
                     uv_range: [0.0; 4],
                 });
                 //TODO: avoid excessive cloning
@@ -591,12 +604,13 @@ impl Renderer {
             };
 
             //TODO: batch per PSO
-            let (pso, color, map) = match visual.material {
-                Material::LineBasic { color } => (&self.pso_line_basic, color, None),
-                Material::MeshBasic { color, wireframe: false } => (&self.pso_mesh_basic_fill, color, None),
-                Material::MeshBasic { color, wireframe: true } => (&self.pso_mesh_basic_wireframe, color, None),
-                Material::MeshLambert { color } => (&self.pso_mesh_phong, color, None),
-                Material::Sprite { ref map } => (&self.pso_sprite, !0, Some(map)),
+            let (pso, color, glossiness, map) = match visual.material {
+                Material::LineBasic { color } => (&self.pso_line_basic, color, 0.0, None),
+                Material::MeshBasic { color, wireframe: false } => (&self.pso_mesh_basic_fill, color, 0.0, None),
+                Material::MeshBasic { color, wireframe: true } => (&self.pso_mesh_basic_wireframe, color, 0.0, None),
+                Material::MeshLambert { color } => (&self.pso_mesh_phong, color, 0.0, None),
+                Material::MeshPhong { color, glossiness } => (&self.pso_mesh_phong, color, glossiness, None),
+                Material::Sprite { ref map } => (&self.pso_sprite, !0, 0.0, Some(map)),
             };
             let uv_range = match map {
                 Some(ref map) => map.get_uv_range(),
@@ -605,6 +619,7 @@ impl Renderer {
             self.encoder.update_constant_buffer(&visual.payload, &Locals {
                 mx_world: Matrix4::from(node.world_transform).into(),
                 color: decode_color(color),
+                mat_params: [glossiness, 0.0, 0.0, 0.0],
                 uv_range,
             });
             //TODO: avoid excessive cloning

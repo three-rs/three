@@ -27,7 +27,7 @@ fn main() {
 
     let mut sphere = {
         let geometry = three::Geometry::new_sphere(3.0, 20, 20);
-        let material = three::Material::MeshLambert { color: 0xffA0A0 };
+        let material = three::Material::MeshPhong { color: 0xffA0A0, glossiness: 80.0 };
         win.factory.mesh(geometry, material)
     };
     sphere.transform_mut().disp.z = 2.5;

@@ -23,6 +23,7 @@ pub enum Material {
     LineBasic { color: Color },
     MeshBasic { color: Color, wireframe: bool },
     MeshLambert { color: Color },
+    MeshPhong { color: Color, glossiness: f32 },
     Sprite { map: Texture<[f32; 4]> },
 }
 
