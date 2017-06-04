@@ -86,21 +86,36 @@ gfx_defines!{
 }
 
 
+fn get_shader(root: &str, name: &str, variant: &str) -> String {
+    use std::fs::File;
+    use std::io::{BufRead, BufReader, Read};
+    let mut code = String::new();
+    let shader_path = format!("{}/{}_{}.glsl", root, name, variant);
+    for line in BufReader::new(File::open(shader_path).unwrap()).lines() {
+        let line = line.unwrap();
+        if line.starts_with("#include") {
+            for dep_name in line.split(' ').skip(1) {
+                code += &format!("//!including {}:\n", dep_name);
+                File::open(format!("{}/{}.glsl", root, dep_name)).unwrap()
+                     .read_to_string(&mut code).unwrap();
+            }
+        } else {
+            code.push_str(&line);
+            code.push('\n');
+        }
+    }
+    code
+}
+
 fn load_program<R, F>(root: &str, name: &str, factory: &mut F)
                       -> gfx::handle::Program<R> where
     R: gfx::Resources,
     F: gfx::Factory<R>,
 {
-    use std::fs::File;
-    use std::io::Read;
+    let code_vs = get_shader(root, name, "vs");
+    let code_ps = get_shader(root, name, "ps");
 
-    let (mut code_vs, mut code_fs) = (Vec::new(), Vec::new());
-    File::open(format!("{}/{}_vs.glsl", root, name)).unwrap()
-         .read_to_end(&mut code_vs).unwrap();
-    File::open(format!("{}/{}_ps.glsl", root, name)).unwrap()
-         .read_to_end(&mut code_fs).unwrap();
-
-    factory.link_program(&code_vs, &code_fs).unwrap()
+    factory.link_program(code_vs.as_bytes(), code_ps.as_bytes()).unwrap()
 }
 
 /// sRGB to linear conversion from:

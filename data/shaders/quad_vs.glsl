@@ -1,8 +1,11 @@
 #version 150 core
+
 out vec2 v_TexCoord;
+
 uniform b_Params {
     vec4 u_Rect;
 };
+
 void main() {
     v_TexCoord = gl_VertexID==0 ? vec2(1.0, 0.0) :
                  gl_VertexID==1 ? vec2(0.0, 0.0) :

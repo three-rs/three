@@ -1,44 +1,26 @@
 #version 150 core
+#include locals lights
 
 in vec3 v_World;
 in vec3 v_Normal;
-in vec3 v_Half[4];
-in vec4 v_ShadowCoord[4];
+in vec3 v_Half[MAX_LIGHTS];
+in vec4 v_ShadowCoord[MAX_LIGHTS];
 
 out vec4 Target0;
 
 uniform sampler2DShadow t_Shadow0;
 uniform sampler2DShadow t_Shadow1;
 
-struct Light {
-    mat4 projection;
-    vec4 pos;
-    vec4 dir;
-    vec4 focus;
-    vec4 color;
-    vec4 color_back;
-    vec4 intensity;
-    ivec4 shadow_params;
-};
-uniform b_Lights {
-    Light u_Lights[4];
-};
 uniform b_Globals {
     mat4 u_ViewProj;
     uint u_NumLights;
-};
-uniform b_Locals {
-    mat4 u_World;
-    vec4 u_Color;
-    vec4 u_MatParams;
-    vec4 u_UvRange;
 };
 
 void main() {
     vec4 color = vec4(0.0);
     vec3 normal = normalize(v_Normal);
     float glossiness = u_MatParams.x;
-    for(uint i=0U; i<4U && i < u_NumLights; ++i) {
+    for(uint i=0U; i < min(MAX_LIGHTS, u_NumLights); ++i) {
         Light light = u_Lights[i];
         vec4 lit_space = v_ShadowCoord[i];
         float shadow = 1.0;
