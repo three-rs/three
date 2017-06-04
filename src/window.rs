@@ -31,12 +31,12 @@ pub struct Window {
 }
 
 impl Window {
-    pub fn new(title: &str) -> Self {
+    pub fn new(title: &str, shader_path: &str) -> Self {
         let builder = glutin::WindowBuilder::new()
                              .with_title(title)
                              .with_vsync();
         let event_loop = glutin::EventsLoop::new();
-        let (renderer, window, mut factory) = Renderer::new(builder, &event_loop);
+        let (renderer, window, mut factory) = Renderer::new(builder, &event_loop, shader_path);
         let scene = factory.scene();
         Window {
             event_loop,

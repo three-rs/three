@@ -4,7 +4,7 @@ extern crate three;
 use cgmath::prelude::*;
 
 fn main() {
-    let mut win = three::Window::new("Three-rs shapes example");
+    let mut win = three::Window::new("Three-rs shapes example", "data/shaders");
     let mut cam = win.factory.perspective_camera(75.0, 0.0, 1.0, 50.0);
     cam.transform_mut().disp = three::Vector::new(0.0, 0.0, 10.0);
 

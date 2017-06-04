@@ -85,223 +85,23 @@ gfx_defines!{
     }
 }
 
-const BASIC_VS: &'static [u8] = b"
-    #version 150 core
-    in vec4 a_Position;
-    in vec4 a_Normal;
-    uniform b_Globals {
-        mat4 u_ViewProj;
-    };
-    uniform b_Locals {
-        mat4 u_World;
-        vec4 u_Color;
-        vec4 u_MatParams;
-        vec4 u_UvRange;
-    };
-    void main() {
-        gl_Position = u_ViewProj * u_World * a_Position;
-    }
-";
-const BASIC_FS: &'static [u8] = b"
-    #version 150 core
-    uniform b_Locals {
-        mat4 u_World;
-        vec4 u_Color;
-        vec4 u_MatParams;
-        vec4 u_UvRange;
-    };
-    void main() {
-        gl_FragColor = u_Color;
-    }
-";
 
-const PHONG_VS: &'static [u8] = b"
-    #version 150 core
-    in vec4 a_Position;
-    in vec4 a_Normal;
-    out vec3 v_World;
-    out vec3 v_Normal;
-    out vec3 v_Half[4];
-    out vec4 v_ShadowCoord[4];
-    struct Light {
-        mat4 projection;
-        vec4 pos;
-        vec4 dir;
-        vec4 focus;
-        vec4 color;
-        vec4 color_back;
-        vec4 intensity;
-        ivec4 shadow_params;
-    };
-    uniform b_Lights {
-        Light u_Lights[4];
-    };
-    uniform b_Globals {
-        mat4 u_ViewProj;
-        uint u_NumLights;
-    };
-    uniform b_Locals {
-        mat4 u_World;
-        vec4 u_Color;
-        vec4 u_MatParams;
-        vec4 u_UvRange;
-    };
-    void main() {
-        vec4 world = u_World * a_Position;
-        v_World = world.xyz;
-        v_Normal = normalize(mat3(u_World) * a_Normal.xyz);
-        for(uint i=0U; i<4U && i < u_NumLights; ++i) {
-            Light light = u_Lights[i];
-            vec3 dir = light.pos.xyz - light.pos.w * world.xyz;
-            v_Half[i] = normalize(v_Normal + normalize(dir));
-            v_ShadowCoord[i] = light.projection * world;
-        }
-        gl_Position = u_ViewProj * world;
-    }
-";
-const PHONG_FS: &'static [u8] = b"
-    #version 150 core
-    in vec3 v_World;
-    in vec3 v_Normal;
-    in vec3 v_Half[4];
-    in vec4 v_ShadowCoord[4];
-    uniform sampler2DShadow t_Shadow0;
-    uniform sampler2DShadow t_Shadow1;
-    struct Light {
-        mat4 projection;
-        vec4 pos;
-        vec4 dir;
-        vec4 focus;
-        vec4 color;
-        vec4 color_back;
-        vec4 intensity;
-        ivec4 shadow_params;
-    };
-    uniform b_Lights {
-        Light u_Lights[4];
-    };
-    uniform b_Globals {
-        mat4 u_ViewProj;
-        uint u_NumLights;
-    };
-    uniform b_Locals {
-        mat4 u_World;
-        vec4 u_Color;
-        vec4 u_MatParams;
-        vec4 u_UvRange;
-    };
-    void main() {
-        vec4 color = vec4(0.0);
-        vec3 normal = normalize(v_Normal);
-        float glossiness = u_MatParams.x;
-        for(uint i=0U; i<4U && i < u_NumLights; ++i) {
-            Light light = u_Lights[i];
-            vec4 lit_space = v_ShadowCoord[i];
-            float shadow = 1.0;
-            if (light.shadow_params[0] == 0) {
-                shadow = texture(t_Shadow0, 0.5 * lit_space.xyz / lit_space.w + 0.5);
-            }
-            if (light.shadow_params[0] == 1) {
-                shadow = texture(t_Shadow1, 0.5 * lit_space.xyz / lit_space.w + 0.5);
-            }
-            if (shadow == 0.0) {
-                continue;
-            }
-            vec3 dir = light.pos.xyz - light.pos.w * v_World.xyz;
-            float dot_nl = dot(normal, normalize(dir));
-            // hemisphere light test
-            if (dot(light.color_back, light.color_back) > 0.0) {
-                vec4 irradiance = mix(light.color_back, light.color, dot_nl*0.5 + 0.5);
-                color += shadow * light.intensity.y * u_Color * irradiance;
-            } else {
-                float kd = light.intensity.x + light.intensity.y * max(0.0, dot_nl);
-                color += shadow * kd * u_Color * light.color;
-            }
-            if (dot_nl > 0.0 && glossiness > 0.0) {
-                float ks = dot(normal, normalize(v_Half[i]));
-                if (ks > 0.0) {
-                    color += shadow * pow(ks, glossiness) * light.color;
-                }
-            }
-        }
-        gl_FragColor = color;
-    }
-";
+fn load_program<R, F>(root: &str, name: &str, factory: &mut F)
+                      -> gfx::handle::Program<R> where
+    R: gfx::Resources,
+    F: gfx::Factory<R>,
+{
+    use std::fs::File;
+    use std::io::Read;
 
-const SPRITE_VS: &'static [u8] = b"
-    #version 150 core
-    in vec4 a_Position;
-    in vec2 a_TexCoord;
-    out vec2 v_TexCoord;
-    uniform b_Globals {
-        mat4 u_ViewProj;
-    };
-    uniform b_Locals {
-        mat4 u_World;
-        vec4 u_Color;
-        vec4 u_MatParams;
-        vec4 u_UvRange;
-    };
-    void main() {
-        v_TexCoord = mix(u_UvRange.xy, u_UvRange.zw, a_TexCoord);
-        gl_Position = u_ViewProj * u_World * a_Position;
-    }
-";
-const SPRITE_FS: &'static [u8] = b"
-    #version 150 core
-    in vec2 v_TexCoord;
-    uniform sampler2D t_Map;
-    void main() {
-        gl_FragColor = texture(t_Map, v_TexCoord);
-    }
-";
+    let (mut code_vs, mut code_fs) = (Vec::new(), Vec::new());
+    File::open(format!("{}/{}_vs.glsl", root, name)).unwrap()
+         .read_to_end(&mut code_vs).unwrap();
+    File::open(format!("{}/{}_ps.glsl", root, name)).unwrap()
+         .read_to_end(&mut code_fs).unwrap();
 
-const SHADOW_VS: &'static [u8] = b"
-    #version 150 core
-    in vec4 a_Position;
-    uniform b_Globals {
-        mat4 u_ViewProj;
-    };
-    uniform b_Locals {
-        mat4 u_World;
-        vec4 u_Color;
-        vec4 u_MatParams;
-        vec4 u_UvRange;
-    };
-    void main() {
-        gl_Position = u_ViewProj * u_World * a_Position;
-    }
-";
-const SHADOW_FS: &'static [u8] = b"
-    #version 150 core
-    void main() {}
-";
-
-const QUAD_VS: &'static [u8] = b"
-    #version 150 core
-    out vec2 v_TexCoord;
-    uniform b_Params {
-        vec4 u_Rect;
-    };
-    void main() {
-        v_TexCoord = gl_VertexID==0 ? vec2(1.0, 0.0) :
-                     gl_VertexID==1 ? vec2(0.0, 0.0) :
-                     gl_VertexID==2 ? vec2(1.0, 1.0) :
-                                      vec2(0.0, 1.0) ;
-        vec2 pos = mix(u_Rect.xy, u_Rect.zw, v_TexCoord);
-        gl_Position = vec4(pos, 0.0, 1.0);
-    }
-";
-const QUAD_FS: &'static [u8] = b"
-    #version 150 core
-    in vec2 v_TexCoord;
-    uniform sampler2D t_Input;
-    void main() {
-        gl_FragColor = texture(t_Input, v_TexCoord);
-    }
-";
-
-
+    factory.link_program(&code_vs, &code_fs).unwrap()
+}
 
 /// sRGB to linear conversion from:
 /// https://www.khronos.org/registry/OpenGL/extensions/EXT/EXT_texture_sRGB_decode.txt
@@ -365,16 +165,16 @@ pub struct Renderer {
 
 impl Renderer {
     #[cfg(feature = "opengl")]
-    pub fn new(builder: glutin::WindowBuilder, event_loop: &glutin::EventsLoop)
-               -> (Self, glutin::Window, Factory) {
+    pub fn new(builder: glutin::WindowBuilder, event_loop: &glutin::EventsLoop,
+               shader_path: &str) -> (Self, glutin::Window, Factory) {
         use gfx::texture as t;
         let (window, device, mut gl_factory, color, depth) =
             gfx_window_glutin::init(builder, event_loop);
-        let prog_basic = gl_factory.link_program(BASIC_VS, BASIC_FS).unwrap();
-        let prog_phong = gl_factory.link_program(PHONG_VS, PHONG_FS).unwrap();
-        let prog_sprite = gl_factory.link_program(SPRITE_VS, SPRITE_FS).unwrap();
-        let prog_shadow = gl_factory.link_program(SHADOW_VS, SHADOW_FS).unwrap();
-        let prog_quad = gl_factory.link_program(QUAD_VS, QUAD_FS).unwrap();
+        let prog_basic = load_program(shader_path, "basic", &mut gl_factory);
+        let prog_phong = load_program(shader_path, "phong", &mut gl_factory);
+        let prog_sprite = load_program(shader_path, "sprite", &mut gl_factory);
+        let prog_shadow = load_program(shader_path, "shadow", &mut gl_factory);
+        let prog_quad = load_program(shader_path, "quad", &mut gl_factory);
         let rast_fill = gfx::state::Rasterizer::new_fill().with_cull_back();
         let rast_wire = gfx::state::Rasterizer {
             method: gfx::state::RasterMethod::Line(1),

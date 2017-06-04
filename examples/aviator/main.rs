@@ -21,7 +21,7 @@ fn main() {
     env_logger::init().unwrap();
     let mut rng = rand::thread_rng();
 
-    let mut win = three::Window::new("Three-rs Aviator demo");
+    let mut win = three::Window::new("Three-rs Aviator demo", "data/shaders");
     win.scene.background = three::Background::Color(COLOR_BACKGROUND);
 
     let mut cam = win.factory.perspective_camera(60.0, 0.0, 1.0, 1000.0);

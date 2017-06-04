@@ -1,7 +1,7 @@
 extern crate three;
 
 fn main() {
-    let mut win = three::Window::new("Three-rs lights example");
+    let mut win = three::Window::new("Three-rs lights example", "data/shaders");
     let mut cam = win.factory.perspective_camera(45.0, 0.0, 1.0, 50.0);
     cam.transform_mut().look_at(three::Position::new(-4.0, 15.0, 10.0),
                                 three::Position::new(0.0, 0.0, 2.0));
