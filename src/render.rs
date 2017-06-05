@@ -167,6 +167,7 @@ pub struct Renderer {
     pso_line_basic: gfx::PipelineState<back::Resources, pipe::Meta>,
     pso_mesh_basic_fill: gfx::PipelineState<back::Resources, pipe::Meta>,
     pso_mesh_basic_wireframe: gfx::PipelineState<back::Resources, pipe::Meta>,
+    pso_mesh_gouraud: gfx::PipelineState<back::Resources, pipe::Meta>,
     pso_mesh_phong: gfx::PipelineState<back::Resources, pipe::Meta>,
     pso_sprite: gfx::PipelineState<back::Resources, pipe::Meta>,
     pso_shadow: gfx::PipelineState<back::Resources, shadow_pipe::Meta>,
@@ -186,6 +187,7 @@ impl Renderer {
         let (window, device, mut gl_factory, color, depth) =
             gfx_window_glutin::init(builder, event_loop);
         let prog_basic = load_program(shader_path, "basic", &mut gl_factory);
+        let prog_gouraud = load_program(shader_path, "gouraud", &mut gl_factory);
         let prog_phong = load_program(shader_path, "phong", &mut gl_factory);
         let prog_sprite = load_program(shader_path, "sprite", &mut gl_factory);
         let prog_shadow = load_program(shader_path, "shadow", &mut gl_factory);
@@ -228,7 +230,10 @@ impl Renderer {
             pso_mesh_basic_wireframe: gl_factory.create_pipeline_from_program(&prog_basic,
                 gfx::Primitive::TriangleList, rast_wire, pipe::new(),
                 ).unwrap(),
-            pso_mesh_phong:  gl_factory.create_pipeline_from_program(&prog_phong,
+            pso_mesh_gouraud: gl_factory.create_pipeline_from_program(&prog_gouraud,
+                gfx::Primitive::TriangleList, rast_fill, pipe::new()
+                ).unwrap(),
+            pso_mesh_phong: gl_factory.create_pipeline_from_program(&prog_phong,
                 gfx::Primitive::TriangleList, rast_fill, pipe::new()
                 ).unwrap(),
             pso_sprite: gl_factory.create_pipeline_from_program(&prog_sprite,
@@ -310,22 +315,23 @@ impl Renderer {
                 let mut color_back = 0;
                 let mut p = node.world_transform.disp.extend(1.0);
                 let d = node.world_transform.rot * Vector3::unit_z();
-                let mut intensity = [0.0, light.intensity, 0.0, 0.0];
-                match light.sub_light {
+                let intensity = match light.sub_light {
                     SubLight::Ambient => {
-                        intensity = [light.intensity, 0.0, 0.0, 0.0];
+                        [light.intensity, 0.0, 0.0, 0.0]
                     }
                     SubLight::Directional => {
                         p = d.extend(0.0);
+                        [0.0, light.intensity, 0.0, 0.0]
                     }
                     SubLight::Hemisphere{ ground } => {
                         color_back = ground | 0x010101; // can't be 0
                         p = d.extend(0.0);
+                        [light.intensity, 0.0, 0.0, 0.0]
                     }
                     SubLight::Point => {
-                        //empty
+                        [0.0, light.intensity, 0.0, 0.0]
                     }
-                }
+                };
                 let projection = if shadow_index >= 0 {
                     shadow_requests[shadow_index as usize].matrix.into()
                 } else {
@@ -423,7 +429,7 @@ impl Renderer {
                 Material::LineBasic { color } => (&self.pso_line_basic, color, 0.0, None),
                 Material::MeshBasic { color, wireframe: false } => (&self.pso_mesh_basic_fill, color, 0.0, None),
                 Material::MeshBasic { color, wireframe: true } => (&self.pso_mesh_basic_wireframe, color, 0.0, None),
-                Material::MeshLambert { color } => (&self.pso_mesh_phong, color, 0.0, None),
+                Material::MeshLambert { color } => (&self.pso_mesh_gouraud, color, 0.0, None),
                 Material::MeshPhong { color, glossiness } => (&self.pso_mesh_phong, color, glossiness, None),
                 Material::Sprite { ref map } => (&self.pso_sprite, !0, 0.0, Some(map)),
             };

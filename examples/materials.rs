@@ -13,7 +13,7 @@ fn main() {
     let mut materials = vec![
         three::Material::MeshBasic{ color: 0xffffff, wireframe: false },
         three::Material::MeshLambert{ color: 0xffffff },
-        //three::Material::MeshPhong{ color: 0xffffff },
+        three::Material::MeshPhong{ color: 0xffffff, glossiness: 80.0 },
     ];
     let count = materials.len();
 
