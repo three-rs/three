@@ -46,7 +46,7 @@ fn main() {
     let cam = win.factory.orthographic_camera(-10.0, 10.0, 10.0, -10.0, -10.0, 10.0);
 
     let material = three::Material::Sprite {
-        map: win.factory.load_texture("data/map/pikachu_anim.png"),
+        map: win.factory.load_texture("test_data/pikachu_anim.png"),
     };
     let mut sprite = win.factory.sprite(material);
     sprite.transform_mut().scale = 8.0;
