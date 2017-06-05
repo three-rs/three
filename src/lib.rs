@@ -6,6 +6,7 @@ extern crate gfx;
 extern crate image;
 #[macro_use]
 extern crate log;
+extern crate obj;
 extern crate winit;
 // OpenGL
 #[cfg(feature = "opengl")]
@@ -46,6 +47,7 @@ pub type Orientation = cgmath::Quaternion<f32>;
 pub type Transform = cgmath::Decomposed<Vector, Orientation>;
 
 
+#[derive(Debug)]
 struct VisualData<T> {
     material: Material,
     gpu_data: GpuData,
@@ -70,12 +72,12 @@ enum SubLight {
     Point,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 enum ShadowProjection {
     Ortho(cgmath::Ortho<f32>),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct LightData {
     color: Color,
     intensity: f32,
@@ -83,6 +85,7 @@ struct LightData {
     shadow: Option<(ShadowMap, ShadowProjection)>,
 }
 
+#[derive(Debug)]
 enum SubNode {
     Empty,
     Visual(VisualData<ConstantBuffer>),
@@ -90,6 +93,7 @@ enum SubNode {
 }
 
 /// Fat node of the scene graph.
+#[derive(Debug)]
 pub struct Node {
     visible: bool,
     world_visible: bool,

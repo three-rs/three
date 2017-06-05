@@ -18,7 +18,7 @@ pub enum Background {
     //TODO: texture, cubemap
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Material {
     LineBasic { color: Color },
     MeshBasic { color: Color, wireframe: bool },
