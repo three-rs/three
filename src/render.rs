@@ -133,7 +133,7 @@ fn decode_color(c: Color) -> [f32; 4] {
 }
 
 //TODO: private fields?
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct GpuData {
     pub slice: gfx::Slice<back::Resources>,
     pub vertices: gfx::handle::Buffer<back::Resources, Vertex>,
