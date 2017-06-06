@@ -454,7 +454,7 @@ impl Factory {
 
     pub fn load_obj(&mut self, path_str: &str) -> (HashMap<String, Group>, Vec<Mesh>) {
         use std::path::Path;
-        use genmesh::Vertices;
+        use genmesh::{LruIndexer, Indexer, Vertices};
 
         let f2i = |x: f32| I8Norm(cmp::min(cmp::max((x * 127.) as isize, -128), 127) as i8);
         let cf2u = |c: [f32; 3]| { c.iter().fold(0, |u, &v|
@@ -474,6 +474,7 @@ impl Factory {
         let mut groups = HashMap::new();
         let mut meshes = Vec::new();
         let mut vertices = Vec::new();
+        let mut indices = Vec::new();
 
         for object in obj.object_iter() {
             let mut group = Group::new(hub.spawn());
@@ -483,29 +484,34 @@ impl Factory {
                     None => Material::MeshBasic { color: 0xffffff, wireframe: true },
                 };
 
-                vertices.clear();
-                let index_tuples = gr.indices.iter().cloned()
-                                             .triangulate()
-                                             .vertices();
-                for (ipos, iuv, inor) in index_tuples {
-                    let p = obj.position()[ipos];
-                    vertices.push(Vertex {
-                        pos: [p[0], p[1], p[2], 1.0],
-                        uv: match iuv {
-                            Some(i) => obj.texture()[i],
-                            None => [0.0, 0.0],
-                        },
-                        normal: match inor {
-                            Some(id) => {
-                                let n = obj.normal()[id];
-                                [f2i(n[0]), f2i(n[1]), f2i(n[2]), I8Norm(0)]
+                {   // separate scope for LruIndexer
+                    vertices.clear();
+                    let mut lru = LruIndexer::new(10, |_, (ipos, iuv, inor)| {
+                        let p: [f32; 3] = obj.position()[ipos];
+                        vertices.push(Vertex {
+                            pos: [p[0], p[1], p[2], 1.0],
+                            uv: match iuv {
+                                Some(i) => obj.texture()[i],
+                                None => [0.0, 0.0],
                             },
-                            None => [I8Norm(0), I8Norm(0), I8Norm(0x7f), I8Norm(0)],
-                        },
+                            normal: match inor {
+                                Some(id) => {
+                                    let n: [f32; 3] = obj.normal()[id];
+                                    [f2i(n[0]), f2i(n[1]), f2i(n[2]), I8Norm(0)]
+                                },
+                                None => [I8Norm(0), I8Norm(0), I8Norm(0x7f), I8Norm(0)],
+                            },
+                        });
                     });
+
+                    indices.clear();
+                    indices.extend(gr.indices.iter().cloned()
+                                             .triangulate()
+                                             .vertices()
+                                             .map(|tuple| lru.index(tuple) as u16));
                 }
 
-                let (vbuf, slice) = self.backend.create_vertex_buffer_with_slice(&vertices, ());
+                let (vbuf, slice) = self.backend.create_vertex_buffer_with_slice(&vertices, &indices[..]);
                 let mesh = Mesh::new(hub.spawn_visual(VisualData {
                     material,
                     payload: self.backend.create_constant_buffer(1),
