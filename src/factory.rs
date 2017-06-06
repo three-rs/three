@@ -454,53 +454,50 @@ impl Factory {
 
     pub fn load_obj(&mut self, path_str: &str) -> (HashMap<String, Group>, Vec<Mesh>) {
         use std::path::Path;
-        use genmesh::{MapVertex, Vertices};
+        use genmesh::Vertices;
 
         let obj = obj::load::<Polygon<obj::IndexTuple>>(Path::new(path_str)).unwrap();
 
         let f2i = |x: f32| I8Norm(cmp::min(cmp::max((x * 127.) as isize, -128), 127) as i8);
-        let vertices: Vec<_> = obj.position().iter().enumerate().map(|(i, p)| {
-            Vertex {
-                pos: [p[0], p[1], p[2], 1.0],
-                uv: match obj.texture().get(i) {
-                    Some(uv) => *uv,
-                    None => [0.0, 0.0],
-                },
-                normal: match obj.normal().get(i) {
-                    Some(n) => [f2i(n[0]), f2i(n[1]), f2i(n[2]), I8Norm(0)],
-                    None => [I8Norm(0), I8Norm(0), I8Norm(0x7f), I8Norm(0)],
-                },
-            }
-        }).collect();
 
-        let vbuf = self.backend.create_vertex_buffer(&vertices);
         let mut hub = self.hub.lock().unwrap();
         let mut groups = HashMap::new();
         let mut meshes = Vec::new();
+        let mut vertices = Vec::new();
 
         for object in obj.object_iter() {
             let mut group = Group::new(hub.spawn());
             for gr in object.group_iter() {
-                let indices = gr.indices.iter()
-                                        //.vertex(|(i, _, _)| i)
-                                        .map(|p| p.map_vertex(|(i, _, _)| i as u16))
-                                        .triangulate()
-                                        .vertices()
-                                        .collect::<Vec<_>>();
-                let ibuf = self.backend.create_index_buffer(&indices[..]);
+                vertices.clear();
+                let index_tuples = gr.indices.iter().cloned()
+                                             .triangulate()
+                                             .vertices();
+                for (ipos, iuv, inor) in index_tuples {
+                    let p = obj.position()[ipos];
+                    vertices.push(Vertex {
+                        pos: [p[0], p[1], p[2], 1.0],
+                        uv: match iuv {
+                            Some(i) => obj.texture()[i],
+                            None => [0.0, 0.0],
+                        },
+                        normal: match inor {
+                            Some(id) => {
+                                let n = obj.normal()[id];
+                                [f2i(n[0]), f2i(n[1]), f2i(n[2]), I8Norm(0)]
+                            },
+                            None => [I8Norm(0), I8Norm(0), I8Norm(0x7f), I8Norm(0)],
+                        },
+                    });
+                }
+
+                let (vbuf, slice) = self.backend.create_vertex_buffer_with_slice(&vertices, ());
                 //TODO: material
                 let mesh = Mesh::new(hub.spawn_visual(VisualData {
                     material: Material::MeshBasic { color: 0xffffff, wireframe: true },
                     payload: self.backend.create_constant_buffer(1),
                     gpu_data: GpuData {
-                        slice: gfx::Slice {
-                            start: 0,
-                            end: indices.len() as gfx::VertexCount,
-                            instances: None,
-                            base_vertex: 0,
-                            buffer: ibuf,
-                        },
-                        vertices: vbuf.clone(),
+                        slice,
+                        vertices: vbuf,
                     }
                 }));
                 group.add(&mesh);
