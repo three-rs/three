@@ -456,9 +456,19 @@ impl Factory {
         use std::path::Path;
         use genmesh::Vertices;
 
-        let obj = obj::load::<Polygon<obj::IndexTuple>>(Path::new(path_str)).unwrap();
-
         let f2i = |x: f32| I8Norm(cmp::min(cmp::max((x * 127.) as isize, -128), 127) as i8);
+        let cf2u = |c: [f32; 3]| { c.iter().fold(0, |u, &v|
+            (u << 8) + cmp::min((v * 255.0) as u32, 0xFF)
+        )};
+        let get_material = |mat: &obj::Material, has_normals: bool| match *mat {
+            obj::Material { ks: Some(color), ns: Some(glossiness), .. } if has_normals =>
+                Material::MeshPhong { color: cf2u(color), glossiness },
+            obj::Material { kd: Some(color), .. } if has_normals =>
+                Material::MeshLambert { color: cf2u(color) },
+            _ => Material::MeshBasic { color: 0xffffff, wireframe: true },
+        };
+
+        let obj = obj::load::<Polygon<obj::IndexTuple>>(Path::new(path_str)).unwrap();
 
         let mut hub = self.hub.lock().unwrap();
         let mut groups = HashMap::new();
@@ -468,6 +478,11 @@ impl Factory {
         for object in obj.object_iter() {
             let mut group = Group::new(hub.spawn());
             for gr in object.group_iter() {
+                let material = match gr.material {
+                    Some(ref rc_mat) => get_material(&*rc_mat, !obj.normal().is_empty()),
+                    None => Material::MeshBasic { color: 0xffffff, wireframe: true },
+                };
+
                 vertices.clear();
                 let index_tuples = gr.indices.iter().cloned()
                                              .triangulate()
@@ -491,14 +506,13 @@ impl Factory {
                 }
 
                 let (vbuf, slice) = self.backend.create_vertex_buffer_with_slice(&vertices, ());
-                //TODO: material
                 let mesh = Mesh::new(hub.spawn_visual(VisualData {
-                    material: Material::MeshBasic { color: 0xffffff, wireframe: true },
+                    material,
                     payload: self.backend.create_constant_buffer(1),
                     gpu_data: GpuData {
                         slice,
                         vertices: vbuf,
-                    }
+                    },
                 }));
                 group.add(&mesh);
                 meshes.push(mesh);
