@@ -1,5 +1,5 @@
 use std::cmp;
-use std::collections::HashMap;
+use std::collections::hash_map::{HashMap, Entry};
 use std::io::BufReader;
 use std::fs::File;
 use std::path::Path;
@@ -126,6 +126,7 @@ pub struct Factory {
     scene_id: SceneId,
     hub: HubPtr,
     quad: GpuData,
+    texture_cache: HashMap<String, Texture<[f32; 4]>>,
 }
 
 impl Factory {
@@ -140,6 +141,7 @@ impl Factory {
                 slice: slice,
                 vertices: vbuf,
             },
+            texture_cache: HashMap::new(),
         }
     }
 
@@ -416,7 +418,7 @@ impl<T> Texture<T> {
 
 
 impl Factory {
-    pub fn load_texture(&mut self, path_str: &str) -> Texture<[f32; 4]> {
+    fn load_texture_impl(path_str: &str, factory: &mut BackendFactory) -> Texture<[f32; 4]> {
         use gfx::texture as t;
         use image::ImageFormat as F;
 
@@ -446,35 +448,58 @@ impl Factory {
                         .flipv().to_rgba();
         let (width, height) = img.dimensions();
         let kind = t::Kind::D2(width as t::Size, height as t::Size, t::AaMode::Single);
-        let (_, view) = self.backend.create_texture_immutable_u8::<gfx::format::Srgba8>(kind, &[&img])
-                                    .unwrap_or_else(|e| panic!("Unable to create GPU texture for {}: {:?}", path_str, e));
+        let (_, view) = factory.create_texture_immutable_u8::<gfx::format::Srgba8>(kind, &[&img])
+                               .unwrap_or_else(|e| panic!("Unable to create GPU texture for {}: {:?}", path_str, e));
 
-        Texture::new(view, self.backend.create_sampler_linear(), [width, height])
+        Texture::new(view, factory.create_sampler_linear(), [width, height])
+    }
+
+    fn request_texture(&mut self, path: &str) -> Texture<[f32; 4]> {
+        match self.texture_cache.entry(path.to_string()) {
+            Entry::Occupied(e) => e.get().clone(),
+            Entry::Vacant(e) => {
+                let tex = Self::load_texture_impl(path, &mut self.backend);
+                e.insert(tex.clone());
+                tex
+            }
+        }
+    }
+
+    fn load_obj_material(&mut self, mat: &obj::Material, has_normals: bool, has_uv: bool) -> Material {
+        let cf2u = |c: [f32; 3]| { c.iter().fold(0, |u, &v|
+            (u << 8) + cmp::min((v * 255.0) as u32, 0xFF)
+        )};
+        match *mat {
+            obj::Material { kd: Some(color), ns: Some(glossiness), .. } if has_normals =>
+                Material::MeshPhong { color: cf2u(color), glossiness },
+            obj::Material { kd: Some(color), .. } if has_normals =>
+                Material::MeshLambert { color: cf2u(color) },
+            obj::Material { kd: Some(color), ref map_kd, .. } =>
+                Material::MeshBasic {
+                    color: cf2u(color),
+                    map: match (has_uv, map_kd) {
+                        (true, &Some(ref name)) => Some(self.request_texture(name)),
+                        _ => None,
+                    },
+                    wireframe: false,
+                },
+            _ => Material::MeshBasic { color: 0xffffff, map: None, wireframe: true },
+        }
+    }
+
+    pub fn load_texture(&mut self, path_str: &str) -> Texture<[f32; 4]> {
+        self.request_texture(path_str)
     }
 
     pub fn load_obj(&mut self, path_str: &str) -> (HashMap<String, Group>, Vec<Mesh>) {
         use std::path::Path;
         use genmesh::{LruIndexer, Indexer, Vertices};
 
-        let f2i = |x: f32| I8Norm(cmp::min(cmp::max((x * 127.) as isize, -128), 127) as i8);
-        let cf2u = |c: [f32; 3]| { c.iter().fold(0, |u, &v|
-            (u << 8) + cmp::min((v * 255.0) as u32, 0xFF)
-        )};
-        let get_material = |mat: &obj::Material, has_normals: bool, has_uv: bool| match *mat {
-            obj::Material { kd: Some(color), ns: Some(glossiness), .. } if has_normals =>
-                Material::MeshPhong { color: cf2u(color), glossiness },
-            obj::Material { kd: Some(color), .. } if has_normals =>
-                Material::MeshLambert { color: cf2u(color) },
-            obj::Material { kd: Some(color), .. } =>
-                Material::MeshBasic { color: cf2u(color), map: None, wireframe: false },
-            _ if has_uv => Material::MeshBasic { color: 0xffffff, map: None, wireframe: false },
-            _ => Material::MeshBasic { color: 0xffffff, map: None, wireframe: true },
-        };
-
         info!("Loading {}", path_str);
         let obj = obj::load::<Polygon<obj::IndexTuple>>(Path::new(path_str)).unwrap();
 
-        let mut hub = self.hub.lock().unwrap();
+        let hub_ptr = self.hub.clone();
+        let mut hub = hub_ptr.lock().unwrap();
         let mut groups = HashMap::new();
         let mut meshes = Vec::new();
         let mut vertices = Vec::new();
@@ -485,6 +510,7 @@ impl Factory {
             for gr in object.group_iter() {
                 let (mut num_normals, mut num_uvs) = (0, 0);
                 {   // separate scope for LruIndexer
+                    let f2i = |x: f32| I8Norm(cmp::min(cmp::max((x * 127.) as isize, -128), 127) as i8);
                     vertices.clear();
                     let mut lru = LruIndexer::new(10, |_, (ipos, iuv, inor)| {
                         let p: [f32; 3] = obj.position()[ipos];
@@ -517,7 +543,7 @@ impl Factory {
 
                 info!("\tmaterial {} with {} normals and {} uvs", gr.name, num_normals, num_uvs);
                 let material = match gr.material {
-                    Some(ref rc_mat) => get_material(&*rc_mat, num_normals!=0, num_uvs!=0),
+                    Some(ref rc_mat) => self.load_obj_material(&*rc_mat, num_normals!=0, num_uvs!=0),
                     None => Material::MeshBasic { color: 0xffffff, map: None, wireframe: true },
                 };
                 info!("\t{:?}", material);
