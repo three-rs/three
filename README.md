@@ -8,6 +8,7 @@ Totally not inspired Rust 3D library! Ok, maybe, just a tiny bit... by [Three.JS
 ## Screenshots
 
 ![Aviator](examples/aviator/shot.png)
+![CarObj](test_data/obj-car.png)
 
 ## Motivation and Goals
 

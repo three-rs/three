@@ -4,7 +4,8 @@ fn main() {
     let mut win = three::Window::new("Three-rs lights example", "data/shaders");
     let mut cam = win.factory.perspective_camera(45.0, 0.0, 1.0, 50.0);
     cam.transform_mut().look_at(three::Position::new(-4.0, 15.0, 10.0),
-                                three::Position::new(0.0, 0.0, 2.0));
+                                three::Position::new(0.0, 0.0, 2.0),
+                                None);
 
     let mut hemisphere_light = win.factory.hemisphere_light(0xffffff, 0x8080ff, 0.5);
     let mut ambient_light = win.factory.ambient_light(0xffffffff, 0.5);
@@ -13,7 +14,8 @@ fn main() {
 
     let mut dir_light = win.factory.directional_light(0xffffff, 0.9);
     dir_light.transform_mut().look_at(three::Position::new(15.0, 35.0, 35.0),
-                                      three::Position::new(0.0, 0.0, 2.0));
+                                      three::Position::new(0.0, 0.0, 2.0),
+                                      None);
     let shadow_map = win.factory.shadow_map(1024, 1024);
     let _debug_shadow = win.renderer.debug_shadow_quad(&shadow_map, 1, [10, 10], [256, 256]);
     dir_light.set_shadow(shadow_map, 80.0, 80.0, 1.0, 200.0);

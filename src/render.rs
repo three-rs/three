@@ -427,8 +427,8 @@ impl Renderer {
             //TODO: batch per PSO
             let (pso, color, glossiness, map) = match visual.material {
                 Material::LineBasic { color } => (&self.pso_line_basic, color, 0.0, None),
-                Material::MeshBasic { color, wireframe: false } => (&self.pso_mesh_basic_fill, color, 0.0, None),
-                Material::MeshBasic { color, wireframe: true } => (&self.pso_mesh_basic_wireframe, color, 0.0, None),
+                Material::MeshBasic { color, ref map, wireframe: false } => (&self.pso_mesh_basic_fill, color, 0.0, map.as_ref()),
+                Material::MeshBasic { color, map: ref _map, wireframe: true } => (&self.pso_mesh_basic_wireframe, color, 0.0, None),
                 Material::MeshLambert { color } => (&self.pso_mesh_gouraud, color, 0.0, None),
                 Material::MeshPhong { color, glossiness } => (&self.pso_mesh_phong, color, glossiness, None),
                 Material::Sprite { ref map } => (&self.pso_sprite, !0, 0.0, Some(map)),

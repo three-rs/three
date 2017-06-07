@@ -460,14 +460,18 @@ impl Factory {
         let cf2u = |c: [f32; 3]| { c.iter().fold(0, |u, &v|
             (u << 8) + cmp::min((v * 255.0) as u32, 0xFF)
         )};
-        let get_material = |mat: &obj::Material, has_normals: bool| match *mat {
-            obj::Material { ks: Some(color), ns: Some(glossiness), .. } if has_normals =>
+        let get_material = |mat: &obj::Material, has_normals: bool, has_uv: bool| match *mat {
+            obj::Material { kd: Some(color), ns: Some(glossiness), .. } if has_normals =>
                 Material::MeshPhong { color: cf2u(color), glossiness },
             obj::Material { kd: Some(color), .. } if has_normals =>
                 Material::MeshLambert { color: cf2u(color) },
-            _ => Material::MeshBasic { color: 0xffffff, wireframe: true },
+            obj::Material { kd: Some(color), .. } =>
+                Material::MeshBasic { color: cf2u(color), map: None, wireframe: false },
+            _ if has_uv => Material::MeshBasic { color: 0xffffff, map: None, wireframe: false },
+            _ => Material::MeshBasic { color: 0xffffff, map: None, wireframe: true },
         };
 
+        info!("Loading {}", path_str);
         let obj = obj::load::<Polygon<obj::IndexTuple>>(Path::new(path_str)).unwrap();
 
         let mut hub = self.hub.lock().unwrap();
@@ -479,11 +483,7 @@ impl Factory {
         for object in obj.object_iter() {
             let mut group = Group::new(hub.spawn());
             for gr in object.group_iter() {
-                let material = match gr.material {
-                    Some(ref rc_mat) => get_material(&*rc_mat, !obj.normal().is_empty()),
-                    None => Material::MeshBasic { color: 0xffffff, wireframe: true },
-                };
-
+                let (mut num_normals, mut num_uvs) = (0, 0);
                 {   // separate scope for LruIndexer
                     vertices.clear();
                     let mut lru = LruIndexer::new(10, |_, (ipos, iuv, inor)| {
@@ -491,11 +491,15 @@ impl Factory {
                         vertices.push(Vertex {
                             pos: [p[0], p[1], p[2], 1.0],
                             uv: match iuv {
-                                Some(i) => obj.texture()[i],
+                                Some(i) => {
+                                    num_uvs += 1;
+                                    obj.texture()[i]
+                                },
                                 None => [0.0, 0.0],
                             },
                             normal: match inor {
                                 Some(id) => {
+                                    num_normals += 1;
                                     let n: [f32; 3] = obj.normal()[id];
                                     [f2i(n[0]), f2i(n[1]), f2i(n[2]), I8Norm(0)]
                                 },
@@ -509,7 +513,14 @@ impl Factory {
                                              .triangulate()
                                              .vertices()
                                              .map(|tuple| lru.index(tuple) as u16));
-                }
+                };
+
+                info!("\tmaterial {} with {} normals and {} uvs", gr.name, num_normals, num_uvs);
+                let material = match gr.material {
+                    Some(ref rc_mat) => get_material(&*rc_mat, num_normals!=0, num_uvs!=0),
+                    None => Material::MeshBasic { color: 0xffffff, map: None, wireframe: true },
+                };
+                info!("\t{:?}", material);
 
                 let (vbuf, slice) = self.backend.create_vertex_buffer_with_slice(&vertices, &indices[..]);
                 let mesh = Mesh::new(hub.spawn_visual(VisualData {

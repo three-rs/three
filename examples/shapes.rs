@@ -10,7 +10,7 @@ fn main() {
 
     let mut mbox = {
         let geometry = three::Geometry::new_box(3.0, 2.0, 1.0);
-        let material = three::Material::MeshBasic { color: 0x00ff00, wireframe: true };
+        let material = three::Material::MeshBasic { color: 0x00ff00, map: None, wireframe: true };
         win.factory.mesh(geometry, material)
     };
     mbox.transform_mut().disp = cgmath::vec3(-3.0, -3.0, 0.0);
@@ -18,7 +18,7 @@ fn main() {
 
     let mut mcyl = {
         let geometry = three::Geometry::new_cylinder(1.0, 2.0, 2.0, 5);
-        let material = three::Material::MeshBasic { color: 0xff0000, wireframe: true };
+        let material = three::Material::MeshBasic { color: 0xff0000, map: None, wireframe: true };
         win.factory.mesh(geometry, material)
     };
     mcyl.transform_mut().disp = cgmath::vec3(3.0, -3.0, 0.0);
@@ -26,7 +26,7 @@ fn main() {
 
     let mut msphere = {
         let geometry = three::Geometry::new_sphere(2.0, 5, 5);
-        let material = three::Material::MeshBasic { color: 0xff0000, wireframe: true };
+        let material = three::Material::MeshBasic { color: 0xff0000, map: None, wireframe: true };
         win.factory.mesh(geometry, material)
     };
     msphere.transform_mut().disp = cgmath::vec3(-3.0, 3.0, 0.0);

@@ -6,7 +6,7 @@ use froggy::Pointer;
 
 use {Object, VisualObject, LightObject, Message, Operation,
      Node, SubNode, Scene, ShadowProjection,
-     Position, Orientation, Transform};
+     Position, Orientation, Vector, Transform};
 use factory::{Geometry, ShadowMap, Texture};
 
 
@@ -21,7 +21,7 @@ pub enum Background {
 #[derive(Clone, Debug)]
 pub enum Material {
     LineBasic { color: Color },
-    MeshBasic { color: Color, wireframe: bool },
+    MeshBasic { color: Color, map: Option<Texture<[f32; 4]>>, wireframe: bool },
     MeshLambert { color: Color },
     MeshPhong { color: Color, glossiness: f32 },
     Sprite { map: Texture<[f32; 4]> },
@@ -73,12 +73,14 @@ impl<'a> TransformProxy<'a> {
         self.value.rot = Quaternion::from(rot) * self.value.rot;
     }
 
-    pub fn look_at(&mut self, eye: Position, target: Position) {
+    pub fn look_at(&mut self, eye: Position, target: Position, up: Option<Vector>) {
         use cgmath::{EuclideanSpace, InnerSpace, Rotation, Vector3};
         let dir = (eye - target).normalize();
         let z = Vector3::unit_z();
-        let up = if dir.dot(z).abs() < 0.99 { z } else {
-            Vector3::unit_y()
+        let up = match up {
+            Some(v) => v.normalize(),
+            None if dir.dot(z).abs() < 0.99 => z,
+            None => Vector3::unit_y(),
         };
         *self.value = Transform {
             disp: eye.to_vec(),
