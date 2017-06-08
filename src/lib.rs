@@ -6,6 +6,7 @@ extern crate gfx;
 extern crate image;
 #[macro_use]
 extern crate log;
+extern crate mint;
 extern crate obj;
 extern crate winit;
 // OpenGL
@@ -40,11 +41,7 @@ use factory::SceneId;
 use render::{ConstantBuffer, GpuData};
 
 
-pub type Position = cgmath::Point3<f32>;
-pub type Vector = cgmath::Vector3<f32>;
-pub type Normal = cgmath::Vector3<f32>;
-pub type Orientation = cgmath::Quaternion<f32>;
-pub type Transform = cgmath::Decomposed<Vector, Orientation>;
+type Transform = cgmath::Decomposed<cgmath::Vector3<f32>, cgmath::Quaternion<f32>>;
 
 
 #[derive(Debug)]
@@ -129,7 +126,7 @@ pub struct Camera<P> {
 pub type OrthographicCamera = Camera<cgmath::Ortho<f32>>;
 pub type PerspectiveCamera = Camera<cgmath::PerspectiveFov<f32>>;
 
-pub trait Projection {
+trait Projection {
     fn get_matrix(&self, aspect: f32) -> cgmath::Matrix4<f32>;
 }
 
