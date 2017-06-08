@@ -37,6 +37,7 @@ gfx = "0.16"
 image = "0.13"
 log = "0.3"
 obj = { version = "0.6", features = ["genmesh"] }
+mint = { path = "../mint" } #temp!
 winit = "0.6"
 # OpenGL
 gfx_device_gl = { version = "0.14", optional = true }
