@@ -3,10 +3,10 @@ use std::sync::mpsc;
 
 use cgmath::Ortho;
 use froggy::Pointer;
+use mint;
 
 use {Object, VisualObject, LightObject, Message, Operation,
-     Node, SubNode, Scene, ShadowProjection,
-     Position, Orientation, Vector, Transform};
+     Node, SubNode, Scene, ShadowProjection, Transform};
 use factory::{Geometry, ShadowMap, Texture};
 
 
@@ -34,7 +34,7 @@ pub struct WorldNode {
 }
 
 macro_rules! def_proxy {
-    ($name:ident<$target:ty> = $message:ident($key:ident)) => {
+    ($name:ident<$target:ty> = $message:ident) => {
         pub struct $name<'a> {
             value: &'a mut $target,
             node: &'a Pointer<Node>,
@@ -63,30 +63,49 @@ macro_rules! def_proxy {
     }
 }
 
-def_proxy!(TransformProxy<Transform> = SetTransform(node));
-def_proxy!(MaterialProxy<Material> = SetMaterial(visual));
+def_proxy!(MaterialProxy<Material> = SetMaterial);
+
+pub struct TransformProxy<'a> {
+    value: &'a mut Transform,
+    node: &'a Pointer<Node>,
+    tx: &'a mpsc::Sender<Message>,
+    pub position: mint::Point3<f32>,
+    pub orientation: mint::Quaternion<f32>,
+    pub scale: f32,
+}
+
+impl<'a> Drop for TransformProxy<'a> {
+    fn drop(&mut self) {
+        *self.value = Transform {
+            disp: self.position.into(),
+            rot: self.orientation.into(),
+            scale: self.scale,
+        };
+        let msg = Operation::SetTransform(self.value.clone());
+        let _ = self.tx.send((self.node.downgrade(), msg));
+    }
+}
 
 impl<'a> TransformProxy<'a> {
     pub fn rotate(&mut self, x: f32, y: f32, z: f32) {
         use cgmath::{Euler, Quaternion, Rad};
         let rot = Euler::new(Rad(x), Rad(y), Rad(z));
-        self.value.rot = Quaternion::from(rot) * self.value.rot;
+        let qresult = Quaternion::from(rot) * Quaternion::from(self.value.rot);
+        self.value.rot = qresult.into();
     }
 
-    pub fn look_at(&mut self, eye: Position, target: Position, up: Option<Vector>) {
-        use cgmath::{EuclideanSpace, InnerSpace, Rotation, Vector3};
-        let dir = (eye - target).normalize();
+    pub fn look_at(&mut self, eye: mint::Point3<f32>, target: mint::Point3<f32>,
+                   up: Option<mint::Vector3<f32>>) {
+        use cgmath::{EuclideanSpace, InnerSpace, Point3, Quaternion, Rotation, Vector3};
+        let dir = (Point3::from(eye) - Point3::from(target)).normalize();
         let z = Vector3::unit_z();
         let up = match up {
-            Some(v) => v.normalize(),
+            Some(v) => Vector3::from(v).normalize(),
             None if dir.dot(z).abs() < 0.99 => z,
             None => Vector3::unit_y(),
         };
-        *self.value = Transform {
-            disp: eye.to_vec(),
-            rot: Orientation::look_at(dir, up).invert(),
-            scale: 1.0,
-        };
+        self.position = eye;
+        self.orientation = Quaternion::look_at(dir, up).invert().into();
     }
 }
 
@@ -101,15 +120,14 @@ impl Object {
         let _ = self.tx.send((self.node.downgrade(), msg));
     }
 
-    pub fn transform(&self) -> &Transform {
-        &self.transform
-    }
-
     pub fn transform_mut(&mut self) -> TransformProxy {
         TransformProxy {
             value: &mut self.transform,
             node: &self.node,
             tx: &self.tx,
+            position: self.transform.disp.into(),
+            orientation: self.transform.rot.into(),
+            scale: self.transform.scale,
         }
     }
 

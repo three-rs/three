@@ -12,12 +12,13 @@ use gfx::format::I8Norm;
 use gfx::handle as h;
 use gfx::traits::{Factory as Factory_, FactoryExt};
 use image;
+use mint;
 use obj;
 
 use render::{BackendFactory, BackendResources, ConstantBuffer, GpuData, Vertex, ShadowFormat};
 use scene::{Color, Background, Group, Mesh, Sprite, Material,
             AmbientLight, DirectionalLight, HemisphereLight, PointLight};
-use {Hub, HubPtr, SubLight, Node, SubNode, Normal, Position, Transform,
+use {Hub, HubPtr, SubLight, Node, SubNode,
      VisualData, LightData, Object, VisualObject, LightObject, Scene,
      Camera, OrthographicCamera, PerspectiveCamera};
 
@@ -53,8 +54,8 @@ impl From<SubNode> for Node {
         Node {
             visible: true,
             world_visible: false,
-            transform: Transform::one(),
-            world_transform: Transform::one(),
+            transform: Transform_::one(),
+            world_transform: Transform_::one(),
             parent: None,
             scene_id: None,
             sub_node: sub,
@@ -66,7 +67,7 @@ impl Hub {
     fn spawn(&mut self) -> Object {
         Object {
             visible: true,
-            transform: Transform::one(),
+            transform: Transform_::one(),
             node: self.nodes.create(SubNode::Empty.into()),
             tx: self.message_tx.clone(),
         }
@@ -79,7 +80,7 @@ impl Hub {
             data: data.drop_payload(),
             inner: Object {
                 visible: true,
-                transform: Transform::one(),
+                transform: Transform_::one(),
                 node: self.nodes.create(SubNode::Visual(data).into()),
                 tx: self.message_tx.clone(),
             },
@@ -90,7 +91,7 @@ impl Hub {
         LightObject {
             inner: Object {
                 visible: true,
-                transform: Transform::one(),
+                transform: Transform_::one(),
                 node: self.nodes.create(SubNode::Light(data.clone()).into()),
                 tx: self.message_tx.clone(),
             },
@@ -278,8 +279,8 @@ impl Factory {
 
 #[derive(Clone, Debug)]
 pub struct Geometry {
-    pub vertices: Vec<Position>,
-    pub normals: Vec<Normal>,
+    pub vertices: Vec<mint::Point3<f32>>,
+    pub normals: Vec<mint::Vector3<f32>>,
     pub faces: Vec<[u16; 3]>,
     pub is_dynamic: bool,
 }
@@ -294,7 +295,7 @@ impl Geometry {
         }
     }
 
-    pub fn from_vertices(verts: Vec<Position>) -> Geometry {
+    pub fn from_vertices(verts: Vec<mint::Point3<f32>>) -> Geometry {
         Geometry {
             vertices: verts,
             .. Geometry::empty()
@@ -304,8 +305,8 @@ impl Geometry {
     fn generate<P, G, Fpos, Fnor>(gen: G, fpos: Fpos, fnor: Fnor) -> Self where
         P: EmitTriangles<Vertex=usize>,
         G: IndexedPolygon<P> + SharedVertex<GenVertex>,
-        Fpos: Fn(GenVertex) -> Position,
-        Fnor: Fn(GenVertex) -> Normal,
+        Fpos: Fn(GenVertex) -> mint::Point3<f32>,
+        Fnor: Fn(GenVertex) -> mint::Vector3<f32>,
     {
         Geometry {
             vertices: gen.shared_vertex_iter()
@@ -325,18 +326,18 @@ impl Geometry {
     pub fn new_plane(sx: f32, sy: f32) -> Self {
         Self::generate(generators::Plane::new(),
             |GenVertex{ pos, ..}| {
-                Position::new(pos[0] * 0.5 * sx, pos[1] * 0.5 * sy, 0.0)
+                [pos[0] * 0.5 * sx, pos[1] * 0.5 * sy, 0.0].into()
             },
-            |v| Normal::from(v.normal)
+            |v| v.normal.into()
         )
     }
 
     pub fn new_box(sx: f32, sy: f32, sz: f32) -> Self {
         Self::generate(generators::Cube::new(),
             |GenVertex{ pos, ..}| {
-                Position::new(pos[0] * 0.5 * sx, pos[1] * 0.5 * sy, pos[2] * 0.5 * sz)
+                [pos[0] * 0.5 * sx, pos[1] * 0.5 * sy, pos[2] * 0.5 * sz].into()
             },
-            |v| Normal::from(v.normal)
+            |v| v.normal.into()
         )
     }
 
@@ -348,10 +349,10 @@ impl Geometry {
             |GenVertex{ pos, ..}| {
                 let scale = (pos[2] + 1.0) * 0.5 * radius_top +
                             (1.0 - pos[2]) * 0.5 * radius_bottom;
-                Position::new(pos[1] * scale, pos[2] * 0.5 * height, pos[0] * scale)
+                [pos[1] * scale, pos[2] * 0.5 * height, pos[0] * scale].into()
             },
             |GenVertex{ normal, ..}| {
-                Normal::from([normal[1], normal[2], normal[0]])
+                [normal[1], normal[2], normal[0]].into()
             },
         )
     }
@@ -361,9 +362,9 @@ impl Geometry {
     {
         Self::generate(generators::SphereUV::new(width_segments, height_segments),
             |GenVertex{ pos, ..}| {
-                Position::new(pos[0] * radius, pos[1] * radius, pos[2] * radius)
+                [pos[0] * radius, pos[1] * radius, pos[2] * radius].into()
             },
-            |v| Normal::from(v.normal)
+            |v| v.normal.into()
         )
     }
 }
