@@ -298,15 +298,15 @@ impl Renderer {
                     let target = map.to_target();
                     let dim = target.get_dimensions();
                     let aspect = dim.0 as f32 / dim.1 as f32;
-                    let mx_proj = match projection {
+                    let mx_proj: [[f32; 4]; 4] = match projection {
                         &ShadowProjection::Ortho(ref p) => p.get_matrix(aspect),
-                    };
+                    }.into();
                     let mx_view = Matrix4::from(
                         node.world_transform.inverse_transform().unwrap());
                     shadow_requests.push(ShadowRequest {
                         target,
                         resource: map.to_resource(),
-                        matrix: mx_proj * mx_view,
+                        matrix: Matrix4::from(mx_proj) * mx_view,
                     });
                     shadow_requests.len() as i32 - 1
                 } else {
@@ -384,14 +384,14 @@ impl Renderer {
 
         // prepare target and globals
         let mx_vp = {
-            let p = camera.projection.get_matrix(self.get_aspect());
+            let p: [[f32; 4]; 4] = camera.projection.get_matrix(self.get_aspect()).into();
             let node = &hub.nodes[&camera.object.node];
             let w = match node.scene_id {
                 Some(id) if id == scene.unique_id => node.world_transform,
                 Some(_) => panic!("Camera does not belong to this scene"),
                 None => node.transform,
             };
-            p * Matrix4::from(w.inverse_transform().unwrap())
+            Matrix4::from(p) * Matrix4::from(w.inverse_transform().unwrap())
         };
         match scene.background {
             Background::Color(color) => {

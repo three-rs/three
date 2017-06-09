@@ -76,9 +76,16 @@ pub struct TransformProxy<'a> {
 
 impl<'a> Drop for TransformProxy<'a> {
     fn drop(&mut self) {
+        use cgmath::Quaternion;
+        //TEMP! until mint integration is done in cgmath
+        let p: [f32; 3] = self.position.into();
+        let q: [f32; 3] = self.orientation.v.into();
         *self.value = Transform {
-            disp: self.position.into(),
-            rot: self.orientation.into(),
+            disp: p.into(),
+            rot: Quaternion {
+                s: self.orientation.s,
+                v: q.into(),
+            },
             scale: self.scale,
         };
         let msg = Operation::SetTransform(self.value.clone());
@@ -91,21 +98,40 @@ impl<'a> TransformProxy<'a> {
         use cgmath::{Euler, Quaternion, Rad};
         let rot = Euler::new(Rad(x), Rad(y), Rad(z));
         let qresult = Quaternion::from(rot) * Quaternion::from(self.value.rot);
-        self.value.rot = qresult.into();
+        let v: [f32; 3] = qresult.v.into();
+        self.orientation = mint::Quaternion {
+            s: qresult.s,
+            v: v.into(),
+        };
     }
 
     pub fn look_at(&mut self, eye: mint::Point3<f32>, target: mint::Point3<f32>,
                    up: Option<mint::Vector3<f32>>) {
-        use cgmath::{EuclideanSpace, InnerSpace, Point3, Quaternion, Rotation, Vector3};
-        let dir = (Point3::from(eye) - Point3::from(target)).normalize();
+        use cgmath::{InnerSpace, Point3, Quaternion, Rotation, Vector3};
+        let p: [[f32; 3]; 2] = [eye.into(), target.into()];
+        let dir = (Point3::from(p[0]) - Point3::from(p[1])).normalize();
         let z = Vector3::unit_z();
         let up = match up {
-            Some(v) => Vector3::from(v).normalize(),
+            Some(v) => {
+                let vf: [f32; 3] = v.into();
+                Vector3::from(vf).normalize()
+            },
             None if dir.dot(z).abs() < 0.99 => z,
             None => Vector3::unit_y(),
         };
         self.position = eye;
-        self.orientation = Quaternion::look_at(dir, up).invert().into();
+        let q = Quaternion::look_at(dir, up).invert();
+        let qv: [f32; 3] = q.v.into();
+        self.orientation = mint::Quaternion {
+            s: q.s,
+            v: qv.into(),
+        };
+    }
+
+    pub fn set_all(&mut self, pos: mint::Point3<f32>, rot: mint::Quaternion<f32>, scale: f32) {
+        self.position = pos;
+        self.orientation = rot;
+        self.scale = scale;
     }
 }
 
@@ -121,13 +147,18 @@ impl Object {
     }
 
     pub fn transform_mut(&mut self) -> TransformProxy {
+        let t = self.transform;
+        let p: [[f32; 3]; 2] = [t.disp.into(), t.rot.v.into()];
         TransformProxy {
             value: &mut self.transform,
             node: &self.node,
             tx: &self.tx,
-            position: self.transform.disp.into(),
-            orientation: self.transform.rot.into(),
-            scale: self.transform.scale,
+            position: p[0].into(),
+            orientation: mint::Quaternion {
+                s: t.rot.s,
+                v: p[1].into(),
+            },
+            scale: t.scale,
         }
     }
 

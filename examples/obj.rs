@@ -8,13 +8,13 @@ fn main() {
 
     let mut win = three::Window::new("Three-rs obj loading example", "data/shaders");
     let mut cam = win.factory.perspective_camera(60.0, 0.0, 1.0, 10.0);
-    cam.transform_mut().look_at(three::Position::new(0.0, 2.0, 5.0),
-                                three::Position::new(0.0, 0.0, 0.0),
-                                Some(three::Vector::new(0.0, 1.0, 0.0)));
+    cam.transform_mut().look_at([0.0, 2.0, 5.0].into(),
+                                [0.0, 0.0, 0.0].into(),
+                                Some([0.0, 1.0, 0.0].into()));
 
     let mut dir_light = win.factory.directional_light(0xffffff, 0.9);
-    dir_light.transform_mut().look_at(three::Position::new(15.0, 35.0, 35.0),
-                                      three::Position::new(0.0, 0.0, 2.0),
+    dir_light.transform_mut().look_at([15.0, 35.0, 35.0].into(),
+                                      [0.0, 0.0, 2.0].into(),
                                       None);
     win.scene.add(&dir_light);
 
