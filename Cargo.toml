@@ -2,28 +2,17 @@
 name = "three"
 version = "0.1.0"
 authors = ["Dzmitry Malyshau <kvarkus@gmail.com>"]
+license = "Apache-2.0"
+description = "Three.js inspired 3D engine in Rust"
+categories = ["graphics", "game-engines"]
+keywords = ["gamedev", "graphics", "engine", "3D"]
+homepage = "https://github.com/kvark/three-rs"
+repository = "https://github.com/kvark/three-rs"
+documentation = "https://docs.rs/three/"
+exclude = ["doc", "bors.toml", ".travis.yml", "test_data"]
+
 
 [lib]
-
-[[example]]
-name = "lights"
-
-[[example]]
-name = "materials"
-
-[[example]]
-name = "obj"
-
-[[example]]
-name = "shapes"
-
-[[example]]
-name = "sprite"
-
-[[example]]
-name = "aviator"
-path = "examples/aviator/main.rs"
-
 
 [features]
 default = ["opengl"]
@@ -47,3 +36,23 @@ glutin = { version = "0.8", optional = true }
 [dev-dependencies]
 env_logger = "0.4"
 rand = "0.3"
+
+
+[[example]]
+name = "lights"
+
+[[example]]
+name = "materials"
+
+[[example]]
+name = "obj"
+
+[[example]]
+name = "shapes"
+
+[[example]]
+name = "sprite"
+
+[[example]]
+name = "aviator"
+path = "examples/aviator/main.rs"
