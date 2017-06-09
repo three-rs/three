@@ -123,11 +123,12 @@ pub struct Camera<P> {
     projection: P,
 }
 
+// warning: public exposure of `cgmath` here
 pub type OrthographicCamera = Camera<cgmath::Ortho<f32>>;
 pub type PerspectiveCamera = Camera<cgmath::PerspectiveFov<f32>>;
 
-trait Projection {
-    fn get_matrix(&self, aspect: f32) -> cgmath::Matrix4<f32>;
+pub trait Projection {
+    fn get_matrix(&self, aspect: f32) -> mint::ColumnMatrix4<f32>;
 }
 
 type Message = (froggy::WeakPointer<Node>, Operation);

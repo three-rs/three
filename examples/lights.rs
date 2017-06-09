@@ -3,18 +3,18 @@ extern crate three;
 fn main() {
     let mut win = three::Window::new("Three-rs lights example", "data/shaders");
     let mut cam = win.factory.perspective_camera(45.0, 0.0, 1.0, 50.0);
-    cam.transform_mut().look_at(three::Position::new(-4.0, 15.0, 10.0),
-                                three::Position::new(0.0, 0.0, 2.0),
+    cam.transform_mut().look_at([-4.0, 15.0, 10.0].into(),
+                                [0.0, 0.0, 2.0].into(),
                                 None);
 
     let mut hemisphere_light = win.factory.hemisphere_light(0xffffff, 0x8080ff, 0.5);
     let mut ambient_light = win.factory.ambient_light(0xffffffff, 0.5);
     let mut point_light = win.factory.point_light(0xffffff, 0.9);
-    point_light.transform_mut().disp = three::Vector::new(15.0, 35.0, 35.0);
+    point_light.transform_mut().position = [15.0, 35.0, 35.0].into();
 
     let mut dir_light = win.factory.directional_light(0xffffff, 0.9);
-    dir_light.transform_mut().look_at(three::Position::new(15.0, 35.0, 35.0),
-                                      three::Position::new(0.0, 0.0, 2.0),
+    dir_light.transform_mut().look_at([15.0, 35.0, 35.0].into(),
+                                      [0.0, 0.0, 2.0].into(),
                                       None);
     let shadow_map = win.factory.shadow_map(1024, 1024);
     let _debug_shadow = win.renderer.debug_shadow_quad(&shadow_map, 1, [10, 10], [256, 256]);
@@ -32,7 +32,7 @@ fn main() {
         let material = three::Material::MeshPhong { color: 0xffA0A0, glossiness: 80.0 };
         win.factory.mesh(geometry, material)
     };
-    sphere.transform_mut().disp.z = 2.5;
+    sphere.transform_mut().position.z = 2.5;
     win.scene.add(&sphere);
 
     let mut plane = {
@@ -40,7 +40,7 @@ fn main() {
         let material = three::Material::MeshLambert { color: 0xA0ffA0 };
         win.factory.mesh(geometry, material)
     };
-    plane.transform_mut().disp.y -= 30.0;
+    plane.transform_mut().position.y -= 30.0;
     win.scene.add(&plane);
 
     let mut light_id = 0i8;

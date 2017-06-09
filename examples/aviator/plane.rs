@@ -33,13 +33,13 @@ impl AirPlane {
             three::Geometry::new_box(20.0, 50.0, 50.0),
             three::Material::MeshLambert{ color: COLOR_WHITE }
         );
-        engine.transform_mut().disp.x = 40.0;
+        engine.transform_mut().position.x = 40.0;
         group.add(&engine);
         let mut tail = factory.mesh(
             three::Geometry::new_box(15.0, 20.0, 5.0),
             three::Material::MeshLambert{ color: COLOR_RED }
         );
-        tail.transform_mut().disp = three::Vector::new(-35.0, 25.0, 0.0);
+        tail.transform_mut().position = [-35.0, 25.0, 0.0].into();
         group.add(&tail);
         let wing = factory.mesh(
             three::Geometry::new_box(40.0, 8.0, 150.0),
@@ -48,7 +48,7 @@ impl AirPlane {
         group.add(&wing);
 
         let mut propeller_group = factory.group();
-        propeller_group.transform_mut().disp = three::Vector::new(50.0, 0.0, 0.0);
+        propeller_group.transform_mut().position = [50.0, 0.0, 0.0].into();
         group.add(&propeller_group);
         let propeller = factory.mesh(
             three::Geometry::new_box(20.0, 10.0, 10.0),
@@ -59,7 +59,7 @@ impl AirPlane {
             three::Geometry::new_box(1.0, 100.0, 20.0),
             three::Material::MeshLambert{ color: COLOR_BROWN_DARK }
         );
-        blade.transform_mut().disp = three::Vector::new(8.0, 0.0, 0.0);
+        blade.transform_mut().position = [8.0, 0.0, 0.0].into();
         propeller_group.add(&blade);
 
         AirPlane {
@@ -76,7 +76,7 @@ impl AirPlane {
 
     pub fn update(&mut self, dt: f32, target: (f32, f32)) {
         self.propeller_group.transform_mut().rotate(0.3 * dt, 0.0, 0.0);
-        self.group.transform_mut().disp =
-            three::Vector::new(0.0 + target.0 * 100.0, 100.0 + target.1 * 75.0, 0.0);
+        self.group.transform_mut().position =
+            [0.0 + target.0 * 100.0, 100.0 + target.1 * 75.0, 0.0].into();
     }
 }
