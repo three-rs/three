@@ -1,3 +1,4 @@
+use cgmath::{Quaternion, Rad, Rotation3};
 use three;
 
 use {COLOR_RED, COLOR_WHITE, COLOR_BROWN, COLOR_BROWN_DARK};
@@ -10,6 +11,7 @@ pub struct AirPlane {
     _tail: three::Mesh,
     _wing: three::Mesh,
     propeller_group: three::Group,
+    propeller_angle: f32,
     _propeller: three::Mesh,
     _blade: three::Mesh,
 }
@@ -33,13 +35,13 @@ impl AirPlane {
             three::Geometry::new_box(20.0, 50.0, 50.0),
             three::Material::MeshLambert{ color: COLOR_WHITE }
         );
-        engine.transform_mut().position.x = 40.0;
+        engine.set_position([40.0, 0.0, 0.0]);
         group.add(&engine);
         let mut tail = factory.mesh(
             three::Geometry::new_box(15.0, 20.0, 5.0),
             three::Material::MeshLambert{ color: COLOR_RED }
         );
-        tail.transform_mut().position = [-35.0, 25.0, 0.0].into();
+        tail.set_position([-35.0, 25.0, 0.0]);
         group.add(&tail);
         let wing = factory.mesh(
             three::Geometry::new_box(40.0, 8.0, 150.0),
@@ -48,7 +50,7 @@ impl AirPlane {
         group.add(&wing);
 
         let mut propeller_group = factory.group();
-        propeller_group.transform_mut().position = [50.0, 0.0, 0.0].into();
+        propeller_group.set_position([50.0, 0.0, 0.0]);
         group.add(&propeller_group);
         let propeller = factory.mesh(
             three::Geometry::new_box(20.0, 10.0, 10.0),
@@ -59,7 +61,7 @@ impl AirPlane {
             three::Geometry::new_box(1.0, 100.0, 20.0),
             three::Material::MeshLambert{ color: COLOR_BROWN_DARK }
         );
-        blade.transform_mut().position = [8.0, 0.0, 0.0].into();
+        blade.set_position([8.0, 0.0, 0.0]);
         propeller_group.add(&blade);
 
         AirPlane {
@@ -69,14 +71,16 @@ impl AirPlane {
             _tail: tail,
             _wing: wing,
             propeller_group,
+            propeller_angle: 0.0,
             _propeller: propeller,
             _blade: blade,
         }
     }
 
     pub fn update(&mut self, dt: f32, target: (f32, f32)) {
-        self.propeller_group.transform_mut().rotate(0.3 * dt, 0.0, 0.0);
-        self.group.transform_mut().position =
-            [0.0 + target.0 * 100.0, 100.0 + target.1 * 75.0, 0.0].into();
+        self.propeller_angle += 0.3 * dt;
+        let q = Quaternion::from_angle_x(Rad(self.propeller_angle));
+        self.propeller_group.set_orientation([q.v.x, q.v.y, q.v.z, q.s]);
+        self.group.set_position([0.0 + target.0 * 100.0, 100.0 + target.1 * 75.0, 0.0]);
     }
 }

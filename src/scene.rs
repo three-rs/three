@@ -29,6 +29,7 @@ pub enum Material {
 
 #[derive(Clone, Debug)]
 pub struct WorldNode {
+    //TODO: detach from cgmath
     pub transform: Transform,
     pub visible: bool,
 }
@@ -65,76 +66,6 @@ macro_rules! def_proxy {
 
 def_proxy!(MaterialProxy<Material> = SetMaterial);
 
-pub struct TransformProxy<'a> {
-    value: &'a mut Transform,
-    node: &'a Pointer<Node>,
-    tx: &'a mpsc::Sender<Message>,
-    pub position: mint::Point3<f32>,
-    pub orientation: mint::Quaternion<f32>,
-    pub scale: f32,
-}
-
-impl<'a> Drop for TransformProxy<'a> {
-    fn drop(&mut self) {
-        use cgmath::Quaternion;
-        //TEMP! until mint integration is done in cgmath
-        let p: [f32; 3] = self.position.into();
-        let q: [f32; 3] = self.orientation.v.into();
-        *self.value = Transform {
-            disp: p.into(),
-            rot: Quaternion {
-                s: self.orientation.s,
-                v: q.into(),
-            },
-            scale: self.scale,
-        };
-        let msg = Operation::SetTransform(self.value.clone());
-        let _ = self.tx.send((self.node.downgrade(), msg));
-    }
-}
-
-impl<'a> TransformProxy<'a> {
-    pub fn rotate(&mut self, x: f32, y: f32, z: f32) {
-        use cgmath::{Euler, Quaternion, Rad};
-        let rot = Euler::new(Rad(x), Rad(y), Rad(z));
-        let qresult = Quaternion::from(rot) * Quaternion::from(self.value.rot);
-        let v: [f32; 3] = qresult.v.into();
-        self.orientation = mint::Quaternion {
-            s: qresult.s,
-            v: v.into(),
-        };
-    }
-
-    pub fn look_at(&mut self, eye: mint::Point3<f32>, target: mint::Point3<f32>,
-                   up: Option<mint::Vector3<f32>>) {
-        use cgmath::{InnerSpace, Point3, Quaternion, Rotation, Vector3};
-        let p: [[f32; 3]; 2] = [eye.into(), target.into()];
-        let dir = (Point3::from(p[0]) - Point3::from(p[1])).normalize();
-        let z = Vector3::unit_z();
-        let up = match up {
-            Some(v) => {
-                let vf: [f32; 3] = v.into();
-                Vector3::from(vf).normalize()
-            },
-            None if dir.dot(z).abs() < 0.99 => z,
-            None => Vector3::unit_y(),
-        };
-        self.position = eye;
-        let q = Quaternion::look_at(dir, up).invert();
-        let qv: [f32; 3] = q.v.into();
-        self.orientation = mint::Quaternion {
-            s: q.s,
-            v: qv.into(),
-        };
-    }
-
-    pub fn set_all(&mut self, pos: mint::Point3<f32>, rot: mint::Quaternion<f32>, scale: f32) {
-        self.position = pos;
-        self.orientation = rot;
-        self.scale = scale;
-    }
-}
-
 impl Object {
     pub fn is_visible(&self) -> bool {
         self.visible
@@ -146,20 +77,52 @@ impl Object {
         let _ = self.tx.send((self.node.downgrade(), msg));
     }
 
-    pub fn transform_mut(&mut self) -> TransformProxy {
-        let t = self.transform;
-        let p: [[f32; 3]; 2] = [t.disp.into(), t.rot.v.into()];
-        TransformProxy {
-            value: &mut self.transform,
-            node: &self.node,
-            tx: &self.tx,
-            position: p[0].into(),
-            orientation: mint::Quaternion {
-                s: t.rot.s,
-                v: p[1].into(),
+    pub fn look_at<P>(&mut self, eye: P, target: P, up: Option<mint::Vector3<f32>>)
+    where P: Into<[f32; 3]>
+    {
+        use cgmath::{InnerSpace, Point3, Quaternion, Rotation, Vector3};
+        //TEMP
+        let p: [[f32; 3]; 2] = [eye.into(), target.into()];
+        let dir = (Point3::from(p[0]) - Point3::from(p[1])).normalize();
+        let z = Vector3::unit_z();
+        let up = match up {
+            Some(v) => {
+                let vf: [f32; 3] = v.into();
+                Vector3::from(vf).normalize()
             },
-            scale: t.scale,
-        }
+            None if dir.dot(z).abs() < 0.99 => z,
+            None => Vector3::unit_y(),
+        };
+        let q = Quaternion::look_at(dir, up).invert();
+        let qv: [f32; 3] = q.v.into();
+        let rot = mint::Quaternion {
+            s: q.s,
+            v: qv.into(),
+        };
+        self.set_transform(p[0], rot, 1.0);
+    }
+
+    pub fn set_transform<P, Q>(&mut self, pos: P, rot: Q, scale: f32) where
+        P: Into<mint::Point3<f32>>,
+        Q: Into<mint::Quaternion<f32>>,
+    {
+        let msg = Operation::SetTransform(Some(pos.into()), Some(rot.into()), Some(scale));
+        let _ = self.tx.send((self.node.downgrade(), msg));
+    }
+
+    pub fn set_position<P>(&mut self, pos: P) where P: Into<mint::Point3<f32>> {
+        let msg = Operation::SetTransform(Some(pos.into()), None, None);
+        let _ = self.tx.send((self.node.downgrade(), msg));
+    }
+
+    pub fn set_orientation<Q>(&mut self, rot: Q) where Q: Into<mint::Quaternion<f32>> {
+        let msg = Operation::SetTransform(None, Some(rot.into()), None);
+        let _ = self.tx.send((self.node.downgrade(), msg));
+    }
+
+    pub fn set_scale(&mut self, scale: f32) {
+        let msg = Operation::SetTransform(None, None, Some(scale));
+        let _ = self.tx.send((self.node.downgrade(), msg));
     }
 
     pub fn sync(&mut self, scene: &Scene) -> WorldNode {
@@ -167,7 +130,6 @@ impl Object {
         hub.process_messages();
         let node = &hub.nodes[&self.node];
         assert_eq!(node.scene_id, Some(scene.unique_id));
-        self.transform = node.transform;
         WorldNode {
             transform: node.world_transform,
             visible: node.world_visible,
@@ -193,7 +155,6 @@ impl VisualObject {
         hub.process_messages();
         let node = &hub.nodes[&self.node];
         assert_eq!(node.scene_id, Some(scene.unique_id));
-        self.inner.transform = node.transform;
         if let SubNode::Visual(ref data) = node.sub_node {
             self.data = data.drop_payload();
         }
