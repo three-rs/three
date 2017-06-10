@@ -49,7 +49,7 @@ fn main() {
         map: win.factory.load_texture("test_data/pikachu_anim.png"),
     };
     let mut sprite = win.factory.sprite(material);
-    sprite.transform_mut().scale = 8.0;
+    sprite.set_scale(8.0);
     win.scene.add(&sprite);
 
     let mut anim = Animator {

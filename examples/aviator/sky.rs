@@ -2,7 +2,6 @@ use std::f32::consts::PI;
 
 use cgmath;
 use cgmath::prelude::*;
-use mint;
 use rand::Rng;
 use three;
 
@@ -24,13 +23,11 @@ impl Cloud {
         let material = three::Material::MeshLambert{ color: COLOR_WHITE };
         for i in 0 .. rng.gen_range(3, 6) {
             let mut m = factory.mesh(geo.clone(), material.clone());
-            let rot_raw: cgmath::Quaternion<f32> = rng.gen();
-            let rot = rot_raw.normalize();
-            let v: [f32; 3] = rot.v.into();
-            let pos = [i as f32 * 15.0, rng.next_f32() * 10.0, rng.next_f32() * 10.0];
-            m.transform_mut().set_all(pos.into(),
-                                      mint::Quaternion { s: rot.s, v: v.into() },
-                                      rng.gen_range(0.1, 1.0));
+            let rot: cgmath::Quaternion<f32> = rng.gen();
+            let q = rot.normalize();
+            m.set_transform([i as f32 * 15.0, rng.next_f32() * 10.0, rng.next_f32() * 10.0],
+                            [q.v.x, q.v.y, q.v.z, q.s],
+                            rng.gen_range(0.1, 1.0));
             cloud.group.add(&m);
             cloud.meshes.push(m);
         }
@@ -58,11 +55,10 @@ impl Sky {
             let pos = [angle.cos() * dist,
                        angle.sin() * dist,
                        rng.gen_range(-800.0, -400.0)];
-            let rot = cgmath::Quaternion::from_angle_z(angle + cgmath::Rad::turn_div_4());
-            let v: [f32; 3] = rot.v.into();
-            c.group.transform_mut().set_all(pos.into(),
-                                            mint::Quaternion { s: rot.s, v: v.into() },
-                                            rng.gen_range(1.0, 3.0));
+            let q = cgmath::Quaternion::from_angle_z(angle + cgmath::Rad::turn_div_4());
+            c.group.set_transform(pos,
+                                  [q.v.x, q.v.y, q.v.z, q.s],
+                                  rng.gen_range(1.0, 3.0));
             sky.group.add(&c.group);
             sky.clouds.push(c);
         }

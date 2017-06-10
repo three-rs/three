@@ -67,7 +67,6 @@ impl Hub {
     fn spawn(&mut self) -> Object {
         Object {
             visible: true,
-            transform: Transform_::one(),
             node: self.nodes.create(SubNode::Empty.into()),
             tx: self.message_tx.clone(),
         }
@@ -80,7 +79,6 @@ impl Hub {
             data: data.drop_payload(),
             inner: Object {
                 visible: true,
-                transform: Transform_::one(),
                 node: self.nodes.create(SubNode::Visual(data).into()),
                 tx: self.message_tx.clone(),
             },
@@ -91,7 +89,6 @@ impl Hub {
         LightObject {
             inner: Object {
                 visible: true,
-                transform: Transform_::one(),
                 node: self.nodes.create(SubNode::Light(data.clone()).into()),
                 tx: self.message_tx.clone(),
             },
