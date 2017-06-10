@@ -1,5 +1,7 @@
 extern crate three;
+extern crate cgmath;
 
+use cgmath::{Quaternion, Rad, Rotation3};
 use std::env;
 
 fn main() {
@@ -8,14 +10,11 @@ fn main() {
 
     let mut win = three::Window::new("Three-rs obj loading example", "data/shaders");
     let mut cam = win.factory.perspective_camera(60.0, 0.0, 1.0, 10.0);
-    cam.transform_mut().look_at([0.0, 2.0, 5.0].into(),
-                                [0.0, 0.0, 0.0].into(),
-                                Some([0.0, 1.0, 0.0].into()));
+    cam.look_at([0.0, 2.0, 5.0], [0.0, 0.0, 0.0],
+                Some([0.0, 1.0, 0.0].into()));
 
     let mut dir_light = win.factory.directional_light(0xffffff, 0.9);
-    dir_light.transform_mut().look_at([15.0, 35.0, 35.0].into(),
-                                      [0.0, 0.0, 2.0].into(),
-                                      None);
+    dir_light.look_at([15.0, 35.0, 35.0], [0.0, 0.0, 2.0], None);
     win.scene.add(&dir_light);
 
     let mut root = win.factory.group();
@@ -25,16 +24,21 @@ fn main() {
         root.add(g);
     }
 
+    //TODO: orbital camera
+    let mut angle = 0.0;
+    let speed = 1.5;
     while let Some(events) = win.update() {
-        let mut angle = 0.0;
+        let old_angle = angle;
         if events.keys.contains(&three::Key::Left) {
-            angle = -events.time_delta;
+            angle -= speed * events.time_delta;
         }
         if events.keys.contains(&three::Key::Right) {
-            angle = events.time_delta;
+            angle += speed * events.time_delta;
         }
-        if angle != 0.0 {
-            root.transform_mut().rotate(0.0, 1.5 * angle, 0.0);
+        if angle != old_angle {
+            //TEMP: until cgmath+mint integration happens
+            let q = Quaternion::from_angle_y(Rad(angle));
+            root.set_orientation([q.v.x, q.v.y, q.v.z, q.s]);
         }
 
         win.render(&cam);

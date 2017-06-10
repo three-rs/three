@@ -7,14 +7,14 @@ use cgmath::prelude::*;
 fn main() {
     let mut win = three::Window::new("Three-rs shapes example", "data/shaders");
     let mut cam = win.factory.perspective_camera(75.0, 0.0, 1.0, 50.0);
-    cam.transform_mut().position = [0.0, 0.0, 10.0].into();
+    cam.set_position([0.0, 0.0, 10.0]);
 
     let mut mbox = {
         let geometry = three::Geometry::new_box(3.0, 2.0, 1.0);
         let material = three::Material::MeshBasic { color: 0x00ff00, map: None, wireframe: true };
         win.factory.mesh(geometry, material)
     };
-    mbox.transform_mut().position = [-3.0, -3.0, 0.0].into();
+    mbox.set_position([-3.0, -3.0, 0.0]);
     win.scene.add(&mbox);
 
     let mut mcyl = {
@@ -22,7 +22,7 @@ fn main() {
         let material = three::Material::MeshBasic { color: 0xff0000, map: None, wireframe: true };
         win.factory.mesh(geometry, material)
     };
-    mcyl.transform_mut().position = [3.0, -3.0, 0.0].into();
+    mcyl.set_position([3.0, -3.0, 0.0]);
     win.scene.add(&mcyl);
 
     let mut msphere = {
@@ -30,7 +30,7 @@ fn main() {
         let material = three::Material::MeshBasic { color: 0xff0000, map: None, wireframe: true };
         win.factory.mesh(geometry, material)
     };
-    msphere.transform_mut().position = [-3.0, 3.0, 0.0].into();
+    msphere.set_position([-3.0, 3.0, 0.0]);
     win.scene.add(&msphere);
 
     let mut mline = {
@@ -42,7 +42,7 @@ fn main() {
         let material = three::Material::LineBasic { color: 0x0000ff };
         win.factory.mesh(geometry, material)
     };
-    mline.transform_mut().position = [3.0, 3.0, 0.0].into();
+    mline.set_position([3.0, 3.0, 0.0]);
     win.scene.add(&mline);
 
     let mut angle = cgmath::Rad::zero();
@@ -56,13 +56,12 @@ fn main() {
             angle += cgmath::Rad(speed * events.time_delta);
         }
         if angle != old_angle {
-            let q = cgmath::Quaternion::from_axis_angle(cgmath::Vector3::unit_y(), angle);
-            let v: [f32; 3] = q.v.into();
-            let rot = mint::Quaternion { s: q.s, v: v.into() };
-            mbox.transform_mut().orientation = rot;
-            mcyl.transform_mut().orientation = rot;
-            mline.transform_mut().orientation = rot;
-            msphere.transform_mut().orientation = rot;
+            let q = cgmath::Quaternion::from_angle_y(angle);
+            let rot = [q.v.x, q.v.y, q.v.z, q.s];
+            mbox.set_orientation(rot);
+            mcyl.set_orientation(rot);
+            mline.set_orientation(rot);
+            msphere.set_orientation(rot);
         }
 
         win.render(&cam);

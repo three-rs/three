@@ -103,7 +103,6 @@ pub struct Node {
 
 pub struct Object {
     visible: bool,
-    transform: Transform,
     node: froggy::Pointer<Node>,
     tx: mpsc::Sender<Message>,
 }
@@ -135,7 +134,7 @@ type Message = (froggy::WeakPointer<Node>, Operation);
 enum Operation {
     SetParent(froggy::Pointer<Node>),
     SetVisible(bool),
-    SetTransform(Transform),
+    SetTransform(Option<mint::Point3<f32>>, Option<mint::Quaternion<f32>>, Option<f32>),
     SetMaterial(Material),
     SetTexelRange([i16; 2], [u16; 2]),
     SetShadow(ShadowMap, ShadowProjection),
@@ -172,8 +171,22 @@ impl Hub {
                 Operation::SetVisible(visible) => {
                     node.visible = visible;
                 }
-                Operation::SetTransform(transform) => {
-                    node.transform = transform;
+                Operation::SetTransform(pos, rot, scale) => {
+                    //TEMP! until mint integration is done in cgmath
+                    if let Some(pos) = pos {
+                        let p: [f32; 3] = pos.into();
+                        node.transform.disp = p.into();
+                    }
+                    if let Some(rot) = rot {
+                        let q: [f32; 3] = rot.v.into();
+                        node.transform.rot = cgmath::Quaternion {
+                            s: rot.s,
+                            v: q.into(),
+                        };
+                    }
+                    if let Some(scale) = scale {
+                        node.transform.scale = scale;
+                    }
                 }
                 Operation::SetMaterial(material) => {
                     if let SubNode::Visual(ref mut data) = node.sub_node {
