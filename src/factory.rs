@@ -19,7 +19,7 @@ use render::{BackendFactory, BackendResources, GpuData, Vertex, ShadowFormat};
 use scene::{Color, Background, Group, Mesh, Sprite, Material,
             AmbientLight, DirectionalLight, HemisphereLight, PointLight};
 use {Hub, HubPtr, SubLight, Node, SubNode,
-     LightData, Object, LightObject, Scene,
+     LightData, Object, Scene,
      Camera, OrthographicCamera, PerspectiveCamera};
 
 
@@ -80,15 +80,8 @@ impl Hub {
         self.spawn(SubNode::Visual(mat, gpu_data))
     }
 
-    fn spawn_light(&mut self, data: LightData) -> LightObject {
-        LightObject {
-            inner: Object {
-                visible: true,
-                node: self.nodes.create(SubNode::Light(data.clone()).into()),
-                tx: self.message_tx.clone(),
-            },
-            data,
-        }
+    fn spawn_light(&mut self, data: LightData) -> Object {
+        self.spawn(SubNode::Light(data))
     }
 }
 

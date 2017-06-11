@@ -89,11 +89,6 @@ pub struct Object {
     tx: mpsc::Sender<Message>,
 }
 
-pub struct LightObject {
-    inner: Object,
-    data: LightData,
-}
-
 pub struct Camera<P> {
     object: Object,
     projection: P,

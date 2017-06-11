@@ -16,7 +16,7 @@ fn main() {
     let _debug_shadow = win.renderer.debug_shadow_quad(&shadow_map, 1, [10, 10], [256, 256]);
     dir_light.set_shadow(shadow_map, 80.0, 80.0, 1.0, 200.0);
 
-    let mut lights: [&mut three::LightObject; 4] = [&mut hemisphere_light,
+    let mut lights: [&mut three::Object; 4] = [&mut hemisphere_light,
         &mut ambient_light, &mut point_light, &mut dir_light];
     for l in lights.iter_mut() {
         win.scene.add(l);
