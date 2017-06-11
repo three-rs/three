@@ -1,12 +1,11 @@
 use std::ops;
-use std::sync::mpsc;
 
 use cgmath::Ortho;
 use froggy::Pointer;
 use mint;
 
-use {Object, VisualObject, LightObject, Message, Operation,
-     Node, SubNode, Scene, ShadowProjection, Transform};
+use {Object, LightObject, Operation,
+     Node, Scene, ShadowProjection, Transform};
 use factory::{Geometry, ShadowMap, Texture};
 
 
@@ -63,8 +62,6 @@ macro_rules! def_proxy {
         }
     }
 }
-
-def_proxy!(MaterialProxy<Material> = SetMaterial);
 
 impl Object {
     pub fn is_visible(&self) -> bool {
@@ -137,33 +134,6 @@ impl Object {
     }
 }
 
-impl VisualObject {
-    pub fn material(&self) -> &Material {
-        &self.data.material
-    }
-
-    pub fn material_mut(&mut self) -> MaterialProxy {
-        MaterialProxy {
-            value: &mut self.data.material,
-            node: &self.inner.node,
-            tx: &self.inner.tx,
-        }
-    }
-
-    pub fn sync(&mut self, scene: &Scene) -> WorldNode {
-        let mut hub = scene.hub.lock().unwrap();
-        hub.process_messages();
-        let node = &hub.nodes[&self.node];
-        assert_eq!(node.scene_id, Some(scene.unique_id));
-        if let SubNode::Visual(ref data) = node.sub_node {
-            self.data = data.drop_payload();
-        }
-        WorldNode {
-            transform: node.world_transform,
-            visible: node.world_visible,
-        }
-    }
-}
 
 impl LightObject {
     pub fn get_shadow(&self) -> Option<&ShadowMap> {
@@ -191,34 +161,42 @@ impl Group {
 }
 
 pub struct Mesh {
-    object: VisualObject,
+    object: Object,
     _geometry: Option<Geometry>,
 }
 
 impl Mesh {
     #[doc(hidden)]
-    pub fn new(object: VisualObject) -> Self {
+    pub fn new(object: Object) -> Self {
         Mesh {
             object,
             _geometry: None,
         }
     }
+
+    pub fn set_material(&mut self, material: Material) {
+        let msg = Operation::SetMaterial(material);
+        let _ = self.tx.send((self.node.downgrade(), msg));
+    }
 }
 
 pub struct Sprite {
-    object: VisualObject,
+    object: Object,
 }
 
 impl Sprite {
     #[doc(hidden)]
-    pub fn new(object: VisualObject) -> Self {
+    pub fn new(object: Object) -> Self {
         Sprite {
             object,
         }
     }
 
-    pub fn set_texel_range(&mut self, base: [i16; 2], size: [u16; 2]) {
-        let msg = Operation::SetTexelRange(base, size);
+    pub fn set_texel_range<P, S>(&mut self, base: P, size: S) where
+        P: Into<mint::Point2<i16>>,
+        S: Into<mint::Vector2<u16>>,
+    {
+        let msg = Operation::SetTexelRange(base.into(), size.into());
         let _ = self.object.tx.send((self.node.downgrade(), msg));
     }
 }
@@ -344,11 +322,10 @@ macro_rules! deref {
     }
 }
 
-deref!(VisualObject : inner = Object);
 deref!(LightObject : inner = Object);
 deref!(Group : object = Object);
-deref!(Mesh : object = VisualObject);
-deref!(Sprite : object = VisualObject);
+deref!(Mesh : object = Object);
+deref!(Sprite : object = Object);
 deref!(AmbientLight : object = LightObject);
 deref!(HemisphereLight : object = LightObject);
 deref!(DirectionalLight : object = LightObject);
