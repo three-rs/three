@@ -63,7 +63,6 @@ fn main() {
                                  0.25);
     win.scene.add(&airplane.group);
 
-    let mut sea_angle = 0.0;
     let mut sky_angle = 0.0;
     while let Some(events) = win.update() {
         use cgmath::{Quaternion, Rad};
@@ -72,7 +71,7 @@ fn main() {
 
         airplane.update(dt, events.mouse_pos);
 
-        sea_angle += 0.005 * dt;
+        let sea_angle = 0.005 * dt;
         sea_q = Quaternion::from_angle_z(Rad(sea_angle)) * sea_q;
         sea.set_orientation([sea_q.v.x, sea_q.v.y, sea_q.v.z, sea_q.s]);
         sky_angle += 0.01 * dt;

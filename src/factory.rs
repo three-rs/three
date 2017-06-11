@@ -15,11 +15,11 @@ use image;
 use mint;
 use obj;
 
-use render::{BackendFactory, BackendResources, ConstantBuffer, GpuData, Vertex, ShadowFormat};
+use render::{BackendFactory, BackendResources, GpuData, Vertex, ShadowFormat};
 use scene::{Color, Background, Group, Mesh, Sprite, Material,
             AmbientLight, DirectionalLight, HemisphereLight, PointLight};
 use {Hub, HubPtr, SubLight, Node, SubNode,
-     VisualData, LightData, Object, VisualObject, LightObject, Scene,
+     LightData, Object, LightObject, Scene,
      Camera, OrthographicCamera, PerspectiveCamera};
 
 
@@ -64,25 +64,20 @@ impl From<SubNode> for Node {
 }
 
 impl Hub {
-    fn spawn(&mut self) -> Object {
+    fn spawn(&mut self, sub: SubNode) -> Object {
         Object {
             visible: true,
-            node: self.nodes.create(SubNode::Empty.into()),
+            node: self.nodes.create(sub.into()),
             tx: self.message_tx.clone(),
         }
     }
 
-    fn spawn_visual(&mut self, data: VisualData<ConstantBuffer>)
-                    -> VisualObject
-    {
-        VisualObject {
-            data: data.drop_payload(),
-            inner: Object {
-                visible: true,
-                node: self.nodes.create(SubNode::Visual(data).into()),
-                tx: self.message_tx.clone(),
-            },
-        }
+    fn spawn_empty(&mut self) -> Object {
+        self.spawn(SubNode::Empty)
+    }
+
+    fn spawn_visual(&mut self, mat: Material, gpu_data: GpuData) -> Object {
+        self.spawn(SubNode::Visual(mat, gpu_data))
     }
 
     fn spawn_light(&mut self, data: LightData) -> LightObject {
@@ -123,22 +118,19 @@ pub struct Factory {
     backend: BackendFactory,
     scene_id: SceneId,
     hub: HubPtr,
-    quad: GpuData,
+    quad_buf: gfx::handle::Buffer<BackendResources, Vertex>,
     texture_cache: HashMap<String, Texture<[f32; 4]>>,
 }
 
 impl Factory {
     #[doc(hidden)]
     pub fn new(mut backend: BackendFactory) -> Self {
-        let (vbuf, slice) = backend.create_vertex_buffer_with_slice(&QUAD, ());
+        let quad_buf = backend.create_vertex_buffer(&QUAD);
         Factory {
             backend: backend,
             scene_id: 0,
             hub: Hub::new(),
-            quad: GpuData {
-                slice: slice,
-                vertices: vbuf,
-            },
+            quad_buf,
             texture_cache: HashMap::new(),
         }
     }
@@ -162,7 +154,7 @@ impl Factory {
     pub fn orthographic_camera(&mut self, left: f32, right: f32, top: f32, bottom: f32,
                                near: f32, far: f32) -> OrthographicCamera {
         Camera {
-            object: self.hub.lock().unwrap().spawn(),
+            object: self.hub.lock().unwrap().spawn_empty(),
             projection: cgmath::Ortho{ left, right, bottom, top, near, far },
         }
     }
@@ -170,7 +162,7 @@ impl Factory {
     pub fn perspective_camera(&mut self, fov: f32, aspect: f32,
                               near: f32, far: f32) -> PerspectiveCamera {
         Camera {
-            object: self.hub.lock().unwrap().spawn(),
+            object: self.hub.lock().unwrap().spawn_empty(),
             projection: cgmath::PerspectiveFov {
                 fovy: cgmath::Deg(fov).into(),
                 aspect: aspect,
@@ -181,7 +173,7 @@ impl Factory {
     }
 
     pub fn group(&mut self) -> Group {
-        Group::new(self.hub.lock().unwrap().spawn())
+        Group::new(self.hub.lock().unwrap().spawn_empty())
     }
 
     pub fn mesh(&mut self, geom: Geometry, mat: Material) -> Mesh {
@@ -207,22 +199,18 @@ impl Factory {
             let faces: &[u16] = gfx::memory::cast_slice(&geom.faces);
             self.backend.create_vertex_buffer_with_slice(&vertices, faces)
         };
-        Mesh::new(self.hub.lock().unwrap().spawn_visual(VisualData {
-            material: mat,
-            payload: cbuf,
-            gpu_data: GpuData {
-                slice: slice,
-                vertices: vbuf,
-            },
+        Mesh::new(self.hub.lock().unwrap().spawn_visual(mat, GpuData {
+            slice,
+            vertices: vbuf,
+            constants: cbuf,
         }))
     }
 
     pub fn sprite(&mut self, mat: Material) -> Sprite {
-        let cbuf = self.backend.create_constant_buffer(1);
-        Sprite::new(self.hub.lock().unwrap().spawn_visual(VisualData {
-            material: mat,
-            payload: cbuf,
-            gpu_data: self.quad.clone(),
+        Sprite::new(self.hub.lock().unwrap().spawn_visual(mat, GpuData {
+            slice: gfx::Slice::new_match_vertex_buffer(&self.quad_buf),
+            vertices: self.quad_buf.clone(),
+            constants: self.backend.create_constant_buffer(1),
         }))
     }
 
@@ -395,14 +383,14 @@ impl<T> Texture<T> {
         (self.view.clone(), self.sampler.clone())
     }
 
-    pub fn set_texel_range(&mut self, base: [i16; 2], size: [u16; 2]) {
+    pub fn set_texel_range(&mut self, base: mint::Point2<i16>, size: mint::Vector2<u16>) {
         self.tex0 = [
-            base[0] as f32,
-            self.total_size[1] as f32 - base[1] as f32 - size[1] as f32,
+            base.x as f32,
+            self.total_size[1] as f32 - base.y as f32 - size.y as f32,
         ];
         self.tex1 = [
-            base[0] as f32 + size[0] as f32,
-            self.total_size[1] as f32 - base[1] as f32,
+            base.x as f32 + size.x as f32,
+            self.total_size[1] as f32 - base.y as f32,
         ];
     }
 
@@ -504,7 +492,7 @@ impl Factory {
         let mut indices = Vec::new();
 
         for object in obj.object_iter() {
-            let mut group = Group::new(hub.spawn());
+            let mut group = Group::new(hub.spawn_empty());
             for gr in object.group_iter() {
                 let (mut num_normals, mut num_uvs) = (0, 0);
                 {   // separate scope for LruIndexer
@@ -547,13 +535,11 @@ impl Factory {
                 info!("\t{:?}", material);
 
                 let (vbuf, slice) = self.backend.create_vertex_buffer_with_slice(&vertices, &indices[..]);
-                let mesh = Mesh::new(hub.spawn_visual(VisualData {
-                    material,
-                    payload: self.backend.create_constant_buffer(1),
-                    gpu_data: GpuData {
-                        slice,
-                        vertices: vbuf,
-                    },
+                let cbuf = self.backend.create_constant_buffer(1);
+                let mesh = Mesh::new(hub.spawn_visual(material, GpuData {
+                    slice,
+                    vertices: vbuf,
+                    constants: cbuf,
                 }));
                 group.add(&mesh);
                 meshes.push(mesh);

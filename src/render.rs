@@ -18,7 +18,6 @@ use {SubLight, SubNode, Scene, ShadowProjection, Camera, Projection};
 pub type ColorFormat = gfx::format::Srgba8;
 pub type DepthFormat = gfx::format::DepthStencil;
 pub type ShadowFormat = gfx::format::Depth32F;
-pub type ConstantBuffer = gfx::handle::Buffer<back::Resources, Locals>;
 const MAX_LIGHTS: usize = 4;
 
 gfx_defines!{
@@ -137,6 +136,7 @@ fn decode_color(c: Color) -> [f32; 4] {
 pub struct GpuData {
     pub slice: gfx::Slice<back::Resources>,
     pub vertices: gfx::handle::Buffer<back::Resources, Vertex>,
+    pub constants: gfx::handle::Buffer<back::Resources, Locals>,
 }
 
 pub enum ShadowType {
@@ -361,11 +361,11 @@ impl Renderer {
                 if !node.visible || node.scene_id != Some(scene.unique_id) {
                     continue;
                 }
-                let visual = match node.sub_node {
-                    SubNode::Visual(ref data) => data,
+                let gpu_data = match node.sub_node {
+                    SubNode::Visual(_, ref data) => data,
                     _ => continue
                 };
-                self.encoder.update_constant_buffer(&visual.payload, &Locals {
+                self.encoder.update_constant_buffer(&gpu_data.constants, &Locals {
                     mx_world: Matrix4::from(node.world_transform).into(),
                     color: [0.0; 4],
                     mat_params: [0.0; 4],
@@ -373,12 +373,12 @@ impl Renderer {
                 });
                 //TODO: avoid excessive cloning
                 let data = shadow_pipe::Data {
-                    vbuf: visual.gpu_data.vertices.clone(),
-                    cb_locals: visual.payload.clone(),
+                    vbuf: gpu_data.vertices.clone(),
+                    cb_locals: gpu_data.constants.clone(),
                     cb_globals: self.const_buf.clone(),
                     target: request.target.clone(),
                 };
-                self.encoder.draw(&visual.gpu_data.slice, &self.pso_shadow, &data);
+                self.encoder.draw(&gpu_data.slice, &self.pso_shadow, &data);
             }
         }
 
@@ -419,13 +419,13 @@ impl Renderer {
             if !node.visible || node.scene_id != Some(scene.unique_id) {
                 continue;
             }
-            let visual = match node.sub_node {
-                SubNode::Visual(ref data) => data,
+            let (material, gpu_data) = match node.sub_node {
+                SubNode::Visual(ref mat, ref data) => (mat, data),
                 _ => continue
             };
 
             //TODO: batch per PSO
-            let (pso, color, glossiness, map) = match visual.material {
+            let (pso, color, glossiness, map) = match *material {
                 Material::LineBasic { color } => (&self.pso_line_basic, color, 0.0, None),
                 Material::MeshBasic { color, ref map, wireframe: false } => (&self.pso_mesh_basic_fill, color, 0.0, map.as_ref()),
                 Material::MeshBasic { color, map: ref _map, wireframe: true } => (&self.pso_mesh_basic_wireframe, color, 0.0, None),
@@ -437,7 +437,7 @@ impl Renderer {
                 Some(ref map) => map.get_uv_range(),
                 None => [0.0; 4],
             };
-            self.encoder.update_constant_buffer(&visual.payload, &Locals {
+            self.encoder.update_constant_buffer(&gpu_data.constants, &Locals {
                 mx_world: Matrix4::from(node.world_transform).into(),
                 color: decode_color(color),
                 mat_params: [glossiness, 0.0, 0.0, 0.0],
@@ -445,8 +445,8 @@ impl Renderer {
             });
             //TODO: avoid excessive cloning
             let data = pipe::Data {
-                vbuf: visual.gpu_data.vertices.clone(),
-                cb_locals: visual.payload.clone(),
+                vbuf: gpu_data.vertices.clone(),
+                cb_locals: gpu_data.constants.clone(),
                 cb_lights: self.light_buf.clone(),
                 cb_globals: self.const_buf.clone(),
                 tex_map: map.unwrap_or(&self.map_default).to_param(),
@@ -455,7 +455,7 @@ impl Renderer {
                 out_color: self.out_color.clone(),
                 out_depth: self.out_depth.clone(),
             };
-            self.encoder.draw(&visual.gpu_data.slice, pso, &data);
+            self.encoder.draw(&gpu_data.slice, pso, &data);
         }
 
         // draw debug quads
