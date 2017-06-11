@@ -4,8 +4,7 @@ use cgmath::Ortho;
 use froggy::Pointer;
 use mint;
 
-use {Object, LightObject, Operation,
-     Node, Scene, ShadowProjection, Transform};
+use {Object, Operation, Node, Scene, ShadowProjection, Transform};
 use factory::{Geometry, ShadowMap, Texture};
 
 
@@ -28,40 +27,11 @@ pub enum Material {
 
 #[derive(Clone, Debug)]
 pub struct WorldNode {
-    //TODO: detach from cgmath
+    //TODO: detach from cgmath-rs
     pub transform: Transform,
     pub visible: bool,
 }
 
-macro_rules! def_proxy {
-    ($name:ident<$target:ty> = $message:ident) => {
-        pub struct $name<'a> {
-            value: &'a mut $target,
-            node: &'a Pointer<Node>,
-            tx: &'a mpsc::Sender<Message>,
-        }
-
-        impl<'a> ops::Deref for $name<'a> {
-            type Target = $target;
-            fn deref(&self) -> &Self::Target {
-                self.value
-            }
-        }
-
-        impl<'a> ops::DerefMut for $name<'a> {
-            fn deref_mut(&mut self) -> &mut Self::Target {
-                self.value
-            }
-        }
-
-        impl<'a> Drop for $name<'a> {
-            fn drop(&mut self) {
-                let msg = Operation::$message(self.value.clone());
-                let _ = self.tx.send((self.node.downgrade(), msg));
-            }
-        }
-    }
-}
 
 impl Object {
     pub fn is_visible(&self) -> bool {
@@ -135,13 +105,6 @@ impl Object {
 }
 
 
-impl LightObject {
-    pub fn get_shadow(&self) -> Option<&ShadowMap> {
-        self.data.shadow.as_ref().map(|&(ref shadow, _)| shadow)
-    }
-}
-
-
 pub struct Group {
     object: Object,
 }
@@ -203,12 +166,12 @@ impl Sprite {
 
 
 pub struct AmbientLight {
-    object: LightObject,
+    object: Object,
 }
 
 impl AmbientLight {
     #[doc(hidden)]
-    pub fn new(object: LightObject) -> Self {
+    pub fn new(object: Object) -> Self {
         AmbientLight {
             object,
         }
@@ -216,26 +179,25 @@ impl AmbientLight {
 }
 
 pub struct DirectionalLight {
-    object: LightObject,
-    has_shadow: bool,
+    object: Object,
+    shadow: Option<ShadowMap>,
 }
 
 impl DirectionalLight {
     #[doc(hidden)]
-    pub fn new(object: LightObject) -> Self {
+    pub fn new(object: Object) -> Self {
         DirectionalLight {
             object,
-            has_shadow: false,
+            shadow: None,
         }
     }
 
     pub fn has_shadow(&self) -> bool {
-        self.has_shadow
+        self.shadow.is_some()
     }
 
     pub fn set_shadow(&mut self, map: ShadowMap,
                       width: f32, height: f32, near: f32, far: f32) {
-        self.has_shadow = true;
         let sp = ShadowProjection::Ortho(Ortho {
             left: -0.5 * width,
             right: 0.5 * width,
@@ -244,19 +206,19 @@ impl DirectionalLight {
             near,
             far,
         });
-        self.data.shadow = Some((map.clone(), sp.clone()));
+        self.shadow = Some(map.clone());
         let msg = Operation::SetShadow(map, sp);
         let _ = self.tx.send((self.node.downgrade(), msg));
     }
 }
 
 pub struct HemisphereLight {
-    object: LightObject,
+    object: Object,
 }
 
 impl HemisphereLight {
     #[doc(hidden)]
-    pub fn new(object: LightObject) -> Self {
+    pub fn new(object: Object) -> Self {
         HemisphereLight {
             object,
         }
@@ -264,12 +226,12 @@ impl HemisphereLight {
 }
 
 pub struct PointLight {
-    object: LightObject,
+    object: Object,
 }
 
 impl PointLight {
     #[doc(hidden)]
-    pub fn new(object: LightObject) -> Self {
+    pub fn new(object: Object) -> Self {
         PointLight {
             object,
         }
@@ -289,44 +251,34 @@ macro_rules! as_node {
         $(
             impl AsRef<Pointer<Node>> for $name {
                 fn as_ref(&self) -> &Pointer<Node> {
-                    &self.object.node
+                    &self.node
                 }
             }
         )*
     }
 }
 
-impl AsRef<Pointer<Node>> for LightObject {
-    fn as_ref(&self) -> &Pointer<Node> {
-        &self.node
-    }
-}
-
-as_node!(Group, Mesh, Sprite,
+as_node!(Object, Group, Mesh, Sprite,
          AmbientLight, DirectionalLight, HemisphereLight, PointLight);
 
-macro_rules! deref {
-    ($name:ty : $field:ident = $object:ty) => {
-        impl ops::Deref for $name {
-            type Target = $object;
-            fn deref(&self) -> &Self::Target {
-                &self.$field
+macro_rules! deref_objects {
+    ($( $name:ident ),*) => {
+        $(
+            impl ops::Deref for $name {
+                type Target = Object;
+                fn deref(&self) -> &Object {
+                    &self.object
+                }
             }
-        }
 
-        impl ops::DerefMut for $name {
-            fn deref_mut(&mut self) -> &mut Self::Target {
-                &mut self.$field
+            impl ops::DerefMut for $name {
+                fn deref_mut(&mut self) -> &mut Object {
+                    &mut self.object
+                }
             }
-        }
+        )*
     }
 }
 
-deref!(LightObject : inner = Object);
-deref!(Group : object = Object);
-deref!(Mesh : object = Object);
-deref!(Sprite : object = Object);
-deref!(AmbientLight : object = LightObject);
-deref!(HemisphereLight : object = LightObject);
-deref!(DirectionalLight : object = LightObject);
-deref!(PointLight : object = LightObject);
+deref_objects!(Group, Mesh, Sprite,
+    AmbientLight, HemisphereLight, DirectionalLight, PointLight);
