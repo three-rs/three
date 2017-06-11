@@ -38,28 +38,10 @@ use std::sync::{mpsc, Arc, Mutex};
 
 use cgmath::Transform as Transform_;
 use factory::SceneId;
-use render::{ConstantBuffer, GpuData};
+use render::GpuData;
 
 
 type Transform = cgmath::Decomposed<cgmath::Vector3<f32>, cgmath::Quaternion<f32>>;
-
-
-#[derive(Debug)]
-struct VisualData<T> {
-    material: Material,
-    gpu_data: GpuData,
-    payload: T,
-}
-
-impl<T> VisualData<T> {
-    fn drop_payload(&self) -> VisualData<()> {
-        VisualData {
-            material: self.material.clone(),
-            gpu_data: self.gpu_data.clone(),
-            payload: (),
-        }
-    }
-}
 
 #[derive(Clone, Debug)]
 enum SubLight {
@@ -85,7 +67,7 @@ struct LightData {
 #[derive(Debug)]
 enum SubNode {
     Empty,
-    Visual(VisualData<ConstantBuffer>),
+    Visual(Material, GpuData),
     Light(LightData),
 }
 
@@ -105,11 +87,6 @@ pub struct Object {
     visible: bool,
     node: froggy::Pointer<Node>,
     tx: mpsc::Sender<Message>,
-}
-
-pub struct VisualObject {
-    inner: Object,
-    data: VisualData<()>,
 }
 
 pub struct LightObject {
@@ -136,7 +113,7 @@ enum Operation {
     SetVisible(bool),
     SetTransform(Option<mint::Point3<f32>>, Option<mint::Quaternion<f32>>, Option<f32>),
     SetMaterial(Material),
-    SetTexelRange([i16; 2], [u16; 2]),
+    SetTexelRange(mint::Point2<i16>, mint::Vector2<u16>),
     SetShadow(ShadowMap, ShadowProjection),
 }
 
@@ -189,13 +166,13 @@ impl Hub {
                     }
                 }
                 Operation::SetMaterial(material) => {
-                    if let SubNode::Visual(ref mut data) = node.sub_node {
-                        data.material = material;
+                    if let SubNode::Visual(ref mut mat, _) = node.sub_node {
+                        *mat = material;
                     }
                 }
                 Operation::SetTexelRange(base, size) => {
-                    if let SubNode::Visual(ref mut data) = node.sub_node {
-                        match data.material {
+                    if let SubNode::Visual(ref mut material, _) = node.sub_node {
+                        match *material {
                             Material::Sprite { ref mut map } => map.set_texel_range(base, size),
                             _ => panic!("Unsupported material for texel range request")
                         }
