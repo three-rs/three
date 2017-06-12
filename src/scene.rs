@@ -34,12 +34,7 @@ pub struct WorldNode {
 
 
 impl Object {
-    pub fn is_visible(&self) -> bool {
-        self.visible
-    }
-
     pub fn set_visible(&mut self, visible: bool) {
-        self.visible = visible;
         let msg = Operation::SetVisible(visible);
         let _ = self.tx.send((self.node.downgrade(), msg));
     }
