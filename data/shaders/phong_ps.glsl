@@ -38,7 +38,7 @@ void main() {
         // hemisphere light test
         if (dot(light.color_back, light.color_back) > 0.0) {
             vec4 irradiance = mix(light.color_back, light.color, dot_nl*0.5 + 0.5);
-            color += shadow * light.intensity.y * u_Color * irradiance;
+            color += shadow * light.intensity.x * u_Color * irradiance;
         } else {
             float kd = light.intensity.x + light.intensity.y * max(0.0, dot_nl);
             color += shadow * kd * u_Color * light.color;

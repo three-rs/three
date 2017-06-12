@@ -20,7 +20,7 @@ pub enum Background {
 pub enum Material {
     LineBasic { color: Color },
     MeshBasic { color: Color, map: Option<Texture<[f32; 4]>>, wireframe: bool },
-    MeshLambert { color: Color },
+    MeshLambert { color: Color, flat: bool },
     MeshPhong { color: Color, glossiness: f32 },
     Sprite { map: Texture<[f32; 4]> },
 }
