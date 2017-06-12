@@ -4,7 +4,8 @@ use cgmath::Ortho;
 use froggy::Pointer;
 use mint;
 
-use {Object, Operation, Node, Scene, ShadowProjection, Transform};
+use {Object, Operation, Node, SubNode,
+     Scene, ShadowProjection, Transform};
 use factory::{Geometry, ShadowMap, Texture};
 
 
@@ -26,10 +27,34 @@ pub enum Material {
 }
 
 #[derive(Clone, Debug)]
-pub struct WorldNode {
-    //TODO: detach from cgmath-rs
-    pub transform: Transform,
+pub struct NodeTransform {
+    pub position: mint::Point3<f32>,
+    pub orientation: mint::Quaternion<f32>,
+    pub scale: f32,
+}
+
+impl From<Transform> for NodeTransform {
+    fn from(tf: Transform) -> Self {
+        let p: [f32; 3] = tf.disp.into();
+        let v: [f32; 3] = tf.rot.v.into();
+        NodeTransform {
+            position: p.into(),
+            orientation: mint::Quaternion {
+                v: v.into(),
+                s: tf.rot.s,
+            },
+            scale: tf.scale,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct NodeInfo {
+    pub transform: NodeTransform,
+    pub world_transform: NodeTransform,
     pub visible: bool,
+    pub world_visible: bool,
+    pub material: Option<Material>,
 }
 
 
@@ -87,14 +112,20 @@ impl Object {
         let _ = self.tx.send((self.node.downgrade(), msg));
     }
 
-    pub fn sync(&mut self, scene: &Scene) -> WorldNode {
+    pub fn sync(&mut self, scene: &Scene) -> NodeInfo {
         let mut hub = scene.hub.lock().unwrap();
         hub.process_messages();
         let node = &hub.nodes[&self.node];
         assert_eq!(node.scene_id, Some(scene.unique_id));
-        WorldNode {
-            transform: node.world_transform,
-            visible: node.world_visible,
+        NodeInfo {
+            transform: node.transform.into(),
+            world_transform: node.world_transform.into(),
+            visible: node.visible,
+            world_visible: node.world_visible,
+            material: match node.sub_node {
+                SubNode::Visual(ref mat, _) => Some(mat.clone()),
+                _ => None,
+            },
         }
     }
 }
