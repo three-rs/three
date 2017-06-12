@@ -1,4 +1,4 @@
-#define MAX_LIGHTS  4
+#define MAX_LIGHTS  4U
 
 struct Light {
     mat4 projection;
