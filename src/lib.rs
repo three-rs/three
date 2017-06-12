@@ -26,7 +26,7 @@ mod window;
 
 pub use factory::{Factory, Geometry, ShadowMap, Texture};
 pub use render::{ColorFormat, DepthFormat, Renderer, ShadowType, DebugQuadHandle};
-pub use scene::{Color, Background, Material, WorldNode,
+pub use scene::{Color, Background, Material, NodeTransform, NodeInfo,
                 Group, Mesh, Sprite,
                 AmbientLight, DirectionalLight, HemisphereLight, PointLight};
 #[cfg(feature = "opengl")]
