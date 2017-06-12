@@ -83,8 +83,9 @@ pub struct Node {
     sub_node: SubNode,
 }
 
+//Note: no local state should be here, only remote links
+#[derive(Clone)]
 pub struct Object {
-    visible: bool,
     node: froggy::Pointer<Node>,
     tx: mpsc::Sender<Message>,
 }

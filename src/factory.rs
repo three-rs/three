@@ -66,7 +66,6 @@ impl From<SubNode> for Node {
 impl Hub {
     fn spawn(&mut self, sub: SubNode) -> Object {
         Object {
-            visible: true,
             node: self.nodes.create(sub.into()),
             tx: self.message_tx.clone(),
         }
