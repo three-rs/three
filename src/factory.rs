@@ -452,7 +452,7 @@ impl Factory {
             obj::Material { kd: Some(color), ns: Some(glossiness), .. } if has_normals =>
                 Material::MeshPhong { color: cf2u(color), glossiness },
             obj::Material { kd: Some(color), .. } if has_normals =>
-                Material::MeshLambert { color: cf2u(color) },
+                Material::MeshLambert { color: cf2u(color), flat: false },
             obj::Material { kd: Some(color), ref map_kd, .. } =>
                 Material::MeshBasic {
                     color: cf2u(color),

@@ -28,24 +28,24 @@ impl AirPlane {
                     v.y += if v.y > 0.0 {-10.0} else {30.0};
                 }
             }
-            factory.mesh(geo, three::Material::MeshLambert{ color: COLOR_RED })
+            factory.mesh(geo, three::Material::MeshLambert{ color: COLOR_RED, flat: false })
         };
         group.add(&cockpit);
         let mut engine = factory.mesh(
             three::Geometry::new_box(20.0, 50.0, 50.0),
-            three::Material::MeshLambert{ color: COLOR_WHITE }
+            three::Material::MeshLambert{ color: COLOR_WHITE, flat: false }
         );
         engine.set_position([40.0, 0.0, 0.0]);
         group.add(&engine);
         let mut tail = factory.mesh(
             three::Geometry::new_box(15.0, 20.0, 5.0),
-            three::Material::MeshLambert{ color: COLOR_RED }
+            three::Material::MeshLambert{ color: COLOR_RED, flat: false }
         );
         tail.set_position([-35.0, 25.0, 0.0]);
         group.add(&tail);
         let wing = factory.mesh(
             three::Geometry::new_box(40.0, 8.0, 150.0),
-            three::Material::MeshLambert{ color: COLOR_RED }
+            three::Material::MeshLambert{ color: COLOR_RED, flat: false }
         );
         group.add(&wing);
 
@@ -54,12 +54,12 @@ impl AirPlane {
         group.add(&propeller_group);
         let propeller = factory.mesh(
             three::Geometry::new_box(20.0, 10.0, 10.0),
-            three::Material::MeshLambert{ color: COLOR_BROWN }
+            three::Material::MeshLambert{ color: COLOR_BROWN, flat: false }
         );
         propeller_group.add(&propeller);
         let mut blade = factory.mesh(
             three::Geometry::new_box(1.0, 100.0, 20.0),
-            three::Material::MeshLambert{ color: COLOR_BROWN_DARK }
+            three::Material::MeshLambert{ color: COLOR_BROWN_DARK, flat: false }
         );
         blade.set_position([8.0, 0.0, 0.0]);
         propeller_group.add(&blade);

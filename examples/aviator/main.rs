@@ -44,7 +44,7 @@ fn main() {
 
     let mut sea = {
         let geo = three::Geometry::new_cylinder(600.0, 600.0, 800.0, 40);
-        let material = three::Material::MeshLambert{ color: COLOR_BLUE };
+        let material = three::Material::MeshLambert{ color: COLOR_BLUE, flat: true };
         win.factory.mesh(geo, material)
     };
     let mut sea_q = cgmath::Quaternion::from_angle_x(-cgmath::Rad::turn_div_4());

@@ -33,7 +33,7 @@ fn main() {
 
     let mut plane = {
         let geometry = three::Geometry::new_plane(100.0, 100.0);
-        let material = three::Material::MeshLambert { color: 0xA0ffA0 };
+        let material = three::Material::MeshLambert { color: 0xA0ffA0, flat: false };
         win.factory.mesh(geometry, material)
     };
     plane.set_position([0.0, -30.0, 0.0]);

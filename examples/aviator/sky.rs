@@ -20,7 +20,7 @@ impl Cloud {
             meshes: Vec::new()
         };
         let geo = three::Geometry::new_box(20.0, 20.0, 20.0);
-        let material = three::Material::MeshLambert{ color: COLOR_WHITE };
+        let material = three::Material::MeshLambert{ color: COLOR_WHITE, flat: true };
         for i in 0 .. rng.gen_range(3, 6) {
             let mut m = factory.mesh(geo.clone(), material.clone());
             let rot: cgmath::Quaternion<f32> = rng.gen();
