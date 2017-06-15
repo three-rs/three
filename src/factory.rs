@@ -127,6 +127,7 @@ impl Factory {
         }
     }
 
+    /// Create new empty [`Scene`](struct.Scene.html).
     pub fn scene(&mut self) -> Scene {
         self.scene_id += 1;
         let mut hub = self.hub.lock().unwrap();
@@ -143,6 +144,8 @@ impl Factory {
         }
     }
 
+    /// Create new [Orthographic](https://en.wikipedia.org/wiki/Orthographic_projection) Camera.
+    /// It's used basically to render 2D.
     pub fn orthographic_camera(&mut self, left: f32, right: f32, top: f32, bottom: f32,
                                near: f32, far: f32) -> OrthographicCamera {
         Camera {
@@ -151,6 +154,8 @@ impl Factory {
         }
     }
 
+    /// Create new [Perspective](https://en.wikipedia.org/wiki/Perspective_(graphical)) Camera.
+    /// It's used basically to render 3D.
     pub fn perspective_camera(&mut self, fov: f32, aspect: f32,
                               near: f32, far: f32) -> PerspectiveCamera {
         Camera {
@@ -164,10 +169,12 @@ impl Factory {
         }
     }
 
+    /// Create empty [`Group`](struct.Group.html).
     pub fn group(&mut self) -> Group {
         Group::new(self.hub.lock().unwrap().spawn_empty())
     }
 
+    /// Create new `Mesh` with desired `Geometry` and `Material`.
     pub fn mesh(&mut self, geom: Geometry, mat: Material) -> Mesh {
         let vertices: Vec<_> = if geom.normals.is_empty() {
             geom.vertices.iter().map(|v| Vertex {
@@ -198,6 +205,7 @@ impl Factory {
         }))
     }
 
+    /// Create new sprite from `Material`.
     pub fn sprite(&mut self, mat: Material) -> Sprite {
         Sprite::new(self.hub.lock().unwrap().spawn_visual(mat, GpuData {
             slice: gfx::Slice::new_match_vertex_buffer(&self.quad_buf),
@@ -206,6 +214,7 @@ impl Factory {
         }))
     }
 
+    /// Create new `AmbientLight`.
     pub fn ambient_light(&mut self, color: Color, intensity: f32) -> AmbientLight {
         AmbientLight::new(self.hub.lock().unwrap().spawn_light(LightData {
             color,
@@ -215,6 +224,7 @@ impl Factory {
         }))
     }
 
+    /// Create new `DirectionalLight`.
     pub fn directional_light(&mut self, color: Color, intensity: f32) -> DirectionalLight {
         DirectionalLight::new(self.hub.lock().unwrap().spawn_light(LightData {
             color,
@@ -224,6 +234,7 @@ impl Factory {
         }))
     }
 
+    /// Create new `HemisphereLight`.
     pub fn hemisphere_light(&mut self, sky_color: Color, ground_color: Color,
                             intensity: f32) -> HemisphereLight {
         HemisphereLight::new(self.hub.lock().unwrap().spawn_light(LightData {
@@ -234,6 +245,7 @@ impl Factory {
         }))
     }
 
+    /// Create new `PointLight`.
     pub fn point_light(&mut self, color: Color, intensity: f32) -> PointLight {
         PointLight::new(self.hub.lock().unwrap().spawn_light(LightData {
             color,
@@ -243,6 +255,7 @@ impl Factory {
         }))
     }
 
+    /// Create new `ShadowMap`.
     pub fn shadow_map(&mut self, width: u16, height: u16) -> ShadowMap {
         let (_, resource, target) = self.backend.create_depth_stencil::<ShadowFormat>(
             width, height).unwrap();
@@ -253,7 +266,8 @@ impl Factory {
     }
 }
 
-
+/// A collection of vertices, their normals, and faces that defines the
+/// shape of a polyhedral object.
 #[derive(Clone, Debug)]
 pub struct Geometry {
     pub vertices: Vec<mint::Point3<f32>>,
@@ -263,6 +277,7 @@ pub struct Geometry {
 }
 
 impl Geometry {
+    /// Create new `Geometry` without any data in it.
     pub fn empty() -> Geometry {
         Geometry {
             vertices: Vec::new(),
@@ -272,6 +287,7 @@ impl Geometry {
         }
     }
 
+    /// Create `Geometry` from vector of vertices.
     pub fn from_vertices(verts: Vec<mint::Point3<f32>>) -> Geometry {
         Geometry {
             vertices: verts,
@@ -300,6 +316,7 @@ impl Geometry {
         }
     }
 
+    /// Create new Plane with desired size.
     pub fn new_plane(sx: f32, sy: f32) -> Self {
         Self::generate(generators::Plane::new(),
             |GenVertex{ pos, ..}| {
@@ -309,6 +326,7 @@ impl Geometry {
         )
     }
 
+    /// Create new Box with desired size.
     pub fn new_box(sx: f32, sy: f32, sz: f32) -> Self {
         Self::generate(generators::Cube::new(),
             |GenVertex{ pos, ..}| {
@@ -318,6 +336,8 @@ impl Geometry {
         )
     }
 
+    /// Create new Cylinder or Cone with desired top and bottom radius, height
+    /// and number of segments.
     pub fn new_cylinder(radius_top: f32, radius_bottom: f32, height: f32,
                         radius_segments: usize) -> Self
     {
@@ -334,6 +354,7 @@ impl Geometry {
         )
     }
 
+    /// Create new Sphere with desired radius and number of segments.
     pub fn new_sphere(radius: f32, width_segments: usize,
                       height_segments: usize) -> Self
     {
@@ -465,10 +486,15 @@ impl Factory {
         }
     }
 
+    /// Load texture from file.
+    /// Supported file formats are: PNG, JPEG, GIF, WEBP, PPM, TIFF, TGA, BMP, ICO, HDR.
     pub fn load_texture(&mut self, path_str: &str) -> Texture<[f32; 4]> {
         self.request_texture(path_str)
     }
 
+    /// Load mesh from Wavefront Obj format.
+    /// #### Note
+    /// You must store `Vec<Mesh>` somewhere to keep them alive.
     pub fn load_obj(&mut self, path_str: &str) -> (HashMap<String, Group>, Vec<Mesh>) {
         use std::path::Path;
         use genmesh::{LruIndexer, Indexer, Vertices};

@@ -26,6 +26,7 @@ pub enum Material {
     Sprite { map: Texture<[f32; 4]> },
 }
 
+/// Position, rotation and scale of the scene [`Node`](struct.Node.html).
 #[derive(Clone, Debug)]
 pub struct NodeTransform {
     pub position: mint::Point3<f32>,
@@ -48,22 +49,29 @@ impl From<Transform> for NodeTransform {
     }
 }
 
+/// General information about scene [`Node`](struct.Node.html).
 #[derive(Clone, Debug)]
 pub struct NodeInfo {
+    /// Relative to parent transform.
     pub transform: NodeTransform,
+    /// World transform (relative to the world's origin).
     pub world_transform: NodeTransform,
+    /// Is `Node` visible by cameras or not?
     pub visible: bool,
     pub world_visible: bool,
+    /// Material in case this `Node` has it.
     pub material: Option<Material>,
 }
 
 
 impl Object {
+    /// Invisible objects are not rendered by cameras.
     pub fn set_visible(&mut self, visible: bool) {
         let msg = Operation::SetVisible(visible);
         let _ = self.tx.send((self.node.downgrade(), msg));
     }
 
+    /// Rotates object in the specific direction of `target`.
     pub fn look_at<P>(&mut self, eye: P, target: P, up: Option<mint::Vector3<f32>>)
     where P: Into<[f32; 3]>
     {
@@ -112,6 +120,9 @@ impl Object {
         let _ = self.tx.send((self.node.downgrade(), msg));
     }
 
+    /// Get actual information about itself from the `scene`.
+    /// # Panics
+    /// Panics if `scene` doesn't have this `Object`.
     pub fn sync(&mut self, scene: &Scene) -> NodeInfo {
         let mut hub = scene.hub.lock().unwrap();
         hub.process_messages();
@@ -130,7 +141,8 @@ impl Object {
     }
 }
 
-
+/// Groups are used to combine several other objects or groups to work with them
+/// as with a single entity.
 pub struct Group {
     object: Object,
 }
@@ -149,6 +161,7 @@ impl Group {
     }
 }
 
+/// [`Geometry`](struct.Geometry.html) with some [`Material`](struct.Material.html).
 pub struct Mesh {
     object: Object,
     _geometry: Option<Geometry>,
@@ -169,6 +182,7 @@ impl Mesh {
     }
 }
 
+/// Two-dimensional bitmap that is integrated into a larger scene.
 pub struct Sprite {
     object: Object,
 }
@@ -181,6 +195,24 @@ impl Sprite {
         }
     }
 
+    /// Set area of the texture to render. It can be used in sequential animations.
+    /// # Example
+    /// To render only the upper-left quater of the texture with size `256`x`256`
+    /// you should write something similar:
+    ///
+    /// ```rust
+    /// // Create new `Window`
+    /// let mut win = three::Window::new("Three-rs sprite example", "data/shaders");
+    /// // Create sprite map by loading it from file
+    /// let material = three::Material::Sprite {
+    ///    map: win.factory.load_texture("my_data/some_sprite.png"),
+    /// };
+    /// // Create sprite and add it to the scene
+    /// let mut sprite = win.factory.sprite(material);
+    /// win.scene.add(&sprite);
+    /// // Set it to render only upper-left quater.
+    /// sprite.set_texel_size([0, 0], [128, 128]);
+    /// ```
     pub fn set_texel_range<P, S>(&mut self, base: P, size: S) where
         P: Into<mint::Point2<i16>>,
         S: Into<mint::Vector2<u16>>,
@@ -190,7 +222,8 @@ impl Sprite {
     }
 }
 
-
+/// Omni-directional, fixed-intensity and fixed-color light source that affects
+/// all objects in the scene equally.
 pub struct AmbientLight {
     object: Object,
 }
@@ -204,6 +237,9 @@ impl AmbientLight {
     }
 }
 
+/// The light source that illuminates all objects equally from a given direction,
+/// like an area light of infinite size and infinite distance from the scene;
+/// there is shading, but cannot be any distance falloff.
 pub struct DirectionalLight {
     object: Object,
     shadow: Option<ShadowMap>,
@@ -218,10 +254,12 @@ impl DirectionalLight {
         }
     }
 
+    /// Returns `true` if it has [`ShadowMap`](struct.ShadowMap.html), `false` otherwise.
     pub fn has_shadow(&self) -> bool {
         self.shadow.is_some()
     }
 
+    /// Adds shadow map for this light source.
     pub fn set_shadow(&mut self, map: ShadowMap,
                       width: f32, height: f32, near: f32, far: f32) {
         let sp = ShadowProjection::Ortho(Ortho {
@@ -251,6 +289,7 @@ impl HemisphereLight {
     }
 }
 
+/// Light originates from a single point, and spreads outward in all directions.
 pub struct PointLight {
     object: Object,
 }

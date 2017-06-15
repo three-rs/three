@@ -266,6 +266,9 @@ impl Renderer {
         self.size.0 as f32 / self.size.1 as f32
     }
 
+    /// Map screen pixel coordinates to Normalized Display Coordinates.
+    /// The lower left corner corresponds to (0,0), and the upper right corner
+    /// corresponds to (1,1).
     pub fn map_to_ndc(&self, x: i32, y: i32) -> (f32, f32) {
         (2.0 * x as f32 / self.size.0 as f32 - 1.0,
          1.0 - 2.0 * y as f32 / self.size.1 as f32)

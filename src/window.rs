@@ -15,9 +15,16 @@ struct Input {
 }
 
 pub struct Events {
+    /// Time since last update, in seconds.
     pub time_delta: f32,
+    /// List of all keys being pressed at the moment.
     pub keys: HashSet<Key>,
+    /// List of all keys being hit in this frame. Keys that are holded down since
+    /// the previous update aren't here.
     pub hit: HashSet<Key>,
+    /// Mouse position, in Normalized Display Coordinates (NDC).
+    /// The lower left corner corresponds to (0,0), and the upper right corner
+    /// corresponds to (1,1).
     pub mouse_pos: (f32, f32),
 }
 
@@ -31,6 +38,7 @@ pub struct Window {
 }
 
 impl Window {
+    /// Create new `Window` with specific title.
     pub fn new(title: &str, shader_path: &str) -> Self {
         let builder = glutin::WindowBuilder::new()
                              .with_title(title)
@@ -53,6 +61,8 @@ impl Window {
         }
     }
 
+    /// `update` method returns [`Events`](struct.Events.html) since the last `update`.
+    /// It returns `None` only in case `Window` was closed.
     pub fn update(&mut self) -> Option<Events> {
         let mut running = true;
         let renderer = &mut self.renderer;
@@ -103,6 +113,7 @@ impl Window {
         }
     }
 
+    /// Render the current scene with specific [`Camera`](struct.Camera.html).
     pub fn render<P: Projection>(&mut self, camera: &Camera<P>) {
         self.renderer.render(&self.scene, camera);
     }
