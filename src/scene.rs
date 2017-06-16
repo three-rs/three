@@ -221,23 +221,6 @@ impl Sprite {
     }
 
     /// Set area of the texture to render. It can be used in sequential animations.
-    /// # Example
-    /// To render only the upper-left quater of the texture with size `256`x`256`
-    /// you should write something similar:
-    ///
-    /// ```rust
-    /// // Create new `Window`
-    /// let mut win = three::Window::new("Three-rs sprite example", "data/shaders");
-    /// // Create sprite map by loading it from file
-    /// let material = three::Material::Sprite {
-    ///    map: win.factory.load_texture("my_data/some_sprite.png"),
-    /// };
-    /// // Create sprite and add it to the scene
-    /// let mut sprite = win.factory.sprite(material);
-    /// win.scene.add(&sprite);
-    /// // Set it to render only upper-left quater.
-    /// sprite.set_texel_range([0, 0], [128, 128]);
-    /// ```
     pub fn set_texel_range<P, S>(&mut self, base: P, size: S) where
         P: Into<mint::Point2<i16>>,
         S: Into<mint::Vector2<u16>>,
