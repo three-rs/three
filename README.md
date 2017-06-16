@@ -2,8 +2,11 @@
 [![Build Status](https://travis-ci.org/kvark/three-rs.svg)](https://travis-ci.org/kvark/three-rs)
 [![Docs](https://docs.rs/three/badge.svg)](https://docs.rs/three)
 [![Crates.io](https://img.shields.io/crates/v/three.svg?maxAge=2592000)](https://crates.io/crates/three)
+[![Gitter](https://badges.gitter.im/kvark/three-rs.svg)](https://gitter.im/three-rs/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
 
 Totally not inspired Rust 3D library! Ok, maybe, just a tiny bit... by [Three.JS](http://threejs.org).
+
+If you a looking for something simple to prototype 3D graphics with, you found it.
 
 ## Screenshots
 
