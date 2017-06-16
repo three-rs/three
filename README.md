@@ -1,4 +1,6 @@
 # three-rs
+
+[![Join the chat at https://gitter.im/three-rs/Lobby](https://badges.gitter.im/three-rs/Lobby.svg)](https://gitter.im/three-rs/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 [![Build Status](https://travis-ci.org/kvark/three-rs.svg)](https://travis-ci.org/kvark/three-rs)
 [![Docs](https://docs.rs/three/badge.svg)](https://docs.rs/three)
 [![Crates.io](https://img.shields.io/crates/v/three.svg?maxAge=2592000)](https://crates.io/crates/three)
