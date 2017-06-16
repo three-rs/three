@@ -15,7 +15,9 @@ use factory::{Factory, ShadowMap, Texture};
 use scene::{Color, Background, Material};
 use {SubLight, SubNode, Scene, ShadowProjection, Camera, Projection};
 
+/// The format of the back buffer color requested from the windowing system.
 pub type ColorFormat = gfx::format::Srgba8;
+/// The format of the depth stencil buffer requested from the windowing system.
 pub type DepthFormat = gfx::format::DepthStencil;
 pub type ShadowFormat = gfx::format::Depth32F;
 const MAX_LIGHTS: usize = 4;
@@ -139,6 +141,7 @@ pub struct GpuData {
     pub constants: gfx::handle::Buffer<back::Resources, Locals>,
 }
 
+/// Shadow type is used to specify shadow's rendering algorithm.
 pub enum ShadowType {
     /// Force no shadows.
     Off,
@@ -154,8 +157,13 @@ struct DebugQuad {
     size: [i32; 2],
 }
 
+/// Handle for additional viewport to render some relevant debug information.
+/// See [`Renderer::debug_shadow_quad`](struct.Renderer.html#method.debug_shadow_quad).
 pub struct DebugQuadHandle(froggy::Pointer<DebugQuad>);
 
+/// Renders [`Scene`](struct.Scene.html) by [`Camera`](struct.Camera.html).
+///
+/// See [Window::render](struct.Window.html#method.render).
 pub struct Renderer {
     device: back::Device,
     encoder: gfx::Encoder<back::Resources, back::CommandBuffer>,
@@ -176,11 +184,13 @@ pub struct Renderer {
     shadow_default: Texture<f32>,
     debug_quads: froggy::Storage<DebugQuad>,
     size: (u32, u32),
+    /// `ShadowType` of this `Renderer`.
     pub shadow: ShadowType,
 }
 
 impl Renderer {
     #[cfg(feature = "opengl")]
+    #[doc(hidden)]
     pub fn new(builder: glutin::WindowBuilder, event_loop: &glutin::EventsLoop,
                shader_path: &str) -> (Self, glutin::Window, Factory) {
         use gfx::texture as t;
@@ -257,20 +267,26 @@ impl Renderer {
         (renderer, window, factory)
     }
 
+    #[doc(hidden)]
     pub fn resize(&mut self, window: &glutin::Window) {
         self.size = window.get_inner_size_pixels().unwrap();
         gfx_window_glutin::update_views(window, &mut self.out_color, &mut self.out_depth);
     }
 
+    /// Returns current viewport aspect, i.e. width / height.
     pub fn get_aspect(&self) -> f32 {
         self.size.0 as f32 / self.size.1 as f32
     }
 
+    /// Map screen pixel coordinates to Normalized Display Coordinates.
+    /// The lower left corner corresponds to (0,0), and the upper right corner
+    /// corresponds to (1,1).
     pub fn map_to_ndc(&self, x: i32, y: i32) -> (f32, f32) {
         (2.0 * x as f32 / self.size.0 as f32 - 1.0,
          1.0 - 2.0 * y as f32 / self.size.1 as f32)
     }
 
+    /// See [`Window::render`](struct.Window.html#method.render).
     pub fn render<P: Projection>(&mut self, scene: &Scene, camera: &Camera<P>) {
         self.device.cleanup();
         let mut hub = scene.hub.lock().unwrap();
@@ -497,6 +513,7 @@ impl Renderer {
         self.encoder.flush(&mut self.device);
     }
 
+    /// Draw [`ShadowMap`](struct.ShadowMap.html) for debug purposes.
     pub fn debug_shadow_quad(&mut self, map: &ShadowMap, _num_components: u8,
                              pos: [i16; 2], size: [u16; 2]) -> DebugQuadHandle {
         use gfx::memory::Typed;
