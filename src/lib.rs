@@ -88,10 +88,11 @@ pub struct Node {
 
 //Note: no local state should be here, only remote links
 /// `Object` represents an entity that can be added to the scene.
+///
 /// There is no need to use `Object` directly, there are specific wrapper types
 /// for each case (e.g. [`Camera`](struct.Camera.html),
 /// [`AmbientLight`](struct.AmbientLight.html),
-/// [`Mesh`](struct.Mesh.html)).
+/// [`Mesh`](struct.Mesh.html), ...).
 #[derive(Clone)]
 pub struct Object {
     node: froggy::Pointer<Node>,

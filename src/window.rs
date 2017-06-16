@@ -14,6 +14,7 @@ struct Input {
     mouse_pos: (f32, f32), // normalized to NDC
 }
 
+/// Contains user input.
 pub struct Events {
     /// Time since last update, in seconds.
     pub time_delta: f32,
@@ -28,6 +29,10 @@ pub struct Events {
     pub mouse_pos: (f32, f32),
 }
 
+/// `Window` is the core entity of every `three-rs` application.
+///
+/// It provides [user input](struct.Window.html#method.update),
+/// [`Factory`](struct.Factory.html) and [`Renderer`](struct.Renderer.html).
 pub struct Window {
     event_loop: glutin::EventsLoop,
     window: glutin::Window,

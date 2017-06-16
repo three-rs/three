@@ -84,7 +84,8 @@ impl Hub {
     }
 }
 
-
+/// `ShadowMap` is used to render shadows from [`PointLight`](struct.PointLight.html)
+/// and [`DirectionalLight`](struct.DirectionalLight.html).
 #[derive(Clone, Debug)]
 pub struct ShadowMap {
     resource: gfx::handle::ShaderResourceView<BackendResources, f32>,
@@ -106,6 +107,7 @@ impl ShadowMap {
 
 pub type SceneId = usize;
 
+/// `Factory` is used to instantiate game objects.
 pub struct Factory {
     backend: BackendFactory,
     scene_id: SceneId,
@@ -367,7 +369,7 @@ impl Geometry {
     }
 }
 
-
+/// An image applied (mapped) to the surface of a shape or polygon.
 #[derive(Clone, Debug)]
 pub struct Texture<T> {
     view: h::ShaderResourceView<BackendResources, T>,

@@ -276,6 +276,15 @@ impl DirectionalLight {
     }
 }
 
+/// `HemisphereLight` uses two different colors in opposite to
+/// [`AmbientLight`](struct.AmbientLight.html).
+///
+/// The color of each fragment is determined by direction of normal. If the
+/// normal points in the direction of the upper hemisphere, the fragment has
+/// color of the "sky". If the direction of the normal is opposite, then fragment
+/// takes color of the "ground". In other cases, color is determined as
+/// interpolation between colors of upper and lower hemispheres, depending on
+/// how much the normal is oriented to the upper and the lower hemisphere.
 pub struct HemisphereLight {
     object: Object,
 }

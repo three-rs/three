@@ -154,8 +154,13 @@ struct DebugQuad {
     size: [i32; 2],
 }
 
+/// Handle for additional viewport to render some relevant debug information.
+/// See [`Renderer::debug_shadow_quad`](struct.Renderer.html#method.debug_shadow_quad).
 pub struct DebugQuadHandle(froggy::Pointer<DebugQuad>);
 
+/// Renders [`Scene`](struct.Scene.html) by [`Camera`](struct.Camera.html).
+///
+/// See [Window::render](struct.Window.html#method.render).
 pub struct Renderer {
     device: back::Device,
     encoder: gfx::Encoder<back::Resources, back::CommandBuffer>,
