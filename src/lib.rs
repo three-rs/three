@@ -1,22 +1,5 @@
 #![warn(missing_docs)]
-//! # Motivation and Goals
-//!
-//! 1. Ergonomics is first priority. Being able to prototype quickly and code
-//! intuitively is more important than capturing all the 3D features. We already
-//! have a solid foundation with [gfx-rs](https://github.com/gfx-rs/gfx), so
-//! let's make some use of it by providing a nice higher-level abstraction.
-//! 2. Follow "Three.JS" - this is simpler than coming up with a brand new API
-//! (like [kiss3d](https://github.com/sebcrozet/kiss3d)), yet instantly familiar
-//! to a large portion of Web develper. Some deviations from the original API are imminent.
-//! 3. Explore the capabilities of Rust to mimic deep object-oriented nature of
-//! JavaScript. This is a tough challenge, involving channels, defer
-//! implementations, blood, and sweat.
-//! 4. Battle-test the [genmesh](https://github.com/gfx-rs/genmesh) library.
-//! Being able to create cubes, spheres, cylinders (and more) with one-liners
-//! allows for nice proceduraly generated demos.
-//! 5.Play with Component-Graph System concept, provided by [froggy](https://github.com/kvark/froggy).
-//! It's a good fit for the scene graph implementation that is fast and usable.
-
+//! Three.js inspired 3D engine in Rust.
 extern crate cgmath;
 extern crate froggy;
 extern crate genmesh;
