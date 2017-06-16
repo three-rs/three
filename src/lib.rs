@@ -1,3 +1,5 @@
+#![warn(missing_docs)]
+//! Three.js inspired 3D engine in Rust.
 extern crate cgmath;
 extern crate froggy;
 extern crate genmesh;
@@ -72,6 +74,9 @@ enum SubNode {
 }
 
 /// Fat node of the scene graph.
+///
+/// `Node` is used by `three-rs` internally,
+/// client code uses [`Object`](struct.Object.html) instead.
 #[derive(Debug)]
 pub struct Node {
     visible: bool,
@@ -84,22 +89,35 @@ pub struct Node {
 }
 
 //Note: no local state should be here, only remote links
+/// `Object` represents an entity that can be added to the scene.
+///
+/// There is no need to use `Object` directly, there are specific wrapper types
+/// for each case (e.g. [`Camera`](struct.Camera.html),
+/// [`AmbientLight`](struct.AmbientLight.html),
+/// [`Mesh`](struct.Mesh.html), ...).
 #[derive(Clone)]
 pub struct Object {
     node: froggy::Pointer<Node>,
     tx: mpsc::Sender<Message>,
 }
 
+/// Camera is used to render Scene with specific Projection.
+/// See [`OrthographicCamera`](type.OrthographicCamera.html),
+/// [`PerspectiveCamera`](type.PerspectiveCamera.html).
 pub struct Camera<P> {
     object: Object,
     projection: P,
 }
 
 // warning: public exposure of `cgmath` here
+/// See [`Orthographic projection`](https://en.wikipedia.org/wiki/3D_projection#Orthographic_projection).
 pub type OrthographicCamera = Camera<cgmath::Ortho<f32>>;
+/// See [`Perspective projection`](https://en.wikipedia.org/wiki/3D_projection#Perspective_projection).
 pub type PerspectiveCamera = Camera<cgmath::PerspectiveFov<f32>>;
 
+/// Generic trait for different graphics projections.
 pub trait Projection {
+    /// Represents projection as projection matrix.
     fn get_matrix(&self, aspect: f32) -> mint::ColumnMatrix4<f32>;
 }
 
@@ -206,10 +224,12 @@ impl Hub {
     }
 }
 
+/// Game scene contains game objects and can be rendered by [`Camera`](struct.Camera.html).
 pub struct Scene {
     unique_id: SceneId,
     node: froggy::Pointer<Node>,
     tx: mpsc::Sender<Message>,
     hub: HubPtr,
+    /// See [`Background`](struct.Background.html).
     pub background: scene::Background,
 }
