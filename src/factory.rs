@@ -272,9 +272,13 @@ impl Factory {
 /// shape of a polyhedral object.
 #[derive(Clone, Debug)]
 pub struct Geometry {
+    /// Vertices.
     pub vertices: Vec<mint::Point3<f32>>,
+    /// Normals.
     pub normals: Vec<mint::Vector3<f32>>,
+    /// Faces.
     pub faces: Vec<[u16; 3]>,
+    /// Whether geometry is dynamic or not.
     pub is_dynamic: bool,
 }
 
@@ -398,6 +402,7 @@ impl<T> Texture<T> {
         (self.view.clone(), self.sampler.clone())
     }
 
+    /// See [`Sprite::set_texel_range`](struct.Sprite.html#method.set_texel_range).
     pub fn set_texel_range(&mut self, base: mint::Point2<i16>, size: mint::Vector2<u16>) {
         self.tex0 = [
             base.x as f32,
@@ -409,6 +414,7 @@ impl<T> Texture<T> {
         ];
     }
 
+    /// Returns normalized UV rectangle (x0, y0, x1, y1) of the current texel range.
     pub fn get_uv_range(&self) -> [f32; 4] {
         [self.tex0[0] / self.total_size[0] as f32,
          self.tex0[1] / self.total_size[1] as f32,

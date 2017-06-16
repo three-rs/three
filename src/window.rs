@@ -37,8 +37,11 @@ pub struct Window {
     event_loop: glutin::EventsLoop,
     window: glutin::Window,
     input: Input,
+    /// See [`Renderer`](struct.Renderer.html).
     pub renderer: Renderer,
+    /// See [`Factory`](struct.Factory.html).
     pub factory: Factory,
+    /// See [`Scene`](struct.Scene.html).
     pub scene: Scene,
 }
 

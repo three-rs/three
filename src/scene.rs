@@ -8,29 +8,47 @@ use {Object, Operation, Node, SubNode,
      Scene, ShadowProjection, Transform};
 use factory::{Geometry, ShadowMap, Texture};
 
-
+/// Color represented by 4-bytes hex number.
 pub type Color = u32;
 
+/// Background type.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Background {
+    /// Basic solid color background.
     Color(Color),
     //TODO: texture, cubemap
 }
 
+/// Material is the enhancement of Texture that is used to setup appearence of [`Mesh`](struct.Mesh.html).
 #[derive(Clone, Debug)]
 pub enum Material {
+    /// Basic wireframe with specific `Color`.
+    #[allow(missing_docs)]
     LineBasic { color: Color },
+    /// Basic material with color, optional `Texture` and optional wireframe mode.
+    #[allow(missing_docs)]
     MeshBasic { color: Color, map: Option<Texture<[f32; 4]>>, wireframe: bool },
+    /// Lambertian diffuse reflection. This technique causes all closed polygons
+    /// (such as a triangle within a 3D mesh) to reflect light equally in all
+    /// directions when rendered.
+    #[allow(missing_docs)]
     MeshLambert { color: Color, flat: bool },
+    /// Material that uses Phong reflection model.
+    #[allow(missing_docs)]
     MeshPhong { color: Color, glossiness: f32 },
+    /// 2D Sprite.
+    #[allow(missing_docs)]
     Sprite { map: Texture<[f32; 4]> },
 }
 
 /// Position, rotation and scale of the scene [`Node`](struct.Node.html).
 #[derive(Clone, Debug)]
 pub struct NodeTransform {
+    /// Position.
     pub position: mint::Point3<f32>,
+    /// Orientation.
     pub orientation: mint::Quaternion<f32>,
+    /// Scale.
     pub scale: f32,
 }
 
@@ -58,6 +76,7 @@ pub struct NodeInfo {
     pub world_transform: NodeTransform,
     /// Is `Node` visible by cameras or not?
     pub visible: bool,
+    /// The same as `visible`, used internally.
     pub world_visible: bool,
     /// Material in case this `Node` has it.
     pub material: Option<Material>,
@@ -97,6 +116,7 @@ impl Object {
         self.set_transform(p[0], rot, 1.0);
     }
 
+    /// Set both position, orientation and scale.
     pub fn set_transform<P, Q>(&mut self, pos: P, rot: Q, scale: f32) where
         P: Into<mint::Point3<f32>>,
         Q: Into<mint::Quaternion<f32>>,
@@ -105,16 +125,19 @@ impl Object {
         let _ = self.tx.send((self.node.downgrade(), msg));
     }
 
+    /// Set position.
     pub fn set_position<P>(&mut self, pos: P) where P: Into<mint::Point3<f32>> {
         let msg = Operation::SetTransform(Some(pos.into()), None, None);
         let _ = self.tx.send((self.node.downgrade(), msg));
     }
 
+    /// Set orientation.
     pub fn set_orientation<Q>(&mut self, rot: Q) where Q: Into<mint::Quaternion<f32>> {
         let msg = Operation::SetTransform(None, Some(rot.into()), None);
         let _ = self.tx.send((self.node.downgrade(), msg));
     }
 
+    /// Set scale.
     pub fn set_scale(&mut self, scale: f32) {
         let msg = Operation::SetTransform(None, None, Some(scale));
         let _ = self.tx.send((self.node.downgrade(), msg));
@@ -155,6 +178,7 @@ impl Group {
         }
     }
 
+    /// Add new [`Object`](struct.Object.html) to the group.
     pub fn add<P: AsRef<Pointer<Node>>>(&mut self, child: &P) {
         let msg = Operation::SetParent(self.object.node.clone());
         let _ = self.object.tx.send((child.as_ref().downgrade(), msg));
@@ -176,6 +200,7 @@ impl Mesh {
         }
     }
 
+    /// Set mesh material.
     pub fn set_material(&mut self, material: Material) {
         let msg = Operation::SetMaterial(material);
         let _ = self.tx.send((self.node.downgrade(), msg));
@@ -211,7 +236,7 @@ impl Sprite {
     /// let mut sprite = win.factory.sprite(material);
     /// win.scene.add(&sprite);
     /// // Set it to render only upper-left quater.
-    /// sprite.set_texel_size([0, 0], [128, 128]);
+    /// sprite.set_texel_range([0, 0], [128, 128]);
     /// ```
     pub fn set_texel_range<P, S>(&mut self, base: P, size: S) where
         P: Into<mint::Point2<i16>>,
@@ -314,6 +339,7 @@ impl PointLight {
 
 
 impl Scene {
+    /// Add new [`Object`](struct.Object.html) to the scene.
     pub fn add<P: AsRef<Pointer<Node>>>(&mut self, child: &P) {
         let msg = Operation::SetParent(self.node.clone());
         let _ = self.tx.send((child.as_ref().downgrade(), msg));
