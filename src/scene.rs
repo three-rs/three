@@ -149,6 +149,7 @@ impl Object {
     pub fn sync(&mut self, scene: &Scene) -> NodeInfo {
         let mut hub = scene.hub.lock().unwrap();
         hub.process_messages();
+        hub.update_graph();
         let node = &hub.nodes[&self.node];
         assert_eq!(node.scene_id, Some(scene.unique_id));
         NodeInfo {
