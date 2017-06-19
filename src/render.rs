@@ -8,6 +8,7 @@ use gfx_device_gl as back;
 use gfx_window_glutin;
 #[cfg(feature = "opengl")]
 use glutin;
+use mint;
 
 pub use self::back::Factory as BackendFactory;
 pub use self::back::Resources as BackendResources;
@@ -279,11 +280,13 @@ impl Renderer {
     }
 
     /// Map screen pixel coordinates to Normalized Display Coordinates.
-    /// The lower left corner corresponds to (0,0), and the upper right corner
+    /// The lower left corner corresponds to (-1,-1), and the upper right corner
     /// corresponds to (1,1).
-    pub fn map_to_ndc(&self, x: i32, y: i32) -> (f32, f32) {
-        (2.0 * x as f32 / self.size.0 as f32 - 1.0,
-         1.0 - 2.0 * y as f32 / self.size.1 as f32)
+    pub fn map_to_ndc(&self, x: i32, y: i32) -> mint::Point2<f32> {
+        mint::Point2 {
+            x: 2.0 * x as f32 / self.size.0 as f32 - 1.0,
+            y: 1.0 - 2.0 * y as f32 / self.size.1 as f32,
+        }
     }
 
     /// See [`Window::render`](struct.Window.html#method.render).
@@ -489,10 +492,10 @@ impl Renderer {
                     self.size.1 as i32 + quad.pos[1] - quad.size[1]
                 },
             ];
-            let (p0x, p0y) = self.map_to_ndc(pos[0], pos[1]);
-            let (p1x, p1y) = self.map_to_ndc(pos[0] + quad.size[0], pos[1] + quad.size[1]);
+            let p0 = self.map_to_ndc(pos[0], pos[1]);
+            let p1 = self.map_to_ndc(pos[0] + quad.size[0], pos[1] + quad.size[1]);
             self.encoder.update_constant_buffer(&self.quad_buf, &QuadParams {
-                rect: [p0x, p0y, p1x, p1y],
+                rect: [p0.x, p0.y, p1.x, p1.y],
             });
             let slice = gfx::Slice {
                 start: 0,

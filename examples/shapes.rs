@@ -46,16 +46,9 @@ fn main() {
     win.scene.add(&mline);
 
     let mut angle = cgmath::Rad::zero();
-    let speed = 1.5;
-    while let Some(events) = win.update() {
-        let old_angle = angle;
-        if events.keys.contains(&three::Key::Left) {
-            angle -= cgmath::Rad(speed * events.time_delta);
-        }
-        if events.keys.contains(&three::Key::Right) {
-            angle += cgmath::Rad(speed * events.time_delta);
-        }
-        if angle != old_angle {
+    while win.update() && !three::KEY_ESCAPE.is_hit(&win.input) {
+        if let Some(diff) = three::AXIS_LEFT_RIGHT.timed(&win.input) {
+            angle += cgmath::Rad(1.5 * diff);
             let q = cgmath::Quaternion::from_angle_y(angle);
             let rot = [q.v.x, q.v.y, q.v.z, q.s];
             mbox.set_orientation(rot);

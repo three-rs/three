@@ -21,18 +21,21 @@ extern crate glutin;
 
 mod camera;
 mod factory;
+mod input;
 mod render;
 mod scene;
 #[cfg(feature = "opengl")]
 mod window;
 
 pub use factory::{Factory, Geometry, ShadowMap, Texture};
+pub use input::{Button, KeyAxis, Timer, Input,
+                KEY_ESCAPE, KEY_SPACE, AXIS_LEFT_RIGHT, AXIS_DOWN_UP};
 pub use render::{ColorFormat, DepthFormat, Renderer, ShadowType, DebugQuadHandle};
 pub use scene::{Color, Background, Material, NodeTransform, NodeInfo,
                 Group, Mesh, Sprite,
                 AmbientLight, DirectionalLight, HemisphereLight, PointLight};
 #[cfg(feature = "opengl")]
-pub use window::{Events, Window};
+pub use window::Window;
 #[cfg(feature = "opengl")]
 pub use glutin::VirtualKeyCode as Key;
 
