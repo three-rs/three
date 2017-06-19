@@ -27,6 +27,7 @@ mod scene;
 #[cfg(feature = "opengl")]
 mod window;
 
+pub use camera::{Orthographic, Perspective};
 pub use factory::{Factory, Geometry, ShadowMap, Texture};
 pub use input::{Button, KeyAxis, Timer, Input,
                 KEY_ESCAPE, KEY_SPACE, AXIS_LEFT_RIGHT, AXIS_DOWN_UP};
@@ -58,7 +59,7 @@ enum SubLight {
 
 #[derive(Clone, Debug)]
 enum ShadowProjection {
-    Ortho(cgmath::Ortho<f32>),
+    Ortho(Orthographic),
 }
 
 #[derive(Clone, Debug)]
@@ -104,25 +105,13 @@ pub struct Object {
     tx: mpsc::Sender<Message>,
 }
 
-/// Camera is used to render Scene with specific Projection.
-/// See [`OrthographicCamera`](type.OrthographicCamera.html),
-/// [`PerspectiveCamera`](type.PerspectiveCamera.html).
+/// Camera is used to render Scene with specific `Projection`.
 pub struct Camera<P> {
     object: Object,
-    projection: P,
+    /// Projection parameters of this camera.
+    pub projection: P,
 }
 
-// warning: public exposure of `cgmath` here
-/// See [`Orthographic projection`](https://en.wikipedia.org/wiki/3D_projection#Orthographic_projection).
-pub type OrthographicCamera = Camera<cgmath::Ortho<f32>>;
-/// See [`Perspective projection`](https://en.wikipedia.org/wiki/3D_projection#Perspective_projection).
-pub type PerspectiveCamera = Camera<cgmath::PerspectiveFov<f32>>;
-
-/// Generic trait for different graphics projections.
-pub trait Projection {
-    /// Represents projection as projection matrix.
-    fn get_matrix(&self, aspect: f32) -> mint::ColumnMatrix4<f32>;
-}
 
 type Message = (froggy::WeakPointer<Node>, Operation);
 enum Operation {
