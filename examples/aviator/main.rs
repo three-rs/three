@@ -47,9 +47,9 @@ fn main() {
         let material = three::Material::MeshLambert{ color: COLOR_BLUE, flat: true };
         win.factory.mesh(geo, material)
     };
-    let mut sea_q = cgmath::Quaternion::from_angle_x(-cgmath::Rad::turn_div_4());
+    let sea_base_q = cgmath::Quaternion::from_angle_x(-cgmath::Rad::turn_div_4());
     sea.set_transform([0.0, -600.0, 0.0],
-                      [sea_q.v.x, sea_q.v.y, sea_q.v.z, sea_q.s],
+                      [sea_base_q.v.x, sea_base_q.v.y, sea_base_q.v.z, sea_base_q.s],
                       1.0);
     win.scene.add(&sea);
 
@@ -63,19 +63,19 @@ fn main() {
                                  0.25);
     win.scene.add(&airplane.group);
 
-    let mut sky_angle = 0.0;
-    while let Some(events) = win.update() {
+    let timer = win.input.time();
+    while win.update() && !three::KEY_ESCAPE.is_hit(&win.input) {
         use cgmath::{Quaternion, Rad};
         // assume the original velocities are given for 60fps
-        let dt = events.time_delta * 60.0;
+        let time = 60.0 * timer.get(&win.input);
 
-        airplane.update(dt, events.mouse_pos);
+        airplane.update(time, win.input.get_mouse_pos());
 
-        let sea_angle = 0.005 * dt;
-        sea_q = Quaternion::from_angle_z(Rad(sea_angle)) * sea_q;
+        let sea_angle = Rad(0.005 * time);
+        let sea_q = Quaternion::from_angle_z(sea_angle) * sea_base_q;
         sea.set_orientation([sea_q.v.x, sea_q.v.y, sea_q.v.z, sea_q.s]);
-        sky_angle += 0.01 * dt;
-        let sky_q = Quaternion::from_angle_z(Rad(sky_angle));
+        let sky_angle = Rad(0.01 * time);
+        let sky_q = Quaternion::from_angle_z(sky_angle);
         sky.group.set_orientation([sky_q.v.x, sky_q.v.y, sky_q.v.z, sky_q.s]);
 
         win.render(&cam);
