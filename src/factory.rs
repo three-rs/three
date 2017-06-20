@@ -15,6 +15,7 @@ use image;
 use mint;
 use obj;
 
+use bound::BoundingBox;
 use camera::{Orthographic, Perspective};
 use render::{BackendFactory, BackendResources, GpuData, Vertex, ShadowFormat};
 use scene::{Color, Background, Group, Mesh, Sprite, Material,
@@ -56,6 +57,8 @@ impl From<SubNode> for Node {
             world_visible: false,
             transform: Transform_::one(),
             world_transform: Transform_::one(),
+            bounds: BoundingBox::empty(),
+            world_bounds: BoundingBox::empty(),
             parent: None,
             scene_id: None,
             sub_node: sub,

@@ -20,6 +20,7 @@ default = ["opengl"]
 
 [dependencies]
 cgmath = "0.14"
+collision = "0.10"
 froggy = "0.3"
 genmesh = "0.5"
 gfx = "0.16"
