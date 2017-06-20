@@ -47,7 +47,7 @@ pub use glutin::VirtualKeyCode as Key;
 use std::sync::{mpsc, Arc, Mutex};
 
 use cgmath::Transform as Transform_;
-use bound::BoundingBox;
+use collision::Aabb;
 use factory::SceneId;
 use render::GpuData;
 
@@ -213,11 +213,12 @@ impl Hub {
                 Some(ref parent_ptr) => {
                     let parent = item.look_back(parent_ptr).unwrap();
                     let transform = parent.world_transform.concat(&item.transform);
-                    let bounds = if parent_world_visible {
+                    let bounds = if parent.world_visible {
                         let bounds = item.bounds.transform(&transform);
                         parent.world_bounds = parent.world_bounds.union(&bounds);
+                        bounds
                     } else {
-                        Aabb3::empty()
+                        item.bounds
                     };
                     (parent.world_visible, parent.scene_id, transform, bounds)
                 },
