@@ -1,11 +1,11 @@
 use std::ops;
 
-use cgmath::Ortho;
 use froggy::Pointer;
 use mint;
 
 use {Object, Operation, Node, SubNode,
      Scene, ShadowProjection, Transform};
+use camera::Orthographic;
 use factory::{Geometry, ShadowMap, Texture};
 
 /// Color represented by 4-bytes hex number.
@@ -19,25 +19,21 @@ pub enum Background {
     //TODO: texture, cubemap
 }
 
-/// Material is the enhancement of Texture that is used to setup appearence of [`Mesh`](struct.Mesh.html).
+/// Material is the enhancement of Texture that is used to setup appearance of [`Mesh`](struct.Mesh.html).
+#[allow(missing_docs)]
 #[derive(Clone, Debug)]
 pub enum Material {
     /// Basic wireframe with specific `Color`.
-    #[allow(missing_docs)]
     LineBasic { color: Color },
     /// Basic material with color, optional `Texture` and optional wireframe mode.
-    #[allow(missing_docs)]
     MeshBasic { color: Color, map: Option<Texture<[f32; 4]>>, wireframe: bool },
     /// Lambertian diffuse reflection. This technique causes all closed polygons
     /// (such as a triangle within a 3D mesh) to reflect light equally in all
     /// directions when rendered.
-    #[allow(missing_docs)]
     MeshLambert { color: Color, flat: bool },
     /// Material that uses Phong reflection model.
-    #[allow(missing_docs)]
     MeshPhong { color: Color, glossiness: f32 },
     /// 2D Sprite.
-    #[allow(missing_docs)]
     Sprite { map: Texture<[f32; 4]> },
 }
 
@@ -270,12 +266,10 @@ impl DirectionalLight {
 
     /// Adds shadow map for this light source.
     pub fn set_shadow(&mut self, map: ShadowMap,
-                      width: f32, height: f32, near: f32, far: f32) {
-        let sp = ShadowProjection::Ortho(Ortho {
-            left: -0.5 * width,
-            right: 0.5 * width,
-            bottom: -0.5 * height,
-            top: 0.5 * height,
+                      extent_y: f32, near: f32, far: f32) {
+        let sp = ShadowProjection::Ortho(Orthographic {
+            center: [0.0; 2].into(),
+            extent_y,
             near,
             far,
         });

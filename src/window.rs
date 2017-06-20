@@ -1,6 +1,7 @@
 use glutin;
 
-use {Camera, Projection, Scene};
+use {Camera, Scene};
+use camera::Projection;
 use input::Input;
 use render::Renderer;
 use factory::Factory;

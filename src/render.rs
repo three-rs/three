@@ -12,9 +12,10 @@ use mint;
 
 pub use self::back::Factory as BackendFactory;
 pub use self::back::Resources as BackendResources;
+use camera::Projection;
 use factory::{Factory, ShadowMap, Texture};
 use scene::{Color, Background, Material};
-use {SubLight, SubNode, Scene, ShadowProjection, Camera, Projection};
+use {SubLight, SubNode, Scene, ShadowProjection, Camera};
 
 /// The format of the back buffer color requested from the windowing system.
 pub type ColorFormat = gfx::format::Srgba8;

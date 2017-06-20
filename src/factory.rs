@@ -4,7 +4,7 @@ use std::io::BufReader;
 use std::fs::File;
 use std::path::Path;
 
-use cgmath::{self, Transform as Transform_};
+use cgmath::Transform as Transform_;
 use genmesh::{Polygon, EmitTriangles, Triangulate, Vertex as GenVertex};
 use genmesh::generators::{self, IndexedPolygon, SharedVertex};
 use gfx;
@@ -15,12 +15,12 @@ use image;
 use mint;
 use obj;
 
+use camera::{Orthographic, Perspective};
 use render::{BackendFactory, BackendResources, GpuData, Vertex, ShadowFormat};
 use scene::{Color, Background, Group, Mesh, Sprite, Material,
             AmbientLight, DirectionalLight, HemisphereLight, PointLight};
 use {Hub, HubPtr, SubLight, Node, SubNode,
-     LightData, Object, Scene,
-     Camera, OrthographicCamera, PerspectiveCamera};
+     LightData, Object, Scene, Camera};
 
 
 const NORMAL_Z: [I8Norm; 4] = [I8Norm(0), I8Norm(0), I8Norm(1), I8Norm(0)];
@@ -148,25 +148,28 @@ impl Factory {
 
     /// Create new [Orthographic](https://en.wikipedia.org/wiki/Orthographic_projection) Camera.
     /// It's used basically to render 2D.
-    pub fn orthographic_camera(&mut self, left: f32, right: f32, top: f32, bottom: f32,
-                               near: f32, far: f32) -> OrthographicCamera {
+    pub fn orthographic_camera<P>(&mut self, center: P,
+                               extent_y: f32, near: f32, far: f32)
+                               -> Camera<Orthographic>
+    where P: Into<mint::Point2<f32>>
+    {
         Camera {
             object: self.hub.lock().unwrap().spawn_empty(),
-            projection: cgmath::Ortho{ left, right, bottom, top, near, far },
+            projection: Orthographic {
+                center: center.into(),
+                extent_y, near, far,
+            },
         }
     }
 
     /// Create new [Perspective](https://en.wikipedia.org/wiki/Perspective_(graphical)) Camera.
     /// It's used basically to render 3D.
-    pub fn perspective_camera(&mut self, fov: f32, aspect: f32,
-                              near: f32, far: f32) -> PerspectiveCamera {
+    pub fn perspective_camera(&mut self, fov_y: f32, near: f32, far: f32)
+                              -> Camera<Perspective> {
         Camera {
             object: self.hub.lock().unwrap().spawn_empty(),
-            projection: cgmath::PerspectiveFov {
-                fovy: cgmath::Deg(fov).into(),
-                aspect: aspect,
-                near: near,
-                far: far,
+            projection: Perspective {
+                fov_y, near, far,
             },
         }
     }

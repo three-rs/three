@@ -6,7 +6,7 @@ use cgmath::prelude::*;
 
 fn main() {
     let mut win = three::Window::new("Three-rs shapes example", "data/shaders");
-    let mut cam = win.factory.perspective_camera(75.0, 0.0, 1.0, 50.0);
+    let mut cam = win.factory.perspective_camera(75.0, 1.0, 50.0);
     cam.set_position([0.0, 0.0, 10.0]);
 
     let mut mbox = {
