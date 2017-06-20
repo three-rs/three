@@ -9,7 +9,7 @@ fn main() {
     let path = args.nth(1).unwrap_or("test_data/car.obj".to_string());
 
     let mut win = three::Window::new("Three-rs obj loading example", "data/shaders");
-    let mut cam = win.factory.perspective_camera(60.0, 0.0, 1.0, 10.0);
+    let mut cam = win.factory.perspective_camera(60.0, 1.0, 10.0);
     cam.look_at([0.0, 2.0, 5.0], [0.0, 0.0, 0.0],
                 Some([0.0, 1.0, 0.0].into()));
 
