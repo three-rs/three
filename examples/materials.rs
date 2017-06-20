@@ -27,14 +27,9 @@ fn main() {
         mesh
     }).collect();
 
-    let speed = 5.0;
-    while let Some(events) = win.update() {
-        if events.keys.contains(&three::Key::Left) {
-            pos[0] -= speed * events.time_delta;
-            light.set_position(pos);
-        }
-        if events.keys.contains(&three::Key::Right) {
-            pos[0] += speed * events.time_delta;
+    while win.update() && !three::KEY_ESCAPE.is_hit(&win.input) {
+        if let Some(diff) = three::AXIS_LEFT_RIGHT.timed(&win.input) {
+            pos[0] += 5.0 * diff;
             light.set_position(pos);
         }
 

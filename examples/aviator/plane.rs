@@ -1,4 +1,5 @@
 use cgmath::{Quaternion, Rad, Rotation3};
+use mint;
 use three;
 
 use {COLOR_RED, COLOR_WHITE, COLOR_BROWN, COLOR_BROWN_DARK};
@@ -11,7 +12,6 @@ pub struct AirPlane {
     _tail: three::Mesh,
     _wing: three::Mesh,
     propeller_group: three::Group,
-    propeller_angle: f32,
     _propeller: three::Mesh,
     _blade: three::Mesh,
 }
@@ -71,16 +71,14 @@ impl AirPlane {
             _tail: tail,
             _wing: wing,
             propeller_group,
-            propeller_angle: 0.0,
             _propeller: propeller,
             _blade: blade,
         }
     }
 
-    pub fn update(&mut self, dt: f32, target: (f32, f32)) {
-        self.propeller_angle += 0.3 * dt;
-        let q = Quaternion::from_angle_x(Rad(self.propeller_angle));
+    pub fn update(&mut self, time: f32, target: mint::Point2<f32>) {
+        let q = Quaternion::from_angle_x(Rad(0.3 * time));
         self.propeller_group.set_orientation([q.v.x, q.v.y, q.v.z, q.s]);
-        self.group.set_position([0.0 + target.0 * 100.0, 100.0 + target.1 * 75.0, 0.0]);
+        self.group.set_position([0.0 + target.x * 100.0, 100.0 + target.y * 75.0, 0.0]);
     }
 }
