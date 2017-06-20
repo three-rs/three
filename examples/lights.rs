@@ -41,17 +41,14 @@ fn main() {
 
     let mut light_id = 0i8;
     lights[0].set_visible(true);
-    while let Some(events) = win.update() {
-        let old_id = light_id;
-        if events.hit.contains(&three::Key::Left) {
-            light_id -= 1;
-        }
-        if events.hit.contains(&three::Key::Right) {
-            light_id += 1;
-        }
-        if old_id != light_id {
-            lights[old_id as usize].set_visible(false);
-            light_id = (light_id + lights.len() as i8) % lights.len() as i8;
+    while win.update() && !three::KEY_ESCAPE.is_hit(&win.input) {
+        if let Some(diff) = three::AXIS_LEFT_RIGHT.delta_hits(&win.input) {
+            lights[light_id as usize].set_visible(false);
+            light_id += diff;
+            while light_id < 0 {
+                light_id += lights.len() as i8;
+            }
+            light_id %= lights.len() as i8;
             lights[light_id as usize].set_visible(true);
         }
 

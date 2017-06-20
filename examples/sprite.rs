@@ -7,11 +7,11 @@ struct Animator {
     repeat: bool,
     sprite: three::Sprite,
     current: [u16; 2],
-    remainder: f32,
+    timer: three::Timer,
 }
 
 impl Animator {
-    fn update(&mut self) {
+    fn update_uv(&mut self) {
         let base = [
             (self.current[0] * self.cell_size[0]) as i16,
             (self.current[1] * self.cell_size[1]) as i16,
@@ -19,23 +19,20 @@ impl Animator {
         self.sprite.set_texel_range(base, self.cell_size);
     }
 
-    fn start(&mut self, row: u16) {
-        self.current = [0, row];
-        self.remainder = 0.0;
-        self.update();
-    }
-
-    fn time(&mut self, delta: f32) {
-        self.remainder += delta;
-        while self.remainder >= self.duration &&
-              (self.repeat || self.current[0] < self.cell_counts[0]) {
-            self.remainder -= self.duration;
+    fn update(&mut self, switch_row: Option<u16>, input: &three::Input) {
+        if let Some(row) = switch_row {
+            self.current = [0, row];
+            self.timer = input.time();
+            self.update_uv();
+        } else if self.timer.get(input) >= self.duration &&
+               (self.repeat || self.current[0] < self.cell_counts[0]) {
+            self.timer = input.time();
             self.current[0] += 1;
             if self.current[0] < self.cell_counts[0] {
-                self.update();
+                self.update_uv();
             } else if self.repeat {
                 self.current[0] = 0;
-                self.update();
+                self.update_uv();
             }
         }
     }
@@ -58,22 +55,18 @@ fn main() {
         duration: 0.1,
         repeat: true,
         current: [0, 0],
-        remainder: 0.0,
+        timer: win.input.time(),
         sprite,
     };
-    let mut row = 0u16;
-    anim.start(row);
+    anim.update_uv();
 
-    while let Some(events) = win.update() {
-        if events.hit.contains(&three::Key::Left) {
-            row = (row + anim.cell_counts[1] - 1) % anim.cell_counts[1];
-            anim.start(row);
-        }
-        if events.hit.contains(&three::Key::Right) {
-            row = (row + 1) % anim.cell_counts[1];
-            anim.start(row);
-        }
-        anim.time(events.time_delta);
+    while win.update() && !three::KEY_ESCAPE.is_hit(&win.input) {
+        let row = three::AXIS_LEFT_RIGHT.delta_hits(&win.input).map(|mut diff| {
+            let total = anim.cell_counts[1] as i8;
+            while diff < 0 { diff += total };
+            (anim.current[1] + diff as u16) % total as u16
+        });
+        anim.update(row, &win.input);
 
         win.render(&cam);
     }
