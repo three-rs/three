@@ -99,7 +99,7 @@ pub struct Node {
 /// for each case (e.g. [`Camera`](struct.Camera.html),
 /// [`AmbientLight`](struct.AmbientLight.html),
 /// [`Mesh`](struct.Mesh.html), ...).
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Object {
     node: froggy::Pointer<Node>,
     tx: mpsc::Sender<Message>,
