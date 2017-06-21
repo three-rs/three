@@ -21,8 +21,9 @@ impl Cloud {
         };
         let geo = three::Geometry::new_box(20.0, 20.0, 20.0);
         let material = three::Material::MeshLambert{ color: COLOR_WHITE, flat: true };
+        let template = factory.mesh(geo, material.clone());
         for i in 0 .. rng.gen_range(3, 6) {
-            let mut m = factory.mesh(geo.clone(), material.clone());
+            let mut m = factory.mesh_instance(&template, material.clone());
             let rot: cgmath::Quaternion<f32> = rng.gen();
             let q = rot.normalize();
             m.set_transform([i as f32 * 15.0, rng.next_f32() * 10.0, rng.next_f32() * 10.0],
