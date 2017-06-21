@@ -163,6 +163,25 @@ struct DebugQuad {
 /// See [`Renderer::debug_shadow_quad`](struct.Renderer.html#method.debug_shadow_quad).
 pub struct DebugQuadHandle(froggy::Pointer<DebugQuad>);
 
+struct Batch {
+    gpu_data: GpuData,
+    map: Option<Texture<[f32; 4]>>,
+}
+
+struct Batcher {
+    pso: gfx::PipelineState<back::Resources, pipe::Meta>,
+    batches: Vec<Batch>,
+}
+
+impl From<gfx::PipelineState<back::Resources, pipe::Meta>> for Batcher {
+    fn from(pso: gfx::PipelineState<back::Resources, pipe::Meta>) -> Self {
+        Batcher {
+            pso: pso,
+            batches: Vec::new(),
+        }
+    }
+}
+
 /// Renders [`Scene`](struct.Scene.html) by [`Camera`](struct.Camera.html).
 ///
 /// See [Window::render](struct.Window.html#method.render).
@@ -174,12 +193,13 @@ pub struct Renderer {
     light_buf: gfx::handle::Buffer<back::Resources, LightParam>,
     out_color: gfx::handle::RenderTargetView<back::Resources, ColorFormat>,
     out_depth: gfx::handle::DepthStencilView<back::Resources, DepthFormat>,
-    pso_line_basic: gfx::PipelineState<back::Resources, pipe::Meta>,
-    pso_mesh_basic_fill: gfx::PipelineState<back::Resources, pipe::Meta>,
-    pso_mesh_basic_wireframe: gfx::PipelineState<back::Resources, pipe::Meta>,
-    pso_mesh_gouraud: gfx::PipelineState<back::Resources, pipe::Meta>,
-    pso_mesh_phong: gfx::PipelineState<back::Resources, pipe::Meta>,
-    pso_sprite: gfx::PipelineState<back::Resources, pipe::Meta>,
+    fake_gpu_data: GpuData,
+    batcher_line_basic: Batcher,
+    batcher_mesh_basic_fill: Batcher,
+    batcher_mesh_basic_wireframe: Batcher,
+    batcher_mesh_gouraud: Batcher,
+    batcher_mesh_phong: Batcher,
+    batcher_sprite: Batcher,
     pso_shadow: gfx::PipelineState<back::Resources, shadow_pipe::Meta>,
     pso_quad: gfx::PipelineState<back::Resources, quad_pipe::Meta>,
     map_default: Texture<[f32; 4]>,
@@ -233,26 +253,34 @@ impl Renderer {
             light_buf: gl_factory.create_constant_buffer(MAX_LIGHTS),
             out_color: color,
             out_depth: depth,
-            pso_line_basic: gl_factory.create_pipeline_from_program(&prog_basic,
+            fake_gpu_data: {
+                let indices: &[u16] = &[];
+                let (vertices, slice) = gl_factory.create_vertex_buffer_with_slice(&[], indices);
+                GpuData {
+                    slice, vertices,
+                    constants: gl_factory.create_constant_buffer(1),
+                }
+            },
+            batcher_line_basic: gl_factory.create_pipeline_from_program(&prog_basic,
                 gfx::Primitive::LineStrip, rast_fill, pipe::new()
-                ).unwrap(),
-            pso_mesh_basic_fill: gl_factory.create_pipeline_from_program(&prog_basic,
+                ).unwrap().into(),
+            batcher_mesh_basic_fill: gl_factory.create_pipeline_from_program(&prog_basic,
                 gfx::Primitive::TriangleList, rast_fill, pipe::new()
-                ).unwrap(),
-            pso_mesh_basic_wireframe: gl_factory.create_pipeline_from_program(&prog_basic,
+                ).unwrap().into(),
+            batcher_mesh_basic_wireframe: gl_factory.create_pipeline_from_program(&prog_basic,
                 gfx::Primitive::TriangleList, rast_wire, pipe::new(),
-                ).unwrap(),
-            pso_mesh_gouraud: gl_factory.create_pipeline_from_program(&prog_gouraud,
+                ).unwrap().into(),
+            batcher_mesh_gouraud: gl_factory.create_pipeline_from_program(&prog_gouraud,
                 gfx::Primitive::TriangleList, rast_fill, pipe::new()
-                ).unwrap(),
-            pso_mesh_phong: gl_factory.create_pipeline_from_program(&prog_phong,
+                ).unwrap().into(),
+            batcher_mesh_phong: gl_factory.create_pipeline_from_program(&prog_phong,
                 gfx::Primitive::TriangleList, rast_fill, pipe::new()
-                ).unwrap(),
-            pso_sprite: gl_factory.create_pipeline_from_program(&prog_sprite,
+                ).unwrap().into(),
+            batcher_sprite: gl_factory.create_pipeline_from_program(&prog_sprite,
                 gfx::Primitive::TriangleStrip, rast_fill, pipe::Init {
                     out_color: ("Target0", gfx::state::MASK_ALL, gfx::preset::blend::ALPHA),
                     .. pipe::new()
-                }).unwrap(),
+                }).unwrap().into(),
             pso_shadow: gl_factory.create_pipeline_from_program(&prog_shadow,
                 gfx::Primitive::TriangleList, rast_shadow, shadow_pipe::new()
                 ).unwrap(),
@@ -425,6 +453,41 @@ impl Renderer {
         });
         self.encoder.update_buffer(&self.light_buf, &lights, 0).unwrap();
 
+        // collect batches
+        for node in hub.nodes.iter_alive() {
+            if !node.visible || node.scene_id != Some(scene.unique_id) {
+                continue;
+            }
+            let (material, gpu_data) = match node.sub_node {
+                SubNode::Visual(ref mat, ref data) => (mat, data),
+                _ => continue
+            };
+
+            let (batcher, color, param0, map) = match *material {
+                Material::LineBasic { color } => (&mut self.batcher_line_basic, color, 0.0, None),
+                Material::MeshBasic { color, ref map, wireframe: false } => (&mut self.batcher_mesh_basic_fill, color, 0.0, map.as_ref()),
+                Material::MeshBasic { color, map: ref _map, wireframe: true } => (&mut self.batcher_mesh_basic_wireframe, color, 0.0, None),
+                Material::MeshLambert { color, flat } => (&mut self.batcher_mesh_gouraud, color, if flat {0.0} else {1.0}, None),
+                Material::MeshPhong { color, glossiness } => (&mut self.batcher_mesh_phong, color, glossiness, None),
+                Material::Sprite { ref map } => (&mut self.batcher_sprite, !0, 0.0, Some(map)),
+            };
+            let uv_range = match map {
+                Some(ref map) => map.get_uv_range(),
+                None => [0.0; 4],
+            };
+            //TODO: cache this
+            self.encoder.update_constant_buffer(&gpu_data.constants, &Locals {
+                mx_world: Matrix4::from(node.world_transform).into(),
+                color: decode_color(color),
+                mat_params: [param0, 0.0, 0.0, 0.0],
+                uv_range,
+            });
+            batcher.batches.push(Batch {
+                gpu_data: gpu_data.clone(),
+                map: map.cloned(),
+            })
+        }
+
         // render everything
         let (shadow_default, shadow_sampler) = self.shadow_default.to_param();
         let shadow0 = match shadow_requests.get(0) {
@@ -435,47 +498,27 @@ impl Renderer {
             Some(ref request) => request.resource.clone(),
             None => shadow_default.clone(),
         };
-        for node in hub.nodes.iter_alive() {
-            if !node.visible || node.scene_id != Some(scene.unique_id) {
-                continue;
-            }
-            let (material, gpu_data) = match node.sub_node {
-                SubNode::Visual(ref mat, ref data) => (mat, data),
-                _ => continue
-            };
-
-            //TODO: batch per PSO
-            let (pso, color, param0, map) = match *material {
-                Material::LineBasic { color } => (&self.pso_line_basic, color, 0.0, None),
-                Material::MeshBasic { color, ref map, wireframe: false } => (&self.pso_mesh_basic_fill, color, 0.0, map.as_ref()),
-                Material::MeshBasic { color, map: ref _map, wireframe: true } => (&self.pso_mesh_basic_wireframe, color, 0.0, None),
-                Material::MeshLambert { color, flat } => (&self.pso_mesh_gouraud, color, if flat {0.0} else {1.0}, None),
-                Material::MeshPhong { color, glossiness } => (&self.pso_mesh_phong, color, glossiness, None),
-                Material::Sprite { ref map } => (&self.pso_sprite, !0, 0.0, Some(map)),
-            };
-            let uv_range = match map {
-                Some(ref map) => map.get_uv_range(),
-                None => [0.0; 4],
-            };
-            self.encoder.update_constant_buffer(&gpu_data.constants, &Locals {
-                mx_world: Matrix4::from(node.world_transform).into(),
-                color: decode_color(color),
-                mat_params: [param0, 0.0, 0.0, 0.0],
-                uv_range,
-            });
-            //TODO: avoid excessive cloning
-            let data = pipe::Data {
-                vbuf: gpu_data.vertices.clone(),
-                cb_locals: gpu_data.constants.clone(),
+        for batcher in [&mut self.batcher_line_basic, &mut self.batcher_mesh_basic_fill,
+                        &mut self.batcher_mesh_basic_wireframe, &mut self.batcher_mesh_gouraud,
+                        &mut self.batcher_mesh_phong, &mut self.batcher_sprite].iter_mut()
+        {
+            let mut data = pipe::Data {
+                vbuf: self.fake_gpu_data.vertices.clone(),
+                cb_locals: self.fake_gpu_data.constants.clone(),
                 cb_lights: self.light_buf.clone(),
                 cb_globals: self.const_buf.clone(),
-                tex_map: map.unwrap_or(&self.map_default).to_param(),
+                tex_map: self.map_default.to_param(),
                 shadow_map0: (shadow0.clone(), shadow_sampler.clone()),
                 shadow_map1: (shadow1.clone(), shadow_sampler.clone()),
                 out_color: self.out_color.clone(),
                 out_depth: self.out_depth.clone(),
             };
-            self.encoder.draw(&gpu_data.slice, pso, &data);
+            for batch in batcher.batches.drain(..) {
+                data.vbuf = batch.gpu_data.vertices;
+                data.cb_locals = batch.gpu_data.constants;
+                data.tex_map = batch.map.as_ref().unwrap_or(&self.map_default).to_param();
+                self.encoder.draw(&batch.gpu_data.slice, &batcher.pso, &data);
+            }
         }
 
         // draw debug quads
