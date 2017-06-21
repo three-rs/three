@@ -40,13 +40,13 @@ fn create_cubes(factory: &mut three::Factory,
     let mut list = vec![root];
 
     struct Stack {
-        parent: three::Group,
+        parent_id: usize,
         mat_id: usize,
         lev_id: usize,
     }
     let mut stack = vec![
         Stack {
-            parent: list[0].group.clone(),
+            parent_id: 0,
             mat_id: 1,
             lev_id: 1,
         }
@@ -67,11 +67,12 @@ fn create_cubes(factory: &mut three::Factory,
         })
     }).collect();
 
-    while let Some(mut next) = stack.pop() {
+    while let Some(next) = stack.pop() {
         for child in &children {
+            let mat = materials[next.mat_id].clone();
             let mut cube = Cube {
                 group: factory.group(),
-                mesh: factory.mesh(geometry.clone(), materials[next.mat_id].clone()),
+                mesh: factory.mesh_instance(&list[0].mesh, mat),
                 level_id: next.lev_id,
                 orientation: child.rot,
             };
@@ -85,10 +86,10 @@ fn create_cubes(factory: &mut three::Factory,
                 cube.group.set_transform(p, q, child.scale);
             }
             cube.group.add(&cube.mesh);
-            next.parent.add(&cube.group);
+            list[next.parent_id].group.add(&cube.group);
             if next.mat_id + 1 < materials.len() && next.lev_id + 1 < levels.len() {
                 stack.push(Stack {
-                    parent: cube.group.clone(),
+                    parent_id: list.len(),
                     mat_id: next.mat_id + 1,
                     lev_id: next.lev_id + 1,
                 });
@@ -104,8 +105,9 @@ const COLORS: [three::Color; 6] = [
     0xffff80, 0x8080ff, 0x80ff80, 0xff8080, 0x80ffff, 0xff80ff
 ];
 
-const SPEEDS: [f32; 6] = [
-    0.7, -1.0, 1.3, -1.6, 1.9, -2.2,
+const SPEEDS: [f32; 5] = [
+    0.7, -1.0, 1.3, -1.6, 1.9,
+    //-2.2, //TODO when performance allows
 ];
 
 fn main() {

@@ -163,7 +163,7 @@ impl Object {
 
 /// Groups are used to combine several other objects or groups to work with them
 /// as with a single entity.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct Group {
     object: Object,
 }
