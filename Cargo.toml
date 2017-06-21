@@ -54,5 +54,8 @@ name = "shapes"
 name = "sprite"
 
 [[example]]
+name = "group"
+
+[[example]]
 name = "aviator"
 path = "examples/aviator/main.rs"
