@@ -210,6 +210,20 @@ impl Factory {
         }))
     }
 
+    /// Create a `Mesh` sharing the geometry with another one.
+    /// Rendering a sequence of meshes with the same geometry is faster.
+    pub fn mesh_instance(&mut self, template: &Mesh, mat: Material) -> Mesh {
+        let mut hub = self.hub.lock().unwrap();
+        let gpu_data = match hub.nodes[&template.node].sub_node {
+            SubNode::Visual(_, ref gpu) => GpuData {
+                constants: self.backend.create_constant_buffer(1),
+                .. gpu.clone()
+            },
+            _ => unreachable!()
+        };
+        Mesh::new(hub.spawn_visual(mat, gpu_data))
+    }
+
     /// Create new sprite from `Material`.
     pub fn sprite(&mut self, mat: Material) -> Sprite {
         Sprite::new(self.hub.lock().unwrap().spawn_visual(mat, GpuData {
