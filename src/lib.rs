@@ -19,6 +19,8 @@ extern crate gfx_window_glutin;
 #[cfg(feature = "opengl")]
 extern crate glutin;
 
+#[macro_use]
+mod macros;
 mod camera;
 mod factory;
 mod input;
