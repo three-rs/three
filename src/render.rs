@@ -271,7 +271,15 @@ impl Renderer {
 
     #[doc(hidden)]
     pub fn resize(&mut self, window: &glutin::Window) {
-        self.size = window.get_inner_size_pixels().unwrap();
+        let size = window.get_inner_size_pixels().unwrap();
+
+        // skip updating view and self size if some 
+        // of the sides equals to zero (fixes crash on minimize on Windows machines)
+        if size.0 == 0 || size.1 == 0 {
+            return
+        }
+
+        self.size = size;
         gfx_window_glutin::update_views(window, &mut self.out_color, &mut self.out_depth);
     }
 
