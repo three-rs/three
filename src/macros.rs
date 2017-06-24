@@ -8,18 +8,18 @@
 /// * `Deref<Target=Object>`
 /// * `DerefMut<Object>`
 ///
-/// ```
+/// ```rust,ignore
 /// // Implements conversion traits for MyStruct using field `internal_three_type`
-/// three_object_wrapper!(MyStruct#internal_three_type);
+/// three_object_wrapper!(MyStruct::internal_three_type);
 /// // If field is omitted, it defaults to `object`
-/// three_object_wrapper!(MyStruct); // equivalent to three_object_wrapper!(MyStruct#object);
+/// three_object_wrapper!(MyStruct); // equivalent to three_object_wrapper!(MyStruct::object);
 /// ```
 #[macro_export]
 macro_rules! three_object_wrapper {
     ($($name:ident),*) => {
-        three_object_wrapper!($($name#object),*);
+        three_object_wrapper!($($name::object),*);
     };
-    ($($name:ident # $field:ident),*) => {
+    ($($name:ident::$field:ident),*) => {
         $(
             impl AsRef<$crate::NodePointer> for $name {
                 fn as_ref(&self) -> &$crate::NodePointer {
