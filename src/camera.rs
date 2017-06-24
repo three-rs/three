@@ -3,14 +3,13 @@
 use std::ops;
 
 use cgmath;
-use froggy::Pointer;
 use mint;
 
-use {Camera, Node, Object};
+use {Camera, NodePointer, Object};
 
 
-impl<P> AsRef<Pointer<Node>> for Camera<P> {
-    fn as_ref(&self) -> &Pointer<Node> {
+impl<P> AsRef<NodePointer> for Camera<P> {
+    fn as_ref(&self) -> &NodePointer {
         &self.object.node
     }
 }

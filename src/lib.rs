@@ -46,7 +46,8 @@ use cgmath::Transform as Transform_;
 use factory::SceneId;
 use render::GpuData;
 
-
+/// Pointer to a Node
+pub type NodePointer = froggy::Pointer<Node>;
 type Transform = cgmath::Decomposed<cgmath::Vector3<f32>, cgmath::Quaternion<f32>>;
 
 #[derive(Clone, Debug)]
@@ -87,7 +88,7 @@ pub struct Node {
     world_visible: bool,
     transform: Transform,
     world_transform: Transform,
-    parent: Option<froggy::Pointer<Node>>,
+    parent: Option<NodePointer>,
     scene_id: Option<SceneId>,
     sub_node: SubNode,
 }
@@ -101,7 +102,7 @@ pub struct Node {
 /// [`Mesh`](struct.Mesh.html), ...).
 #[derive(Debug)]
 pub struct Object {
-    node: froggy::Pointer<Node>,
+    node: NodePointer,
     tx: mpsc::Sender<Message>,
 }
 
@@ -115,7 +116,7 @@ pub struct Camera<P> {
 
 type Message = (froggy::WeakPointer<Node>, Operation);
 enum Operation {
-    SetParent(froggy::Pointer<Node>),
+    SetParent(NodePointer),
     SetVisible(bool),
     SetTransform(Option<mint::Point3<f32>>, Option<mint::Quaternion<f32>>, Option<f32>),
     SetMaterial(Material),
@@ -219,7 +220,7 @@ impl Hub {
 /// Game scene contains game objects and can be rendered by [`Camera`](struct.Camera.html).
 pub struct Scene {
     unique_id: SceneId,
-    node: froggy::Pointer<Node>,
+    node: NodePointer,
     tx: mpsc::Sender<Message>,
     hub: HubPtr,
     /// See [`Background`](struct.Background.html).

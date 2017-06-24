@@ -1,9 +1,8 @@
 use std::ops;
 
-use froggy::Pointer;
 use mint;
 
-use {Object, Operation, Node, SubNode,
+use {Object, Operation, NodePointer, SubNode,
      Scene, ShadowProjection, Transform};
 use camera::Orthographic;
 use factory::{Geometry, ShadowMap, Texture};
@@ -177,7 +176,7 @@ impl Group {
     }
 
     /// Add new [`Object`](struct.Object.html) to the group.
-    pub fn add<P: AsRef<Pointer<Node>>>(&mut self, child: &P) {
+    pub fn add<P: AsRef<NodePointer>>(&mut self, child: &P) {
         let msg = Operation::SetParent(self.object.node.clone());
         let _ = self.object.tx.send((child.as_ref().downgrade(), msg));
     }
@@ -319,7 +318,7 @@ impl PointLight {
 
 impl Scene {
     /// Add new [`Object`](struct.Object.html) to the scene.
-    pub fn add<P: AsRef<Pointer<Node>>>(&mut self, child: &P) {
+    pub fn add<P: AsRef<NodePointer>>(&mut self, child: &P) {
         let msg = Operation::SetParent(self.node.clone());
         let _ = self.tx.send((child.as_ref().downgrade(), msg));
     }
@@ -328,8 +327,8 @@ impl Scene {
 macro_rules! as_node {
     ($($name:ident),*) => {
         $(
-            impl AsRef<Pointer<Node>> for $name {
-                fn as_ref(&self) -> &Pointer<Node> {
+            impl AsRef<NodePointer> for $name {
+                fn as_ref(&self) -> &NodePointer {
                     &self.node
                 }
             }
