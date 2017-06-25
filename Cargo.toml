@@ -21,7 +21,7 @@ default = ["opengl"]
 [dependencies]
 cgmath = "0.14"
 collision = {path = "../collision"}
-froggy = "0.3"
+froggy = {path = "../froggy"}
 genmesh = "0.5"
 gfx = "0.16"
 image = "0.13"

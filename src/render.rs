@@ -305,7 +305,7 @@ impl Renderer {
         }
         let mut lights = Vec::new();
         let mut shadow_requests = Vec::new();
-        for node in hub.nodes.iter_alive() {
+        for node in &hub.nodes {
             if !node.visible || node.scene_id != Some(scene.unique_id) {
                 continue
             }
@@ -377,7 +377,7 @@ impl Renderer {
                 mx_vp: request.matrix.into(),
                 num_lights: 0,
             });
-            for node in hub.nodes.iter_alive() {
+            for node in &hub.nodes {
                 if !node.visible || node.scene_id != Some(scene.unique_id) {
                     continue;
                 }
@@ -435,7 +435,7 @@ impl Renderer {
             Some(ref request) => request.resource.clone(),
             None => shadow_default.clone(),
         };
-        for node in hub.nodes.iter_alive() {
+        for node in &hub.nodes {
             if !node.visible || node.scene_id != Some(scene.unique_id) {
                 continue;
             }
@@ -480,7 +480,7 @@ impl Renderer {
 
         // draw debug quads
         self.debug_quads.sync_pending();
-        for quad in self.debug_quads.iter_alive() {
+        for quad in &self.debug_quads {
             let pos = [
                 if quad.pos[0] >= 0 {
                     quad.pos[0]

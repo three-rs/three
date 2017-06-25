@@ -203,31 +203,33 @@ impl Hub {
     }
 
     fn update_graph(&mut self) {
-        let mut cursor = self.nodes.cursor_alive();
-        while let Some(mut item) = cursor.next() {
+        let mut cursor = self.nodes.cursor();
+        // forward pass: derive visibility, scene id, and world transform
+        // from the parent `Node`
+        while let Some((left, mut item, _)) = cursor.next() {
             if !item.visible {
                 item.world_visible = false;
                 continue
             }
-            let (visibility, affilation, transform, bounds) = match item.parent {
+            let (visibility, affilation, transform) = match item.parent {
                 Some(ref parent_ptr) => {
-                    let parent = item.look_back(parent_ptr).unwrap();
+                    let parent = left.get(parent_ptr).unwrap();
                     let transform = parent.world_transform.concat(&item.transform);
-                    let bounds = if parent.world_visible {
-                        let bounds = item.bounds.transform(&transform);
-                        parent.world_bounds = parent.world_bounds.union(&bounds);
-                        bounds
-                    } else {
-                        item.bounds
-                    };
-                    (parent.world_visible, parent.scene_id, transform, bounds)
+                    (parent.world_visible, parent.scene_id, transform)
                 },
-                None => (true, item.scene_id, item.transform, item.bounds),
+                None => (true, item.scene_id, item.transform),
             };
             item.world_visible = visibility;
             item.scene_id = affilation;
             item.world_transform = transform;
-            item.world_bounds = bounds;
+            item.world_bounds = item.bounds.transform(&transform);
+        }
+        // backwards pass: accumulate bounding boxes of children
+        while let Some((mut left, item, _)) = cursor.prev() {
+            if let (true, Some(parent_ptr)) = (item.world_visible, item.parent.as_ref()) {
+                let bounds = &mut left.get_mut(parent_ptr).unwrap().world_bounds;
+                *bounds = item.world_bounds.union(bounds);
+            }
         }
     }
 }
