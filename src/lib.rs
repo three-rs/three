@@ -55,6 +55,12 @@ use render::GpuData;
 pub type NodePointer = froggy::Pointer<Node>;
 type Transform = cgmath::Decomposed<cgmath::Vector3<f32>, cgmath::Quaternion<f32>>;
 
+/// Abstract shape of an object for collision detection and picking.
+pub trait Shape: collision::Bound<f32> {
+    /// Check for intersections with a ray.
+    fn crosses_ray(&self, collision::Ray3<f32>) -> bool;
+}
+
 #[derive(Clone, Debug)]
 enum SubLight {
     Ambient,
@@ -95,6 +101,7 @@ pub struct Node {
     world_transform: Transform,
     bounds: collision::Aabb3<f32>,
     world_bounds: collision::Aabb3<f32>,
+    shape: Box<Shape>,
     parent: Option<NodePointer>,
     scene_id: Option<SceneId>,
     sub_node: SubNode,

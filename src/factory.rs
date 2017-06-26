@@ -5,7 +5,7 @@ use std::fs::File;
 use std::path::Path;
 
 use cgmath::{Point3, Transform as Transform_};
-use collision::Aabb3;
+use collision::{Discrete, Aabb3, Ray3};
 use genmesh::{Polygon, EmitTriangles, Triangulate, Vertex as GenVertex};
 use genmesh::generators::{self, IndexedPolygon, SharedVertex};
 use gfx;
@@ -20,7 +20,7 @@ use camera::{Orthographic, Perspective};
 use render::{BackendFactory, BackendResources, GpuData, Vertex, ShadowFormat};
 use scene::{Color, Background, Group, Mesh, Sprite, Material,
             AmbientLight, DirectionalLight, HemisphereLight, PointLight};
-use {Hub, HubPtr, SubLight, Node, SubNode,
+use {Hub, HubPtr, Shape, SubLight, Node, SubNode,
      LightData, Object, Scene, Camera};
 
 
@@ -49,14 +49,23 @@ const QUAD: [Vertex; 4] = [
     },
 ];
 
+const ORIGIN: Point3<f32> = Point3 {
+    x: 0.0, y: 0.0, z: 0.0
+};
+
 const EMPTY_AABB3: Aabb3<f32> = Aabb3 {
-    min: Point3 { x:0.0, y: 0.0, z: 0.0 },
-    max: Point3 { x:0.0, y: 0.0, z: 0.0 },
+    min: ORIGIN, max: ORIGIN,
 };
 
 
-impl From<SubNode> for Node {
-    fn from(sub: SubNode) -> Self {
+impl Shape for Point3<f32> {
+    fn crosses_ray(&self, ray: Ray3<f32>) -> bool {
+        (*self, ray).intersects()
+    }
+}
+
+impl Node {
+    fn new<H: 'static + Shape>(sub: SubNode, shape: H) -> Self {
         Node {
             visible: true,
             world_visible: false,
@@ -64,6 +73,7 @@ impl From<SubNode> for Node {
             world_transform: Transform_::one(),
             bounds: EMPTY_AABB3,
             world_bounds: EMPTY_AABB3,
+            shape: Box::new(shape),
             parent: None,
             scene_id: None,
             sub_node: sub,
@@ -72,23 +82,28 @@ impl From<SubNode> for Node {
 }
 
 impl Hub {
-    fn spawn(&mut self, sub: SubNode) -> Object {
+    fn spawn<H>(&mut self, sub: SubNode, shape: H) -> Object where
+    H: 'static + Shape
+    {
         Object {
-            node: self.nodes.create(sub.into()),
+            node: self.nodes.create(Node::new(sub, shape)),
             tx: self.message_tx.clone(),
         }
     }
 
     fn spawn_empty(&mut self) -> Object {
-        self.spawn(SubNode::Empty)
+        self.spawn(SubNode::Empty, ORIGIN)
     }
 
-    fn spawn_visual(&mut self, mat: Material, gpu_data: GpuData) -> Object {
-        self.spawn(SubNode::Visual(mat, gpu_data))
+    fn spawn_visual<H>(&mut self, shape: H, mat: Material,
+                       gpu_data: GpuData) -> Object
+    where H: 'static + Shape
+    {
+        self.spawn(SubNode::Visual(mat, gpu_data), shape)
     }
 
     fn spawn_light(&mut self, data: LightData) -> Object {
-        self.spawn(SubNode::Light(data))
+        self.spawn(SubNode::Light(data), ORIGIN)
     }
 }
 
@@ -143,7 +158,7 @@ impl Factory {
         let mut hub = self.hub.lock().unwrap();
         let node = hub.nodes.create(Node {
             scene_id: Some(self.scene_id),
-            .. SubNode::Empty.into()
+            .. Node::new(SubNode::Empty, ORIGIN)
         });
         Scene {
             unique_id: self.scene_id,
@@ -211,7 +226,7 @@ impl Factory {
             let faces: &[u16] = gfx::memory::cast_slice(&geom.faces);
             self.backend.create_vertex_buffer_with_slice(&vertices, faces)
         };
-        Mesh::new(self.hub.lock().unwrap().spawn_visual(mat, GpuData {
+        Mesh::new(self.hub.lock().unwrap().spawn_visual(ORIGIN, mat, GpuData {
             slice,
             vertices: vbuf,
             constants: cbuf,
@@ -229,12 +244,12 @@ impl Factory {
             },
             _ => unreachable!()
         };
-        Mesh::new(hub.spawn_visual(mat, gpu_data))
+        Mesh::new(hub.spawn_visual(ORIGIN, mat, gpu_data))
     }
 
     /// Create new sprite from `Material`.
     pub fn sprite(&mut self, mat: Material) -> Sprite {
-        Sprite::new(self.hub.lock().unwrap().spawn_visual(mat, GpuData {
+        Sprite::new(self.hub.lock().unwrap().spawn_visual(ORIGIN, mat, GpuData {
             slice: gfx::Slice::new_match_vertex_buffer(&self.quad_buf),
             vertices: self.quad_buf.clone(),
             constants: self.backend.create_constant_buffer(1),
@@ -587,7 +602,7 @@ impl Factory {
 
                 let (vbuf, slice) = self.backend.create_vertex_buffer_with_slice(&vertices, &indices[..]);
                 let cbuf = self.backend.create_constant_buffer(1);
-                let mesh = Mesh::new(hub.spawn_visual(material, GpuData {
+                let mesh = Mesh::new(hub.spawn_visual(ORIGIN, material, GpuData {
                     slice,
                     vertices: vbuf,
                     constants: cbuf,
