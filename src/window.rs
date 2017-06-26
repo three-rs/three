@@ -59,6 +59,7 @@ impl Window {
                 Resized(..) => renderer.resize(window),
                 Closed => running = false,
                 KeyboardInput(state, _, Some(key), _) => input.keyboard_input(state, key),
+                MouseInput(state, button) => input.mouse_input(state, button),
                 MouseMoved(x, y) => input.mouse_moved(renderer.map_to_ndc(x, y)),
                 _ => ()
             }
