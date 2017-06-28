@@ -29,10 +29,11 @@ mod scene;
 #[cfg(feature = "opengl")]
 mod window;
 
-pub use camera::{Orthographic, Perspective};
+pub use camera::{OrbitControls, Orthographic, Perspective};
 pub use factory::{Factory, Geometry, ShadowMap, Texture};
 pub use input::{Button, KeyAxis, Timer, Input,
-                KEY_ESCAPE, KEY_SPACE, AXIS_LEFT_RIGHT, AXIS_DOWN_UP};
+                KEY_ESCAPE, KEY_SPACE, MOUSE_LEFT, MOUSE_RIGHT,
+                AXIS_LEFT_RIGHT, AXIS_DOWN_UP};
 pub use render::{ColorFormat, DepthFormat, Renderer, ShadowType, DebugQuadHandle};
 pub use scene::{Color, Background, Material, NodeTransform, NodeInfo,
                 Group, Mesh, Sprite,
@@ -102,7 +103,7 @@ pub struct Node {
 /// for each case (e.g. [`Camera`](struct.Camera.html),
 /// [`AmbientLight`](struct.AmbientLight.html),
 /// [`Mesh`](struct.Mesh.html), ...).
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Object {
     node: NodePointer,
     tx: mpsc::Sender<Message>,

@@ -82,6 +82,18 @@ impl Input {
         }
     }
 
+    pub fn mouse_input(&mut self, state: ElementState, button: MouseButton) {
+        match state {
+            ElementState::Pressed => {
+                self.0.mouse_pressed.insert(button);
+                self.1.mouse_hit.push(button);
+            }
+            ElementState::Released => {
+                self.0.mouse_pressed.remove(&button);
+            }
+        }
+    }
+
     pub fn mouse_moved(&mut self, pos: mint::Point2<f32>) {
         self.1.mouse_moves.push(mint::Vector2 {
             x: pos.x - self.0.mouse_pos.x,
@@ -113,6 +125,8 @@ pub enum Button {
 
 pub const KEY_ESCAPE: Button = Button::Key(Key::Escape);
 pub const KEY_SPACE: Button = Button::Key(Key::Space);
+pub const MOUSE_LEFT: Button = Button::Mouse(MouseButton::Left);
+pub const MOUSE_RIGHT: Button = Button::Mouse(MouseButton::Right);
 
 impl Button {
     pub fn count_hits(&self, input: &Input) -> u8 {
