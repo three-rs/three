@@ -4,7 +4,8 @@ use std::io::BufReader;
 use std::fs::File;
 use std::path::Path;
 
-use cgmath::Transform as Transform_;
+use cgmath::{Point3, Transform as Transform_};
+use collision::Aabb3;
 use genmesh::{Polygon, EmitTriangles, Triangulate, Vertex as GenVertex};
 use genmesh::generators::{self, IndexedPolygon, SharedVertex};
 use gfx;
@@ -48,6 +49,11 @@ const QUAD: [Vertex; 4] = [
     },
 ];
 
+const EMPTY_AABB3: Aabb3<f32> = Aabb3 {
+    min: Point3 { x:0.0, y: 0.0, z: 0.0 },
+    max: Point3 { x:0.0, y: 0.0, z: 0.0 },
+};
+
 
 impl From<SubNode> for Node {
     fn from(sub: SubNode) -> Self {
@@ -56,6 +62,8 @@ impl From<SubNode> for Node {
             world_visible: false,
             transform: Transform_::one(),
             world_transform: Transform_::one(),
+            bounds: EMPTY_AABB3,
+            world_bounds: EMPTY_AABB3,
             parent: None,
             scene_id: None,
             sub_node: sub,

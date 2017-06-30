@@ -1,6 +1,8 @@
-#![warn(missing_docs)]
 //! Three.js inspired 3D engine in Rust.
+#![warn(missing_docs)]
+
 extern crate cgmath;
+extern crate collision;
 extern crate froggy;
 extern crate genmesh;
 #[macro_use]
@@ -46,6 +48,7 @@ pub use glutin::VirtualKeyCode as Key;
 use std::sync::{mpsc, Arc, Mutex};
 
 use cgmath::Transform as Transform_;
+use collision::Aabb;
 use factory::SceneId;
 use render::GpuData;
 
@@ -91,6 +94,8 @@ pub struct Node {
     world_visible: bool,
     transform: Transform,
     world_transform: Transform,
+    bounds: collision::Aabb3<f32>,
+    world_bounds: collision::Aabb3<f32>,
     parent: Option<NodePointer>,
     scene_id: Option<SceneId>,
     sub_node: SubNode,
@@ -199,23 +204,33 @@ impl Hub {
     }
 
     fn update_graph(&mut self) {
-        let mut cursor = self.nodes.cursor_alive();
-        while let Some(mut item) = cursor.next() {
+        let mut cursor = self.nodes.cursor();
+        // forward pass: derive visibility, scene id, and world transform
+        // from the parent `Node`
+        while let Some((left, mut item, _)) = cursor.next() {
             if !item.visible {
                 item.world_visible = false;
                 continue
             }
             let (visibility, affilation, transform) = match item.parent {
                 Some(ref parent_ptr) => {
-                    let parent = item.look_back(parent_ptr).unwrap();
-                    (parent.world_visible, parent.scene_id,
-                     parent.world_transform.concat(&item.transform))
+                    let parent = left.get(parent_ptr).unwrap();
+                    let transform = parent.world_transform.concat(&item.transform);
+                    (parent.world_visible, parent.scene_id, transform)
                 },
                 None => (true, item.scene_id, item.transform),
             };
             item.world_visible = visibility;
             item.scene_id = affilation;
             item.world_transform = transform;
+            item.world_bounds = item.bounds.transform(&transform);
+        }
+        // backwards pass: accumulate bounding boxes of children
+        while let Some((mut left, item, _)) = cursor.prev() {
+            if let (true, Some(parent_ptr)) = (item.world_visible, item.parent.as_ref()) {
+                let bounds = &mut left.get_mut(parent_ptr).unwrap().world_bounds;
+                *bounds = item.world_bounds.union(bounds);
+            }
         }
     }
 }
