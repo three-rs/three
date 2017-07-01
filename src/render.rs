@@ -141,6 +141,13 @@ pub struct GpuData {
     pub slice: gfx::Slice<back::Resources>,
     pub vertices: gfx::handle::Buffer<back::Resources, Vertex>,
     pub constants: gfx::handle::Buffer<back::Resources, Locals>,
+    pub pending: Option<DynamicData>,
+}
+
+#[derive(Clone, Debug)]
+pub struct DynamicData {
+    pub num_vertices: usize,
+    pub buffer: gfx::handle::Buffer<back::Resources, Vertex>,
 }
 
 /// Shadow type is used to specify shadow's rendering algorithm.
@@ -296,6 +303,19 @@ impl Renderer {
         let mut hub = scene.hub.lock().unwrap();
         hub.process_messages();
         hub.update_graph();
+
+        // update dynamic meshes
+        for mut node in hub.nodes.iter_alive_mut() {
+            if !node.visible || node.scene_id != Some(scene.unique_id) {
+                continue
+            }
+            if let SubNode::Visual(_, ref mut gpu_data) = node.sub_node {
+                if let Some(dynamic) = gpu_data.pending.take() {
+                    self.encoder.copy_buffer(&dynamic.buffer, &gpu_data.vertices, 0, 0, dynamic.num_vertices)
+                                .unwrap();
+                }
+            }
+        }
 
         // gather lights
         struct ShadowRequest {

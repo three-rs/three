@@ -4,7 +4,7 @@ use std::io::BufReader;
 use std::fs::File;
 use std::path::Path;
 
-use cgmath::Transform as Transform_;
+use cgmath::{Vector3, Transform as Transform_};
 use genmesh::{Polygon, EmitTriangles, Triangulate, Vertex as GenVertex};
 use genmesh::generators::{self, IndexedPolygon, SharedVertex};
 use gfx;
@@ -16,11 +16,12 @@ use mint;
 use obj;
 
 use camera::{Orthographic, Perspective};
-use render::{BackendFactory, BackendResources, GpuData, Vertex, ShadowFormat};
-use scene::{Color, Background, Group, Mesh, Sprite, Material,
+use render::{BackendFactory, BackendResources, GpuData, DynamicData,
+             Vertex, ShadowFormat};
+use scene::{Color, Background, Group, Sprite, Material,
             AmbientLight, DirectionalLight, HemisphereLight, PointLight};
 use {Hub, HubPtr, SubLight, Node, SubNode,
-     LightData, Object, Scene, Camera};
+     LightData, Object, Scene, Camera, Mesh, DynamicMesh};
 
 
 const NORMAL_Z: [I8Norm; 4] = [I8Norm(0), I8Norm(0), I8Norm(1), I8Norm(0)];
@@ -179,23 +180,22 @@ impl Factory {
         Group::new(self.hub.lock().unwrap().spawn_empty())
     }
 
-    /// Create new `Mesh` with desired `Geometry` and `Material`.
-    pub fn mesh(&mut self, geom: Geometry, mat: Material) -> Mesh {
-        let vertices: Vec<_> = if geom.normals.is_empty() {
-            geom.vertices.iter().map(|v| Vertex {
+    fn mesh_object(&mut self, geom: &Geometry, mat: Material) -> Object {
+        let shape = &geom.base_shape;
+        let vertices: Vec<_> = if shape.normals.is_empty() {
+            geom.base_shape.vertices.iter().map(|v| Vertex {
                 pos: [v.x, v.y, v.z, 1.0],
                 uv: [0.0, 0.0], //TODO
                 normal: NORMAL_Z,
             }).collect()
         } else {
             let f2i = |x: f32| I8Norm(cmp::min(cmp::max((x * 127.) as isize, -128), 127) as i8);
-            geom.vertices.iter().zip(geom.normals.iter()).map(|(v, n)| Vertex {
+            shape.vertices.iter().zip(shape.normals.iter()).map(|(v, n)| Vertex {
                 pos: [v.x, v.y, v.z, 1.0],
                 uv: [0.0, 0.0], //TODO
                 normal: [f2i(n.x), f2i(n.y), f2i(n.z), I8Norm(0)],
             }).collect()
         };
-        //TODO: dynamic geometry
         let cbuf = self.backend.create_constant_buffer(1);
         let (vbuf, slice) = if geom.faces.is_empty() {
             self.backend.create_vertex_buffer_with_slice(&vertices, ())
@@ -203,11 +203,33 @@ impl Factory {
             let faces: &[u16] = gfx::memory::cast_slice(&geom.faces);
             self.backend.create_vertex_buffer_with_slice(&vertices, faces)
         };
-        Mesh::new(self.hub.lock().unwrap().spawn_visual(mat, GpuData {
+        self.hub.lock().unwrap().spawn_visual(mat, GpuData {
             slice,
             vertices: vbuf,
             constants: cbuf,
-        }))
+            pending: None,
+        })
+    }
+
+    /// Create new `Mesh` with desired `Geometry` and `Material`.
+    pub fn mesh(&mut self, geometry: Geometry, mat: Material) -> Mesh {
+        Mesh {
+            object: self.mesh_object(&geometry, mat),
+        }
+    }
+
+    /// Create a new `DynamicMesh` with desired `Geometry` and `Material`.
+    pub fn mesh_dynamic(&mut self, geometry: Geometry, mat: Material) -> DynamicMesh {
+        let num_vertices = geometry.base_shape.vertices.len();
+        let buffer = self.backend.create_upload_buffer(num_vertices).unwrap();
+        DynamicMesh {
+            object: self.mesh_object(&geometry, mat),
+            geometry,
+            dynamic: DynamicData {
+                num_vertices,
+                buffer,
+            },
+        }
     }
 
     /// Create a `Mesh` sharing the geometry with another one.
@@ -221,7 +243,9 @@ impl Factory {
             },
             _ => unreachable!()
         };
-        Mesh::new(hub.spawn_visual(mat, gpu_data))
+        Mesh {
+            object: hub.spawn_visual(mat, gpu_data),
+        }
     }
 
     /// Create new sprite from `Material`.
@@ -230,6 +254,7 @@ impl Factory {
             slice: gfx::Slice::new_match_vertex_buffer(&self.quad_buf),
             vertices: self.quad_buf.clone(),
             constants: self.backend.create_constant_buffer(1),
+            pending: None,
         }))
     }
 
@@ -285,14 +310,33 @@ impl Factory {
     }
 }
 
-/// A collection of vertices, their normals, and faces that defines the
-/// shape of a polyhedral object.
+
+/// A shape of geometry that is used for mesh blending.
 #[derive(Clone, Debug)]
-pub struct Geometry {
+pub struct GeometryShape {
     /// Vertices.
     pub vertices: Vec<mint::Point3<f32>>,
     /// Normals.
     pub normals: Vec<mint::Vector3<f32>>,
+}
+
+impl GeometryShape {
+    pub fn empty() -> Self {
+        GeometryShape {
+            vertices: Vec::new(),
+            normals: Vec::new(),
+        }
+    }
+}
+
+/// A collection of vertices, their normals, and faces that defines the
+/// shape of a polyhedral object.
+#[derive(Clone, Debug)]
+pub struct Geometry {
+    /// The original shape of geometry.
+    pub base_shape: GeometryShape,
+    /// A map containing blend shapes and their names.
+    pub shapes: HashMap<String, GeometryShape>,
     /// Faces.
     pub faces: Vec<[u16; 3]>,
     /// Whether geometry is dynamic or not.
@@ -301,19 +345,22 @@ pub struct Geometry {
 
 impl Geometry {
     /// Create new `Geometry` without any data in it.
-    pub fn empty() -> Geometry {
+    pub fn empty() -> Self {
         Geometry {
-            vertices: Vec::new(),
-            normals: Vec::new(),
+            base_shape: GeometryShape::empty(),
+            shapes: HashMap::new(),
             faces: Vec::new(),
             is_dynamic: false,
         }
     }
 
     /// Create `Geometry` from vector of vertices.
-    pub fn from_vertices(verts: Vec<mint::Point3<f32>>) -> Geometry {
+    pub fn from_vertices(vertices: Vec<mint::Point3<f32>>) -> Self {
         Geometry {
-            vertices: verts,
+            base_shape: GeometryShape {
+                vertices,
+                normals: Vec::new(),
+            },
             .. Geometry::empty()
         }
     }
@@ -325,12 +372,15 @@ impl Geometry {
         Fnor: Fn(GenVertex) -> mint::Vector3<f32>,
     {
         Geometry {
-            vertices: gen.shared_vertex_iter()
-                         .map(fpos)
-                         .collect(),
-            normals: gen.shared_vertex_iter()
-                        .map(fnor)
-                        .collect(),
+            base_shape: GeometryShape {
+                vertices: gen.shared_vertex_iter()
+                             .map(fpos)
+                             .collect(),
+                normals: gen.shared_vertex_iter()
+                            .map(fnor)
+                            .collect(),
+            },
+            shapes: HashMap::new(),
             faces: gen.indexed_polygon_iter()
                        .triangulate()
                        .map(|t| [t.x as u16, t.y as u16, t.z as u16])
@@ -389,6 +439,7 @@ impl Geometry {
         )
     }
 }
+
 
 /// An image applied (mapped) to the surface of a shape or polygon.
 #[derive(Clone, Debug)]
@@ -579,11 +630,14 @@ impl Factory {
 
                 let (vbuf, slice) = self.backend.create_vertex_buffer_with_slice(&vertices, &indices[..]);
                 let cbuf = self.backend.create_constant_buffer(1);
-                let mesh = Mesh::new(hub.spawn_visual(material, GpuData {
-                    slice,
-                    vertices: vbuf,
-                    constants: cbuf,
-                }));
+                let mesh = Mesh {
+                    object: hub.spawn_visual(material, GpuData {
+                        slice,
+                        vertices: vbuf,
+                        constants: cbuf,
+                        pending: None,
+                    }),
+                };
                 group.add(&mesh);
                 meshes.push(mesh);
             }
@@ -592,5 +646,38 @@ impl Factory {
         }
 
         (groups, meshes)
+    }
+
+    /// Update the geometry of `DynamicMesh`.
+    pub fn mix(&mut self, mesh: &DynamicMesh, shapes: &[(&str, f32)]) {
+        let f2i = |x: f32| I8Norm(cmp::min(cmp::max((x * 127.) as isize, -128), 127) as i8);
+
+        self.hub.lock().unwrap().update_mesh(mesh);
+        let shapes: Vec<_> = shapes.iter().map(|&(name, k)|
+            (&mesh.geometry.shapes[name], k)
+        ).collect();
+        let mut mapping = self.backend.write_mapping(&mesh.dynamic.buffer).unwrap();
+
+        for i in 0 .. mesh.geometry.base_shape.vertices.len() {
+            let (mut pos, ksum) = shapes.iter().fold((Vector3::new(0.0, 0.0, 0.0), 0.0), |(pos, ksum), &(ref shape, k)| {
+                let p: [f32; 3] = shape.vertices[i].into();
+                (pos + k * Vector3::from(p), ksum + k)
+            });
+            if ksum != 1.0 {
+                let p: [f32; 3] = mesh.geometry.base_shape.vertices[i].into();
+                pos += (1.0 - ksum) * Vector3::from(p);
+            }
+            let normal = if mesh.geometry.base_shape.normals.is_empty() {
+                NORMAL_Z
+            } else {
+                let n = mesh.geometry.base_shape.normals[i];
+                [f2i(n.x), f2i(n.y), f2i(n.z), I8Norm(0)]
+            };
+            mapping[i] = Vertex {
+                pos: [pos.x, pos.y, pos.z, 1.0],
+                uv: [0.0, 0.0], //TODO
+                normal,
+            };
+        }
     }
 }
