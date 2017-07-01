@@ -36,7 +36,7 @@ pub use input::{Button, KeyAxis, Timer, Input,
                 AXIS_LEFT_RIGHT, AXIS_DOWN_UP};
 pub use render::{ColorFormat, DepthFormat, Renderer, ShadowType, DebugQuadHandle};
 pub use scene::{Color, Background, Material, NodeTransform, NodeInfo,
-                Group, Mesh, Sprite,
+                Group, Sprite,
                 AmbientLight, DirectionalLight, HemisphereLight, PointLight};
 #[cfg(feature = "opengl")]
 pub use window::Window;
@@ -47,7 +47,7 @@ use std::sync::{mpsc, Arc, Mutex};
 
 use cgmath::Transform as Transform_;
 use factory::SceneId;
-use render::GpuData;
+use render::{DynamicData, GpuData};
 
 /// Pointer to a Node
 pub type NodePointer = froggy::Pointer<Node>;
@@ -218,6 +218,14 @@ impl Hub {
             item.world_transform = transform;
         }
     }
+
+    fn update_mesh(&mut self, mesh: &DynamicMesh) {
+        match self.nodes[&mesh.node].sub_node {
+            SubNode::Visual(_, ref mut gpu_data) =>
+                gpu_data.pending = Some(mesh.dynamic.clone()),
+            _ => unreachable!()
+        }
+    }
 }
 
 /// Game scene contains game objects and can be rendered by [`Camera`](struct.Camera.html).
@@ -228,4 +236,17 @@ pub struct Scene {
     hub: HubPtr,
     /// See [`Background`](struct.Background.html).
     pub background: scene::Background,
+}
+
+/// [`Geometry`](struct.Geometry.html) with some [`Material`](struct.Material.html).
+pub struct Mesh {
+    object: Object,
+}
+
+/// A dynamic version of a mesh allows changing the geometry on CPU side
+/// in order to animate the mesh.
+pub struct DynamicMesh {
+    object: Object,
+    geometry: Geometry,
+    dynamic: DynamicData,
 }
