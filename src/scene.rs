@@ -331,7 +331,7 @@ macro_rules! as_node {
     }
 }
 
-as_node!(Object, Group, Mesh, Sprite,
+as_node!(Object, Group, Mesh, DynamicMesh, Sprite,
          AmbientLight, DirectionalLight, HemisphereLight, PointLight);
 
 macro_rules! deref_objects {
