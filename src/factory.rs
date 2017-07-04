@@ -180,10 +180,9 @@ impl Factory {
         Group::new(self.hub.lock().unwrap().spawn_empty())
     }
 
-    fn mesh_object(&mut self, geom: &Geometry, mat: Material) -> Object {
-        let shape = &geom.base_shape;
-        let vertices: Vec<_> = if shape.normals.is_empty() {
-            geom.base_shape.vertices.iter().map(|v| Vertex {
+    fn mesh_vertices(shape: &GeometryShape) -> Vec<Vertex> {
+        if shape.normals.is_empty() {
+            shape.vertices.iter().map(|v| Vertex {
                 pos: [v.x, v.y, v.z, 1.0],
                 uv: [0.0, 0.0], //TODO
                 normal: NORMAL_Z,
@@ -195,39 +194,60 @@ impl Factory {
                 uv: [0.0, 0.0], //TODO
                 normal: [f2i(n.x), f2i(n.y), f2i(n.z), I8Norm(0)],
             }).collect()
-        };
-        let cbuf = self.backend.create_constant_buffer(1);
-        let (vbuf, slice) = if geom.faces.is_empty() {
-            self.backend.create_vertex_buffer_with_slice(&vertices, ())
-        } else {
-            let faces: &[u16] = gfx::memory::cast_slice(&geom.faces);
-            self.backend.create_vertex_buffer_with_slice(&vertices, faces)
-        };
-        self.hub.lock().unwrap().spawn_visual(mat, GpuData {
-            slice,
-            vertices: vbuf,
-            constants: cbuf,
-            pending: None,
-        })
+        }
     }
 
     /// Create new `Mesh` with desired `Geometry` and `Material`.
     pub fn mesh(&mut self, geometry: Geometry, mat: Material) -> Mesh {
+        let vertices = Self::mesh_vertices(&geometry.base_shape);
+        let cbuf = self.backend.create_constant_buffer(1);
+        let (vbuf, slice) = if geometry.faces.is_empty() {
+            self.backend.create_vertex_buffer_with_slice(&vertices, ())
+        } else {
+            let faces: &[u16] = gfx::memory::cast_slice(&geometry.faces);
+            self.backend.create_vertex_buffer_with_slice(&vertices, faces)
+        };
         Mesh {
-            object: self.mesh_object(&geometry, mat),
+            object: self.hub.lock().unwrap().spawn_visual(mat, GpuData {
+                slice,
+                vertices: vbuf,
+                constants: cbuf,
+                pending: None,
+            }),
         }
     }
 
     /// Create a new `DynamicMesh` with desired `Geometry` and `Material`.
     pub fn mesh_dynamic(&mut self, geometry: Geometry, mat: Material) -> DynamicMesh {
-        let num_vertices = geometry.base_shape.vertices.len();
-        let buffer = self.backend.create_upload_buffer(num_vertices).unwrap();
+        let slice = {
+            let data: &[u16] = gfx::memory::cast_slice(&geometry.faces);
+            gfx::Slice {
+                start: 0,
+                end: data.len() as u32,
+                base_vertex: 0,
+                instances: None,
+                buffer: self.backend.create_index_buffer(data),
+            }
+        };
+        let (num_vertices, vertices) = {
+            let data = Self::mesh_vertices(&geometry.base_shape);
+            let buf = self.backend.create_buffer_immutable(&data,
+                gfx::buffer::Role::Vertex, gfx::memory::TRANSFER_DST).unwrap();
+            (data.len(), buf)
+        };
+        let constants = self.backend.create_constant_buffer(1);
+
         DynamicMesh {
-            object: self.mesh_object(&geometry, mat),
+            object: self.hub.lock().unwrap().spawn_visual(mat, GpuData {
+                slice,
+                vertices,
+                constants,
+                pending: None,
+            }),
             geometry,
             dynamic: DynamicData {
                 num_vertices,
-                buffer,
+                buffer: self.backend.create_upload_buffer(num_vertices).unwrap(),
             },
         }
     }
@@ -321,6 +341,7 @@ pub struct GeometryShape {
 }
 
 impl GeometryShape {
+    /// Create an empty shape.
     pub fn empty() -> Self {
         GeometryShape {
             vertices: Vec::new(),
@@ -339,8 +360,6 @@ pub struct Geometry {
     pub shapes: HashMap<String, GeometryShape>,
     /// Faces.
     pub faces: Vec<[u16; 3]>,
-    /// Whether geometry is dynamic or not.
-    pub is_dynamic: bool,
 }
 
 impl Geometry {
@@ -350,7 +369,6 @@ impl Geometry {
             base_shape: GeometryShape::empty(),
             shapes: HashMap::new(),
             faces: Vec::new(),
-            is_dynamic: false,
         }
     }
 
@@ -385,7 +403,6 @@ impl Geometry {
                        .triangulate()
                        .map(|t| [t.x as u16, t.y as u16, t.z as u16])
                        .collect(),
-            is_dynamic: false,
         }
     }
 

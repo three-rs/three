@@ -30,7 +30,7 @@ mod scene;
 mod window;
 
 pub use camera::{OrbitControls, Orthographic, Perspective};
-pub use factory::{Factory, Geometry, ShadowMap, Texture};
+pub use factory::{Factory, Geometry, GeometryShape, ShadowMap, Texture};
 pub use input::{Button, KeyAxis, Timer, Input,
                 KEY_ESCAPE, KEY_SPACE, MOUSE_LEFT, MOUSE_RIGHT,
                 AXIS_LEFT_RIGHT, AXIS_DOWN_UP};

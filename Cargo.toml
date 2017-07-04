@@ -57,5 +57,8 @@ name = "sprite"
 name = "group"
 
 [[example]]
+name = "anim"
+
+[[example]]
 name = "aviator"
 path = "examples/aviator/main.rs"
