@@ -3,9 +3,10 @@ use std::ops;
 use mint;
 
 use {Object, Operation, NodePointer, SubNode,
+     Mesh, DynamicMesh,
      Scene, ShadowProjection, Transform};
 use camera::Orthographic;
-use factory::{Geometry, ShadowMap, Texture};
+use factory::{ShadowMap, Texture};
 
 /// Color represented by 4-bytes hex number.
 pub type Color = u32;
@@ -182,21 +183,15 @@ impl Group {
     }
 }
 
-/// [`Geometry`](struct.Geometry.html) with some [`Material`](struct.Material.html).
-pub struct Mesh {
-    object: Object,
-    _geometry: Option<Geometry>,
+impl Mesh {
+    /// Set mesh material.
+    pub fn set_material(&mut self, material: Material) {
+        let msg = Operation::SetMaterial(material);
+        let _ = self.tx.send((self.node.downgrade(), msg));
+    }
 }
 
-impl Mesh {
-    #[doc(hidden)]
-    pub fn new(object: Object) -> Self {
-        Mesh {
-            object,
-            _geometry: None,
-        }
-    }
-
+impl DynamicMesh {
     /// Set mesh material.
     pub fn set_material(&mut self, material: Material) {
         let msg = Operation::SetMaterial(material);
@@ -336,7 +331,7 @@ macro_rules! as_node {
     }
 }
 
-as_node!(Object, Group, Mesh, Sprite,
+as_node!(Object, Group, Mesh, DynamicMesh, Sprite,
          AmbientLight, DirectionalLight, HemisphereLight, PointLight);
 
 macro_rules! deref_objects {
@@ -358,5 +353,5 @@ macro_rules! deref_objects {
     }
 }
 
-deref_objects!(Group, Mesh, Sprite,
+deref_objects!(Group, Mesh, DynamicMesh, Sprite,
     AmbientLight, HemisphereLight, DirectionalLight, PointLight);
