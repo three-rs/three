@@ -61,6 +61,7 @@ impl Window {
                 KeyboardInput(state, _, Some(key), _) => input.keyboard_input(state, key),
                 MouseInput(state, button) => input.mouse_input(state, button),
                 MouseMoved(x, y) => input.mouse_moved(renderer.map_to_ndc(x, y)),
+                MouseWheel(delta, _) => input.mouse_wheel(delta),
                 _ => ()
             }
         });
