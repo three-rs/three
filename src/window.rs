@@ -24,14 +24,59 @@ pub struct Window {
     pub scene: Scene,
 }
 
-impl Window {
-    /// Create new `Window` with specific title.
-    pub fn new(title: &str, shader_path: &str) -> Self {
-        let builder = glutin::WindowBuilder::new()
-                             .with_title(title)
-                             .with_vsync();
+pub struct WindowBuilder {
+    dimensions: (u32, u32),
+    fullscreen: bool,
+    multisampling: u16,
+    shader_path: String,
+    title: String,
+    vsync: bool,
+}
+
+impl WindowBuilder {
+    pub fn dimensions<'a>(&'a mut self, width: u32, height: u32) -> &'a mut Self {
+        self.dimensions = (width, height);
+        self
+    }
+
+    pub fn fullscreen(&mut self, option: bool) -> &mut Self {
+        self.fullscreen = option;
+        self
+    }
+
+    pub fn multisampling(&mut self, option: u16) -> &mut Self {
+        self.multisampling = option;
+        self
+    }
+
+    pub fn vsync(&mut self, option: bool) -> &mut Self {
+        self.vsync = option;
+        self
+    }
+
+    pub fn build(&mut self) -> Window {
+        use glutin::get_primary_monitor;
+
+        let builder = if self.vsync {
+            glutin::WindowBuilder::new().with_vsync()
+        } else {
+            glutin::WindowBuilder::new()
+        };
+        let builder = if self.fullscreen {
+            builder.clone().with_fullscreen(get_primary_monitor())
+        } else {
+            builder
+        };
+
+        let builder = builder.clone()
+            .with_dimensions(self.dimensions.0, self.dimensions.1)
+            .with_multisampling(self.multisampling)
+            .with_title(self.title.clone());
+
         let event_loop = glutin::EventsLoop::new();
-        let (renderer, window, mut factory) = Renderer::new(builder, &event_loop, shader_path);
+        let (renderer, window, mut factory) = Renderer::new(builder,
+                                                            &event_loop,
+                                                            &self.shader_path);
         let scene = factory.scene();
         Window {
             event_loop,
@@ -40,6 +85,20 @@ impl Window {
             renderer,
             factory,
             scene,
+        }
+    }
+}
+
+impl Window {
+    /// Create new `Window` with specific title.
+    pub fn new(title: &str, shader_path: &str) -> WindowBuilder {
+        WindowBuilder {
+            dimensions: (1024, 768),
+            fullscreen: false,
+            multisampling: 0,
+            shader_path: shader_path.to_owned(),
+            title: title.to_owned(),
+            vsync: true,
         }
     }
 

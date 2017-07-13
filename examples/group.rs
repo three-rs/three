@@ -111,7 +111,7 @@ const SPEEDS: [f32; 5] = [
 ];
 
 fn main() {
-    let mut win = three::Window::new("Three-rs group example", "data/shaders");
+    let mut win = three::Window::new("Three-rs group example", "data/shaders").build();
     win.scene.background = three::Background::Color(0x204060);
 
     let mut cam = win.factory.perspective_camera(60.0, 1.0, 100.0);
