@@ -24,7 +24,7 @@ struct InputDiff {
     keys_hit: Vec<Key>,
     mouse_moves: Vec<mint::Vector2<f32>>,
     mouse_hit: Vec<MouseButton>,
-    mouse_wheel: f32,
+    mouse_wheel: Vec<f32>,
 }
 
 pub struct Input(InputState, InputDiff);
@@ -43,7 +43,7 @@ impl Input {
             keys_hit: Vec::new(),
             mouse_moves: Vec::new(),
             mouse_hit: Vec::new(),
-            mouse_wheel: 0.0,
+            mouse_wheel: Vec::new(),
         };
         Input(state, diff)
     }
@@ -56,7 +56,7 @@ impl Input {
         self.1.keys_hit.clear();
         self.1.mouse_moves.clear();
         self.1.mouse_hit.clear();
-        self.1.mouse_wheel = 0.0;
+        self.1.mouse_wheel.clear();
     }
 
     pub fn time(&self) -> Timer {
@@ -73,8 +73,12 @@ impl Input {
         self.0.mouse_pos
     }
 
+    pub fn get_mouse_wheel_movements(&self) -> Vec<f32> {
+        self.1.mouse_wheel.clone()
+    }
+
     pub fn get_mouse_wheel(&self) -> f32 {
-        self.1.mouse_wheel
+        self.1.mouse_wheel.iter().sum()
     }
 
     pub fn keyboard_input(&mut self, state: ElementState, key: Key) {
@@ -110,10 +114,10 @@ impl Input {
     }
 
     pub fn mouse_wheel(&mut self, delta: MouseScrollDelta) {
-        self.1.mouse_wheel += match delta {
+        self.1.mouse_wheel.push(match delta {
             MouseScrollDelta::LineDelta(_, y) => y * PIXELS_PER_LINE,
             MouseScrollDelta::PixelDelta(_, y) => y,
-        }
+        });
     }
 }
 
