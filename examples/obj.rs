@@ -6,7 +6,7 @@ fn main() {
     let mut args = env::args();
     let path = args.nth(1).unwrap_or("test_data/car.obj".to_string());
 
-    let mut win = three::Window::new("Three-rs obj loading example", "data/shaders");
+    let mut win = three::Window::new("Three-rs obj loading example", "data/shaders").build();
     let cam = win.factory.perspective_camera(60.0, 1.0, 10.0);
     let mut controls = three::OrbitControls::new(&cam, [0.0, 2.0, -5.0], [0.0, 0.0, 0.0]);
 

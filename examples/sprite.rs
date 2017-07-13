@@ -39,7 +39,7 @@ impl Animator {
 }
 
 fn main() {
-    let mut win = three::Window::new("Three-rs sprite example", "data/shaders");
+    let mut win = three::Window::new("Three-rs sprite example", "data/shaders").build();
     let cam = win.factory.orthographic_camera([0.0, 0.0], 10.0, -10.0, 10.0);
 
     let material = three::Material::Sprite {
