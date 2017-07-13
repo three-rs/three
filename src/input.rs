@@ -73,8 +73,8 @@ impl Input {
         self.0.mouse_pos
     }
 
-    pub fn get_mouse_wheel_movements(&self) -> Vec<f32> {
-        self.1.mouse_wheel.clone()
+    pub fn get_mouse_wheel_movements(&self) -> &[f32] {
+        &self.1.mouse_wheel[..]
     }
 
     pub fn get_mouse_wheel(&self) -> f32 {
