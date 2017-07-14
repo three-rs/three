@@ -95,14 +95,27 @@ pub struct OrbitControls {
     speed: f32,
 }
 
-impl OrbitControls {
-    pub fn new<P>(object: &Object, position: P, target: P) -> Self
-    where P: Into<[f32; 3]>,
-    {
-        let pf: [f32; 3] = position.into();
-        let tf: [f32; 3] = target.into();
+pub struct OrbitControlsBuilder {
+    object: Object,
+    position: [f32; 3],
+    target: [f32; 3],
+    button: Button,
+    speed: f32,
+}
 
-        let dir = (Point3::from(pf) - Point3::from(tf)).normalize();
+impl OrbitControlsBuilder {
+    pub fn speed(&mut self, speed: f32) -> &mut Self {
+        self.speed = speed;
+        self
+    }
+
+    pub fn button(&mut self, button: Button) -> &mut Self {
+        self.button = button;
+        self
+    }
+
+    pub fn build(&mut self) -> OrbitControls {
+        let dir = (Point3::from(self.position) - Point3::from(self.target)).normalize();
         let up = Vector3::unit_z();
         let q = Quaternion::look_at(dir, up).invert();
         //TEMP
@@ -111,18 +124,32 @@ impl OrbitControls {
             s: q.s,
             v: qv.into(),
         };
-        let mut object = object.clone();
-        object.set_transform(pf, rot, 1.0);
+        let mut object = self.object.clone();
+        object.set_transform(self.position, rot, 1.0);
 
         OrbitControls {
             object,
             transform: Decomposed {
-                disp: pf.into(),
+                disp: self.position.into(),
                 rot: q,
                 scale: 1.0,
             },
-            target: tf.into(),
+            target: self.target.into(),
             mouse_base: None,
+            button: self.button,
+            speed: self.speed,
+        }
+    }
+}
+
+impl OrbitControls {
+    pub fn new<P>(object: &Object, position: P, target: P) -> OrbitControlsBuilder
+    where P: Into<[f32; 3]>,
+    {
+        OrbitControlsBuilder {
+            object: object.clone(),
+            position: position.into(),
+            target: target.into(),
             button: MOUSE_LEFT,
             speed: 1.0,
         }
