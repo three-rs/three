@@ -81,6 +81,19 @@ impl Input {
         self.1.mouse_wheel.iter().sum()
     }
 
+    pub fn get_mouse_movements(&self) -> &[mint::Vector2<f32>] {
+        &self.1.mouse_moves[..]
+    }
+
+    pub fn get_mouse_delta(&self) -> mint::Vector2<f32> {
+        // TEMP
+        use cgmath::Vector2;
+        let delta: Vector2<f32> = self.1.mouse_moves.iter()
+            .map(|v| Vector2::new(v.x, v.y))
+            .sum();
+        [delta.x, delta.y].into()
+    }
+
     pub fn keyboard_input(&mut self, state: ElementState, key: Key) {
         match state {
             ElementState::Pressed => {
