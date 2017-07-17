@@ -200,11 +200,13 @@ pub struct Renderer {
 impl Renderer {
     #[cfg(feature = "opengl")]
     #[doc(hidden)]
-    pub fn new(builder: glutin::WindowBuilder, event_loop: &glutin::EventsLoop,
-               shader_path: &str) -> (Self, glutin::Window, Factory) {
+    pub fn new(builder: glutin::WindowBuilder,
+               context: glutin::ContextBuilder,
+               event_loop: &glutin::EventsLoop,
+               shader_path: &str) -> (Self, glutin::GlWindow, Factory) {
         use gfx::texture as t;
         let (window, device, mut gl_factory, color, depth) =
-            gfx_window_glutin::init(builder, event_loop);
+            gfx_window_glutin::init(builder, context, event_loop);
         let prog_basic = load_program(shader_path, "basic", &mut gl_factory);
         let prog_gouraud = load_program(shader_path, "gouraud", &mut gl_factory);
         let prog_phong = load_program(shader_path, "phong", &mut gl_factory);
@@ -277,10 +279,10 @@ impl Renderer {
     }
 
     #[doc(hidden)]
-    pub fn resize(&mut self, window: &glutin::Window) {
+    pub fn resize(&mut self, window: &glutin::GlWindow) {
         let size = window.get_inner_size_pixels().unwrap();
 
-        // skip updating view and self size if some 
+        // skip updating view and self size if some
         // of the sides equals to zero (fixes crash on minimize on Windows machines)
         if size.0 == 0 || size.1 == 0 {
             return
@@ -298,10 +300,10 @@ impl Renderer {
     /// Map screen pixel coordinates to Normalized Display Coordinates.
     /// The lower left corner corresponds to (-1,-1), and the upper right corner
     /// corresponds to (1,1).
-    pub fn map_to_ndc(&self, x: i32, y: i32) -> mint::Point2<f32> {
+    pub fn map_to_ndc(&self, x: f32, y: f32) -> mint::Point2<f32> {
         mint::Point2 {
-            x: 2.0 * x as f32 / self.size.0 as f32 - 1.0,
-            y: 1.0 - 2.0 * y as f32 / self.size.1 as f32,
+            x: 2.0 * x / self.size.0 as f32 - 1.0,
+            y: 1.0 - 2.0 * y / self.size.1 as f32,
         }
     }
 
@@ -521,8 +523,9 @@ impl Renderer {
                     self.size.1 as i32 + quad.pos[1] - quad.size[1]
                 },
             ];
-            let p0 = self.map_to_ndc(pos[0], pos[1]);
-            let p1 = self.map_to_ndc(pos[0] + quad.size[0], pos[1] + quad.size[1]);
+            let p0 = self.map_to_ndc(pos[0] as f32, pos[1] as f32);
+            let p1 = self.map_to_ndc((pos[0] + quad.size[0]) as f32,
+                                     (pos[1] + quad.size[1]) as f32);
             self.encoder.update_constant_buffer(&self.quad_buf, &QuadParams {
                 rect: [p0.x, p0.y, p1.x, p1.y],
             });
