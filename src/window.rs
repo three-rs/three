@@ -1,4 +1,5 @@
 use glutin;
+use glutin::GlContext;
 
 use {Camera, Scene};
 use camera::Projection;
@@ -13,7 +14,7 @@ use factory::Factory;
 /// [`Factory`](struct.Factory.html) and [`Renderer`](struct.Renderer.html).
 pub struct Window {
     event_loop: glutin::EventsLoop,
-    window: glutin::Window,
+    window: glutin::GlWindow,
     /// See [`Input`](struct.Input.html).
     pub input: Input,
     /// See [`Renderer`](struct.Renderer.html).
@@ -34,7 +35,7 @@ pub struct WindowBuilder {
 }
 
 impl WindowBuilder {
-    pub fn dimensions<'a>(&'a mut self, width: u32, height: u32) -> &'a mut Self {
+    pub fn dimensions(&mut self, width: u32, height: u32) -> &mut Self {
         self.dimensions = (width, height);
         self
     }
@@ -57,24 +58,23 @@ impl WindowBuilder {
     pub fn build(&mut self) -> Window {
         use glutin::get_primary_monitor;
 
-        let builder = if self.vsync {
-            glutin::WindowBuilder::new().with_vsync()
+        let builder = if self.fullscreen {
+            glutin::WindowBuilder::new().with_fullscreen(get_primary_monitor())
         } else {
             glutin::WindowBuilder::new()
-        };
-        let builder = if self.fullscreen {
-            builder.clone().with_fullscreen(get_primary_monitor())
-        } else {
-            builder
         };
 
         let builder = builder.clone()
             .with_dimensions(self.dimensions.0, self.dimensions.1)
-            .with_multisampling(self.multisampling)
             .with_title(self.title.clone());
+
+        let context = glutin::ContextBuilder::new()
+            .with_vsync(self.vsync)
+            .with_multisampling(self.multisampling);
 
         let event_loop = glutin::EventsLoop::new();
         let (renderer, window, mut factory) = Renderer::new(builder,
+                                                            context,
                                                             &event_loop,
                                                             &self.shader_path);
         let scene = factory.scene();
@@ -112,16 +112,29 @@ impl Window {
         self.window.swap_buffers().unwrap();
         let window = &self.window;
 
-        self.event_loop.poll_events(|glutin::Event::WindowEvent {event, ..}| {
-            use glutin::WindowEvent::*;
+        self.event_loop.poll_events(|event| {
+            use glutin::WindowEvent::{Resized, Closed, KeyboardInput,
+                MouseInput, MouseMoved, MouseWheel};
             match event {
-                Resized(..) => renderer.resize(window),
-                Closed => running = false,
-                KeyboardInput(state, _, Some(key), _) => input.keyboard_input(state, key),
-                MouseInput(state, button) => input.mouse_input(state, button),
-                MouseMoved(x, y) => input.mouse_moved(renderer.map_to_ndc(x, y)),
-                MouseWheel(delta, _) => input.mouse_wheel(delta),
-                _ => ()
+                glutin::Event::WindowEvent { event, ..} => match event {
+                    Resized(..) => renderer.resize(window),
+                    Closed => running = false,
+                    KeyboardInput {
+                        input: glutin::KeyboardInput {
+                            state,
+                            virtual_keycode: Some(keycode), ..
+                        }, ..
+                    } => input.keyboard_input(state, keycode),
+                    MouseInput {
+                        state,
+                        button, .. } => input.mouse_input(state, button),
+                    MouseMoved {
+                        position: (x, y), ..
+                    } => input.mouse_moved(renderer.map_to_ndc(x as f32, y as f32)),
+                    MouseWheel { delta, .. } => input.mouse_wheel(delta),
+                    _ => {}
+                },
+                _ => {}
             }
         });
 
