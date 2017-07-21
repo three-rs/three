@@ -9,6 +9,7 @@ use gfx_window_glutin;
 #[cfg(feature = "opengl")]
 use glutin;
 use mint;
+use std::collections::HashMap;
 
 pub use self::back::Factory as BackendFactory;
 pub use self::back::Resources as BackendResources;
@@ -24,7 +25,7 @@ pub type DepthFormat = gfx::format::DepthStencil;
 pub type ShadowFormat = gfx::format::Depth32F;
 const MAX_LIGHTS: usize = 4;
 
-gfx_defines!{
+gfx_defines! {
     vertex Vertex {
         pos: [f32; 4] = "a_Position",
         uv: [f32; 2] = "a_TexCoord",
@@ -121,14 +122,14 @@ fn load_program<R, F>(root: &str, name: &str, factory: &mut F)
     factory.link_program(code_vs.as_bytes(), code_ps.as_bytes()).unwrap()
 }
 
-fn load_program_with_defines<I, R, F>(
+fn load_program_with_defines<'a, I, R, F>(
     root: &str,
     name: &str,
     defines: I,
     factory: &mut F,
 ) -> gfx::handle::Program<R>
 where
-    I: Iterator<Item = (&str, &str)> + Clone,
+    I: Iterator<Item = (&'a str, &'a str)>,
     R: gfx::Resources,
     F: gfx::Factory<R>,
 {
@@ -137,8 +138,8 @@ where
         prefixes += &format!("#define {} {}\n", symbol, value);
     }
 
-    let code_vs = prefixes + get_shader(root, name, "vs");
-    let code_ps = prefixes + get_shader(root, name, "ps");
+    let code_vs = format!("{}{}", prefixes, get_shader(root, name, "vs"));
+    let code_ps = format!("{}{}", prefixes, get_shader(root, name, "ps"));
 
     factory.link_program(code_vs.as_bytes(), code_ps.as_bytes()).unwrap()
 }
@@ -182,6 +183,16 @@ pub enum ShadowType {
     Pcf,
 }
 
+bitflags! {
+    struct PbrFlags: u8 {
+        const HAS_NORMAL_MAP          = 0b00001;
+        const HAS_METAL_ROUGHNESS_MAP = 0b00010;
+        const HAS_BASE_COLOR_MAP      = 0b00100;
+        const HAS_OCCLUSION_MAP       = 0b01000;
+        const HAS_EMISSIVE_MAP        = 0b10000;
+    }
+}
+
 struct DebugQuad {
     resource: gfx::handle::RawShaderResourceView<back::Resources>,
     pos: [i32; 2],
@@ -211,6 +222,7 @@ pub struct Renderer {
     pso_sprite: gfx::PipelineState<back::Resources, pipe::Meta>,
     pso_shadow: gfx::PipelineState<back::Resources, shadow_pipe::Meta>,
     pso_quad: gfx::PipelineState<back::Resources, quad_pipe::Meta>,
+    pso_pbr: HashMap<PbrFlags, gfx::PipelineState<back::Resources, pipe::Meta>>,
     map_default: Texture<[f32; 4]>,
     shadow_default: Texture<f32>,
     debug_quads: froggy::Storage<DebugQuad>,
@@ -290,6 +302,7 @@ impl Renderer {
             pso_quad: gl_factory.create_pipeline_from_program(&prog_quad,
                 gfx::Primitive::TriangleStrip, rast_fill, quad_pipe::new()
                 ).unwrap(),
+            pso_pbr: HashMap::new(),
             map_default: Texture::new(srv_white, sampler, [1, 1]),
             shadow_default: Texture::new(srv_shadow, sampler_shadow, [1, 1]),
             shadow: ShadowType::Basic,
