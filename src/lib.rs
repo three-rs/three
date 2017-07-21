@@ -1,5 +1,8 @@
 #![warn(missing_docs)]
 //! Three.js inspired 3D engine in Rust.
+
+#[macro_use]
+extern crate bitflags;
 extern crate cgmath;
 extern crate froggy;
 extern crate genmesh;
