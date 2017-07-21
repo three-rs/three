@@ -121,6 +121,28 @@ fn load_program<R, F>(root: &str, name: &str, factory: &mut F)
     factory.link_program(code_vs.as_bytes(), code_ps.as_bytes()).unwrap()
 }
 
+fn load_program_with_defines<I, R, F>(
+    root: &str,
+    name: &str,
+    defines: I,
+    factory: &mut F,
+) -> gfx::handle::Program<R>
+where
+    I: Iterator<Item = (&str, &str)> + Clone,
+    R: gfx::Resources,
+    F: gfx::Factory<R>,
+{
+    let mut prefixes = String::new();
+    for (symbol, value) in defines {
+        prefixes += &format!("#define {} {}\n", symbol, value);
+    }
+
+    let code_vs = prefixes + get_shader(root, name, "vs");
+    let code_ps = prefixes + get_shader(root, name, "ps");
+
+    factory.link_program(code_vs.as_bytes(), code_ps.as_bytes()).unwrap()
+}
+
 /// sRGB to linear conversion from:
 /// https://www.khronos.org/registry/OpenGL/extensions/EXT/EXT_texture_sRGB_decode.txt
 fn decode_color(c: Color) -> [f32; 4] {
