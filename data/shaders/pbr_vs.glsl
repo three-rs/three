@@ -45,7 +45,6 @@ varying vec3 v_Normal;
 #endif
 #endif
 
-
 void main()
 {
   vec4 pos = u_ModelMatrix * a_Position;
