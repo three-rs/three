@@ -24,6 +24,7 @@ use {Hub, HubPtr, SubLight, Node, SubNode,
      LightData, Object, Scene, Camera, Mesh, DynamicMesh};
 
 
+const NORMAL_X: [I8Norm; 4] = [I8Norm(1), I8Norm(0), I8Norm(0), I8Norm(0)];
 const NORMAL_Z: [I8Norm; 4] = [I8Norm(0), I8Norm(0), I8Norm(1), I8Norm(0)];
 
 const QUAD: [Vertex; 4] = [
@@ -31,21 +32,25 @@ const QUAD: [Vertex; 4] = [
         pos: [-1.0, -1.0, 0.0, 1.0],
         uv: [0.0, 0.0],
         normal: NORMAL_Z,
+        tangent: NORMAL_X,
     },
     Vertex {
         pos: [1.0, -1.0, 0.0, 1.0],
         uv: [1.0, 0.0],
         normal: NORMAL_Z,
+        tangent: NORMAL_X,
     },
     Vertex {
         pos: [-1.0, 1.0, 0.0, 1.0],
         uv: [0.0, 1.0],
         normal: NORMAL_Z,
+        tangent: NORMAL_X,
     },
     Vertex {
         pos: [1.0, 1.0, 0.0, 1.0],
         uv: [1.0, 1.0],
         normal: NORMAL_Z,
+        tangent: NORMAL_X,
     },
 ];
 
@@ -186,6 +191,7 @@ impl Factory {
                 pos: [v.x, v.y, v.z, 1.0],
                 uv: [0.0, 0.0], //TODO
                 normal: NORMAL_Z,
+                tangent: NORMAL_X,
             }).collect()
         } else {
             let f2i = |x: f32| I8Norm(cmp::min(cmp::max((x * 127.) as isize, -128), 127) as i8);
@@ -193,6 +199,7 @@ impl Factory {
                 pos: [v.x, v.y, v.z, 1.0],
                 uv: [0.0, 0.0], //TODO
                 normal: [f2i(n.x), f2i(n.y), f2i(n.z), I8Norm(0)],
+                tangent: NORMAL_X, // TODO
             }).collect()
         }
     }
@@ -628,6 +635,7 @@ impl Factory {
                                 },
                                 None => [I8Norm(0), I8Norm(0), I8Norm(0x7f), I8Norm(0)],
                             },
+                            tangent: NORMAL_X, // TODO
                         });
                     });
 
@@ -694,6 +702,7 @@ impl Factory {
                 pos: [pos.x, pos.y, pos.z, 1.0],
                 uv: [0.0, 0.0], //TODO
                 normal,
+                tangent: NORMAL_X, // TODO
             };
         }
     }

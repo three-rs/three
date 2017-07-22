@@ -27,9 +27,16 @@ in vec4 a_Normal;
 in vec4 a_Tangent;
 in vec2 a_TexCoord;
 
-uniform b_PerVertexParams {
-    mat4 u_Mvp;
-    mat4 u_Model;
+uniform b_Locals {
+    mat4 u_World;
+    vec4 u_Color; 
+    vec4 u_MatParams;
+    vec4 u_UvRange;
+};
+
+uniform b_Globals {
+    mat4 u_ViewProj;
+    uint u_NumLights;
 };
 
 out vec3 v_Position;
@@ -39,6 +46,9 @@ out vec3 v_Normal;
 
 void main()
 {
+    mat4 u_Model = u_World; // ???
+    mat4 u_Mvp = u_ViewProj * u_World; // Should work
+
     vec4 pos = u_Model * a_Position;
     v_Position = vec3(pos.xyz) / pos.w;
 
