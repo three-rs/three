@@ -31,6 +31,13 @@ gfx_defines! {
         normal: [gfx::format::I8Norm; 4] = "a_Normal",
     }
 
+    vertex PbrVertex {
+        pos: [f32; 4] = "a_Position",
+        normal: [f32; 4] = "a_Normal",
+        tangent: [f32; 4] = "a_Tangent",
+        uv: [f32; 2] = "a_TexCoord",
+    }
+
     constant Locals {
         mx_world: [[f32; 4]; 4] = "u_World",
         color: [f32; 4] = "u_Color",
@@ -86,10 +93,58 @@ gfx_defines! {
         sampler: gfx::Sampler = "t_Input",
         target: gfx::RenderTarget<ColorFormat> = "Target0",
     }
+
+    constant PbrPerVertexParams {
+        mvp: [[f32; 4]; 4] = "u_Mvp",
+        model: [[f32; 4]; 4] = "u_Model", 
+    }
+
+    constant PbrPerPixelParams {
+        base_color_factor: [f32; 4] = "u_BaseColorFactor",
+        scale_diff_base_mr: [f32; 4] = "u_ScaleDiffBaseMr",
+        scale_fgd_spec: [f32; 4] = "u_ScaleFgdSpec",
+        scale_ibl_ambient: [f32; 4] = "u_ScaleIblAmbient",
+        
+        camera: [f32; 3] = "u_Camera",
+        _padding0: f32 = "",
+        light_direction: [f32; 3] = "u_LightDirection",
+        _padding1: f32 = "",
+        light_color: [f32; 3] = "u_LightColor",
+        _padding2: f32 = "",
+        emissive_factor: [f32; 3] = "u_EmissiveFactor",
+        _padding3: f32 = "",
+
+        metallic_roughness: [f32; 2] = "u_MetallicRoughnessValues",
+        normal_scale: f32 = "u_NormalScale",
+        occlusion_strength: f32 = "u_OcclusionStrength",
+    }
+
+    pipeline pbr_pipe {
+        vbuf: gfx::VertexBuffer<PbrVertex> = (),
+
+        per_vertex_params: gfx::ConstantBuffer<PbrPerVertexParams> = "b_PerVertexParams",
+        per_pixel_params: gfx::ConstantBuffer<PbrPerPixelParams> = "b_PerPixelParams",
+        
+        base_color_map: gfx::RawShaderResource = "u_BaseColorSampler",
+        base_color_sampler: gfx::Sampler = "u_BaseColorSampler",
+
+        normal_map: gfx::RawShaderResource = "u_NormalSampler",
+        normal_sampler: gfx::Sampler = "u_NormalSampler",
+
+        emissive_map: gfx::RawShaderResource = "u_EmissiveSampler",
+        emissive_sampler: gfx::Sampler = "u_EmissiveSampler",
+
+        metallic_roughness_map: gfx::RawShaderResource = "u_MetallicRoughnessSampler",
+        metallic_roughness_sampler: gfx::Sampler = "u_MetallicRoughnessSampler",
+
+        occlusion_map: gfx::RawShaderResource = "u_OcclusionSampler",
+        occlusion_sampler: gfx::Sampler = "u_OcclusionSampler",
+
+        target: gfx::RenderTarget<ColorFormat> = "Target0",
+    }
 }
 
-
-fn get_shader(root: &str, name: &str, variant: &str) -> String {
+fn get_shader(root: &str, name: &str, variant: &str, defines: &str) -> String {
     use std::fs::File;
     use std::io::{BufRead, BufReader, Read};
     let mut code = String::new();
@@ -102,6 +157,8 @@ fn get_shader(root: &str, name: &str, variant: &str) -> String {
                 File::open(format!("{}/{}.glsl", root, dep_name)).unwrap()
                      .read_to_string(&mut code).unwrap();
             }
+        } else if line.starts_with("#pragma THREE_RS_DEFINES") {
+            code += defines;
         } else {
             code.push_str(&line);
             code.push('\n');
@@ -115,8 +172,9 @@ fn load_program<R, F>(root: &str, name: &str, factory: &mut F)
     R: gfx::Resources,
     F: gfx::Factory<R>,
 {
-    let code_vs = get_shader(root, name, "vs");
-    let code_ps = get_shader(root, name, "ps");
+    let defines = "";
+    let code_vs = get_shader(root, name, "vs", defines);
+    let code_ps = get_shader(root, name, "ps", defines);
 
     factory.link_program(code_vs.as_bytes(), code_ps.as_bytes()).unwrap()
 }
@@ -132,13 +190,13 @@ where
     R: gfx::Resources,
     F: gfx::Factory<R>,
 {
-    let mut prefixes = String::new();
+    let mut expanded_defines = String::new();
     for symbol in defines {
-        prefixes += &format!("#define {}\n", symbol);
+        expanded_defines += &format!("#define {}\n", symbol);
     }
 
-    let code_vs = format!("{}{}", prefixes, get_shader(root, name, "vs"));
-    let code_ps = format!("{}{}", prefixes, get_shader(root, name, "ps"));
+    let code_vs = get_shader(root, name, "vs", &expanded_defines);
+    let code_ps = get_shader(root, name, "ps", &expanded_defines);
 
     factory.link_program(code_vs.as_bytes(), code_ps.as_bytes()).unwrap()
 }
@@ -221,7 +279,7 @@ pub struct Renderer {
     pso_sprite: gfx::PipelineState<back::Resources, pipe::Meta>,
     pso_shadow: gfx::PipelineState<back::Resources, shadow_pipe::Meta>,
     pso_quad: gfx::PipelineState<back::Resources, quad_pipe::Meta>,
-    pso_pbr: gfx::PipelineState<back::Resources, pipe::Meta>,
+    pso_pbr: gfx::PipelineState<back::Resources, pbr_pipe::Meta>,
     map_default: Texture<[f32; 4]>,
     shadow_default: Texture<f32>,
     debug_quads: froggy::Storage<DebugQuad>,
@@ -248,13 +306,11 @@ impl Renderer {
         let prog_quad = load_program(shader_path, "quad", &mut gl_factory);
         let prog_pbr = {
             let defines = [
-                "HAS_NORMALS",
-                "HAS_TANGENTS",
-                "HAS_BASECOLORMAP",
-                "HAS_NORMALMAP",
-                "HAS_EMISSIVEMAP",
-                "HAS_METALROUGHNESSMAP",
-                "HAS_OCCLUSIONMAP",
+                "HAS_BASE_COLOR_MAP",
+                "HAS_NORMAL_MAP",
+                "HAS_EMISSIVE_MAP",
+                "HAS_METALLIC_ROUGHNESS_MAP",
+                "HAS_OCCLUSION_MAP",
             ];
             let iter = defines.iter().map(|s| *s);
             load_program_with_defines(shader_path, "pbr", iter, &mut gl_factory)
@@ -315,7 +371,7 @@ impl Renderer {
                 gfx::Primitive::TriangleStrip, rast_fill, quad_pipe::new()
                 ).unwrap(),
             pso_pbr: gl_factory.create_pipeline_from_program(&prog_pbr,
-                gfx::Primitive::TriangleList, rast_fill, pipe::new()
+                gfx::Primitive::TriangleList, rast_fill, pbr_pipe::new()
                 ).unwrap(),
             map_default: Texture::new(srv_white, sampler, [1, 1]),
             shadow_default: Texture::new(srv_shadow, sampler_shadow, [1, 1]),
@@ -525,12 +581,46 @@ impl Renderer {
 
             //TODO: batch per PSO
             let (pso, color, param0, map) = match *material {
-                Material::LineBasic { color } => (&self.pso_line_basic, color, 0.0, None),
-                Material::MeshBasic { color, ref map, wireframe: false } => (&self.pso_mesh_basic_fill, color, 0.0, map.as_ref()),
-                Material::MeshBasic { color, map: ref _map, wireframe: true } => (&self.pso_mesh_basic_wireframe, color, 0.0, None),
-                Material::MeshLambert { color, flat } => (&self.pso_mesh_gouraud, color, if flat {0.0} else {1.0}, None),
-                Material::MeshPhong { color, glossiness } => (&self.pso_mesh_phong, color, glossiness, None),
-                Material::Sprite { ref map } => (&self.pso_sprite, !0, 0.0, Some(map)),
+                Material::LineBasic {
+                    color
+                } => (&self.pso_line_basic, color, 0.0, None),
+                Material::MeshBasic {
+                    color,
+                    ref map,
+                    wireframe: false
+                } => (&self.pso_mesh_basic_fill, color, 0.0, map.as_ref()),
+                Material::MeshBasic {
+                    color,
+                    map: ref _map,
+                    wireframe: true
+                } => (&self.pso_mesh_basic_wireframe, color, 0.0, None),
+                Material::MeshLambert {
+                    color,
+                    flat
+                } => (&self.pso_mesh_gouraud, color, if flat {0.0} else {1.0}, None),
+                Material::MeshPhong {
+                    color,
+                    glossiness
+                } => (&self.pso_mesh_phong, color, glossiness, None),
+                Material::Sprite {
+                    ref map
+                } => (&self.pso_sprite, !0, 0.0, Some(map)),
+                Material::MeshPbr {
+                    base_color_factor,
+                    metallic_roughness,
+                    occlusion_strength,
+                    emissive_factor,
+                    normal_scale,
+
+                    base_color_map: Some(ref base_color_map),
+                    normal_map: Some(ref normal_map),
+                    emissive_map: Some(ref emissive_map),
+                    metallic_roughness_map: Some(ref metallic_roughness_map),
+                    occlusion_map: Some(ref occlusion_map),
+                } => {
+                    unimplemented!()
+                },
+                _ => unimplemented!(),
             };
             let uv_range = match map {
                 Some(ref map) => map.get_uv_range(),
