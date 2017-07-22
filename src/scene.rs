@@ -33,6 +33,20 @@ pub enum Material {
     MeshLambert { color: Color, flat: bool },
     /// Material that uses Phong reflection model.
     MeshPhong { color: Color, glossiness: f32 },
+    /// Physically-based rendering material.
+    MeshPbr {
+        base_color_factor: Color,
+        metallic_roughness: [f32; 2],
+        occlusion_strength: f32,
+        emissive_factor: f32,
+        normal_scale: f32,
+
+        base_color_map: Option<Texture<[f32; 4]>>,
+        normal_map: Option<Texture<[f32; 4]>>,
+        emissive_map: Option<Texture<[f32; 4]>>,
+        metallic_roughness_map: Option<Texture<[f32; 4]>>,
+        occlusion_map: Option<Texture<[f32; 4]>>,
+    },
     /// 2D Sprite.
     Sprite { map: Texture<[f32; 4]> },
 }

@@ -20,54 +20,36 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-attribute vec4 a_Position;
-#ifdef HAS_NORMALS
-attribute vec4 a_Normal;
-#endif
-#ifdef HAS_TANGENTS
-attribute vec4 a_Tangent;
-#endif
-#ifdef HAS_UV
-attribute vec2 a_UV;
-#endif
+#version 150
 
-uniform mat4 u_MVPMatrix;
-uniform mat4 u_ModelMatrix;
+in vec4 a_Position;
+in vec4 a_Normal;
+in vec4 a_Tangent;
+in vec2 a_TexCoord;
 
-varying vec3 v_Position;
-varying vec2 v_UV;
+uniform b_PerVertexParams {
+    mat4 u_Mvp;
+    mat4 u_Model;
+};
 
-#ifdef HAS_NORMALS
-#ifdef HAS_TANGENTS
-varying mat3 v_TBN;
-#else
-varying vec3 v_Normal;
-#endif
-#endif
+out vec3 v_Position;
+out vec2 v_TexCoord;
+out mat3 v_Tbn;
+out vec3 v_Normal;
 
 void main()
 {
-  vec4 pos = u_ModelMatrix * a_Position;
-  v_Position = vec3(pos.xyz) / pos.w;
+    vec4 pos = u_Model * a_Position;
+    v_Position = vec3(pos.xyz) / pos.w;
 
-  #ifdef HAS_NORMALS
-  #ifdef HAS_TANGENTS
-  vec3 normalW = normalize(vec3(u_ModelMatrix * vec4(a_Normal.xyz, 0.0)));
-  vec3 tangentW = normalize(vec3(u_ModelMatrix * vec4(a_Tangent.xyz, 0.0)));
-  vec3 bitangentW = cross(normalW, tangentW) * a_Tangent.w;
-  v_TBN = mat3(tangentW, bitangentW, normalW);
-  #else // HAS_TANGENTS != 1
-  v_Normal = normalize(vec3(u_ModelMatrix * vec4(a_Normal.xyz, 0.0)));
-  #endif
-  #endif
+    vec3 normal = normalize(vec3(u_Model * vec4(a_Normal.xyz, 0.0)));
+    vec3 tangent = normalize(vec3(u_Model * vec4(a_Tangent.xyz, 0.0)));
+    vec3 bitangent = cross(normal, tangent) * a_Tangent.w;
+    v_Tbn = mat3(tangent, bitangent, normal);
 
-  #ifdef HAS_UV
-  v_UV = a_UV;
-  #else
-  v_UV = vec2(0.,0.);
-  #endif
+    v_TexCoord = a_TexCoord;
 
-  gl_Position = u_MVPMatrix * a_Position; // needs w for proper perspective correction
+    gl_Position = u_Mvp * a_Position;
 }
 
 
