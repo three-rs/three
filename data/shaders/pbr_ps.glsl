@@ -36,7 +36,7 @@ uniform sampler2D u_EmissiveSampler;
 uniform sampler2D u_MetallicRoughnessSampler;
 uniform sampler2D u_OcclusionSampler;
 
-uniform b_PerPixelParams {
+uniform b_PbrParams {
     vec4 u_BaseColorFactor;
     vec4 u_ScaleDiffBaseMr;
     vec4 u_ScaleFgdSpec;

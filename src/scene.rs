@@ -35,10 +35,10 @@ pub enum Material {
     MeshPhong { color: Color, glossiness: f32 },
     /// Physically-based rendering material.
     MeshPbr {
-        base_color_factor: Color,
+        base_color_factor: [f32; 4],
         metallic_roughness: [f32; 2],
         occlusion_strength: f32,
-        emissive_factor: f32,
+        emissive_factor: [f32; 3],
         normal_scale: f32,
 
         base_color_map: Option<Texture<[f32; 4]>>,

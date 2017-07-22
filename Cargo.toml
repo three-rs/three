@@ -48,6 +48,9 @@ name = "materials"
 name = "obj"
 
 [[example]]
+name = "pbr"
+
+[[example]]
 name = "shapes"
 
 [[example]]
