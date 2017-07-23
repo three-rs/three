@@ -1,4 +1,5 @@
-use std::cmp;
+use std::{cmp, iter};
+use std::boxed::Box;
 use std::collections::hash_map::{HashMap, Entry};
 use std::io::BufReader;
 use std::fs::File;
@@ -13,6 +14,7 @@ use gfx::handle as h;
 use gfx::traits::{Factory as Factory_, FactoryExt};
 use image;
 use mint;
+use multizip;
 use obj;
 
 use camera::{Orthographic, Perspective};
@@ -23,8 +25,7 @@ use scene::{Color, Background, Group, Sprite, Material,
 use {Hub, HubPtr, SubLight, Node, SubNode,
      LightData, Object, Scene, Camera, Mesh, DynamicMesh};
 
-
-const NORMAL_X: [I8Norm; 4] = [I8Norm(1), I8Norm(0), I8Norm(0), I8Norm(0)];
+const TANGENT_X: [I8Norm; 4] = [I8Norm(1), I8Norm(0), I8Norm(0), I8Norm(1)];
 const NORMAL_Z: [I8Norm; 4] = [I8Norm(0), I8Norm(0), I8Norm(1), I8Norm(0)];
 
 const QUAD: [Vertex; 4] = [
@@ -32,25 +33,25 @@ const QUAD: [Vertex; 4] = [
         pos: [-1.0, -1.0, 0.0, 1.0],
         uv: [0.0, 0.0],
         normal: NORMAL_Z,
-        tangent: NORMAL_X,
+        tangent: TANGENT_X,
     },
     Vertex {
         pos: [1.0, -1.0, 0.0, 1.0],
         uv: [1.0, 0.0],
         normal: NORMAL_Z,
-        tangent: NORMAL_X,
+        tangent: TANGENT_X,
     },
     Vertex {
         pos: [-1.0, 1.0, 0.0, 1.0],
         uv: [0.0, 1.0],
         normal: NORMAL_Z,
-        tangent: NORMAL_X,
+        tangent: TANGENT_X,
     },
     Vertex {
         pos: [1.0, 1.0, 0.0, 1.0],
         uv: [1.0, 1.0],
         normal: NORMAL_Z,
-        tangent: NORMAL_X,
+        tangent: TANGENT_X,
     },
 ];
 
@@ -122,6 +123,15 @@ pub struct Factory {
     texture_cache: HashMap<String, Texture<[f32; 4]>>,
 }
 
+fn f2i(x: f32) -> I8Norm {
+    I8Norm(
+        cmp::min(
+            cmp::max((x * 127.0) as isize, -128),
+            127,
+        ) as i8
+    )
+}
+
 impl Factory {
     #[doc(hidden)]
     pub fn new(mut backend: BackendFactory) -> Self {
@@ -186,22 +196,49 @@ impl Factory {
     }
 
     fn mesh_vertices(shape: &GeometryShape) -> Vec<Vertex> {
-        if shape.normals.is_empty() {
-            shape.vertices.iter().map(|v| Vertex {
-                pos: [v.x, v.y, v.z, 1.0],
-                uv: [0.0, 0.0], //TODO
-                normal: NORMAL_Z,
-                tangent: NORMAL_X,
-            }).collect()
-        } else {
-            let f2i = |x: f32| I8Norm(cmp::min(cmp::max((x * 127.) as isize, -128), 127) as i8);
-            shape.vertices.iter().zip(shape.normals.iter()).map(|(v, n)| Vertex {
-                pos: [v.x, v.y, v.z, 1.0],
-                uv: [0.0, 0.0], //TODO
-                normal: [f2i(n.x), f2i(n.y), f2i(n.z), I8Norm(0)],
-                tangent: NORMAL_X, // TODO
-            }).collect()
-        }
+        let position_iter = shape.vertices.iter();
+        let normal_iter: Box<Iterator<Item = [gfx::format::I8Norm; 4]>> = {
+            if shape.normals.is_empty() {
+                Box::new(iter::repeat(NORMAL_Z))
+            } else {
+                Box::new(
+                    shape.normals
+                        .iter()
+                        .map(|n| [f2i(n.x), f2i(n.y), f2i(n.z), I8Norm(0)])
+                )
+            }
+        };
+        let uv_iter: Box<Iterator<Item = [f32; 2]>> = {
+            if shape.tex_coords.is_empty() {
+                Box::new(iter::repeat([0.0, 0.0]))
+            } else {
+                Box::new(shape.tex_coords.iter().map(|uv| [uv.x, uv.y]))
+            }
+        };
+        let tangent_iter: Box<Iterator<Item = [gfx::format::I8Norm; 4]>> = {
+            if shape.tangents.is_empty() {
+                // @alteous
+                // TODO: Generate tangents if texture co-ordinates are provided.
+                // (Use mikktspace algorithm or otherwise.)
+                Box::new(iter::repeat(TANGENT_X))
+            } else {
+                Box::new(
+                    shape.tangents
+                        .iter()
+                        .map(|t| [f2i(t.x), f2i(t.y), f2i(t.z), f2i(t.w)])
+                )
+            }
+        };
+        multizip::zip4(position_iter, normal_iter, tangent_iter, uv_iter)
+            .map(|(position, normal, tangent, tex_coord)| {
+                Vertex {
+                    pos: [position.x, position.y, position.z, 1.0],
+                    normal: normal,
+                    uv: tex_coord,
+                    tangent: tangent,
+                }
+            })
+            .collect()
     }
 
     /// Create new `Mesh` with desired `Geometry` and `Material`.
@@ -345,6 +382,10 @@ pub struct GeometryShape {
     pub vertices: Vec<mint::Point3<f32>>,
     /// Normals.
     pub normals: Vec<mint::Vector3<f32>>,
+    /// Tangents.
+    pub tangents: Vec<mint::Vector4<f32>>,
+    /// Texture co-ordinates.
+    pub tex_coords: Vec<mint::Point2<f32>>,
 }
 
 impl GeometryShape {
@@ -353,6 +394,8 @@ impl GeometryShape {
         GeometryShape {
             vertices: Vec::new(),
             normals: Vec::new(),
+            tangents: Vec::new(),
+            tex_coords: Vec::new(),
         }
     }
 }
@@ -385,6 +428,7 @@ impl Geometry {
             base_shape: GeometryShape {
                 vertices,
                 normals: Vec::new(),
+                .. GeometryShape::empty()
             },
             .. Geometry::empty()
         }
@@ -398,12 +442,10 @@ impl Geometry {
     {
         Geometry {
             base_shape: GeometryShape {
-                vertices: gen.shared_vertex_iter()
-                             .map(fpos)
-                             .collect(),
-                normals: gen.shared_vertex_iter()
-                            .map(fnor)
-                            .collect(),
+                vertices: gen.shared_vertex_iter().map(fpos).collect(),
+                normals: gen.shared_vertex_iter().map(fnor).collect(),
+                // @alteous TODO: Add functions for tangents and texture co-ordinates
+                .. GeometryShape::empty()
             },
             shapes: HashMap::new(),
             faces: gen.indexed_polygon_iter()
@@ -635,7 +677,7 @@ impl Factory {
                                 },
                                 None => [I8Norm(0), I8Norm(0), I8Norm(0x7f), I8Norm(0)],
                             },
-                            tangent: NORMAL_X, // TODO
+                            tangent: TANGENT_X, // TODO
                         });
                     });
 
@@ -702,7 +744,7 @@ impl Factory {
                 pos: [pos.x, pos.y, pos.z, 1.0],
                 uv: [0.0, 0.0], //TODO
                 normal,
-                tangent: NORMAL_X, // TODO
+                tangent: TANGENT_X, // @alteous TODO: Provide tangent.
             };
         }
     }
