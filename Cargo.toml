@@ -27,6 +27,7 @@ image = "0.13"
 log = "0.3"
 obj = { version = "0.6", features = ["genmesh"] }
 mint = "0.4.2"
+multizip = "0.1"
 winit = "0.6"
 # OpenGL
 gfx_device_gl = { version = "0.14", optional = true }

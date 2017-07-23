@@ -12,6 +12,7 @@ extern crate image;
 #[macro_use]
 extern crate log;
 extern crate mint;
+extern crate multizip;
 extern crate obj;
 extern crate winit;
 // OpenGL
