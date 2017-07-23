@@ -96,13 +96,13 @@ gfx_defines! {
         scale_ibl_ambient: [f32; 4] = "u_ScaleIblAmbient",
         
         camera: [f32; 3] = "u_Camera",
-        _padding0: f32 = "",
+        _padding0: f32 = "_padding0",
         light_direction: [f32; 3] = "u_LightDirection",
-        _padding1: f32 = "",
+        _padding1: f32 = "_padding1",
         light_color: [f32; 3] = "u_LightColor",
-        _padding2: f32 = "",
+        _padding2: f32 = "_padding2",
         emissive_factor: [f32; 3] = "u_EmissiveFactor",
-        _padding3: f32 = "",
+        _padding3: f32 = "_padding3",
 
         metallic_roughness: [f32; 2] = "u_MetallicRoughnessValues",
         normal_scale: f32 = "u_NormalScale",
@@ -133,7 +133,7 @@ gfx_defines! {
     }
 }
 
-fn get_shader(root: &str, name: &str, variant: &str, defines: &str) -> String {
+fn get_shader(root: &str, name: &str, variant: &str) -> String {
     use std::fs::File;
     use std::io::{BufRead, BufReader, Read};
     let mut code = String::new();
@@ -159,9 +159,8 @@ fn load_program<R, F>(root: &str, name: &str, factory: &mut F)
     R: gfx::Resources,
     F: gfx::Factory<R>,
 {
-    let defines = "";
-    let code_vs = get_shader(root, name, "vs", defines);
-    let code_ps = get_shader(root, name, "ps", defines);
+    let code_vs = get_shader(root, name, "vs");
+    let code_ps = get_shader(root, name, "ps");
 
     factory.link_program(code_vs.as_bytes(), code_ps.as_bytes()).unwrap()
 }
