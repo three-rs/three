@@ -23,9 +23,9 @@
 #version 150
 
 in vec4 a_Position;
+in vec2 a_TexCoord;
 in vec4 a_Normal;
 in vec4 a_Tangent;
-in vec2 a_TexCoord;
 
 uniform b_Locals {
     mat4 u_World;
@@ -46,8 +46,8 @@ out vec3 v_Normal;
 
 void main()
 {
-    mat4 u_Model = u_World; // ???
-    mat4 u_Mvp = u_ViewProj * u_World; // Should work
+    mat4 u_Model = u_World;
+    mat4 u_Mvp = u_ViewProj * u_World;
 
     vec4 pos = u_Model * a_Position;
     v_Position = vec3(pos.xyz) / pos.w;
@@ -61,5 +61,3 @@ void main()
 
     gl_Position = u_Mvp * a_Position;
 }
-
-

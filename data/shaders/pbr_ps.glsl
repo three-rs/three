@@ -24,12 +24,6 @@
 #extension GL_EXT_shader_texture_lod: enable
 #extension GL_OES_standard_derivatives: enable
 
-#ifdef USE_IBL
-uniform samplerCube u_DiffuseEnvSampler;
-uniform samplerCube u_SpecularEnvSampler;
-uniform sampler2D u_BrdfLut;
-#endif
-
 uniform sampler2D u_BaseColorSampler;
 uniform sampler2D u_NormalSampler;
 uniform sampler2D u_EmissiveSampler;
@@ -157,12 +151,21 @@ float GGX(PbrInfo pbrInputs)
     return roughnessSq / (M_PI * f * f);
 }
 
+#define HAS_BASE_COLOR_MAP
+#define HAS_NORMAL_MAP
+#define HAS_METALLIC_ROUGHNESS_MAP    
+
 void main()
 {
     mat3 tbn = v_Tbn;
 
+#ifdef HAS_NORMAL_MAP
     vec3 n = texture2D(u_NormalSampler, v_TexCoord).rgb;
     n = normalize(tbn * ((2.0 * n - 1.0) * vec3(u_NormalScale, u_NormalScale, 1.0)));
+#else
+    vec3 n = tbn[2].xyz;
+#endif
+
     vec3 v = normalize(u_Camera - v_Position);
     vec3 l = normalize(u_LightDirection);
     vec3 h = normalize(l + v);
@@ -176,14 +179,21 @@ void main()
 
     float perceptualRoughness = u_MetallicRoughnessValues.y;
     float metallic = u_MetallicRoughnessValues.x;
+
+#ifdef HAS_METALLIC_ROUGHNESS_MAP    
     vec4 mrSample = texture2D(u_MetallicRoughnessSampler, v_TexCoord);
     perceptualRoughness = mrSample.g * perceptualRoughness;
     metallic = mrSample.b * metallic;
+#endif
 
     perceptualRoughness = clamp(perceptualRoughness, c_MinRoughness, 1.0);
     metallic = clamp(metallic, 0.0, 1.0);
 
+#ifdef HAS_BASE_COLOR_MAP
     vec4 baseColor = texture2D(u_BaseColorSampler, v_TexCoord) * u_BaseColorFactor;
+#else
+    vec4 baseColor = u_BaseColorFactor;
+#endif
 
     vec3 f0 = vec3(0.04);
     // is this the same? test!
@@ -227,24 +237,18 @@ void main()
     //vec3 diffuseContrib = (1.0 - F) * disneyDiffuse(pbrInputs);
     vec3 specContrib = F * G * D / (4.0 * NdotL * NdotV);
     vec3 color = NdotL * u_LightColor * (diffuseContrib + specContrib);
-#ifdef USE_IBL
-    float mipCount = 9.0; // resolution of 512x512
-    float lod = (perceptualRoughness * mipCount);
-    vec3 brdf = texture2D(u_BrdfLut, vec2(NdotV, 1.0 - perceptualRoughness)).rgb;
-    vec3 diffuseLight = textureCube(u_DiffuseEnvSampler, n).rgb;
-#ifdef USE_TEX_LOD
-    vec3 specularLight = textureCubeLodEXT(u_SpecularEnvSampler, reflection, lod).rgb;
-#else
-    vec3 specularLight = textureCube(u_SpecularEnvSampler, reflection).rgb;
-#endif
-    vec3 IBLcolor = (diffuseLight * diffuseColor * u_ScaleIblAmbient.x) + (specularLight * (specularColor * brdf.x + brdf.y) * u_ScaleIblAmbient.y);
-    color += IBLcolor;
-#endif // USE_IBL
 
-      float ao = texture2D(u_OcclusionSampler, v_TexCoord).r;
-      color = mix(color, color * ao, u_OcclusionStrength);
-      vec3 emissive = texture2D(u_EmissiveSampler, v_TexCoord).rgb * u_EmissiveFactor;
-      color += emissive;
+#ifdef HAS_OCCLUSION_MAP
+    float ao = texture2D(u_OcclusionSampler, v_TexCoord).r;
+    color = mix(color, color * ao, u_OcclusionStrength);
+#endif
+
+#ifdef HAS_EMISSIVE_MAP
+    vec3 emissive = texture2D(u_EmissiveSampler, v_TexCoord).rgb * u_EmissiveFactor;
+    color += emissive;
+#endif
+
+#if 0
     // mix in overrides
     color = mix(color, F, u_ScaleFgdSpec.x);
     color = mix(color, vec3(G), u_ScaleFgdSpec.y);
@@ -255,9 +259,10 @@ void main()
     color = mix(color, baseColor.rgb, u_ScaleDiffBaseMr.y);
     color = mix(color, vec3(metallic), u_ScaleDiffBaseMr.z);
     color = mix(color, vec3(perceptualRoughness), u_ScaleDiffBaseMr.w);
-
+#endif
+    
     Target0 = vec4(color, baseColor.a);
     // Target0 = vec4(n * 0.5 + 0.5, 1.0);
     // Target0 = vec4(NdotV, NdotV, NdotV, 1.0);
-    // Target0 = vec4(v_TexCoord.rg, 0.0, 1.0);
+    // Target0 = vec4(v_TexCoord, 0.0, 1.0);
 }

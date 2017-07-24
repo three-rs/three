@@ -61,7 +61,7 @@ type Transform = cgmath::Decomposed<cgmath::Vector3<f32>, cgmath::Quaternion<f32
 enum SubLight {
     Ambient,
     Directional,
-    Hemisphere{ ground: Color },
+    Hemisphere { ground: Color },
     Point,
 }
 
