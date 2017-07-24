@@ -126,10 +126,8 @@ gfx_defines! {
 
         occlusion_map: gfx::TextureSampler<[f32; 4]> = "u_OcclusionSampler",
 
-        out_color: gfx::BlendTarget<ColorFormat> =
-            ("Target0", gfx::state::MASK_ALL, gfx::preset::blend::REPLACE),
-        out_depth: gfx::DepthTarget<DepthFormat> =
-            gfx::preset::depth::LESS_EQUAL_WRITE,
+        out_color: gfx::RenderTarget<ColorFormat> = "Target0",
+        out_depth: gfx::DepthTarget<DepthFormat> = gfx::preset::depth::LESS_EQUAL_WRITE,
     }
 }
 
@@ -560,11 +558,9 @@ impl Renderer {
                         &gpu_data.constants,
                         &Locals {
                             mx_world: Matrix4::from(node.world_transform).into(),
-                            .. unsafe { mem::uninitialized() }
+                            .. unsafe { mem::zeroed() }
                         },
                     );
-                    let m = camera.projection.get_matrix(self.get_aspect());
-                    let xyz = [m.w.x, m.w.y, m.w.z];
                     self.encoder.update_constant_buffer(
                         &self.pbr_buf,
                         &PbrParams {
@@ -572,17 +568,17 @@ impl Renderer {
                             scale_diff_base_mr: [1.0, 1.0, 1.0, 1.0],
                             scale_fgd_spec: [1.0, 1.0, 1.0, 1.0],
                             scale_ibl_ambient: [1.0, 1.0, 1.0, 1.0],
-                            camera: xyz,
-                            light_direction: [1.0, 1.0, 1.0],
-                            light_color: [1.0, 1.0, 1.0],
+                            camera: [0.0, 0.0, 0.15],
+                            light_direction: [0.0, 1.0, -1.0],
+                            light_color: [0.8, 0.8, 0.8],
                             emissive_factor: emissive_factor,
                             metallic_roughness: metallic_roughness, 
                             normal_scale: normal_scale,
                             occlusion_strength: occlusion_strength,
-                            .. unsafe {
-                                // padding
-                                mem::uninitialized()
-                            }
+                            _padding0: unsafe { mem::uninitialized() },
+                            _padding1: unsafe { mem::uninitialized() },
+                            _padding2: unsafe { mem::uninitialized() },
+                            _padding3: unsafe { mem::uninitialized() },
                         },
                     );
                     let data = pbr_pipe::Data {
