@@ -24,6 +24,12 @@
 #extension GL_EXT_shader_texture_lod: enable
 #extension GL_OES_standard_derivatives: enable
 
+const int PBR_FLAG_HAS_BASE_COLOR_MAP          = 1 << 0;
+const int PBR_FLAG_HAS_NORMAL_MAP              = 1 << 1;
+const int PBR_FLAG_HAS_METALLIC_ROUGHNESS_MAP  = 1 << 2;
+const int PBR_FLAG_HAS_EMISSIVE_MAP            = 1 << 3;
+const int PBR_FLAG_HAS_OCCLUSION_MAP           = 1 << 4;
+
 uniform sampler2D u_BaseColorSampler;
 uniform sampler2D u_NormalSampler;
 uniform sampler2D u_EmissiveSampler;
@@ -32,18 +38,14 @@ uniform sampler2D u_OcclusionSampler;
 
 uniform b_PbrParams {
     vec4 u_BaseColorFactor;
-    vec4 u_ScaleDiffBaseMr;
-    vec4 u_ScaleFgdSpec;
-    vec4 u_ScaleIblAmbient;
-    
     vec3 u_Camera;
     vec3 u_LightDirection;
     vec3 u_LightColor;
     vec3 u_EmissiveFactor;
-
     vec2 u_MetallicRoughnessValues;
     float u_NormalScale;
     float u_OcclusionStrength;
+    int u_PbrFlags;
 };
 
 in vec3 v_Position;
@@ -151,20 +153,22 @@ float GGX(PbrInfo pbrInputs)
     return roughnessSq / (M_PI * f * f);
 }
 
-#define HAS_BASE_COLOR_MAP
-#define HAS_NORMAL_MAP
-#define HAS_METALLIC_ROUGHNESS_MAP    
+bool has_flag(int flag)
+{
+    return (u_PbrFlags & flag) == flag;
+}
 
 void main()
 {
     mat3 tbn = v_Tbn;
 
-#ifdef HAS_NORMAL_MAP
-    vec3 n = texture2D(u_NormalSampler, v_TexCoord).rgb;
-    n = normalize(tbn * ((2.0 * n - 1.0) * vec3(u_NormalScale, u_NormalScale, 1.0)));
-#else
-    vec3 n = tbn[2].xyz;
-#endif
+    vec3 n;
+    if (has_flag(PBR_FLAG_HAS_NORMAL_MAP)) {
+        n = texture2D(u_NormalSampler, v_TexCoord).rgb;
+        n = normalize(tbn * ((2.0 * n - 1.0) * vec3(u_NormalScale, u_NormalScale, 1.0)));
+    } else {
+      n = tbn[2].xyz;
+    }
 
     vec3 v = normalize(u_Camera - v_Position);
     vec3 l = normalize(u_LightDirection);
@@ -180,21 +184,22 @@ void main()
     float perceptualRoughness = u_MetallicRoughnessValues.y;
     float metallic = u_MetallicRoughnessValues.x;
 
-#ifdef HAS_METALLIC_ROUGHNESS_MAP    
-    vec4 mrSample = texture2D(u_MetallicRoughnessSampler, v_TexCoord);
-    perceptualRoughness = mrSample.g * perceptualRoughness;
-    metallic = mrSample.b * metallic;
-#endif
+    if (has_flag(PBR_FLAG_HAS_METALLIC_ROUGHNESS_MAP)) {
+        vec4 mrSample = texture2D(u_MetallicRoughnessSampler, v_TexCoord);
+        perceptualRoughness = mrSample.g * perceptualRoughness;
+        metallic = mrSample.b * metallic;
+    }
 
     perceptualRoughness = clamp(perceptualRoughness, c_MinRoughness, 1.0);
     metallic = clamp(metallic, 0.0, 1.0);
 
-#ifdef HAS_BASE_COLOR_MAP
-    vec4 baseColor = texture2D(u_BaseColorSampler, v_TexCoord) * u_BaseColorFactor;
-#else
-    vec4 baseColor = u_BaseColorFactor;
-#endif
-
+    vec4 baseColor;
+    if (has_flag(PBR_FLAG_HAS_BASE_COLOR_MAP)) {
+        baseColor = texture2D(u_BaseColorSampler, v_TexCoord) * u_BaseColorFactor;
+    } else {
+        baseColor = u_BaseColorFactor;
+    }
+    
     vec3 f0 = vec3(0.04);
     // is this the same? test!
     vec3 diffuseColor = mix(baseColor.rgb * (1.0 - f0), vec3(0.0, 0.0, 0.0), metallic);
@@ -238,31 +243,15 @@ void main()
     vec3 specContrib = F * G * D / (4.0 * NdotL * NdotV);
     vec3 color = NdotL * u_LightColor * (diffuseContrib + specContrib);
 
-#ifdef HAS_OCCLUSION_MAP
-    float ao = texture2D(u_OcclusionSampler, v_TexCoord).r;
-    color = mix(color, color * ao, u_OcclusionStrength);
-#endif
+    if (has_flag(PBR_FLAG_HAS_OCCLUSION_MAP)) {
+        float ao = texture2D(u_OcclusionSampler, v_TexCoord).r;
+        color = mix(color, color * ao, u_OcclusionStrength);
+    }
 
-#ifdef HAS_EMISSIVE_MAP
-    vec3 emissive = texture2D(u_EmissiveSampler, v_TexCoord).rgb * u_EmissiveFactor;
-    color += emissive;
-#endif
+    if (has_flag(PBR_FLAG_HAS_EMISSIVE_MAP)) {
+        vec3 emissive = texture2D(u_EmissiveSampler, v_TexCoord).rgb * u_EmissiveFactor;
+        color += emissive;
+    }
 
-#if 0
-    // mix in overrides
-    color = mix(color, F, u_ScaleFgdSpec.x);
-    color = mix(color, vec3(G), u_ScaleFgdSpec.y);
-    color = mix(color, vec3(D), u_ScaleFgdSpec.z);
-    color = mix(color, specContrib, u_ScaleFgdSpec.w);
-
-    color = mix(color, diffuseContrib, u_ScaleDiffBaseMr.x);
-    color = mix(color, baseColor.rgb, u_ScaleDiffBaseMr.y);
-    color = mix(color, vec3(metallic), u_ScaleDiffBaseMr.z);
-    color = mix(color, vec3(perceptualRoughness), u_ScaleDiffBaseMr.w);
-#endif
-    
     Target0 = vec4(color, baseColor.a);
-    // Target0 = vec4(n * 0.5 + 0.5, 1.0);
-    // Target0 = vec4(NdotV, NdotV, NdotV, 1.0);
-    // Target0 = vec4(v_TexCoord, 0.0, 1.0);
 }
