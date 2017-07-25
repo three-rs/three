@@ -91,10 +91,6 @@ gfx_defines! {
 
     constant PbrParams {
         base_color_factor: [f32; 4] = "u_BaseColorFactor",
-        scale_diff_base_mr: [f32; 4] = "u_ScaleDiffBaseMr",
-        scale_fgd_spec: [f32; 4] = "u_ScaleFgdSpec",
-        scale_ibl_ambient: [f32; 4] = "u_ScaleIblAmbient",
-        
         camera: [f32; 3] = "u_Camera",
         _padding0: f32 = "_padding0",
         light_direction: [f32; 3] = "u_LightDirection",
@@ -103,10 +99,10 @@ gfx_defines! {
         _padding2: f32 = "_padding2",
         emissive_factor: [f32; 3] = "u_EmissiveFactor",
         _padding3: f32 = "_padding3",
-
         metallic_roughness: [f32; 2] = "u_MetallicRoughnessValues",
         normal_scale: f32 = "u_NormalScale",
         occlusion_strength: f32 = "u_OcclusionStrength",
+        pbr_flags: i32 = "u_PbrFlags",
     }
 
     pipeline pbr_pipe {
@@ -203,12 +199,12 @@ pub enum ShadowType {
 }
 
 bitflags! {
-    struct PbrFlags: u8 {
-        const HAS_NORMAL_MAP = 0b00001;
-        const HAS_METAL_ROUGHNESS_MAP = 0b00010;
-        const HAS_BASE_COLOR_MAP = 0b00100;
-        const HAS_OCCLUSION_MAP = 0b01000;
-        const HAS_EMISSIVE_MAP = 0b10000;
+    struct PbrFlags: i32 {
+        const HAS_BASE_COLOR_MAP         = 1 << 0;
+        const HAS_NORMAL_MAP             = 1 << 1;
+        const HAS_METALLIC_ROUGHNESS_MAP = 1 << 2;
+        const HAS_EMISSIVE_MAP           = 1 << 3;
+        const HAS_OCCLUSION_MAP          = 1 << 4;
     }
 }
 
@@ -561,13 +557,26 @@ impl Renderer {
                             .. unsafe { mem::zeroed() }
                         },
                     );
+                    let mut pbr_flags = PbrFlags::empty();
+                    if base_color_map.is_some() {
+                        pbr_flags.insert(HAS_BASE_COLOR_MAP);
+                    }
+                    if normal_map.is_some() {
+                        pbr_flags.insert(HAS_NORMAL_MAP);
+                    }
+                    if metallic_roughness_map.is_some() {
+                        pbr_flags.insert(HAS_METALLIC_ROUGHNESS_MAP);
+                    }
+                    if emissive_map.is_some() {
+                        pbr_flags.insert(HAS_EMISSIVE_MAP);
+                    }
+                    if occlusion_map.is_some() {
+                        pbr_flags.insert(HAS_OCCLUSION_MAP);
+                    }
                     self.encoder.update_constant_buffer(
                         &self.pbr_buf,
                         &PbrParams {
                             base_color_factor: base_color_factor,
-                            scale_diff_base_mr: [1.0, 1.0, 1.0, 1.0],
-                            scale_fgd_spec: [1.0, 1.0, 1.0, 1.0],
-                            scale_ibl_ambient: [1.0, 1.0, 1.0, 1.0],
                             camera: [0.0, 0.0, 0.15],
                             light_direction: [0.0, 1.0, -1.0],
                             light_color: [0.8, 0.8, 0.8],
@@ -575,6 +584,7 @@ impl Renderer {
                             metallic_roughness: metallic_roughness, 
                             normal_scale: normal_scale,
                             occlusion_strength: occlusion_strength,
+                            pbr_flags: pbr_flags.bits(),
                             _padding0: unsafe { mem::uninitialized() },
                             _padding1: unsafe { mem::uninitialized() },
                             _padding2: unsafe { mem::uninitialized() },

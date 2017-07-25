@@ -18,8 +18,8 @@ default = ["opengl"]
 "opengl" = ["gfx_device_gl", "gfx_window_glutin", "glutin"]
 
 [dependencies]
-bitflags = "0.9"
 bincode = "0.8"
+bitflags = "0.9"
 cgmath = "0.14"
 froggy = "0.3"
 genmesh = "0.5"
