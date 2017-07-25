@@ -409,7 +409,7 @@ pub struct Geometry {
     /// A map containing blend shapes and their names.
     pub shapes: HashMap<String, GeometryShape>,
     /// Faces.
-    pub faces: Vec<[u16; 3]>,
+    pub faces: Vec<[u32; 3]>,
 }
 
 impl Geometry {
@@ -450,7 +450,7 @@ impl Geometry {
             shapes: HashMap::new(),
             faces: gen.indexed_polygon_iter()
                        .triangulate()
-                       .map(|t| [t.x as u16, t.y as u16, t.z as u16])
+                       .map(|t| [t.x as u32, t.y as u32, t.z as u32])
                        .collect(),
         }
     }
