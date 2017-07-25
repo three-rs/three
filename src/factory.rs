@@ -628,6 +628,24 @@ impl Factory {
         }
     }
 
+    /// Load texture from pre-loaded data.
+    pub fn load_texture_from_memory(
+        &mut self,
+        width: u16,
+        height: u16,
+        pixels: &[u8],
+    ) -> Texture<[f32; 4]> {
+        use gfx::texture as t;
+        let kind = t::Kind::D2(width, height, t::AaMode::Single);
+        let sampler = self.backend.create_sampler_linear();
+        let (_, view) = self.backend
+            .create_texture_immutable_u8::<gfx::format::Srgba8>(kind, &[pixels])
+            .unwrap_or_else(|e| {
+                panic!("Unable to create GPU texture from memory: {:?}", e);
+            });
+        Texture::new(view, sampler, [width as u32, height as u32])
+    }
+
     /// Load texture from file.
     /// Supported file formats are: PNG, JPEG, GIF, WEBP, PPM, TIFF, TGA, BMP, ICO, HDR.
     pub fn load_texture(&mut self, path_str: &str) -> Texture<[f32; 4]> {
