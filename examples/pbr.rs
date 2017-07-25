@@ -39,6 +39,7 @@ fn main() {
     let pos = [0.0, 5.0, 5.0];
     light.set_position(pos);
     win.scene.add(&light);
+    win.scene.background = three::Background::Color(0xC6F0FF);
 
     let model_data = {
         use std::io::Read;
