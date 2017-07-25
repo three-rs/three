@@ -18,20 +18,17 @@ default = ["opengl"]
 "opengl" = ["gfx_device_gl", "gfx_window_glutin", "glutin"]
 
 [dependencies]
-bincode = "0.8"
 bitflags = "0.9"
 cgmath = "0.14"
 froggy = "0.3"
 genmesh = "0.5"
 gfx = "0.16"
-gltf = "0.6"
+gltf = { git = "https://github.com/alteous/gltf.git", branch = "image-dimensions" }
 image = "0.13"
 log = "0.3"
 obj = { version = "0.6", features = ["genmesh"] }
 mint = "0.4.2"
 multizip = "0.1"
-serde = "1.0"
-serde_derive = "1.0"
 winit = "0.6"
 # OpenGL
 gfx_device_gl = { version = "0.14", optional = true }
