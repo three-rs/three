@@ -23,7 +23,8 @@ cgmath = "0.14"
 froggy = "0.3"
 genmesh = "0.5"
 gfx = "0.16"
-gltf = { git = "https://github.com/alteous/gltf.git", branch = "image-dimensions" }
+# gltf = { git = "https://github.com/alteous/gltf.git", branch = "image-dimensions" }
+gltf = { path = "../gltf" }
 image = "0.13"
 log = "0.3"
 obj = { version = "0.6", features = ["genmesh"] }

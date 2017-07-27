@@ -550,6 +550,8 @@ impl Renderer {
                     ref metallic_roughness_map,
                     ref occlusion_map,
                 } => {
+                    // @alteous TODO: Handle lights != 1 case.
+                    let light = lights.get(0).expect("Exactly one light");
                     self.encoder.update_constant_buffer(
                         &gpu_data.constants,
                         &Locals {
@@ -577,9 +579,9 @@ impl Renderer {
                         &self.pbr_buf,
                         &PbrParams {
                             base_color_factor: base_color_factor,
-                            camera: [0.0, 0.0, 0.15],
-                            light_direction: [0.0, 1.0, -1.0],
-                            light_color: [0.8, 0.8, 0.8],
+                            camera: [0.0, 0.0, 1.0],
+                            light_direction: [light.dir[0], light.dir[1], light.dir[2]],
+                            light_color: [light.color[0], light.color[1], light.color[2]],
                             emissive_factor: emissive_factor,
                             metallic_roughness: metallic_roughness, 
                             normal_scale: normal_scale,
