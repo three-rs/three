@@ -645,7 +645,7 @@ impl Renderer {
                             color, 0.0,
                             map.as_ref(),
                         ),
-                        Material::MeshBasic { color, map: ref _map, wireframe: true } => (
+                        Material::MeshBasic { color, map: _, wireframe: true } => (
                             &self.pso_mesh_basic_wireframe,
                             color,
                             0.0,
