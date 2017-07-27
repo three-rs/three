@@ -248,7 +248,7 @@ impl Factory {
         let (vbuf, slice) = if geometry.faces.is_empty() {
             self.backend.create_vertex_buffer_with_slice(&vertices, ())
         } else {
-            let faces: &[u16] = gfx::memory::cast_slice(&geometry.faces);
+            let faces: &[u32] = gfx::memory::cast_slice(&geometry.faces);
             self.backend.create_vertex_buffer_with_slice(&vertices, faces)
         };
         Mesh {
@@ -264,7 +264,7 @@ impl Factory {
     /// Create a new `DynamicMesh` with desired `Geometry` and `Material`.
     pub fn mesh_dynamic(&mut self, geometry: Geometry, mat: Material) -> DynamicMesh {
         let slice = {
-            let data: &[u16] = gfx::memory::cast_slice(&geometry.faces);
+            let data: &[u32] = gfx::memory::cast_slice(&geometry.faces);
             gfx::Slice {
                 start: 0,
                 end: data.len() as u32,
