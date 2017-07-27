@@ -59,10 +59,9 @@ fn load_mesh(mesh: gltf::mesh::Mesh, factory: &mut three::Factory) -> three::Mes
         let mat = primitive.material().unwrap();
         let pbr = mat.pbr_metallic_roughness().unwrap();
         let mut load = |texture: &gltf::texture::Texture| {
-            let image = texture.source();
+            let image = texture.source().data().flipv().to_rgba();
             let (width, height) = (image.width() as u16, image.height() as u16);
-            let pixels = image.raw_pixels();
-            factory.load_texture_from_memory(width, height, pixels)
+            factory.load_texture_from_memory(width, height, &image)
         };
         three::Material::MeshPbr {
             base_color_factor: pbr.base_color_factor(),
@@ -94,11 +93,11 @@ fn main() {
     let mut distance: f32 = 5.0;
     cam.set_position([distance * yaw.cos(), 0.0, distance * yaw.sin()]);
 
-    let mut light = win.factory.point_light(0xffffff, 0.5);
+    let mut light = win.factory.point_light(0xffffff, 1.0);
     let pos = [0.0, 5.0, 5.0];
     light.set_position(pos);
     win.scene.add(&light);
-    win.scene.background = three::Background::Color(0xC6F0FF);
+    win.scene.background = three::Background::Color(/* 0xC6F0FF */ 0x333333);
 
     let path = std::env::args().nth(1).unwrap_or(format!("test_data/Avocado.gltf"));
     let mesh = import(&path, &mut win.factory);
