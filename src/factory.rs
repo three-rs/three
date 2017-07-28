@@ -1,5 +1,4 @@
 use std::{cmp, iter};
-use std::boxed::Box;
 use std::collections::hash_map::{HashMap, Entry};
 use std::io::BufReader;
 use std::fs::File;
@@ -13,8 +12,8 @@ use gfx::format::I8Norm;
 use gfx::handle as h;
 use gfx::traits::{Factory as Factory_, FactoryExt};
 use image;
+use itertools::Either;
 use mint;
-use multizip;
 use obj;
 
 use camera::{Orthographic, Perspective};
@@ -201,39 +200,33 @@ impl Factory {
 
     fn mesh_vertices(shape: &GeometryShape) -> Vec<Vertex> {
         let position_iter = shape.vertices.iter();
-        let normal_iter: Box<Iterator<Item = [gfx::format::I8Norm; 4]>> = {
-            if shape.normals.is_empty() {
-                Box::new(iter::repeat(NORMAL_Z))
-            } else {
-                Box::new(
-                    shape.normals
-                        .iter()
-                        .map(|n| [f2i(n.x), f2i(n.y), f2i(n.z), I8Norm(0)])
-                )
-            }
+        let normal_iter = if shape.normals.is_empty() {
+            Either::Left(iter::repeat(NORMAL_Z))
+        } else {
+            Either::Right(
+                shape.normals
+                    .iter()
+                    .map(|n| [f2i(n.x), f2i(n.y), f2i(n.z), I8Norm(0)])
+            )
         };
-        let uv_iter: Box<Iterator<Item = [f32; 2]>> = {
-            if shape.tex_coords.is_empty() {
-                Box::new(iter::repeat([0.0, 0.0]))
-            } else {
-                Box::new(shape.tex_coords.iter().map(|uv| [uv.x, uv.y]))
-            }
+        let uv_iter = if shape.tex_coords.is_empty() {
+            Either::Left(iter::repeat([0.0, 0.0]))
+        } else {
+            Either::Right(shape.tex_coords.iter().map(|uv| [uv.x, uv.y]))
         };
-        let tangent_iter: Box<Iterator<Item = [gfx::format::I8Norm; 4]>> = {
-            if shape.tangents.is_empty() {
-                // @alteous:
-                // TODO: Generate tangents if texture co-ordinates are provided.
-                // (Use mikktspace algorithm or otherwise.)
-                Box::new(iter::repeat(TANGENT_X))
-            } else {
-                Box::new(
-                    shape.tangents
-                        .iter()
-                        .map(|t| [f2i(t.x), f2i(t.y), f2i(t.z), f2i(t.w)])
-                )
-            }
+        let tangent_iter = if shape.tangents.is_empty() {
+            // @alteous:
+            // TODO: Generate tangents if texture co-ordinates are provided.
+            // (Use mikktspace algorithm or otherwise.)
+            Either::Left(iter::repeat(TANGENT_X))
+        } else {
+            Either::Right(
+                shape.tangents
+                    .iter()
+                    .map(|t| [f2i(t.x), f2i(t.y), f2i(t.z), f2i(t.w)])
+            )
         };
-        multizip::zip4(position_iter, normal_iter, tangent_iter, uv_iter)
+        izip!(position_iter, normal_iter, tangent_iter, uv_iter)
             .map(|(position, normal, tangent, tex_coord)| {
                 Vertex {
                     pos: [position.x, position.y, position.z, 1.0],
