@@ -93,12 +93,8 @@ gfx_defines! {
         base_color_factor: [f32; 4] = "u_BaseColorFactor",
         camera: [f32; 3] = "u_Camera",
         _padding0: f32 = "_padding0",
-        light_direction: [f32; 3] = "u_LightDirection",
-        _padding1: f32 = "_padding1",
-        light_color: [f32; 3] = "u_LightColor",
-        _padding2: f32 = "_padding2",
         emissive_factor: [f32; 3] = "u_EmissiveFactor",
-        _padding3: f32 = "_padding3",
+        _padding1: f32 = "_padding1",
         metallic_roughness: [f32; 2] = "u_MetallicRoughnessValues",
         normal_scale: f32 = "u_NormalScale",
         occlusion_strength: f32 = "u_OcclusionStrength",
@@ -111,6 +107,7 @@ gfx_defines! {
         locals: gfx::ConstantBuffer<Locals> = "b_Locals",
         globals: gfx::ConstantBuffer<Globals> = "b_Globals",
         params: gfx::ConstantBuffer<PbrParams> = "b_PbrParams",
+        lights: gfx::ConstantBuffer<LightParam> = "b_Lights",
 
         base_color_map: gfx::TextureSampler<[f32; 4]> = "u_BaseColorSampler",
 
@@ -122,8 +119,8 @@ gfx_defines! {
 
         occlusion_map: gfx::TextureSampler<[f32; 4]> = "u_OcclusionSampler",
 
-        out_color: gfx::RenderTarget<ColorFormat> = "Target0",
-        out_depth: gfx::DepthTarget<DepthFormat> = gfx::preset::depth::LESS_EQUAL_WRITE,
+        color_target: gfx::RenderTarget<ColorFormat> = "Target0",
+        depth_target: gfx::DepthTarget<DepthFormat> = gfx::preset::depth::LESS_EQUAL_WRITE,
     }
 }
 
@@ -550,8 +547,6 @@ impl Renderer {
                     ref metallic_roughness_map,
                     ref occlusion_map,
                 } => {
-                    // @alteous TODO: Handle lights != 1 case.
-                    let light = lights.get(0).expect("Exactly one light");
                     self.encoder.update_constant_buffer(
                         &gpu_data.constants,
                         &Locals {
@@ -580,8 +575,6 @@ impl Renderer {
                         &PbrParams {
                             base_color_factor: base_color_factor,
                             camera: [0.0, 0.0, 1.0],
-                            light_direction: [light.dir[0], light.dir[1], light.dir[2]],
-                            light_color: [light.color[0], light.color[1], light.color[2]],
                             emissive_factor: emissive_factor,
                             metallic_roughness: metallic_roughness, 
                             normal_scale: normal_scale,
@@ -589,14 +582,13 @@ impl Renderer {
                             pbr_flags: pbr_flags.bits(),
                             _padding0: unsafe { mem::uninitialized() },
                             _padding1: unsafe { mem::uninitialized() },
-                            _padding2: unsafe { mem::uninitialized() },
-                            _padding3: unsafe { mem::uninitialized() },
                         },
                     );
                     let data = pbr_pipe::Data {
                         vbuf: gpu_data.vertices.clone(),
                         locals: gpu_data.constants.clone(),
                         globals: self.const_buf.clone(),
+                        lights: self.light_buf.clone(),
                         params: self.pbr_buf.clone(),
                         base_color_map: {
                             base_color_map
@@ -628,8 +620,8 @@ impl Renderer {
                                 .unwrap_or(&self.map_default)
                                 .to_param()
                         },
-                        out_color: self.out_color.clone(),
-                        out_depth: self.out_depth.clone(),
+                        color_target: self.out_color.clone(),
+                        depth_target: self.out_depth.clone(),
                     };
                     self.encoder.draw(&gpu_data.slice, &self.pso_pbr, &data);
                 },

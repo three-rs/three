@@ -23,12 +23,32 @@
 #version 150
 #extension GL_EXT_shader_texture_lod: enable
 #extension GL_OES_standard_derivatives: enable
+#include locals lights
 
-const int PBR_FLAG_HAS_BASE_COLOR_MAP          = 1 << 0;
-const int PBR_FLAG_HAS_NORMAL_MAP              = 1 << 1;
-const int PBR_FLAG_HAS_METALLIC_ROUGHNESS_MAP  = 1 << 2;
-const int PBR_FLAG_HAS_EMISSIVE_MAP            = 1 << 3;
-const int PBR_FLAG_HAS_OCCLUSION_MAP           = 1 << 4;
+/*
+#define MAX_LIGHTS  4U
+
+struct Light {
+    mat4 projection;
+    vec4 pos;
+    vec4 dir;
+    vec4 focus;
+    vec4 color;
+    vec4 color_back;
+    vec4 intensity;
+    ivec4 shadow_params;
+};
+
+uniform b_Lights {
+    Light u_Lights[MAX_LIGHTS];
+};
+*/
+
+const int BASE_COLOR_MAP          = 1 << 0;
+const int NORMAL_MAP              = 1 << 1;
+const int METALLIC_ROUGHNESS_MAP  = 1 << 2;
+const int EMISSIVE_MAP            = 1 << 3;
+const int OCCLUSION_MAP           = 1 << 4;
 
 uniform sampler2D u_BaseColorSampler;
 uniform sampler2D u_NormalSampler;
@@ -36,11 +56,14 @@ uniform sampler2D u_EmissiveSampler;
 uniform sampler2D u_MetallicRoughnessSampler;
 uniform sampler2D u_OcclusionSampler;
 
+uniform b_Globals {
+    mat4 u_ViewProj;
+    uint u_NumLights;
+};
+
 uniform b_PbrParams {
     vec4 u_BaseColorFactor;
     vec3 u_Camera;
-    vec3 u_LightDirection;
-    vec3 u_LightColor;
     vec3 u_EmissiveFactor;
     vec2 u_MetallicRoughnessValues;
     float u_NormalScale;
@@ -153,7 +176,7 @@ float GGX(PbrInfo pbrInputs)
     return roughnessSq / (M_PI * f * f);
 }
 
-bool has_flag(int flag)
+bool available(int flag)
 {
     return (u_PbrFlags & flag) == flag;
 }
@@ -161,45 +184,36 @@ bool has_flag(int flag)
 void main()
 {
     mat3 tbn = v_Tbn;
+    vec3 v = normalize(u_Camera - v_Position);
 
     vec3 n;
-    if (has_flag(PBR_FLAG_HAS_NORMAL_MAP)) {
+    if (available(NORMAL_MAP)) {
         n = texture2D(u_NormalSampler, v_TexCoord).rgb;
         n = normalize(tbn * ((2.0 * n - 1.0) * vec3(u_NormalScale, u_NormalScale, 1.0)));
     } else {
-      n = tbn[2].xyz;
+        n = tbn[2].xyz;
     }
-
-    vec3 v = normalize(u_Camera - v_Position);
-    vec3 l = normalize(u_LightDirection);
-    vec3 h = normalize(l + v);
-    vec3 reflection = -normalize(reflect(v, n));
-
-    float NdotL = clamp(dot(n, l), 0.001, 1.0);
-    float NdotV = abs(dot(n, v)) + 0.001;
-    float NdotH = clamp(dot(n, h), 0.0, 1.0);
-    float LdotH = clamp(dot(l, h), 0.0, 1.0);
-    float VdotH = clamp(dot(v, h), 0.0, 1.0);
 
     float perceptualRoughness = u_MetallicRoughnessValues.y;
     float metallic = u_MetallicRoughnessValues.x;
 
-    if (has_flag(PBR_FLAG_HAS_METALLIC_ROUGHNESS_MAP)) {
-        vec4 mrSample = texture2D(u_MetallicRoughnessSampler, v_TexCoord);
-        perceptualRoughness = mrSample.g * perceptualRoughness;
-        metallic = mrSample.b * metallic;
+    if (available(METALLIC_ROUGHNESS_MAP)) {
+	vec4 mrSample = texture2D(u_MetallicRoughnessSampler, v_TexCoord);
+	perceptualRoughness = mrSample.g * perceptualRoughness;
+	metallic = mrSample.b * metallic;
     }
 
     perceptualRoughness = clamp(perceptualRoughness, c_MinRoughness, 1.0);
     metallic = clamp(metallic, 0.0, 1.0);
 
     vec4 baseColor;
-    if (has_flag(PBR_FLAG_HAS_BASE_COLOR_MAP)) {
-        baseColor = texture2D(u_BaseColorSampler, v_TexCoord) * u_BaseColorFactor;
+    if (available(BASE_COLOR_MAP)) {
+	baseColor = texture2D(u_BaseColorSampler, v_TexCoord) * u_BaseColorFactor;
     } else {
-        baseColor = u_BaseColorFactor;
+	baseColor = texture2D(u_BaseColorSampler, v_TexCoord) * u_BaseColorFactor;
+	// baseColor = u_BaseColorFactor;
     }
-    
+
     vec3 f0 = vec3(0.04);
     // is this the same? test!
     vec3 diffuseColor = mix(baseColor.rgb * (1.0 - f0), vec3(0.0, 0.0, 0.0), metallic);
@@ -209,46 +223,62 @@ void main()
     // Compute reflectance.
     float reflectance = max(max(specularColor.r, specularColor.g), specularColor.b);
 
-    // For typical incident reflectance range (between 4% to 100%) set the grazing reflectance to 100% for typical fresnel effect.
-    // For very low reflectance range on highly diffuse objects (below 4%), incrementally reduce grazing reflecance to 0%.
+    // For typical incident reflectance range (between 4% to 100%) set the grazing
+    // reflectance to 100% for typical fresnel effect.
+    // For very low reflectance range on highly diffuse objects (below 4%),
+    // incrementally reduce grazing reflecance to 0%.
     float reflectance90 = clamp(reflectance * 25.0, 0.0, 1.0);
     vec3 specularEnvironmentR0 = specularColor.rgb;
     vec3 specularEnvironmentR90 = vec3(1.0, 1.0, 1.0) * reflectance90;
 
-    // roughness is authored as perceptual roughness; as is convention, convert to material roughness by squaring the perceptual roughness
+    // roughness is authored as perceptual roughness; as is convention, convert to
+    // material roughness by squaring the perceptual roughness
     float alphaRoughness = perceptualRoughness * perceptualRoughness;
 
-    PbrInfo pbrInputs = PbrInfo(
-	NdotL,
-	NdotV,
-	NdotH,
-	LdotH,
-	VdotH,
-	perceptualRoughness,
-	metallic,
-	diffuseColor,
-	specularEnvironmentR0,
-	specularEnvironmentR90,
-	alphaRoughness
-    );
-    vec3 F = fresnelSchlick2(pbrInputs);
-    //vec3 F = fresnelSchlick(pbrInputs);
-    //float G = geometricOcclusionCookTorrance(pbrInputs);
-    //float G = geometricOcclusionSmith(pbrInputs);
-    //float G = geometricOcclusionSchlick(pbrInputs);
-    float G = geometricOcclusionSmithGGX(pbrInputs);
-    float D = GGX(pbrInputs);
-    vec3 diffuseContrib = (1.0 - F) * lambertianDiffuse(pbrInputs);
-    //vec3 diffuseContrib = (1.0 - F) * disneyDiffuse(pbrInputs);
-    vec3 specContrib = F * G * D / (4.0 * NdotL * NdotV);
-    vec3 color = NdotL * u_LightColor * (diffuseContrib + specContrib);
+    vec3 color = vec3(0.0);
+    for (uint i = 0U; i < min(MAX_LIGHTS, u_NumLights); ++i) {
+	Light light = u_Lights[i];
+	vec3 l = normalize(light.dir.xyz);
+	vec3 h = normalize(l + v);
+	vec3 reflection = -normalize(reflect(v, n));
 
-    if (has_flag(PBR_FLAG_HAS_OCCLUSION_MAP)) {
-        float ao = texture2D(u_OcclusionSampler, v_TexCoord).r;
+	float NdotL = clamp(dot(n, l), 0.001, 1.0);
+	float NdotV = abs(dot(n, v)) + 0.001;
+	float NdotH = clamp(dot(n, h), 0.0, 1.0);
+	float LdotH = clamp(dot(l, h), 0.0, 1.0);
+	float VdotH = clamp(dot(v, h), 0.0, 1.0);
+	PbrInfo pbrInputs = PbrInfo(
+	    NdotL,
+	    NdotV,
+	    NdotH,
+	    LdotH,
+	    VdotH,
+	    perceptualRoughness,
+	    metallic,
+	    diffuseColor,
+	    specularEnvironmentR0,
+	    specularEnvironmentR90,
+	    alphaRoughness
+	);
+	vec3 F = fresnelSchlick2(pbrInputs);
+	//vec3 F = fresnelSchlick(pbrInputs);
+	//float G = geometricOcclusionCookTorrance(pbrInputs);
+	//float G = geometricOcclusionSmith(pbrInputs);
+	//float G = geometricOcclusionSchlick(pbrInputs);
+	float G = geometricOcclusionSmithGGX(pbrInputs);
+	float D = GGX(pbrInputs);
+	vec3 diffuseContrib = (1.0 - F) * lambertianDiffuse(pbrInputs);
+	//vec3 diffuseContrib = (1.0 - F) * disneyDiffuse(pbrInputs);
+	vec3 specContrib = F * G * D / (4.0 * NdotL * NdotV);
+	color += NdotL * light.intensity.y * light.color.rgb * (diffuseContrib + specContrib);
+    }
+
+    if (available(OCCLUSION_MAP)) {
+	float ao = texture2D(u_OcclusionSampler, v_TexCoord).r;
         color = mix(color, color * ao, u_OcclusionStrength);
     }
 
-    if (has_flag(PBR_FLAG_HAS_EMISSIVE_MAP)) {
+    if (available(EMISSIVE_MAP)) {
         vec3 emissive = texture2D(u_EmissiveSampler, v_TexCoord).rgb * u_EmissiveFactor;
         color += emissive;
     }
