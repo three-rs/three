@@ -20,19 +20,13 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-#version 150
+#version 150 core
+#include locals
 
 in vec4 a_Position;
 in vec2 a_TexCoord;
 in vec4 a_Normal;
 in vec4 a_Tangent;
-
-uniform b_Locals {
-    mat4 u_World;
-    vec4 u_Color; 
-    vec4 u_MatParams;
-    vec4 u_UvRange;
-};
 
 uniform b_Globals {
     mat4 u_ViewProj;
@@ -49,14 +43,13 @@ void main()
     mat4 u_Model = u_World;
     mat4 u_Mvp = u_ViewProj * u_World;
 
-    vec4 pos = u_Model * a_Position;
-    v_Position = vec3(pos.xyz) / pos.w;
-
+    vec4 position = u_Model * a_Position;
     vec3 normal = normalize(vec3(u_Model * vec4(a_Normal.xyz, 0.0)));
     vec3 tangent = normalize(vec3(u_Model * vec4(a_Tangent.xyz, 0.0)));
     vec3 bitangent = cross(normal, tangent) * a_Tangent.w;
-    v_Tbn = mat3(tangent, bitangent, normal);
 
+    v_Tbn = mat3(tangent, bitangent, normal);
+    v_Position = vec3(position.xyz) / position.w;
     v_TexCoord = a_TexCoord;
 
     gl_Position = u_Mvp * a_Position;

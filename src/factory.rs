@@ -221,7 +221,7 @@ impl Factory {
         };
         let tangent_iter: Box<Iterator<Item = [gfx::format::I8Norm; 4]>> = {
             if shape.tangents.is_empty() {
-                // @alteous
+                // @alteous:
                 // TODO: Generate tangents if texture co-ordinates are provided.
                 // (Use mikktspace algorithm or otherwise.)
                 Box::new(iter::repeat(TANGENT_X))
@@ -479,7 +479,8 @@ impl Geometry {
             base_shape: GeometryShape {
                 vertices: gen.shared_vertex_iter().map(fpos).collect(),
                 normals: gen.shared_vertex_iter().map(fnor).collect(),
-                // @alteous TODO: Add functions for tangents and texture co-ordinates
+                // @alteous: TODO: Add similar functions for tangents and texture
+                // co-ordinates
                 .. GeometryShape::empty()
             },
             shapes: HashMap::new(),
@@ -800,7 +801,7 @@ impl Factory {
                 pos: [pos.x, pos.y, pos.z, 1.0],
                 uv: [0.0, 0.0], //TODO
                 normal,
-                tangent: TANGENT_X, // @alteous TODO: Provide tangent.
+                tangent: TANGENT_X, // @alteous: TODO: Provide tangent.
             };
         }
     }
