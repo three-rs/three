@@ -197,11 +197,11 @@ pub enum ShadowType {
 
 bitflags! {
     struct PbrFlags: i32 {
-        const HAS_BASE_COLOR_MAP         = 1 << 0;
-        const HAS_NORMAL_MAP             = 1 << 1;
-        const HAS_METALLIC_ROUGHNESS_MAP = 1 << 2;
-        const HAS_EMISSIVE_MAP           = 1 << 3;
-        const HAS_OCCLUSION_MAP          = 1 << 4;
+        const BASE_COLOR_MAP         = 1 << 0;
+        const NORMAL_MAP             = 1 << 1;
+        const METALLIC_ROUGHNESS_MAP = 1 << 2;
+        const EMISSIVE_MAP           = 1 << 3;
+        const OCCLUSION_MAP          = 1 << 4;
     }
 }
 
@@ -556,19 +556,19 @@ impl Renderer {
                     );
                     let mut pbr_flags = PbrFlags::empty();
                     if base_color_map.is_some() {
-                        pbr_flags.insert(HAS_BASE_COLOR_MAP);
+                        pbr_flags.insert(BASE_COLOR_MAP);
                     }
                     if normal_map.is_some() {
-                        pbr_flags.insert(HAS_NORMAL_MAP);
+                        pbr_flags.insert(NORMAL_MAP);
                     }
                     if metallic_roughness_map.is_some() {
-                        pbr_flags.insert(HAS_METALLIC_ROUGHNESS_MAP);
+                        pbr_flags.insert(METALLIC_ROUGHNESS_MAP);
                     }
                     if emissive_map.is_some() {
-                        pbr_flags.insert(HAS_EMISSIVE_MAP);
+                        pbr_flags.insert(EMISSIVE_MAP);
                     }
                     if occlusion_map.is_some() {
-                        pbr_flags.insert(HAS_OCCLUSION_MAP);
+                        pbr_flags.insert(OCCLUSION_MAP);
                     }
                     self.encoder.update_constant_buffer(
                         &self.pbr_buf,
