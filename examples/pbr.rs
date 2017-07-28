@@ -29,23 +29,23 @@ fn load_mesh(mesh: gltf::mesh::Mesh, factory: &mut three::Factory) -> three::Mes
     match primitive.tex_coords(0).unwrap() {
         gltf::mesh::TexCoords::U8(iter) => {
             for x in iter {
-                let y = [x[0] as f32 / 255.0, x[1] as f32 / -255.0];
+                let y = [(x[0] as f32).abs() / 255.0, (x[1] as f32).abs() / 255.0];
                 tex_coords.push(y.into());
             }
         },
         gltf::mesh::TexCoords::U16(iter) => {
             for x in iter {
-                let y = [x[0] as f32 / 65535.0, x[1] as f32 / -65535.0];
+                let y = [(x[0] as f32).abs() / 65535.0, (x[1] as f32).abs() / 65535.0];
                 tex_coords.push(y.into());
             }
         },
         gltf::mesh::TexCoords::F32(iter) => {
             for x in iter {
-                tex_coords.push([x[0], -x[1]].into());
+                let y = [x[0].abs(), x[1].abs()];
+                tex_coords.push(y.into());
             }
         },
     }
-    println!("{:?}", tex_coords);
     let geometry = three::Geometry {
         base_shape: three::GeometryShape {
             vertices: vertices,
@@ -60,7 +60,7 @@ fn load_mesh(mesh: gltf::mesh::Mesh, factory: &mut three::Factory) -> three::Mes
         let mat = primitive.material().unwrap();
         let pbr = mat.pbr_metallic_roughness().unwrap();
         let mut load = |texture: &gltf::texture::Texture| {
-            let image = texture.source().data().flipv().to_rgba();
+            let image = texture.source().data().to_rgba();
             let (width, height) = (image.width() as u16, image.height() as u16);
             factory.load_texture_from_memory(width, height, &image)
         };
@@ -90,12 +90,12 @@ fn import(path_str: &str, factory: &mut three::Factory) -> three::Mesh {
 fn main() {
     let mut win = three::Window::new("Three-rs PBR example", "data/shaders").build();
     let mut cam = win.factory.perspective_camera(75.0, 0.01, 100.0);
-    let mut yaw: f32 = 0.0;
-    let mut distance: f32 = 0.2;
+    let mut yaw: f32 = 0.8;
+    let mut distance: f32 = 3.9;
     cam.set_position([distance * yaw.cos(), 0.0, distance * yaw.sin()]);
 
     let mut light = win.factory.directional_light(0xFFFFFF, 7.0);
-    light.look_at([1.0, 1.0, -1.0], [0.0, 0.0, 0.0], Some([0.0, 1.0, 0.0].into()));
+    light.look_at([1.0, 1.0, 1.0], [0.0, 0.0, 0.0], Some([0.0, 1.0, 0.0].into()));
     win.scene.add(&light);
     win.scene.background = three::Background::Color(0xC6F0FF);
 
@@ -105,16 +105,19 @@ fn main() {
 
     while win.update() && !three::KEY_ESCAPE.is_hit(&win.input) {
         if three::Button::Key(three::Key::Left).is_hit(&win.input) {
-            yaw -= 0.1;
+            yaw -= 0.05;
         }
         if three::Button::Key(three::Key::Right).is_hit(&win.input) {
-            yaw += 0.1;
+            yaw += 0.05;
         }
         if three::Button::Key(three::Key::Up).is_hit(&win.input) {
-            distance -= 0.1;
+            distance -= 0.05;
         }
         if three::Button::Key(three::Key::Down).is_hit(&win.input) {
-            distance += 0.1;
+            distance += 0.05;
+        }
+        if three::Button::Key(three::Key::P).is_hit(&win.input) {
+            println!("yaw: {}, distance: {}", yaw, distance);
         }
         let (x, y, z) = (yaw.sin(), 0.0, yaw.cos());
         cam.look_at(
