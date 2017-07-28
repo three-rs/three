@@ -25,6 +25,8 @@ use scene::{Color, Background, Group, Sprite, Material,
 use {Hub, HubPtr, SubLight, Node, SubNode,
      LightData, Object, Scene, Camera, Mesh, DynamicMesh};
 
+pub use gfx::texture::{FilterMethod, WrapMode};
+
 const TANGENT_X: [I8Norm; 4] = [I8Norm(1), I8Norm(0), I8Norm(0), I8Norm(1)];
 const NORMAL_Z: [I8Norm; 4] = [I8Norm(0), I8Norm(0), I8Norm(1), I8Norm(0)];
 
@@ -54,7 +56,6 @@ const QUAD: [Vertex; 4] = [
         tangent: TANGENT_X,
     },
 ];
-
 
 impl From<SubNode> for Node {
     fn from(sub: SubNode) -> Self {
@@ -121,6 +122,7 @@ pub struct Factory {
     hub: HubPtr,
     quad_buf: gfx::handle::Buffer<BackendResources, Vertex>,
     texture_cache: HashMap<String, Texture<[f32; 4]>>,
+    default_sampler: gfx::handle::Sampler<BackendResources>,
 }
 
 fn f2i(x: f32) -> I8Norm {
@@ -136,12 +138,14 @@ impl Factory {
     #[doc(hidden)]
     pub fn new(mut backend: BackendFactory) -> Self {
         let quad_buf = backend.create_vertex_buffer(&QUAD);
+        let default_sampler = backend.create_sampler_linear();
         Factory {
             backend: backend,
             scene_id: 0,
             hub: Hub::new(),
             quad_buf,
             texture_cache: HashMap::new(),
+            default_sampler: default_sampler,
         }
     }
 
@@ -363,6 +367,34 @@ impl Factory {
         }))
     }
 
+    /// Create a `Sampler` with default properties.
+    ///
+    /// The default sampler has `Clamp` as its horizontal and vertical
+    /// wrapping mode and `Scale` as its filtering method.
+    pub fn default_sampler(&self) -> Sampler {
+        Sampler(self.default_sampler.clone())
+    }
+ 
+    /// Create new `Sampler`.
+    pub fn sampler(
+        &mut self,
+        filter_method: FilterMethod,
+        horizontal_wrap_mode: WrapMode,
+        vertical_wrap_mode: WrapMode,
+    ) -> Sampler {
+        use gfx::texture::Lod;
+        let info = gfx::texture::SamplerInfo {
+            filter: filter_method,
+            wrap_mode: (horizontal_wrap_mode, vertical_wrap_mode, WrapMode::Clamp),
+            lod_bias: Lod::from(0.0),
+            lod_range: (Lod::from(-8000.0), Lod::from(8000.0)),
+            comparison: None,
+            border: gfx::texture::PackedColor(0),
+        };
+        let inner = self.backend.create_sampler(info);
+        Sampler(inner)
+    }
+
     /// Create new `ShadowMap`.
     pub fn shadow_map(&mut self, width: u16, height: u16) -> ShadowMap {
         let (_, resource, target) = self.backend.create_depth_stencil::<ShadowFormat>(
@@ -374,6 +406,9 @@ impl Factory {
     }
 }
 
+/// The sampling properties for a `Texture`.
+#[derive(Clone, Debug)]
+pub struct Sampler(gfx::handle::Sampler<BackendResources>);
 
 /// A shape of geometry that is used for mesh blending.
 #[derive(Clone, Debug)]
@@ -557,9 +592,12 @@ impl<T> Texture<T> {
     }
 }
 
-
 impl Factory {
-    fn load_texture_impl(path_str: &str, factory: &mut BackendFactory) -> Texture<[f32; 4]> {
+    fn load_texture_impl(
+        path_str: &str,
+        sampler: Sampler,
+        factory: &mut BackendFactory,
+    ) -> Texture<[f32; 4]> {
         use gfx::texture as t;
         use image::ImageFormat as F;
 
@@ -591,15 +629,15 @@ impl Factory {
         let kind = t::Kind::D2(width as t::Size, height as t::Size, t::AaMode::Single);
         let (_, view) = factory.create_texture_immutable_u8::<gfx::format::Srgba8>(kind, &[&img])
                                .unwrap_or_else(|e| panic!("Unable to create GPU texture for {}: {:?}", path_str, e));
-
-        Texture::new(view, factory.create_sampler_linear(), [width, height])
+        Texture::new(view, sampler.0, [width, height])
     }
 
     fn request_texture(&mut self, path: &str) -> Texture<[f32; 4]> {
+        let sampler = self.default_sampler();
         match self.texture_cache.entry(path.to_string()) {
             Entry::Occupied(e) => e.get().clone(),
             Entry::Vacant(e) => {
-                let tex = Self::load_texture_impl(path, &mut self.backend);
+                let tex = Self::load_texture_impl(path, sampler, &mut self.backend);
                 e.insert(tex.clone());
                 tex
             }
@@ -634,16 +672,16 @@ impl Factory {
         width: u16,
         height: u16,
         pixels: &[u8],
+        sampler: Sampler,
     ) -> Texture<[f32; 4]> {
         use gfx::texture as t;
         let kind = t::Kind::D2(width, height, t::AaMode::Single);
-        let sampler = self.backend.create_sampler_linear();
         let (_, view) = self.backend
             .create_texture_immutable_u8::<gfx::format::Srgba8>(kind, &[pixels])
             .unwrap_or_else(|e| {
                 panic!("Unable to create GPU texture from memory: {:?}", e);
             });
-        Texture::new(view, sampler, [width as u32, height as u32])
+        Texture::new(view, sampler.0, [width as u32, height as u32])
     }
 
     /// Load texture from file.
