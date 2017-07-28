@@ -29,20 +29,19 @@ fn load_mesh(mesh: gltf::mesh::Mesh, factory: &mut three::Factory) -> three::Mes
     match primitive.tex_coords(0).unwrap() {
         gltf::mesh::TexCoords::U8(iter) => {
             for x in iter {
-                let y = [(x[0] as f32).abs() / 255.0, (x[1] as f32).abs() / 255.0];
+                let y = [x[0] as f32 / 255.0, x[1] as f32 / 255.0];
                 tex_coords.push(y.into());
             }
         },
         gltf::mesh::TexCoords::U16(iter) => {
             for x in iter {
-                let y = [(x[0] as f32).abs() / 65535.0, (x[1] as f32).abs() / 65535.0];
+                let y = [x[0] as f32 / 65535.0, x[1] as f32 / 65535.0];
                 tex_coords.push(y.into());
             }
         },
         gltf::mesh::TexCoords::F32(iter) => {
             for x in iter {
-                let y = [x[0].abs(), x[1].abs()];
-                tex_coords.push(y.into());
+                tex_coords.push(x.into());
             }
         },
     }
@@ -62,7 +61,38 @@ fn load_mesh(mesh: gltf::mesh::Mesh, factory: &mut three::Factory) -> three::Mes
         let mut load = |texture: &gltf::texture::Texture| {
             let image = texture.source().data().to_rgba();
             let (width, height) = (image.width() as u16, image.height() as u16);
-            factory.load_texture_from_memory(width, height, &image)
+            use gltf::texture::{MagFilter, MinFilter, WrappingMode};
+            use three::{FilterMethod, WrapMode};
+            let sampler = match texture.sampler() {
+                Some(s) => {
+                    // @alteous: gfx does not support separate min/mag
+                    // filters yet, so for now we'll use min_filter for both.
+                    let _mag_filter = match s.mag_filter() {
+                        None | Some(MagFilter::Nearest) => FilterMethod::Scale,
+                        Some(MagFilter::Linear) => FilterMethod::Bilinear,
+                    };
+                    let min_filter = match s.min_filter() {
+                        None | Some(MinFilter::Nearest) => FilterMethod::Scale,
+                        Some(MinFilter::Linear) => FilterMethod::Bilinear,
+                        // @alteous: Texture mipmapping must be implementated before
+                        // this option may be used.
+                        _ => unimplemented!(),
+                    };
+                    let wrap_s = match s.wrap_s() {
+                        WrappingMode::ClampToEdge => WrapMode::Clamp,
+                        WrappingMode::MirroredRepeat => WrapMode::Mirror,
+                        WrappingMode::Repeat => WrapMode::Tile,
+                    };
+                    let wrap_t = match s.wrap_t() {
+                        WrappingMode::ClampToEdge => WrapMode::Clamp,
+                        WrappingMode::MirroredRepeat => WrapMode::Mirror,
+                        WrappingMode::Repeat => WrapMode::Tile,
+                    };
+                    factory.sampler(min_filter, wrap_s, wrap_t)
+                },
+                None => factory.default_sampler(),
+            };
+            factory.load_texture_from_memory(width, height, &image, sampler)
         };
         three::Material::MeshPbr {
             base_color_factor: pbr.base_color_factor(),
@@ -99,7 +129,7 @@ fn main() {
     win.scene.add(&light);
     win.scene.background = three::Background::Color(0xC6F0FF);
 
-    let path = std::env::args().nth(1).unwrap_or(format!("test_data/Avocado.gltf"));
+    let path = std::env::args().nth(1).unwrap_or("test_data/SciFiHelmet.gltf".into());
     let mesh = import(&path, &mut win.factory);
     win.scene.add(&mesh);
 
