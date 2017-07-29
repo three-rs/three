@@ -1,4 +1,4 @@
-use std::cmp;
+use std::{cmp, iter};
 use std::collections::hash_map::{HashMap, Entry};
 use std::io::BufReader;
 use std::fs::File;
@@ -12,6 +12,7 @@ use gfx::format::I8Norm;
 use gfx::handle as h;
 use gfx::traits::{Factory as Factory_, FactoryExt};
 use image;
+use itertools::Either;
 use mint;
 use obj;
 
@@ -23,7 +24,9 @@ use scene::{Color, Background, Group, Sprite, Material,
 use {Hub, HubPtr, SubLight, Node, SubNode,
      LightData, Object, Scene, Camera, Mesh, DynamicMesh};
 
+pub use gfx::texture::{FilterMethod, WrapMode};
 
+const TANGENT_X: [I8Norm; 4] = [I8Norm(1), I8Norm(0), I8Norm(0), I8Norm(1)];
 const NORMAL_Z: [I8Norm; 4] = [I8Norm(0), I8Norm(0), I8Norm(1), I8Norm(0)];
 
 const QUAD: [Vertex; 4] = [
@@ -31,24 +34,27 @@ const QUAD: [Vertex; 4] = [
         pos: [-1.0, -1.0, 0.0, 1.0],
         uv: [0.0, 0.0],
         normal: NORMAL_Z,
+        tangent: TANGENT_X,
     },
     Vertex {
         pos: [1.0, -1.0, 0.0, 1.0],
         uv: [1.0, 0.0],
         normal: NORMAL_Z,
+        tangent: TANGENT_X,
     },
     Vertex {
         pos: [-1.0, 1.0, 0.0, 1.0],
         uv: [0.0, 1.0],
         normal: NORMAL_Z,
+        tangent: TANGENT_X,
     },
     Vertex {
         pos: [1.0, 1.0, 0.0, 1.0],
         uv: [1.0, 1.0],
         normal: NORMAL_Z,
+        tangent: TANGENT_X,
     },
 ];
-
 
 impl From<SubNode> for Node {
     fn from(sub: SubNode) -> Self {
@@ -115,18 +121,30 @@ pub struct Factory {
     hub: HubPtr,
     quad_buf: gfx::handle::Buffer<BackendResources, Vertex>,
     texture_cache: HashMap<String, Texture<[f32; 4]>>,
+    default_sampler: gfx::handle::Sampler<BackendResources>,
+}
+
+fn f2i(x: f32) -> I8Norm {
+    I8Norm(
+        cmp::min(
+            cmp::max((x * 127.0) as isize, -128),
+            127,
+        ) as i8
+    )
 }
 
 impl Factory {
     #[doc(hidden)]
     pub fn new(mut backend: BackendFactory) -> Self {
         let quad_buf = backend.create_vertex_buffer(&QUAD);
+        let default_sampler = backend.create_sampler_linear();
         Factory {
             backend: backend,
             scene_id: 0,
             hub: Hub::new(),
             quad_buf,
             texture_cache: HashMap::new(),
+            default_sampler: default_sampler,
         }
     }
 
@@ -181,20 +199,43 @@ impl Factory {
     }
 
     fn mesh_vertices(shape: &GeometryShape) -> Vec<Vertex> {
-        if shape.normals.is_empty() {
-            shape.vertices.iter().map(|v| Vertex {
-                pos: [v.x, v.y, v.z, 1.0],
-                uv: [0.0, 0.0], //TODO
-                normal: NORMAL_Z,
-            }).collect()
+        let position_iter = shape.vertices.iter();
+        let normal_iter = if shape.normals.is_empty() {
+            Either::Left(iter::repeat(NORMAL_Z))
         } else {
-            let f2i = |x: f32| I8Norm(cmp::min(cmp::max((x * 127.) as isize, -128), 127) as i8);
-            shape.vertices.iter().zip(shape.normals.iter()).map(|(v, n)| Vertex {
-                pos: [v.x, v.y, v.z, 1.0],
-                uv: [0.0, 0.0], //TODO
-                normal: [f2i(n.x), f2i(n.y), f2i(n.z), I8Norm(0)],
-            }).collect()
-        }
+            Either::Right(
+                shape.normals
+                    .iter()
+                    .map(|n| [f2i(n.x), f2i(n.y), f2i(n.z), I8Norm(0)])
+            )
+        };
+        let uv_iter = if shape.tex_coords.is_empty() {
+            Either::Left(iter::repeat([0.0, 0.0]))
+        } else {
+            Either::Right(shape.tex_coords.iter().map(|uv| [uv.x, uv.y]))
+        };
+        let tangent_iter = if shape.tangents.is_empty() {
+            // @alteous:
+            // TODO: Generate tangents if texture co-ordinates are provided.
+            // (Use mikktspace algorithm or otherwise.)
+            Either::Left(iter::repeat(TANGENT_X))
+        } else {
+            Either::Right(
+                shape.tangents
+                    .iter()
+                    .map(|t| [f2i(t.x), f2i(t.y), f2i(t.z), f2i(t.w)])
+            )
+        };
+        izip!(position_iter, normal_iter, tangent_iter, uv_iter)
+            .map(|(position, normal, tangent, tex_coord)| {
+                Vertex {
+                    pos: [position.x, position.y, position.z, 1.0],
+                    normal: normal,
+                    uv: tex_coord,
+                    tangent: tangent,
+                }
+            })
+            .collect()
     }
 
     /// Create new `Mesh` with desired `Geometry` and `Material`.
@@ -204,7 +245,7 @@ impl Factory {
         let (vbuf, slice) = if geometry.faces.is_empty() {
             self.backend.create_vertex_buffer_with_slice(&vertices, ())
         } else {
-            let faces: &[u16] = gfx::memory::cast_slice(&geometry.faces);
+            let faces: &[u32] = gfx::memory::cast_slice(&geometry.faces);
             self.backend.create_vertex_buffer_with_slice(&vertices, faces)
         };
         Mesh {
@@ -220,7 +261,7 @@ impl Factory {
     /// Create a new `DynamicMesh` with desired `Geometry` and `Material`.
     pub fn mesh_dynamic(&mut self, geometry: Geometry, mat: Material) -> DynamicMesh {
         let slice = {
-            let data: &[u16] = gfx::memory::cast_slice(&geometry.faces);
+            let data: &[u32] = gfx::memory::cast_slice(&geometry.faces);
             gfx::Slice {
                 start: 0,
                 end: data.len() as u32,
@@ -319,6 +360,34 @@ impl Factory {
         }))
     }
 
+    /// Create a `Sampler` with default properties.
+    ///
+    /// The default sampler has `Clamp` as its horizontal and vertical
+    /// wrapping mode and `Scale` as its filtering method.
+    pub fn default_sampler(&self) -> Sampler {
+        Sampler(self.default_sampler.clone())
+    }
+ 
+    /// Create new `Sampler`.
+    pub fn sampler(
+        &mut self,
+        filter_method: FilterMethod,
+        horizontal_wrap_mode: WrapMode,
+        vertical_wrap_mode: WrapMode,
+    ) -> Sampler {
+        use gfx::texture::Lod;
+        let info = gfx::texture::SamplerInfo {
+            filter: filter_method,
+            wrap_mode: (horizontal_wrap_mode, vertical_wrap_mode, WrapMode::Clamp),
+            lod_bias: Lod::from(0.0),
+            lod_range: (Lod::from(-8000.0), Lod::from(8000.0)),
+            comparison: None,
+            border: gfx::texture::PackedColor(0),
+        };
+        let inner = self.backend.create_sampler(info);
+        Sampler(inner)
+    }
+
     /// Create new `ShadowMap`.
     pub fn shadow_map(&mut self, width: u16, height: u16) -> ShadowMap {
         let (_, resource, target) = self.backend.create_depth_stencil::<ShadowFormat>(
@@ -330,6 +399,9 @@ impl Factory {
     }
 }
 
+/// The sampling properties for a `Texture`.
+#[derive(Clone, Debug)]
+pub struct Sampler(gfx::handle::Sampler<BackendResources>);
 
 /// A shape of geometry that is used for mesh blending.
 #[derive(Clone, Debug)]
@@ -338,6 +410,10 @@ pub struct GeometryShape {
     pub vertices: Vec<mint::Point3<f32>>,
     /// Normals.
     pub normals: Vec<mint::Vector3<f32>>,
+    /// Tangents.
+    pub tangents: Vec<mint::Vector4<f32>>,
+    /// Texture co-ordinates.
+    pub tex_coords: Vec<mint::Point2<f32>>,
 }
 
 impl GeometryShape {
@@ -346,6 +422,8 @@ impl GeometryShape {
         GeometryShape {
             vertices: Vec::new(),
             normals: Vec::new(),
+            tangents: Vec::new(),
+            tex_coords: Vec::new(),
         }
     }
 }
@@ -359,7 +437,7 @@ pub struct Geometry {
     /// A map containing blend shapes and their names.
     pub shapes: HashMap<String, GeometryShape>,
     /// Faces.
-    pub faces: Vec<[u16; 3]>,
+    pub faces: Vec<[u32; 3]>,
 }
 
 impl Geometry {
@@ -378,6 +456,7 @@ impl Geometry {
             base_shape: GeometryShape {
                 vertices,
                 normals: Vec::new(),
+                .. GeometryShape::empty()
             },
             .. Geometry::empty()
         }
@@ -391,17 +470,16 @@ impl Geometry {
     {
         Geometry {
             base_shape: GeometryShape {
-                vertices: gen.shared_vertex_iter()
-                             .map(fpos)
-                             .collect(),
-                normals: gen.shared_vertex_iter()
-                            .map(fnor)
-                            .collect(),
+                vertices: gen.shared_vertex_iter().map(fpos).collect(),
+                normals: gen.shared_vertex_iter().map(fnor).collect(),
+                // @alteous: TODO: Add similar functions for tangents and texture
+                // co-ordinates
+                .. GeometryShape::empty()
             },
             shapes: HashMap::new(),
             faces: gen.indexed_polygon_iter()
                        .triangulate()
-                       .map(|t| [t.x as u16, t.y as u16, t.z as u16])
+                       .map(|t| [t.x as u32, t.y as u32, t.z as u32])
                        .collect(),
         }
     }
@@ -508,9 +586,12 @@ impl<T> Texture<T> {
     }
 }
 
-
 impl Factory {
-    fn load_texture_impl(path_str: &str, factory: &mut BackendFactory) -> Texture<[f32; 4]> {
+    fn load_texture_impl(
+        path_str: &str,
+        sampler: Sampler,
+        factory: &mut BackendFactory,
+    ) -> Texture<[f32; 4]> {
         use gfx::texture as t;
         use image::ImageFormat as F;
 
@@ -542,15 +623,15 @@ impl Factory {
         let kind = t::Kind::D2(width as t::Size, height as t::Size, t::AaMode::Single);
         let (_, view) = factory.create_texture_immutable_u8::<gfx::format::Srgba8>(kind, &[&img])
                                .unwrap_or_else(|e| panic!("Unable to create GPU texture for {}: {:?}", path_str, e));
-
-        Texture::new(view, factory.create_sampler_linear(), [width, height])
+        Texture::new(view, sampler.0, [width, height])
     }
 
     fn request_texture(&mut self, path: &str) -> Texture<[f32; 4]> {
+        let sampler = self.default_sampler();
         match self.texture_cache.entry(path.to_string()) {
             Entry::Occupied(e) => e.get().clone(),
             Entry::Vacant(e) => {
-                let tex = Self::load_texture_impl(path, &mut self.backend);
+                let tex = Self::load_texture_impl(path, sampler, &mut self.backend);
                 e.insert(tex.clone());
                 tex
             }
@@ -577,6 +658,24 @@ impl Factory {
                 },
             _ => Material::MeshBasic { color: 0xffffff, map: None, wireframe: true },
         }
+    }
+
+    /// Load texture from pre-loaded data.
+    pub fn load_texture_from_memory(
+        &mut self,
+        width: u16,
+        height: u16,
+        pixels: &[u8],
+        sampler: Sampler,
+    ) -> Texture<[f32; 4]> {
+        use gfx::texture as t;
+        let kind = t::Kind::D2(width, height, t::AaMode::Single);
+        let (_, view) = self.backend
+            .create_texture_immutable_u8::<gfx::format::Srgba8>(kind, &[pixels])
+            .unwrap_or_else(|e| {
+                panic!("Unable to create GPU texture from memory: {:?}", e);
+            });
+        Texture::new(view, sampler.0, [width as u32, height as u32])
     }
 
     /// Load texture from file.
@@ -628,6 +727,7 @@ impl Factory {
                                 },
                                 None => [I8Norm(0), I8Norm(0), I8Norm(0x7f), I8Norm(0)],
                             },
+                            tangent: TANGENT_X, // TODO
                         });
                     });
 
@@ -694,6 +794,7 @@ impl Factory {
                 pos: [pos.x, pos.y, pos.z, 1.0],
                 uv: [0.0, 0.0], //TODO
                 normal,
+                tangent: TANGENT_X, // @alteous: TODO: Provide tangent.
             };
         }
     }

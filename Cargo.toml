@@ -11,7 +11,6 @@ repository = "https://github.com/kvark/three-rs"
 documentation = "https://docs.rs/three/"
 exclude = ["doc", "bors.toml", ".travis.yml", "test_data"]
 
-
 [lib]
 
 [features]
@@ -19,11 +18,14 @@ default = ["opengl"]
 "opengl" = ["gfx_device_gl", "gfx_window_glutin", "glutin"]
 
 [dependencies]
+bitflags = "0.9"
 cgmath = "0.14"
 froggy = "0.3"
 genmesh = "0.5"
 gfx = "0.16"
+gltf = "0.7"
 image = "0.13"
+itertools = "0.6"
 log = "0.3"
 obj = { version = "0.6", features = ["genmesh"] }
 mint = "0.4.2"
@@ -37,7 +39,6 @@ glutin = { version = "0.9", optional = true }
 env_logger = "0.4"
 rand = "0.3"
 
-
 [[example]]
 name = "lights"
 
@@ -46,6 +47,9 @@ name = "materials"
 
 [[example]]
 name = "obj"
+
+[[example]]
+name = "pbr"
 
 [[example]]
 name = "shapes"

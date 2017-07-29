@@ -1,11 +1,16 @@
 #![warn(missing_docs)]
 //! Three.js inspired 3D engine in Rust.
+
+#[macro_use]
+extern crate bitflags;
 extern crate cgmath;
 extern crate froggy;
 extern crate genmesh;
 #[macro_use]
 extern crate gfx;
 extern crate image;
+#[macro_use]
+extern crate itertools;
 #[macro_use]
 extern crate log;
 extern crate mint;
@@ -30,7 +35,7 @@ mod scene;
 mod window;
 
 pub use camera::{OrbitControls, Orthographic, Perspective};
-pub use factory::{Factory, Geometry, GeometryShape, ShadowMap, Texture};
+pub use factory::{Factory, FilterMethod, Geometry, GeometryShape, ShadowMap, Sampler, Texture, WrapMode};
 pub use input::{Button, KeyAxis, Timer, Input,
                 KEY_ESCAPE, KEY_SPACE, MOUSE_LEFT, MOUSE_RIGHT,
                 AXIS_LEFT_RIGHT, AXIS_DOWN_UP};
@@ -57,7 +62,7 @@ type Transform = cgmath::Decomposed<cgmath::Vector3<f32>, cgmath::Quaternion<f32
 enum SubLight {
     Ambient,
     Directional,
-    Hemisphere{ ground: Color },
+    Hemisphere { ground: Color },
     Point,
 }
 
