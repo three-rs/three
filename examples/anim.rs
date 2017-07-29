@@ -41,16 +41,16 @@ fn make_vertices(slice: &[i16]) -> Vec<mint::Point3<f32>> {
     ).collect()
 }
 
-fn make_indices(meta: &[u16]) -> Vec<[u16; 3]> {
+fn make_indices(meta: &[u16]) -> Vec<[u32; 3]> {
     let mut data = Vec::new();
     let mut iter = meta.iter();
     let uv_layers = 1;
     while let Some(flags) = iter.next() {
-        let a = *iter.next().unwrap();
-        let b = *iter.next().unwrap();
-        let c = *iter.next().unwrap();
+        let a = *iter.next().unwrap() as u32;
+        let b = *iter.next().unwrap() as u32;
+        let c = *iter.next().unwrap() as u32;
         let ni = if flags & BIT_QUAD != 0 {
-            let d = *iter.next().unwrap();
+            let d = *iter.next().unwrap() as u32;
             data.push([a, b, d]);
             data.push([b, c, d]);
             4
@@ -85,6 +85,7 @@ fn make_geometry() -> three::Geometry {
         base_shape: three::GeometryShape {
             vertices: make_vertices(VERTICES),
             normals: Vec::new(),
+            .. three::GeometryShape::empty()
         },
         faces: make_indices(INDICES),
         .. three::Geometry::empty()
@@ -102,6 +103,7 @@ fn main() {
         geom.shapes.insert(name, three::GeometryShape {
             vertices: make_vertices(data),
             normals: Vec::new(),
+            .. three::GeometryShape::empty()
         });
     }
 
