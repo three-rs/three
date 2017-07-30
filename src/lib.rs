@@ -212,9 +212,17 @@ impl Hub {
             }
             let (visibility, affilation, transform) = match item.parent {
                 Some(ref parent_ptr) => {
-                    let parent = item.look_back(parent_ptr).unwrap();
-                    (parent.world_visible, parent.scene_id,
-                     parent.world_transform.concat(&item.transform))
+                    match item.look_back(parent_ptr) {
+                        Some(parent) => {
+                            (parent.world_visible,
+                             parent.scene_id,
+                             parent.world_transform.concat(&item.transform))
+                        }
+                        None => {
+                            error!("Parent node was created after the child, ignoring");
+                            (false, item.scene_id, item.transform)
+                        }
+                    }
                 },
                 None => (true, item.scene_id, item.transform),
             };
