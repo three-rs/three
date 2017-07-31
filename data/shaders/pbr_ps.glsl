@@ -122,7 +122,7 @@ void main()
 
     vec3 n;
     if (available(NORMAL_MAP)) {
-        n = texture2D(u_NormalSampler, v_TexCoord).rgb;
+        n = texture(u_NormalSampler, v_TexCoord).rgb;
         n = normalize(tbn * ((2.0 * n - 1.0) * vec3(u_NormalScale, u_NormalScale, 1.0)));
     } else {
         n = tbn[2].xyz;
@@ -132,7 +132,7 @@ void main()
     float metallic = u_MetallicRoughnessValues.x;
 
     if (available(METALLIC_ROUGHNESS_MAP)) {
-	vec4 mr_sample = texture2D(u_MetallicRoughnessSampler, v_TexCoord);
+	vec4 mr_sample = texture(u_MetallicRoughnessSampler, v_TexCoord);
 	perceptual_roughness = mr_sample.g * perceptual_roughness;
 	metallic = mr_sample.b * metallic;
     }
@@ -142,7 +142,7 @@ void main()
 
     vec4 base_color;
     if (available(BASE_COLOR_MAP)) {
-	base_color = texture2D(u_BaseColorSampler, v_TexCoord) * u_BaseColorFactor;
+	base_color = texture(u_BaseColorSampler, v_TexCoord) * u_BaseColorFactor;
     } else {
 	base_color = u_BaseColorFactor;
     }
@@ -198,12 +198,12 @@ void main()
     }
 
     if (available(OCCLUSION_MAP)) {
-	float ao = texture2D(u_OcclusionSampler, v_TexCoord).r;
+	float ao = texture(u_OcclusionSampler, v_TexCoord).r;
         color = mix(color, color * ao, u_OcclusionStrength);
     }
 
     if (available(EMISSIVE_MAP)) {
-        vec3 emissive = texture2D(u_EmissiveSampler, v_TexCoord).rgb * u_EmissiveFactor;
+        vec3 emissive = texture(u_EmissiveSampler, v_TexCoord).rgb * u_EmissiveFactor;
         color += emissive;
     }
 
