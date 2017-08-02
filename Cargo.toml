@@ -2,7 +2,7 @@
 name = "three"
 version = "0.2.0"
 authors = ["Dzmitry Malyshau <kvarkus@gmail.com>"]
-license = "Apache-2.0"
+license = "MIT/Apache-2.0"
 description = "Three.js inspired 3D engine in Rust"
 categories = ["graphics", "game-engines"]
 keywords = ["gamedev", "graphics", "engine", "3D"]
