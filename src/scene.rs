@@ -7,6 +7,7 @@ use {Object, Operation, NodePointer, SubNode,
      Scene, ShadowProjection, Transform};
 use camera::Orthographic;
 use factory::{ShadowMap, Texture};
+use render::BasicPipelineState;
 
 /// Color represented by 4-bytes hex number.
 pub type Color = u32;
@@ -26,7 +27,11 @@ pub enum Material {
     /// Basic wireframe with specific `Color`.
     LineBasic { color: Color },
     /// Basic material with color, optional `Texture` and optional wireframe mode.
-    MeshBasic { color: Color, map: Option<Texture<[f32; 4]>>, wireframe: bool },
+    MeshBasic {
+        color: Color,
+        map: Option<Texture<[f32; 4]>>,
+        wireframe: bool,
+    },
     /// Lambertian diffuse reflection. This technique causes all closed polygons
     /// (such as a triangle within a 3D mesh) to reflect light equally in all
     /// directions when rendered.
@@ -49,6 +54,12 @@ pub enum Material {
     },
     /// 2D Sprite.
     Sprite { map: Texture<[f32; 4]> },
+    /// Custom material.
+    CustomBasicPipeline {
+        color: Color,
+        map: Option<Texture<[f32; 4]>>,
+        pipeline: BasicPipelineState,
+    },
 }
 
 /// Position, rotation and scale of the scene [`Node`](struct.Node.html).
