@@ -9,6 +9,7 @@ use gfx_window_glutin;
 #[cfg(feature = "opengl")]
 use glutin;
 use mint;
+
 use std::mem;
 
 pub use self::back::Factory as BackendFactory;
@@ -23,6 +24,8 @@ pub type ColorFormat = gfx::format::Srgba8;
 /// The format of the depth stencil buffer requested from the windowing system.
 pub type DepthFormat = gfx::format::DepthStencil;
 pub type ShadowFormat = gfx::format::Depth32F;
+pub type BasicPipelineState = gfx::PipelineState<back::Resources, pipe::Meta>;
+
 const MAX_LIGHTS: usize = 4;
 
 gfx_defines! {
@@ -124,17 +127,20 @@ gfx_defines! {
     }
 }
 
-fn get_shader(root: &str, name: &str, variant: &str) -> String {
+pub fn get_shader(root: &str, raw_path: &str, variant: &str) -> String {
     use std::fs::File;
     use std::io::{BufRead, BufReader, Read};
     let mut code = String::new();
-    let shader_path = format!("{}/{}_{}.glsl", root, name, variant);
-    for line in BufReader::new(File::open(shader_path).unwrap()).lines() {
+    let shader_path = format!("{}_{}.glsl", raw_path, variant);
+    let template_file = File::open(&shader_path)
+                             .expect(&format!("Unable to open shader {}", shader_path));
+    for line in BufReader::new(template_file).lines() {
         let line = line.unwrap();
         if line.starts_with("#include") {
             for dep_name in line.split(' ').skip(1) {
                 code += &format!("//!including {}:\n", dep_name);
-                File::open(format!("{}/{}.glsl", root, dep_name)).unwrap()
+                File::open(format!("{}/{}.glsl", root, dep_name))
+                     .expect(&format!("Unable to open snippet for {}", dep_name))
                      .read_to_string(&mut code).unwrap();
             }
         } else {
@@ -150,8 +156,9 @@ fn load_program<R, F>(root: &str, name: &str, factory: &mut F)
     R: gfx::Resources,
     F: gfx::Factory<R>,
 {
-    let code_vs = get_shader(root, name, "vs");
-    let code_ps = get_shader(root, name, "ps");
+    let full_name = format!("{}/{}", root, name);
+    let code_vs = get_shader(root, &full_name, "vs");
+    let code_ps = get_shader(root, &full_name, "ps");
 
     factory.link_program(code_vs.as_bytes(), code_ps.as_bytes()).unwrap()
 }
@@ -227,12 +234,12 @@ pub struct Renderer {
     pbr_buf: gfx::handle::Buffer<back::Resources, PbrParams>,
     out_color: gfx::handle::RenderTargetView<back::Resources, ColorFormat>,
     out_depth: gfx::handle::DepthStencilView<back::Resources, DepthFormat>,
-    pso_line_basic: gfx::PipelineState<back::Resources, pipe::Meta>,
-    pso_mesh_basic_fill: gfx::PipelineState<back::Resources, pipe::Meta>,
-    pso_mesh_basic_wireframe: gfx::PipelineState<back::Resources, pipe::Meta>,
-    pso_mesh_gouraud: gfx::PipelineState<back::Resources, pipe::Meta>,
-    pso_mesh_phong: gfx::PipelineState<back::Resources, pipe::Meta>,
-    pso_sprite: gfx::PipelineState<back::Resources, pipe::Meta>,
+    pso_line_basic: BasicPipelineState,
+    pso_mesh_basic_fill: BasicPipelineState,
+    pso_mesh_basic_wireframe: BasicPipelineState,
+    pso_mesh_gouraud: BasicPipelineState,
+    pso_mesh_phong: BasicPipelineState,
+    pso_sprite: BasicPipelineState,
     pso_shadow: gfx::PipelineState<back::Resources, shadow_pipe::Meta>,
     pso_quad: gfx::PipelineState<back::Resources, quad_pipe::Meta>,
     pso_pbr: gfx::PipelineState<back::Resources, pbr_pipe::Meta>,
@@ -326,7 +333,7 @@ impl Renderer {
             debug_quads: froggy::Storage::new(),
             size: window.get_inner_size_pixels().unwrap(),
         };
-        let factory = Factory::new(gl_factory);
+        let factory = Factory::new(gl_factory, shader_path);
         (renderer, window, factory)
     }
 
@@ -576,7 +583,7 @@ impl Renderer {
                             base_color_factor: base_color_factor,
                             camera: [0.0, 0.0, 1.0],
                             emissive_factor: emissive_factor,
-                            metallic_roughness: metallic_roughness, 
+                            metallic_roughness: metallic_roughness,
                             normal_scale: normal_scale,
                             occlusion_strength: occlusion_strength,
                             pbr_flags: pbr_flags.bits(),
@@ -636,7 +643,8 @@ impl Renderer {
                         ),
                         Material::MeshBasic { color, ref map, wireframe: false } => (
                             &self.pso_mesh_basic_fill,
-                            color, 0.0,
+                            color,
+                            0.0,
                             map.as_ref(),
                         ),
                         Material::MeshBasic { color, map: _, wireframe: true } => (
@@ -662,6 +670,12 @@ impl Renderer {
                             !0,
                             0.0,
                             Some(map),
+                        ),
+                        Material::CustomBasicPipeline { color, ref map, ref pipeline } => (
+                            pipeline,
+                            color,
+                            0.0,
+                            map.as_ref(),
                         ),
                     };
                     let uv_range = match map {
