@@ -17,8 +17,9 @@ use mint;
 use obj;
 
 use camera::{Orthographic, Perspective};
-use render::{BackendFactory, BackendResources, GpuData, DynamicData,
-             Vertex, ShadowFormat};
+use render::{BackendFactory, BackendResources, BasicPipelineState,
+             GpuData, DynamicData, Vertex, ShadowFormat,
+             get_shader, pipe as basic_pipe};
 use scene::{Color, Background, Group, Sprite, Material,
             AmbientLight, DirectionalLight, HemisphereLight, PointLight};
 use {Hub, HubPtr, SubLight, Node, SubNode,
@@ -119,6 +120,7 @@ pub struct Factory {
     backend: BackendFactory,
     scene_id: SceneId,
     hub: HubPtr,
+    root_shader_path: String,
     quad_buf: gfx::handle::Buffer<BackendResources, Vertex>,
     texture_cache: HashMap<String, Texture<[f32; 4]>>,
     default_sampler: gfx::handle::Sampler<BackendResources>,
@@ -135,13 +137,14 @@ fn f2i(x: f32) -> I8Norm {
 
 impl Factory {
     #[doc(hidden)]
-    pub fn new(mut backend: BackendFactory) -> Self {
+    pub fn new(mut backend: BackendFactory, shader_path: &str) -> Self {
         let quad_buf = backend.create_vertex_buffer(&QUAD);
         let default_sampler = backend.create_sampler_linear();
         Factory {
             backend: backend,
             scene_id: 0,
             hub: Hub::new(),
+            root_shader_path: shader_path.to_string(),
             quad_buf,
             texture_cache: HashMap::new(),
             default_sampler: default_sampler,
@@ -367,7 +370,7 @@ impl Factory {
     pub fn default_sampler(&self) -> Sampler {
         Sampler(self.default_sampler.clone())
     }
- 
+
     /// Create new `Sampler`.
     pub fn sampler(
         &mut self,
@@ -396,6 +399,35 @@ impl Factory {
             resource,
             target,
         }
+    }
+
+    /// Create a basic mesh pipeline using a custom shader.
+    pub fn basic_pipeline(&mut self,
+        shader_path: &str,
+        primitive: gfx::Primitive,
+        rasterizer: gfx::state::Rasterizer,
+        depth_state: gfx::state::Depth,
+    ) -> Result<BasicPipelineState, ()> {
+        let code_vs = get_shader(&self.root_shader_path, shader_path, "vs");
+        let code_ps = get_shader(&self.root_shader_path, shader_path, "ps");
+
+        let program = match self.backend.link_program(code_vs.as_bytes(), code_ps.as_bytes()) {
+            Ok(prog) => prog,
+            Err(e) => {
+                error!("Program {} link error {:?}", shader_path, e);
+                return Err(())
+            }
+        };
+        let init = basic_pipe::Init {
+            out_depth: depth_state,
+            .. basic_pipe::new()
+        };
+
+        self.backend.create_pipeline_from_program(&program,
+            primitive, rasterizer, init).map_err(|e| {
+                error!("Pipeline for {} init error {:?}", shader_path, e);
+                ()
+            })
     }
 }
 
