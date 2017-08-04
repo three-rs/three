@@ -588,7 +588,7 @@ impl<T> Texture<T> {
             sampler,
             total_size,
             tex0: [0.0; 2],
-            tex1: [0.0; 2],
+            tex1: [total_size[0] as f32, total_size[1] as f32],
         }
     }
 
