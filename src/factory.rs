@@ -406,7 +406,10 @@ impl Factory {
         shader_path: &str,
         primitive: gfx::Primitive,
         rasterizer: gfx::state::Rasterizer,
+        color_mask: gfx::state::ColorMask,
+        blend_state: gfx::state::Blend,
         depth_state: gfx::state::Depth,
+        stencil_state: gfx::state::Stencil,
     ) -> Result<BasicPipelineState, ()> {
         let code_vs = get_shader(&self.root_shader_path, shader_path, "vs");
         let code_ps = get_shader(&self.root_shader_path, shader_path, "ps");
@@ -419,7 +422,8 @@ impl Factory {
             }
         };
         let init = basic_pipe::Init {
-            out_depth: depth_state,
+            out_color: ("Target0", color_mask, blend_state),
+            out_depth: (depth_state, stencil_state),
             .. basic_pipe::new()
         };
 

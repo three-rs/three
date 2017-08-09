@@ -28,6 +28,15 @@ pub type BasicPipelineState = gfx::PipelineState<back::Resources, pipe::Meta>;
 
 const MAX_LIGHTS: usize = 4;
 
+const STENCIL_SIDE: gfx::state::StencilSide = gfx::state::StencilSide {
+    fun: gfx::state::Comparison::Always,
+    mask_read: 0,
+    mask_write: 0,
+    op_fail: gfx::state::StencilOp::Keep,
+    op_depth_fail: gfx::state::StencilOp::Keep,
+    op_pass: gfx::state::StencilOp::Keep,
+};
+
 gfx_defines! {
     vertex Vertex {
         pos: [f32; 4] = "a_Position",
@@ -69,8 +78,10 @@ gfx_defines! {
         shadow_map1: gfx::TextureSampler<f32> = "t_Shadow1",
         out_color: gfx::BlendTarget<ColorFormat> =
             ("Target0", gfx::state::MASK_ALL, gfx::preset::blend::REPLACE),
-        out_depth: gfx::DepthTarget<DepthFormat> =
-            gfx::preset::depth::LESS_EQUAL_WRITE,
+        out_depth: gfx::DepthStencilTarget<DepthFormat> =
+            (gfx::preset::depth::LESS_EQUAL_WRITE, gfx::state::Stencil {
+                front: STENCIL_SIDE, back: STENCIL_SIDE,
+            }),
     }
 
     pipeline shadow_pipe {
@@ -515,6 +526,7 @@ impl Renderer {
             }
         }
         self.encoder.clear_depth(&self.out_depth, 1.0);
+        self.encoder.clear_stencil(&self.out_depth, 0);
         self.encoder.update_constant_buffer(&self.const_buf, &Globals {
             mx_vp: mx_vp.into(),
             num_lights: lights.len() as u32,
@@ -698,7 +710,7 @@ impl Renderer {
                         shadow_map0: (shadow0.clone(), shadow_sampler.clone()),
                         shadow_map1: (shadow1.clone(), shadow_sampler.clone()),
                         out_color: self.out_color.clone(),
-                        out_depth: self.out_depth.clone(),
+                        out_depth: (self.out_depth.clone(), (0, 0)),
                     };
                     self.encoder.draw(&gpu_data.slice, pso, &data);
                 },
