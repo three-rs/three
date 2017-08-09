@@ -118,7 +118,9 @@ fn import(path_str: &str, factory: &mut three::Factory) -> three::Mesh {
 }
 
 fn main() {
-    let mut win = three::Window::new("Three-rs PBR example", "data/shaders").build();
+    let shaders_path: String = format!("{}/data/shaders", env!("CARGO_MANIFEST_DIR"));
+    let shaders_path_str: &str = shaders_path.as_str();
+    let mut win = three::Window::new("Three-rs PBR example", shaders_path_str).build();
     let mut cam = win.factory.perspective_camera(75.0, 0.01, 100.0);
     let mut yaw: f32 = 0.8;
     let mut distance: f32 = 3.9;
@@ -129,7 +131,8 @@ fn main() {
     win.scene.add(&light);
     win.scene.background = three::Background::Color(0xC6F0FF);
 
-    let path = std::env::args().nth(1).unwrap_or("test_data/SciFiHelmet.gltf".into());
+    let helmet_gltf_path = format!("{}/test_data/SciFiHelmet.gltf", env!("CARGO_MANIFEST_DIR"));
+    let path = std::env::args().nth(1).unwrap_or(helmet_gltf_path);
     let mesh = import(&path, &mut win.factory);
     win.scene.add(&mesh);
 
