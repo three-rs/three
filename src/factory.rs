@@ -2,7 +2,8 @@ use std::{cmp, iter};
 use std::collections::hash_map::{HashMap, Entry};
 use std::io::BufReader;
 use std::fs::File;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::borrow::Cow;
 
 use cgmath::{Vector3, Transform as Transform_};
 use genmesh::{Polygon, EmitTriangles, Triangulate, Vertex as GenVertex};
@@ -122,7 +123,7 @@ pub struct Factory {
     hub: HubPtr,
     root_shader_path: String,
     quad_buf: gfx::handle::Buffer<BackendResources, Vertex>,
-    texture_cache: HashMap<String, Texture<[f32; 4]>>,
+    texture_cache: HashMap<PathBuf, Texture<[f32; 4]>>,
     default_sampler: gfx::handle::Sampler<BackendResources>,
 }
 
@@ -618,16 +619,22 @@ impl<T> Texture<T> {
     }
 }
 
+fn concat_path<'a>(base: Option<&Path>, name: &'a str) -> Cow<'a, Path> {
+    match base {
+        Some(base) => Cow::Owned(base.join(name)),
+        None => Cow::Borrowed(Path::new(name))
+    }
+}
+
 impl Factory {
     fn load_texture_impl(
-        path_str: &str,
+        path: &Path,
         sampler: Sampler,
         factory: &mut BackendFactory,
     ) -> Texture<[f32; 4]> {
         use gfx::texture as t;
         use image::ImageFormat as F;
 
-        let path = Path::new(path_str);
         let extension = path.extension()
                             .expect("no extension for an image?")
                             .to_string_lossy()
@@ -647,20 +654,20 @@ impl Factory {
         };
 
         let file = File::open(&path)
-                        .unwrap_or_else(|e| panic!("Unable to open {}: {:?}", path_str, e));
+                        .unwrap_or_else(|e| panic!("Unable to open {}: {:?}", path.display(), e));
         let img = image::load(BufReader::new(file), format)
-                        .unwrap_or_else(|e| panic!("Unable to decode {}: {:?}", path_str, e))
+                        .unwrap_or_else(|e| panic!("Unable to decode {}: {:?}", path.display(), e))
                         .flipv().to_rgba();
         let (width, height) = img.dimensions();
         let kind = t::Kind::D2(width as t::Size, height as t::Size, t::AaMode::Single);
         let (_, view) = factory.create_texture_immutable_u8::<gfx::format::Srgba8>(kind, &[&img])
-                               .unwrap_or_else(|e| panic!("Unable to create GPU texture for {}: {:?}", path_str, e));
+                               .unwrap_or_else(|e| panic!("Unable to create GPU texture for {}: {:?}", path.display(), e));
         Texture::new(view, sampler.0, [width, height])
     }
 
-    fn request_texture(&mut self, path: &str) -> Texture<[f32; 4]> {
+    fn request_texture(&mut self, path: &Path) -> Texture<[f32; 4]> {
         let sampler = self.default_sampler();
-        match self.texture_cache.entry(path.to_string()) {
+        match self.texture_cache.entry(path.to_owned()) {
             Entry::Occupied(e) => e.get().clone(),
             Entry::Vacant(e) => {
                 let tex = Self::load_texture_impl(path, sampler, &mut self.backend);
@@ -670,7 +677,7 @@ impl Factory {
         }
     }
 
-    fn load_obj_material(&mut self, mat: &obj::Material, has_normals: bool, has_uv: bool) -> Material {
+    fn load_obj_material(&mut self, mat: &obj::Material, has_normals: bool, has_uv: bool, obj_dir: Option<&Path>) -> Material {
         let cf2u = |c: [f32; 3]| { c.iter().fold(0, |u, &v|
             (u << 8) + cmp::min((v * 255.0) as u32, 0xFF)
         )};
@@ -683,7 +690,7 @@ impl Factory {
                 Material::MeshBasic {
                     color: cf2u(color),
                     map: match (has_uv, map_kd) {
-                        (true, &Some(ref name)) => Some(self.request_texture(name)),
+                        (true, &Some(ref name)) => Some(self.request_texture(&concat_path(obj_dir, name))),
                         _ => None,
                     },
                     wireframe: false,
@@ -713,18 +720,19 @@ impl Factory {
     /// Load texture from file.
     /// Supported file formats are: PNG, JPEG, GIF, WEBP, PPM, TIFF, TGA, BMP, ICO, HDR.
     pub fn load_texture(&mut self, path_str: &str) -> Texture<[f32; 4]> {
-        self.request_texture(path_str)
+        self.request_texture(Path::new(path_str))
     }
 
     /// Load mesh from Wavefront Obj format.
     /// #### Note
     /// You must store `Vec<Mesh>` somewhere to keep them alive.
     pub fn load_obj(&mut self, path_str: &str) -> (HashMap<String, Group>, Vec<Mesh>) {
-        use std::path::Path;
         use genmesh::{LruIndexer, Indexer, Vertices};
 
         info!("Loading {}", path_str);
-        let obj = obj::load::<Polygon<obj::IndexTuple>>(Path::new(path_str)).unwrap();
+        let path = Path::new(path_str);
+        let path_parent = path.parent();
+        let obj = obj::load::<Polygon<obj::IndexTuple>>(path).unwrap();
 
         let hub_ptr = self.hub.clone();
         let mut hub = hub_ptr.lock().unwrap();
@@ -772,7 +780,7 @@ impl Factory {
 
                 info!("\tmaterial {} with {} normals and {} uvs", gr.name, num_normals, num_uvs);
                 let material = match gr.material {
-                    Some(ref rc_mat) => self.load_obj_material(&*rc_mat, num_normals!=0, num_uvs!=0),
+                    Some(ref rc_mat) => self.load_obj_material(&*rc_mat, num_normals!=0, num_uvs!=0, path_parent),
                     None => Material::MeshBasic { color: 0xffffff, map: None, wireframe: true },
                 };
                 info!("\t{:?}", material);
