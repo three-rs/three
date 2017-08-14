@@ -47,7 +47,9 @@ pub use scene::{Color, Background, Material, NodeTransform, NodeInfo,
 pub use window::Window;
 #[cfg(feature = "opengl")]
 pub use glutin::VirtualKeyCode as Key;
+pub use gfx::Primitive as GfxPrimitive;
 pub use gfx::state as gfx_state;
+pub use gfx::preset as gfx_preset;
 
 use std::sync::{mpsc, Arc, Mutex};
 
