@@ -156,14 +156,16 @@ impl OrbitControls {
     }
 
     pub fn update(&mut self, input: &Input) {
-        if !self.button.is_hit(input) && !(input.get_mouse_wheel_movements().len()!=0) {
+        if !self.button.is_hit(input) && input.get_mouse_wheel().abs() < 1e-6 {
             self.mouse_base = None;
             return
         }
 
         let cur = input.get_mouse_pos();
-        if self.mouse_base == None { self.mouse_base = Some(cur); } // Fake previous mouse input
-                                                                    // if change only comes from mouse wheel
+        if self.mouse_base == None {
+            // Fake previous mouse input if change only comes from mouse wheel
+            self.mouse_base = Some(cur);
+        }
         if let Some(base) = self.mouse_base {
             let pre = Decomposed {
                 disp: -self.target.to_vec(),
@@ -173,7 +175,7 @@ impl OrbitControls {
             let axis = self.transform.rot * Vector3::unit_x();
             let q_hor = Quaternion::from_axis_angle(axis, Rad(self.speed * (cur.y - base.y)));
             let post = Decomposed {
-                scale: 1.0 + input.get_mouse_wheel_movements().iter().sum::<f32>()/1000.0,
+                scale: 1.0 + input.get_mouse_wheel() / 1000.0,
                 rot: q_hor * q_ver,
                 disp: self.target.to_vec(),
             };
