@@ -29,7 +29,7 @@ itertools = "0.6"
 log = "0.3"
 obj = { version = "0.6", features = ["genmesh"] }
 mint = "0.4.2"
-winit = "0.6"
+winit = "0.7.5"
 # OpenGL
 gfx_device_gl = { version = "0.14", optional = true }
 gfx_window_glutin = { version = "0.17", optional = true }
