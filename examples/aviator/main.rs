@@ -71,7 +71,7 @@ fn main() {
         // assume the original velocities are given for 60fps
         let time = 60.0 * timer.get(&win.input);
 
-        airplane.update(time, win.input.get_mouse_pos());
+        airplane.update(time, win.input.mouse_pos());
 
         let sea_angle = Rad(0.005 * time);
         let sea_q = Quaternion::from_angle_z(sea_angle) * sea_base_q;
