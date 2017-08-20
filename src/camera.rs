@@ -118,14 +118,8 @@ impl OrbitControlsBuilder {
         let dir = (Point3::from(self.position) - Point3::from(self.target)).normalize();
         let up = Vector3::unit_z();
         let q = Quaternion::look_at(dir, up).invert();
-        //TEMP
-        let qv: [f32; 3] = q.v.into();
-        let rot = mint::Quaternion {
-            s: q.s,
-            v: qv.into(),
-        };
         let mut object = self.object.clone();
-        object.set_transform(self.position, rot, 1.0);
+        object.set_transform(self.position, q, 1.0);
 
         OrbitControls {
             object,
@@ -180,14 +174,8 @@ impl OrbitControls {
                 disp: self.target.to_vec(),
             };
             self.transform = post.concat(&pre.concat(&self.transform));
-            //TEMP
-            let pf: [f32; 3] = self.transform.disp.into();
-            let qv: [f32; 3] = self.transform.rot.v.into();
-            let rot = mint::Quaternion {
-                s: self.transform.rot.s,
-                v: qv.into(),
-            };
-            self.object.set_transform(pf, rot, 1.0);
+            let pf: mint::Vector3<f32> = self.transform.disp.into();
+            self.object.set_transform(pf, self.transform.rot, 1.0);
         }
         self.mouse_base = Some(cur);
     }

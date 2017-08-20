@@ -51,7 +51,7 @@ fn main() {
     };
     let sea_base_q = cgmath::Quaternion::from_angle_x(-cgmath::Rad::turn_div_4());
     sea.set_transform([0.0, -600.0, 0.0],
-                      [sea_base_q.v.x, sea_base_q.v.y, sea_base_q.v.z, sea_base_q.s],
+                      sea_base_q,
                       1.0);
     win.scene.add(&sea);
 
@@ -75,10 +75,10 @@ fn main() {
 
         let sea_angle = Rad(0.005 * time);
         let sea_q = Quaternion::from_angle_z(sea_angle) * sea_base_q;
-        sea.set_orientation([sea_q.v.x, sea_q.v.y, sea_q.v.z, sea_q.s]);
+        sea.set_orientation(sea_q);
         let sky_angle = Rad(0.01 * time);
         let sky_q = Quaternion::from_angle_z(sky_angle);
-        sky.group.set_orientation([sky_q.v.x, sky_q.v.y, sky_q.v.z, sky_q.s]);
+        sky.group.set_orientation(sky_q);
 
         win.render(&cam);
     }

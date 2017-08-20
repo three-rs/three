@@ -75,14 +75,10 @@ pub struct NodeTransform {
 
 impl From<Transform> for NodeTransform {
     fn from(tf: Transform) -> Self {
-        let p: [f32; 3] = tf.disp.into();
-        let v: [f32; 3] = tf.rot.v.into();
+        let pos: mint::Vector3<f32> = tf.disp.into();
         NodeTransform {
-            position: p.into(),
-            orientation: mint::Quaternion {
-                v: v.into(),
-                s: tf.rot.s,
-            },
+            position: pos.into(),
+            orientation: tf.rot.into(),
             scale: tf.scale,
         }
     }
@@ -113,28 +109,21 @@ impl Object {
 
     /// Rotates object in the specific direction of `target`.
     pub fn look_at<P>(&mut self, eye: P, target: P, up: Option<mint::Vector3<f32>>)
-    where P: Into<[f32; 3]>
+    where P: Into<mint::Point3<f32>>
     {
         use cgmath::{InnerSpace, Point3, Quaternion, Rotation, Vector3};
-        //TEMP
-        let p: [[f32; 3]; 2] = [eye.into(), target.into()];
+        let p: [mint::Point3<f32>; 2] = [eye.into(), target.into()];
         let dir = (Point3::from(p[0]) - Point3::from(p[1])).normalize();
         let z = Vector3::unit_z();
         let up = match up {
             Some(v) => {
-                let vf: [f32; 3] = v.into();
-                Vector3::from(vf).normalize()
+                Vector3::from(v).normalize()
             },
             None if dir.dot(z).abs() < 0.99 => z,
             None => Vector3::unit_y(),
         };
         let q = Quaternion::look_at(dir, up).invert();
-        let qv: [f32; 3] = q.v.into();
-        let rot = mint::Quaternion {
-            s: q.s,
-            v: qv.into(),
-        };
-        self.set_transform(p[0], rot, 1.0);
+        self.set_transform(p[0], q, 1.0);
     }
 
     /// Set both position, orientation and scale.

@@ -76,15 +76,8 @@ fn create_cubes(factory: &mut three::Factory,
                 level_id: next.lev_id,
                 orientation: child.rot,
             };
-            {// TEMP!
-                let p: [f32; 3] = child.disp.into();
-                let v: [f32; 3] = child.rot.v.into();
-                let q = mint::Quaternion {
-                    v: v.into(),
-                    s: child.rot.s,
-                };
-                cube.group.set_transform(p, q, child.scale);
-            }
+            let p: mint::Vector3<f32> = child.disp.into();
+            cube.group.set_transform(p, child.rot, child.scale);
             cube.group.add(&cube.mesh);
             list[next.parent_id].group.add(&cube.group);
             if next.mat_id + 1 < materials.len() && next.lev_id + 1 < levels.len() {
@@ -139,11 +132,7 @@ fn main() {
             let level = &levels[cube.level_id];
             let angle = Rad(time * level.speed);
             let q = cube.orientation * cgmath::Quaternion::from_angle_z(angle);
-            let v: [f32; 3] = q.v.into();
-            cube.group.set_orientation(mint::Quaternion {
-                v: v.into(),
-                s: q.s,
-            });
+            cube.group.set_orientation(q);
         }
 
         win.render(&cam);
