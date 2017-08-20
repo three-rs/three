@@ -1,11 +1,11 @@
 use glutin;
 use glutin::GlContext;
 
-use {Camera, Scene};
-use camera::Projection;
+use camera::{Camera, Projection};
+use factory::Factory;
 use input::Input;
 use render::Renderer;
-use factory::Factory;
+use scene::Scene;
 
 
 /// `Window` is the core entity of every `three-rs` application.
@@ -131,7 +131,7 @@ impl Window {
                     MouseMoved {
                         position: (x, y), ..
                     } => input.mouse_moved(renderer.map_to_ndc(x as f32, y as f32)),
-                    MouseWheel { delta, .. } => input.mouse_wheel(delta),
+                    MouseWheel { delta, .. } => input.mouse_wheel_input(delta),
                     _ => {}
                 },
                 _ => {}
