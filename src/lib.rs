@@ -167,17 +167,11 @@ impl Hub {
                     node.visible = visible;
                 }
                 Operation::SetTransform(pos, rot, scale) => {
-                    //TEMP! until mint integration is done in cgmath
                     if let Some(pos) = pos {
-                        let p: [f32; 3] = pos.into();
-                        node.transform.disp = p.into();
+                        node.transform.disp = mint::Vector3::from(pos).into();
                     }
                     if let Some(rot) = rot {
-                        let q: [f32; 3] = rot.v.into();
-                        node.transform.rot = cgmath::Quaternion {
-                            s: rot.s,
-                            v: q.into(),
-                        };
+                        node.transform.rot = rot.into();
                     }
                     if let Some(scale) = scale {
                         node.transform.scale = scale;

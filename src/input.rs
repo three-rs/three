@@ -86,12 +86,12 @@ impl Input {
     }
 
     pub fn get_mouse_delta(&self) -> mint::Vector2<f32> {
-        // TEMP
         use cgmath::Vector2;
-        let delta: Vector2<f32> = self.1.mouse_moves.iter()
-            .map(|v| Vector2::new(v.x, v.y))
-            .sum();
-        [delta.x, delta.y].into()
+        self.1.mouse_moves.iter()
+            .cloned()
+            .map(Vector2::from)
+            .sum::<Vector2<f32>>()
+            .into()
     }
 
     pub fn keyboard_input(&mut self, state: ElementState, key: Key) {
@@ -119,10 +119,8 @@ impl Input {
     }
 
     pub fn mouse_moved(&mut self, pos: mint::Point2<f32>) {
-        self.1.mouse_moves.push(mint::Vector2 {
-            x: pos.x - self.0.mouse_pos.x,
-            y: pos.y - self.0.mouse_pos.y,
-        });
+        use cgmath::Point2;
+        self.1.mouse_moves.push((Point2::from(pos) - Point2::from(self.0.mouse_pos)).into());
         self.0.mouse_pos = pos;
     }
 

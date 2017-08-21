@@ -52,11 +52,10 @@ fn main() {
         if let Some(diff) = three::AXIS_LEFT_RIGHT.timed(&win.input) {
             angle += cgmath::Rad(1.5 * diff);
             let q = cgmath::Quaternion::from_angle_y(angle);
-            let rot = [q.v.x, q.v.y, q.v.z, q.s];
-            mbox.set_orientation(rot);
-            mcyl.set_orientation(rot);
-            mline.set_orientation(rot);
-            msphere.set_orientation(rot);
+            mbox.set_orientation(q);
+            mcyl.set_orientation(q);
+            mline.set_orientation(q);
+            msphere.set_orientation(q);
         }
 
         win.render(&cam);

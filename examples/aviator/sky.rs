@@ -27,7 +27,7 @@ impl Cloud {
             let rot: cgmath::Quaternion<f32> = rng.gen();
             let q = rot.normalize();
             m.set_transform([i as f32 * 15.0, rng.next_f32() * 10.0, rng.next_f32() * 10.0],
-                            [q.v.x, q.v.y, q.v.z, q.s],
+                            q,
                             rng.gen_range(0.1, 1.0));
             cloud.group.add(&m);
             cloud.meshes.push(m);
@@ -58,7 +58,7 @@ impl Sky {
                        rng.gen_range(-800.0, -400.0)];
             let q = cgmath::Quaternion::from_angle_z(angle + cgmath::Rad::turn_div_4());
             c.group.set_transform(pos,
-                                  [q.v.x, q.v.y, q.v.z, q.s],
+                                  q,
                                   rng.gen_range(1.0, 3.0));
             sky.group.add(&c.group);
             sky.clouds.push(c);
