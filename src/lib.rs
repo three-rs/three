@@ -254,7 +254,7 @@ pub struct Scene {
 ///
 /// Creating a red triangle.
 ///
-/// ```rust
+/// ```rust,no_run
 /// # let shaders_path = format!("{}/data/shaders", env!("CARGO_MANIFEST_DIR"));
 /// # let mut win = three::Window::new("Example", &shaders_path).build();
 /// # let factory = &mut win.factory;
@@ -275,7 +275,7 @@ pub struct Scene {
 ///
 /// Duplicating a mesh.
 ///
-/// ```rust
+/// ```rust,no_run
 /// # let shaders_path = format!("{}/data/shaders", env!("CARGO_MANIFEST_DIR"));
 /// # let mut win = three::Window::new("Example", &shaders_path).build();
 /// # let factory = &mut win.factory;
@@ -296,7 +296,7 @@ pub struct Scene {
 ///    wireframe: false,
 ///    map: None,
 /// };
-/// let mut duplicate = factory.mesh_instance(&mesh, yellow_material);
+/// let mut duplicate = factory.mesh_instance(&mesh, Some(yellow_material));
 /// // Duplicated meshes share their geometry but can be transformed individually
 /// // and be rendered with different materials.
 /// duplicate.set_position([1.2, 3.4, 5.6]);
