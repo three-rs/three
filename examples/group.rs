@@ -72,7 +72,7 @@ fn create_cubes(factory: &mut three::Factory,
             let mat = materials[next.mat_id].clone();
             let mut cube = Cube {
                 group: factory.group(),
-                mesh: factory.mesh_instance(&list[0].mesh, mat),
+                mesh: factory.mesh_instance(&list[0].mesh, Some(mat)),
                 level_id: next.lev_id,
                 orientation: child.rot,
             };
