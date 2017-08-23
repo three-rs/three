@@ -249,6 +249,63 @@ pub struct Scene {
 }
 
 /// [`Geometry`](struct.Geometry.html) with some [`Material`](struct.Material.html).
+///
+/// # Examples
+///
+/// Creating a red triangle.
+///
+/// ```rust
+/// # let shaders_path = format!("{}/data/shaders", env!("CARGO_MANIFEST_DIR"));
+/// # let mut win = three::Window::new("Example", &shaders_path).build();
+/// # let factory = &mut win.factory;
+/// let vertices = vec![
+///     [-0.5, -0.5, 0.0].into(),
+///     [ 0.5, -0.5, 0.0].into(),
+///     [ 0.5, -0.5, 0.0].into(),
+/// ];
+/// let geometry = three::Geometry::from_vertices(vertices);
+/// let red_material = three::Material::MeshBasic {
+///     color: 0xFF0000,
+///     wireframe: false,
+///     map: None,
+/// };
+/// let mesh = factory.mesh(geometry, red_material);
+/// # let _ = mesh;
+/// ```
+///
+/// Duplicating a mesh.
+///
+/// ```rust
+/// # let shaders_path = format!("{}/data/shaders", env!("CARGO_MANIFEST_DIR"));
+/// # let mut win = three::Window::new("Example", &shaders_path).build();
+/// # let factory = &mut win.factory;
+/// # let vertices = vec![
+/// #     [-0.5, -0.5, 0.0].into(),
+/// #     [ 0.5, -0.5, 0.0].into(),
+/// #     [ 0.5, -0.5, 0.0].into(),
+/// # ];
+/// # let geometry = three::Geometry::from_vertices(vertices);
+/// # let red_material = three::Material::MeshBasic {
+/// #     color: 0xFF0000,
+/// #     wireframe: false,
+/// #     map: None,
+/// # };
+/// # let mesh = factory.mesh(geometry, red_material);
+/// let yellow_material = three::Material::MeshBasic {
+///    color: 0xFFFF00,
+///    wireframe: false,
+///    map: None,
+/// };
+/// let mut duplicate = factory.mesh_instance(&mesh, yellow_material);
+/// // Duplicated meshes share their geometry but can be transformed individually
+/// // and be rendered with different materials.
+/// duplicate.set_position([1.2, 3.4, 5.6]);
+/// ```
+///
+/// # Notes
+///
+/// * Meshes are removed from the scene when dropped.
+/// * Hence, meshes must be kept in scope in order to be displayed.
 pub struct Mesh {
     object: Object,
 }
