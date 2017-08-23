@@ -299,7 +299,13 @@ impl Factory {
 
     /// Create a `Mesh` sharing the geometry with another one.
     /// Rendering a sequence of meshes with the same geometry is faster.
-    pub fn mesh_instance(&mut self, template: &Mesh, mat: Material) -> Mesh {
+    ///
+    /// When `new_mat` is `None`, the material is duplicated from its template.
+    pub fn mesh_instance(
+        &mut self,
+        template: &Mesh,
+        new_mat: Option<Material>,
+    ) -> Mesh {
         let mut hub = self.hub.lock().unwrap();
         let gpu_data = match hub.nodes[&template.node].sub_node {
             SubNode::Visual(_, ref gpu) => GpuData {
@@ -308,6 +314,12 @@ impl Factory {
             },
             _ => unreachable!()
         };
+        let mat = new_mat.unwrap_or_else(|| {
+            match hub.nodes[&template.node].sub_node {
+                SubNode::Visual(ref mat, _) => mat.clone(),
+                _ => unreachable!()
+            }
+        });
         Mesh {
             object: hub.spawn_visual(mat, gpu_data),
         }
