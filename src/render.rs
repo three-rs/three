@@ -11,13 +11,16 @@ use glutin;
 use mint;
 
 use std::mem;
+use std::collections::HashMap;
+use std::path::PathBuf;
 
 pub use self::back::Factory as BackendFactory;
 pub use self::back::Resources as BackendResources;
+pub use self::back::CommandBuffer as BackendCommandBuffer;
 use camera::Projection;
 use factory::{Factory, ShadowMap, Texture};
 use scene::{Color, Background, Material};
-use {SubLight, SubNode, Scene, ShadowProjection, Camera};
+use {SubLight, SubNode, Scene, ShadowProjection, Camera, Font};
 
 /// The format of the back buffer color requested from the windowing system.
 pub type ColorFormat = gfx::format::Srgba8;
@@ -176,7 +179,7 @@ fn load_program<R, F>(root: &str, name: &str, factory: &mut F)
 
 /// sRGB to linear conversion from:
 /// https://www.khronos.org/registry/OpenGL/extensions/EXT/EXT_texture_sRGB_decode.txt
-fn decode_color(c: Color) -> [f32; 4] {
+pub(crate) fn decode_color(c: Color) -> [f32; 4] {
     let f = |xu: u32| {
         let x = (xu & 0xFF) as f32 / 255.0;
         if x > 0.04045 {
@@ -258,6 +261,7 @@ pub struct Renderer {
     shadow_default: Texture<f32>,
     debug_quads: froggy::Storage<DebugQuad>,
     size: (u32, u32),
+    font_cache: HashMap<PathBuf, Font>,
     /// `ShadowType` of this `Renderer`.
     pub shadow: ShadowType,
 }
@@ -342,6 +346,7 @@ impl Renderer {
             shadow_default: Texture::new(srv_shadow, sampler_shadow, [1, 1]),
             shadow: ShadowType::Basic,
             debug_quads: froggy::Storage::new(),
+            font_cache: HashMap::new(),
             size: window.get_inner_size_pixels().unwrap(),
         };
         let factory = Factory::new(gl_factory, shader_path);
@@ -715,6 +720,19 @@ impl Renderer {
                     self.encoder.draw(&gpu_data.slice, pso, &data);
                 },
             };
+        }
+
+        // draw ui text
+        for node in hub.nodes.iter_alive() {
+            if let SubNode::UiText(ref text) = node.sub_node {
+                text.font.queue(&text.section, text.layout);
+                if !self.font_cache.contains_key(&text.font.path) {
+                    self.font_cache.insert(text.font.path.clone(), text.font.clone());
+                }
+            }
+        }
+        for (_, font) in &self.font_cache {
+            font.draw(&mut self.encoder, &self.out_color);
         }
 
         // draw debug quads

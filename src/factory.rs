@@ -1,6 +1,6 @@
 use std::{cmp, iter};
 use std::collections::hash_map::{HashMap, Entry};
-use std::io::BufReader;
+use std::io::{BufReader, Read};
 use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::borrow::Cow;
@@ -23,6 +23,7 @@ use render::{BackendFactory, BackendResources, BasicPipelineState,
              get_shader, pipe as basic_pipe};
 use scene::{Color, Background, Group, Sprite, Material,
             AmbientLight, DirectionalLight, HemisphereLight, PointLight};
+use text::{Text, TextData, Font};
 use {Hub, HubPtr, SubLight, Node, SubNode,
      LightData, Object, Scene, Camera, Mesh, DynamicMesh};
 
@@ -90,6 +91,10 @@ impl Hub {
 
     fn spawn_light(&mut self, data: LightData) -> Object {
         self.spawn(SubNode::Light(data))
+    }
+
+    fn spawn_ui_text(&mut self, text: TextData) -> Object {
+        self.spawn(SubNode::UiText(text))
     }
 }
 
@@ -445,6 +450,26 @@ impl Factory {
                 error!("Pipeline for {} init error {:?}", shader_path, e);
                 ()
             })
+    }
+
+    /// Load TrueTypeFont (.ttf) from file.
+    /// #### Panics
+    /// Panics if I/O operations with file fails (e.g. file not found or corrupted)
+    pub fn load_font<'a, P: AsRef<Path>>(&'a mut self, file_path: P) -> Font {
+        let path_buf = file_path.as_ref().to_owned();
+        let mut buffer = Vec::new();
+        let mut file = File::open(path_buf.clone()).expect(
+            &format!("Can't open font file:\nFile: {:?}", path_buf.clone()));
+        file.read_to_end(&mut buffer).expect(
+            &format!("Can't read font file:\nFile: {:?}", path_buf.clone()));
+        Font::new(buffer, path_buf, self.backend.clone())
+    }
+
+    /// Create new UI (on-screen) text. See [`Text`](struct.Text.html) for default settings.
+    pub fn ui_text<S: Into<String>>(&mut self, font: &Font, text: S) -> Text {
+        let data = TextData::new(font, text);
+        let object = self.hub.lock().unwrap().spawn_ui_text(data);
+        Text::with_object(object)
     }
 }
 
