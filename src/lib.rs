@@ -8,6 +8,7 @@ extern crate froggy;
 extern crate genmesh;
 #[macro_use]
 extern crate gfx;
+extern crate gfx_glyph;
 extern crate image;
 #[macro_use]
 extern crate itertools;
@@ -31,6 +32,7 @@ mod factory;
 mod input;
 mod render;
 mod scene;
+mod text;
 #[cfg(feature = "opengl")]
 mod window;
 
@@ -43,6 +45,7 @@ pub use render::{ColorFormat, DepthFormat, Renderer, ShadowType, DebugQuadHandle
 pub use scene::{Color, Background, Material, NodeTransform, NodeInfo,
                 Group, Sprite,
                 AmbientLight, DirectionalLight, HemisphereLight, PointLight};
+pub use text::{Align, Text, Layout, Font};
 #[cfg(feature = "opengl")]
 pub use window::Window;
 #[cfg(feature = "opengl")]
@@ -56,6 +59,7 @@ use std::sync::{mpsc, Arc, Mutex};
 use cgmath::Transform as Transform_;
 use factory::SceneId;
 use render::{DynamicData, GpuData};
+use text::{TextData, Operation as TextOperation};
 
 /// Pointer to a Node
 pub type NodePointer = froggy::Pointer<Node>;
@@ -85,6 +89,7 @@ struct LightData {
 #[derive(Debug)]
 enum SubNode {
     Empty,
+    UiText(TextData),
     Visual(Material, GpuData),
     Light(LightData),
 }
@@ -129,6 +134,7 @@ type Message = (froggy::WeakPointer<Node>, Operation);
 enum Operation {
     SetParent(NodePointer),
     SetVisible(bool),
+    SetText(TextOperation),
     SetTransform(Option<mint::Point3<f32>>, Option<mint::Quaternion<f32>>, Option<f32>),
     SetMaterial(Material),
     SetTexelRange(mint::Point2<i16>, mint::Vector2<u16>),
@@ -190,6 +196,11 @@ impl Hub {
                         }
                     }
                 }
+                Operation::SetText(operation) => {
+                    if let SubNode::UiText(ref mut data) = node.sub_node {
+                        Hub::process_text(operation, data);
+                    }
+                }
                 Operation::SetShadow(map, proj) => {
                     if let SubNode::Light(ref mut data) = node.sub_node {
                         data.shadow = Some((map, proj));
@@ -198,6 +209,26 @@ impl Hub {
             }
         }
         self.nodes.sync_pending();
+    }
+
+    fn process_text(operation: TextOperation, data: &mut TextData) {
+        use gfx_glyph::Scale;
+        match operation {
+            TextOperation::Color(color) => {
+                use render::decode_color;
+                let mut color = decode_color(color);
+                color[3] = data.section.color[3];
+                data.section.color = color;
+            },
+            TextOperation::Font(font) => data.font = font,
+            TextOperation::Layout(layout) => data.layout = layout,
+            TextOperation::Opacity(opacity) => data.section.color[3] = opacity,
+            TextOperation::Pos(point) => data.section.screen_position = (point.x, point.y),
+            // TODO: somehow grab window::hdpi_factor and multiply size
+            TextOperation::Scale(scale) => data.section.scale = Scale::uniform(scale),
+            TextOperation::Size(size) => data.section.bounds = (size.x, size.y),
+            TextOperation::Text(text) => data.section.text = text,
+        }
     }
 
     fn update_graph(&mut self) {

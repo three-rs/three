@@ -4,7 +4,7 @@ use mint;
 
 use {Object, Operation, NodePointer, SubNode,
      Mesh, DynamicMesh,
-     Scene, ShadowProjection, Transform};
+     Scene, ShadowProjection, Transform, Text};
 use camera::Orthographic;
 use factory::{ShadowMap, Texture};
 use render::BasicPipelineState;
@@ -345,7 +345,7 @@ macro_rules! as_node {
     }
 }
 
-as_node!(Object, Group, Mesh, DynamicMesh, Sprite,
+as_node!(Object, Group, Mesh, DynamicMesh, Sprite, Text,
          AmbientLight, DirectionalLight, HemisphereLight, PointLight);
 
 macro_rules! deref_objects {
@@ -367,5 +367,5 @@ macro_rules! deref_objects {
     }
 }
 
-deref_objects!(Group, Mesh, DynamicMesh, Sprite,
+deref_objects!(Group, Mesh, DynamicMesh, Sprite, Text,
     AmbientLight, HemisphereLight, DirectionalLight, PointLight);
