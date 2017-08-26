@@ -1,3 +1,4 @@
+//! Structures for creating and storing geometric primitives.
 use mint;
 use std::collections::HashMap;
 use genmesh::{Vertex as GenVertex, EmitTriangles, Triangulate};
