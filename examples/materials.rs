@@ -12,7 +12,7 @@ fn main() {
     light.set_position(pos);
     win.scene.add(&light);
 
-    let geometry = three::Geometry::new_cylinder(1.0, 2.0, 2.0, 5);
+    let geometry = three::Geometry::cylinder(1.0, 2.0, 2.0, 5);
     let mut materials = vec![
         three::Material::MeshBasic { color: 0xffffff, map: None, wireframe: false },
         three::Material::MeshLambert { color: 0xffffff, flat: true },

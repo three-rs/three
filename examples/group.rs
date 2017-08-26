@@ -20,7 +20,7 @@ fn create_cubes(factory: &mut three::Factory,
                 levels: &[Level])
                 -> Vec<Cube>
 {
-    let mut geometry = three::Geometry::new_box(2.0, 2.0, 2.0);
+    let mut geometry = three::Geometry::cuboid(2.0, 2.0, 2.0);
     for v in geometry.base_shape.vertices.iter_mut() {
         v.z += 1.0;
     }
