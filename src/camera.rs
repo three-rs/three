@@ -1,3 +1,4 @@
+//! Contains useful [`Camera`](struct.Camera.html) struct and `Projections`.
 use std::ops;
 
 use cgmath::{ortho as cgmath_ortho, perspective as cgmath_perspective, Deg};

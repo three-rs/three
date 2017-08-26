@@ -1,3 +1,4 @@
+//! Contains different types of light sources.
 use gfx;
 
 use camera::Orthographic;
