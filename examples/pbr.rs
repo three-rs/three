@@ -46,7 +46,7 @@ fn load_mesh(mesh: gltf::mesh::Mesh, factory: &mut three::Factory) -> three::Mes
         },
     }
     let geometry = three::Geometry {
-        base_shape: three::GeometryShape {
+        base_shape: three::geometry::Shape {
             vertices: vertices,
             normals: normals,
             tangents: tangents,
