@@ -23,8 +23,9 @@ cgmath = { version = "0.15", features = ["mint"] }
 froggy = "0.3"
 genmesh = "0.5"
 gfx = "0.16"
-gltf = "0.8"
-gltf-importer = "0.8"
+gltf = { path = "../gltf", version = "0.9" }
+gltf-importer = { path = "../gltf/gltf-importer", version = "0.9" }
+gltf-utils = { path = "../gltf/gltf-utils", version = "0.9" }
 image = "0.13"
 itertools = "0.6"
 log = "0.3"

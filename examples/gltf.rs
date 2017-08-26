@@ -2,6 +2,7 @@
 extern crate cgmath;
 extern crate gltf;
 extern crate gltf_importer;
+extern crate gltf_utils;
 extern crate three;
 extern crate image;
 extern crate vec_map;
@@ -9,22 +10,41 @@ extern crate vec_map;
 use cgmath::prelude::*;
 use std::{fs, io};
 
-use gltf::Loaded;
-use gltf_importer::Importer;
 use image::ImageFormat::{JPEG as Jpeg, PNG as Png};
 use vec_map::VecMap;
 
-fn load_mesh(mesh: Loaded<gltf::Mesh>, factory: &mut three::Factory) -> three::Mesh {
+fn load_mesh(
+    mesh: gltf::Mesh,
+    buffers: &gltf_importer::Buffers,
+    factory: &mut three::Factory,
+) -> three::Mesh {
+    use gltf_utils::PrimitiveIterators;
     let primitive = mesh.primitives().nth(0).unwrap();
     let mut faces = vec![];
-    let mut i = primitive.indices_u32().unwrap();
+    let mut i = primitive.indices_u32(buffers).unwrap();
     while let (Some(a), Some(b), Some(c)) = (i.next(), i.next(), i.next()) {
         faces.push([a, b, c]);
     }
-    let vertices = primitive.positions().unwrap().map(|x| x.into()).collect();
-    let normals = primitive.normals().unwrap().map(|x| x.into()).collect();
-    let tangents = primitive.tangents().unwrap().map(|x| x.into()).collect();
-    let tex_coords = primitive.tex_coords_f32(0).unwrap().map(|x| x.into()).collect();
+    let vertices = primitive
+        .positions(buffers)
+        .unwrap()
+        .map(|x| x.into())
+        .collect();
+    let normals = primitive
+        .normals(buffers)
+        .unwrap()
+        .map(|x| x.into())
+        .collect();
+    let tangents = primitive
+        .tangents(buffers)
+        .unwrap()
+        .map(|x| x.into())
+        .collect();
+    let tex_coords = primitive
+        .tex_coords_f32(buffers, 0)
+        .unwrap()
+        .map(|x| x.into())
+        .collect();
     let geometry = three::Geometry {
         base_shape: three::GeometryShape {
             vertices: vertices,
@@ -38,20 +58,20 @@ fn load_mesh(mesh: Loaded<gltf::Mesh>, factory: &mut three::Factory) -> three::M
     let material = {
         let mat = primitive.material();
         let pbr = mat.pbr_metallic_roughness();
-        let mut load = |texture: gltf::Loaded<gltf::texture::Texture>| {
+        let mut load = |texture: gltf::texture::Texture| {
             let image = match texture.source().data() {
-                gltf::image::Data::FromBufferView { buffer_view, mime_type } => {
+                gltf::image::Data::View { view, mime_type } => {
                     let format = match mime_type {
                         "image/png" => Png,
                         "image/jpeg" => Jpeg,
                         _ => unreachable!(),
                     };
-                    let data = buffer_view.data();
+                    let data = buffers.view(&view).unwrap();
                     image::load_from_memory_with_format(&data, format)
                         .unwrap()
                         .to_rgba()
                 },
-                gltf::image::Data::External { uri, mime_type } => {
+                gltf::image::Data::Uri { uri, mime_type } => {
                     let path = format!("test_data/{}", uri);
                     if let Some(ty) = mime_type {
                         let format = match ty {
@@ -127,12 +147,14 @@ struct State {
 }
 
 fn make_group(
-    node: gltf::Loaded<gltf::Node>,
+    node: gltf::Node,
+    buffers: &gltf_importer::Buffers,
     meshes: &mut VecMap<three::Mesh>,
     factory: &mut three::Factory,
 ) -> three::Group {
     fn recurse(
-        node: gltf::Loaded<gltf::Node>,
+        node: gltf::Node,
+        buffers: &gltf_importer::Buffers,
         parent: &mut three::Group,
         meshes: &mut VecMap<three::Mesh>,
         factory: &mut three::Factory,
@@ -142,7 +164,7 @@ fn make_group(
         
         if let Some(entry) = node.mesh() {
             let index = entry.index();
-            let mesh = load_mesh(entry, factory);
+            let mesh = load_mesh(entry, buffers, factory);
             group.add(&mesh);
             assert!(meshes.get(index).is_none());
             meshes.insert(index, mesh);
@@ -150,7 +172,7 @@ fn make_group(
 
         if node.children().len() > 0 {
             for child in node.children() {
-                recurse(child, &mut group, meshes, factory);
+                recurse(child, buffers, &mut group, meshes, factory);
             }
         }
 
@@ -158,7 +180,7 @@ fn make_group(
     }
 
     let mut root = factory.group();
-    recurse(node, &mut root, meshes, factory);
+    recurse(node, buffers, &mut root, meshes, factory);
     root
 }
 
@@ -181,15 +203,14 @@ fn main() {
 
     let default_path = "test_data/Lantern.gltf".into();
     let path = std::env::args().nth(1).unwrap_or(default_path);
-    let mut importer = Importer::new(&path);
-    let gltf = importer.import().expect("invalid glTF");
+    let (gltf, buffers) = gltf_importer::import(&path).expect("invalid glTF");
 
     // The head node in the glTF scene hierarchy.
     let head = gltf.nodes().nth(3).unwrap();
     // Meshes must persist for the lifetime of the rendered item.
     let mut meshes = VecMap::<three::Mesh>::with_capacity(gltf.meshes().len());
     // Groups *must* be created before meshes.
-    let root = make_group(head, &mut meshes, &mut win.factory);
+    let root = make_group(head, &buffers, &mut meshes, &mut win.factory);
 
     win.scene.add(&root);
 
