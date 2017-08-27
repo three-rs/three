@@ -6,10 +6,12 @@ use std::fmt;
 use gfx_glyph as g;
 use gfx::Encoder;
 use gfx::handle::RenderTargetView;
-use render::{BackendResources, BackendFactory, BackendCommandBuffer, ColorFormat};
-use {Color, Object, Operation as HubOperation};
-
 use mint;
+
+use hub::Operation as HubOperation;
+use object::Object;
+use render::{BackendResources, BackendFactory, BackendCommandBuffer, ColorFormat};
+use scene::Color;
 
 pub(crate) enum Operation {
     Text(String),

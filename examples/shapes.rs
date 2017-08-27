@@ -12,7 +12,7 @@ fn main() {
     cam.set_position([0.0, 0.0, 10.0]);
 
     let mut mbox = {
-        let geometry = three::Geometry::new_box(3.0, 2.0, 1.0);
+        let geometry = three::Geometry::cuboid(3.0, 2.0, 1.0);
         let material = three::Material::MeshBasic { color: 0x00ff00, map: None, wireframe: true };
         win.factory.mesh(geometry, material)
     };
@@ -20,7 +20,7 @@ fn main() {
     win.scene.add(&mbox);
 
     let mut mcyl = {
-        let geometry = three::Geometry::new_cylinder(1.0, 2.0, 2.0, 5);
+        let geometry = three::Geometry::cylinder(1.0, 2.0, 2.0, 5);
         let material = three::Material::MeshBasic { color: 0xff0000, map: None, wireframe: true };
         win.factory.mesh(geometry, material)
     };
@@ -28,7 +28,7 @@ fn main() {
     win.scene.add(&mcyl);
 
     let mut msphere = {
-        let geometry = three::Geometry::new_sphere(2.0, 5, 5);
+        let geometry = three::Geometry::sphere(2.0, 5, 5);
         let material = three::Material::MeshBasic { color: 0xff0000, map: None, wireframe: true };
         win.factory.mesh(geometry, material)
     };
@@ -36,7 +36,7 @@ fn main() {
     win.scene.add(&msphere);
 
     let mut mline = {
-        let geometry = three::Geometry::from_vertices(vec![
+        let geometry = three::Geometry::with_vertices(vec![
             [-2.0, -1.0, 0.0].into(),
             [0.0, 1.0, 0.0].into(),
             [2.0, -1.0, 0.0].into(),

@@ -1,5 +1,3 @@
-#![allow(missing_docs)] //TODO
-
 use glutin::{MouseButton, MouseScrollDelta, ElementState, VirtualKeyCode as Key};
 use mint;
 
@@ -10,8 +8,9 @@ const PIXELS_PER_LINE: f32 = 38.0;
 
 pub type TimerDuration = f32;
 
+// TODO: Remove
 #[allow(dead_code)]
-struct InputState {
+struct State {
     time_moment: time::Instant,
     is_focused: bool,
     keys_pressed: HashSet<Key>,
@@ -19,7 +18,7 @@ struct InputState {
     mouse_pos: mint::Point2<f32>,
 }
 
-struct InputDiff {
+struct Delta {
     time_delta: TimerDuration,
     keys_hit: Vec<Key>,
     mouse_moves: Vec<mint::Vector2<f32>>,
@@ -27,18 +26,19 @@ struct InputDiff {
     mouse_wheel: Vec<f32>,
 }
 
-pub struct Input(InputState, InputDiff);
+/// Controls user and system input from keyboard, mouse and system clock.
+pub struct Input(State, Delta);
 
 impl Input {
-    pub fn new() -> Self {
-        let state = InputState {
+    pub(crate) fn new() -> Self {
+        let state = State {
             time_moment: time::Instant::now(),
             is_focused: true,
             keys_pressed: HashSet::new(),
             mouse_pressed: HashSet::new(),
             mouse_pos: [0.0; 2].into(),
         };
-        let diff = InputDiff {
+        let diff = Delta {
             time_delta: 0.0,
             keys_hit: Vec::new(),
             mouse_moves: Vec::new(),
@@ -48,7 +48,7 @@ impl Input {
         Input(state, diff)
     }
 
-    pub fn reset(&mut self) {
+    pub(crate) fn reset(&mut self) {
         let now = time::Instant::now();
         let dt = now - self.0.time_moment;
         self.0.time_moment = now;
@@ -59,33 +59,41 @@ impl Input {
         self.1.mouse_wheel.clear();
     }
 
+    /// Create new timer.
     pub fn time(&self) -> Timer {
         Timer {
             start: self.0.time_moment
         }
     }
 
-    pub fn get_time_delta(&self) -> f32 {
+    /// Get current delta time (time since previous frame)
+    pub fn delta_time(&self) -> f32 {
         self.1.time_delta
     }
 
-    pub fn get_mouse_pos(&self) -> mint::Point2<f32> {
+    /// Get current mouse pointer position in Normalized Display Coordinates.
+    /// See [`map_to_ndc`](struct.Renderer.html#method.map_to_ndc).
+    pub fn mouse_pos(&self) -> mint::Point2<f32> {
         self.0.mouse_pos
     }
 
-    pub fn get_mouse_wheel_movements(&self) -> &[f32] {
+    /// Get list of all mouse wheel movements since last frame.
+    pub fn mouse_wheel_movements(&self) -> &[f32] {
         &self.1.mouse_wheel[..]
     }
 
-    pub fn get_mouse_wheel(&self) -> f32 {
+    /// Get summarized mouse wheel movement (the sum of all movements since last frame).
+    pub fn mouse_wheel(&self) -> f32 {
         self.1.mouse_wheel.iter().sum()
     }
 
-    pub fn get_mouse_movements(&self) -> &[mint::Vector2<f32>] {
+    /// Get list of all mouse movements since last frame.
+    pub fn mouse_movements(&self) -> &[mint::Vector2<f32>] {
         &self.1.mouse_moves[..]
     }
 
-    pub fn get_mouse_delta(&self) -> mint::Vector2<f32> {
+    /// Get summarized mouse movements (the sum of all movements since last frame).
+    pub fn mouse_delta(&self) -> mint::Vector2<f32> {
         use cgmath::Vector2;
         self.1.mouse_moves.iter()
             .cloned()
@@ -94,7 +102,7 @@ impl Input {
             .into()
     }
 
-    pub fn keyboard_input(&mut self, state: ElementState, key: Key) {
+    pub(crate) fn keyboard_input(&mut self, state: ElementState, key: Key) {
         match state {
             ElementState::Pressed => {
                 self.0.keys_pressed.insert(key);
@@ -106,7 +114,7 @@ impl Input {
         }
     }
 
-    pub fn mouse_input(&mut self, state: ElementState, button: MouseButton) {
+    pub(crate) fn mouse_input(&mut self, state: ElementState, button: MouseButton) {
         match state {
             ElementState::Pressed => {
                 self.0.mouse_pressed.insert(button);
@@ -118,13 +126,13 @@ impl Input {
         }
     }
 
-    pub fn mouse_moved(&mut self, pos: mint::Point2<f32>) {
+    pub(crate) fn mouse_moved(&mut self, pos: mint::Point2<f32>) {
         use cgmath::Point2;
         self.1.mouse_moves.push((Point2::from(pos) - Point2::from(self.0.mouse_pos)).into());
         self.0.mouse_pos = pos;
     }
 
-    pub fn mouse_wheel(&mut self, delta: MouseScrollDelta) {
+    pub(crate) fn mouse_wheel_input(&mut self, delta: MouseScrollDelta) {
         self.1.mouse_wheel.push(match delta {
             MouseScrollDelta::LineDelta(_, y) => y * PIXELS_PER_LINE,
             MouseScrollDelta::PixelDelta(_, y) => y,
@@ -132,33 +140,43 @@ impl Input {
     }
 }
 
-
+/// Timer can be used to find the time difference between the moment of timer creation and the
+/// moment of calling [`get`](struct.Timer.html#method.get).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Timer {
     start: time::Instant,
 }
 
 impl Timer {
+    /// Get period of time since timer creation in seconds.
     pub fn get(&self, input: &Input) -> TimerDuration {
         let dt = input.0.time_moment - self.start;
         dt.as_secs() as f32 + 1e-9 * dt.subsec_nanos() as f32
     }
 }
 
-
+/// Keyboard or mouse button.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Button {
+    /// Keyboard button.
     Key(Key),
+    /// Mouse button.
     Mouse(MouseButton),
 }
 
+/// `Escape` keyboard button.
 pub const KEY_ESCAPE: Button = Button::Key(Key::Escape);
+/// `Space` keyboard button.
 pub const KEY_SPACE: Button = Button::Key(Key::Space);
+/// Left mouse button.
 pub const MOUSE_LEFT: Button = Button::Mouse(MouseButton::Left);
+/// Right mouse button.
 pub const MOUSE_RIGHT: Button = Button::Mouse(MouseButton::Right);
 
 impl Button {
-    pub fn count_hits(&self, input: &Input) -> u8 {
+    /// Get the amount of hits (moves down) for this button.
+    /// You typically need to pass `window.input` as `input` parameter.
+    pub fn hit_count(&self, input: &Input) -> u8 {
         use std::u8::MAX;
         match *self {
             Button::Key(button) => input.1.keys_hit.iter().filter(|&&key| key == button).take(MAX as usize).count() as u8,
@@ -166,6 +184,7 @@ impl Button {
         }
     }
 
+    /// Whether this button is pressed or not at the moment.
     pub fn is_hit(&self, input: &Input) -> bool {
         match *self {
             Button::Key(button) => input.0.keys_pressed.contains(&button),
@@ -174,17 +193,24 @@ impl Button {
     }
 }
 
-
+/// Two buttons responsible for opposite directions along specific axis.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct KeyAxis {
+    /// Key for "negative" direction
     pub neg: Key,
+    /// Key for "positive" direction
     pub pos: Key,
 }
 
+/// Axis for left and right arrow keys.
 pub const AXIS_LEFT_RIGHT: KeyAxis = KeyAxis{ neg: Key::Left, pos: Key::Right };
+/// Axis for up and down arrow keys.
 pub const AXIS_DOWN_UP: KeyAxis = KeyAxis{ neg: Key::Down, pos: Key::Up };
 
 impl KeyAxis {
+    /// Returns `Some(positive value)` if "positive" button was pressed more times since last frame.
+    /// Returns `Some(negative value)` if "negative" button was pressed more times.
+    /// Otherwise returns `None`.
     pub fn delta_hits(&self, input: &Input) -> Option<i8> {
         let (mut pos, mut neg) = (0, 0);
         for &key in input.1.keys_hit.iter() {
@@ -198,6 +224,9 @@ impl KeyAxis {
         }
     }
 
+    /// Returns `Some(value)` where `value` is positive if "positive" button is pressed now and
+    /// negative otherwise. `value` itself represents the amount of time button was pressed.
+    /// If both buttons weren't pressed, return `None`.
     pub fn timed(&self, input: &Input) -> Option<TimerDuration> {
         let is_pos = input.0.keys_pressed.contains(&self.pos);
         let is_neg = input.0.keys_pressed.contains(&self.neg);
