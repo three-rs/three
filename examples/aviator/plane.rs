@@ -21,7 +21,7 @@ impl AirPlane {
         let mut group = factory.group();
 
         let cockpit = {
-            let mut geo = three::Geometry::new_box(80.0, 50.0, 50.0);
+            let mut geo = three::Geometry::cuboid(80.0, 50.0, 50.0);
             for v in geo.base_shape.vertices.iter_mut() {
                 if v.x < 0.0 {
                     v.z += if v.y > 0.0 {-20.0} else {20.0};
@@ -32,19 +32,19 @@ impl AirPlane {
         };
         group.add(&cockpit);
         let mut engine = factory.mesh(
-            three::Geometry::new_box(20.0, 50.0, 50.0),
+            three::Geometry::cuboid(20.0, 50.0, 50.0),
             three::Material::MeshLambert{ color: COLOR_WHITE, flat: false }
         );
         engine.set_position([40.0, 0.0, 0.0]);
         group.add(&engine);
         let mut tail = factory.mesh(
-            three::Geometry::new_box(15.0, 20.0, 5.0),
+            three::Geometry::cuboid(15.0, 20.0, 5.0),
             three::Material::MeshLambert{ color: COLOR_RED, flat: false }
         );
         tail.set_position([-35.0, 25.0, 0.0]);
         group.add(&tail);
         let wing = factory.mesh(
-            three::Geometry::new_box(40.0, 8.0, 150.0),
+            three::Geometry::cuboid(40.0, 8.0, 150.0),
             three::Material::MeshLambert{ color: COLOR_RED, flat: false }
         );
         group.add(&wing);
@@ -53,12 +53,12 @@ impl AirPlane {
         propeller_group.set_position([50.0, 0.0, 0.0]);
         group.add(&propeller_group);
         let propeller = factory.mesh(
-            three::Geometry::new_box(20.0, 10.0, 10.0),
+            three::Geometry::cuboid(20.0, 10.0, 10.0),
             three::Material::MeshLambert{ color: COLOR_BROWN, flat: false }
         );
         propeller_group.add(&propeller);
         let mut blade = factory.mesh(
-            three::Geometry::new_box(1.0, 100.0, 20.0),
+            three::Geometry::cuboid(1.0, 100.0, 20.0),
             three::Material::MeshLambert{ color: COLOR_BROWN_DARK, flat: false }
         );
         blade.set_position([8.0, 0.0, 0.0]);

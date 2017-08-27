@@ -5,12 +5,10 @@ use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::borrow::Cow;
 
-use cgmath::{Vector3, Transform as Transform_};
-use genmesh::{Polygon, EmitTriangles, Triangulate, Vertex as GenVertex};
-use genmesh::generators::{self, IndexedPolygon, SharedVertex};
+use cgmath::Vector3;
+use genmesh::{Polygon, Triangulate};
 use gfx;
 use gfx::format::I8Norm;
-use gfx::handle as h;
 use gfx::traits::{Factory as Factory_, FactoryExt};
 use image;
 use itertools::Either;
@@ -21,13 +19,18 @@ use camera::{Orthographic, Perspective};
 use render::{BackendFactory, BackendResources, BasicPipelineState,
              GpuData, DynamicData, Vertex, ShadowFormat,
              get_shader, pipe as basic_pipe};
-use scene::{Color, Background, Group, Sprite, Material,
-            AmbientLight, DirectionalLight, HemisphereLight, PointLight};
+use scene::{Color, Background, Scene, SceneId};
 use text::{Text, TextData, Font};
-use {Hub, HubPtr, SubLight, Node, SubNode,
-     LightData, Object, Scene, Camera, Mesh, DynamicMesh};
-
-pub use gfx::texture::{FilterMethod, WrapMode};
+use camera::Camera;
+use geometry::{Geometry, Shape};
+use hub::{HubPtr, Hub, SubNode, SubLight, LightData};
+use node::{Node};
+use texture::{Texture, Sampler, WrapMode, FilterMethod};
+use object::Group;
+use material::Material;
+use mesh::{Mesh, DynamicMesh};
+use sprite::Sprite;
+use light::{Point, Ambient, Hemisphere, Directional, ShadowMap};
 
 const TANGENT_X: [I8Norm; 4] = [I8Norm(1), I8Norm(0), I8Norm(0), I8Norm(1)];
 const NORMAL_Z: [I8Norm; 4] = [I8Norm(0), I8Norm(0), I8Norm(1), I8Norm(0)];
@@ -58,68 +61,6 @@ const QUAD: [Vertex; 4] = [
         tangent: TANGENT_X,
     },
 ];
-
-impl From<SubNode> for Node {
-    fn from(sub: SubNode) -> Self {
-        Node {
-            visible: true,
-            world_visible: false,
-            transform: Transform_::one(),
-            world_transform: Transform_::one(),
-            parent: None,
-            scene_id: None,
-            sub_node: sub,
-        }
-    }
-}
-
-impl Hub {
-    fn spawn(&mut self, sub: SubNode) -> Object {
-        Object {
-            node: self.nodes.create(sub.into()),
-            tx: self.message_tx.clone(),
-        }
-    }
-
-    fn spawn_empty(&mut self) -> Object {
-        self.spawn(SubNode::Empty)
-    }
-
-    fn spawn_visual(&mut self, mat: Material, gpu_data: GpuData) -> Object {
-        self.spawn(SubNode::Visual(mat, gpu_data))
-    }
-
-    fn spawn_light(&mut self, data: LightData) -> Object {
-        self.spawn(SubNode::Light(data))
-    }
-
-    fn spawn_ui_text(&mut self, text: TextData) -> Object {
-        self.spawn(SubNode::UiText(text))
-    }
-}
-
-/// `ShadowMap` is used to render shadows from [`PointLight`](struct.PointLight.html)
-/// and [`DirectionalLight`](struct.DirectionalLight.html).
-#[derive(Clone, Debug)]
-pub struct ShadowMap {
-    resource: gfx::handle::ShaderResourceView<BackendResources, f32>,
-    target: gfx::handle::DepthStencilView<BackendResources, ShadowFormat>,
-}
-
-impl ShadowMap {
-    #[doc(hidden)]
-    pub fn to_target(&self) -> gfx::handle::DepthStencilView<BackendResources, ShadowFormat> {
-        self.target.clone()
-    }
-
-    #[doc(hidden)]
-    pub fn to_resource(&self) -> gfx::handle::ShaderResourceView<BackendResources, f32> {
-        self.resource.clone()
-    }
-}
-
-
-pub type SceneId = usize;
 
 /// `Factory` is used to instantiate game objects.
 pub struct Factory {
@@ -207,7 +148,7 @@ impl Factory {
         Group::new(self.hub.lock().unwrap().spawn_empty())
     }
 
-    fn mesh_vertices(shape: &GeometryShape) -> Vec<Vertex> {
+    fn mesh_vertices(shape: &Shape) -> Vec<Vertex> {
         let position_iter = shape.vertices.iter();
         let normal_iter = if shape.normals.is_empty() {
             Either::Left(iter::repeat(NORMAL_Z))
@@ -341,8 +282,8 @@ impl Factory {
     }
 
     /// Create new `AmbientLight`.
-    pub fn ambient_light(&mut self, color: Color, intensity: f32) -> AmbientLight {
-        AmbientLight::new(self.hub.lock().unwrap().spawn_light(LightData {
+    pub fn ambient_light(&mut self, color: Color, intensity: f32) -> Ambient {
+        Ambient::new(self.hub.lock().unwrap().spawn_light(LightData {
             color,
             intensity,
             sub_light: SubLight::Ambient,
@@ -351,8 +292,8 @@ impl Factory {
     }
 
     /// Create new `DirectionalLight`.
-    pub fn directional_light(&mut self, color: Color, intensity: f32) -> DirectionalLight {
-        DirectionalLight::new(self.hub.lock().unwrap().spawn_light(LightData {
+    pub fn directional_light(&mut self, color: Color, intensity: f32) -> Directional {
+        Directional::new(self.hub.lock().unwrap().spawn_light(LightData {
             color,
             intensity,
             sub_light: SubLight::Directional,
@@ -362,8 +303,8 @@ impl Factory {
 
     /// Create new `HemisphereLight`.
     pub fn hemisphere_light(&mut self, sky_color: Color, ground_color: Color,
-                            intensity: f32) -> HemisphereLight {
-        HemisphereLight::new(self.hub.lock().unwrap().spawn_light(LightData {
+                            intensity: f32) -> Hemisphere {
+        Hemisphere::new(self.hub.lock().unwrap().spawn_light(LightData {
             color: sky_color,
             intensity,
             sub_light: SubLight::Hemisphere{ ground: ground_color },
@@ -372,8 +313,8 @@ impl Factory {
     }
 
     /// Create new `PointLight`.
-    pub fn point_light(&mut self, color: Color, intensity: f32) -> PointLight {
-        PointLight::new(self.hub.lock().unwrap().spawn_light(LightData {
+    pub fn point_light(&mut self, color: Color, intensity: f32) -> Point {
+        Point::new(self.hub.lock().unwrap().spawn_light(LightData {
             color,
             intensity,
             sub_light: SubLight::Point,
@@ -452,6 +393,47 @@ impl Factory {
             })
     }
 
+    /// Create new UI (on-screen) text. See [`Text`](struct.Text.html) for default settings.
+    pub fn ui_text<S: Into<String>>(&mut self, font: &Font, text: S) -> Text {
+        let data = TextData::new(font, text);
+        let object = self.hub.lock().unwrap().spawn_ui_text(data);
+        Text::with_object(object)
+    }
+
+    /// Update the geometry of `DynamicMesh`.
+    pub fn mix(&mut self, mesh: &DynamicMesh, shapes: &[(&str, f32)]) {
+        let f2i = |x: f32| I8Norm(cmp::min(cmp::max((x * 127.) as isize, -128), 127) as i8);
+
+        self.hub.lock().unwrap().update_mesh(mesh);
+        let shapes: Vec<_> = shapes.iter().map(|&(name, k)|
+            (&mesh.geometry.shapes[name], k)
+        ).collect();
+        let mut mapping = self.backend.write_mapping(&mesh.dynamic.buffer).unwrap();
+
+        for i in 0 .. mesh.geometry.base_shape.vertices.len() {
+            let (mut pos, ksum) = shapes.iter().fold((Vector3::new(0.0, 0.0, 0.0), 0.0), |(pos, ksum), &(ref shape, k)| {
+                let p: [f32; 3] = shape.vertices[i].into();
+                (pos + k * Vector3::from(p), ksum + k)
+            });
+            if ksum != 1.0 {
+                let p: [f32; 3] = mesh.geometry.base_shape.vertices[i].into();
+                pos += (1.0 - ksum) * Vector3::from(p);
+            }
+            let normal = if mesh.geometry.base_shape.normals.is_empty() {
+                NORMAL_Z
+            } else {
+                let n = mesh.geometry.base_shape.normals[i];
+                [f2i(n.x), f2i(n.y), f2i(n.z), I8Norm(0)]
+            };
+            mapping[i] = Vertex {
+                pos: [pos.x, pos.y, pos.z, 1.0],
+                uv: [0.0, 0.0], //TODO
+                normal,
+                tangent: TANGENT_X, // @alteous: TODO: Provide tangent.
+            };
+        }
+    }
+
     /// Load TrueTypeFont (.ttf) from file.
     /// #### Panics
     /// Panics if I/O operations with file fails (e.g. file not found or corrupted)
@@ -465,209 +447,6 @@ impl Factory {
         Font::new(buffer, path_buf, self.backend.clone())
     }
 
-    /// Create new UI (on-screen) text. See [`Text`](struct.Text.html) for default settings.
-    pub fn ui_text<S: Into<String>>(&mut self, font: &Font, text: S) -> Text {
-        let data = TextData::new(font, text);
-        let object = self.hub.lock().unwrap().spawn_ui_text(data);
-        Text::with_object(object)
-    }
-}
-
-/// The sampling properties for a `Texture`.
-#[derive(Clone, Debug)]
-pub struct Sampler(gfx::handle::Sampler<BackendResources>);
-
-/// A shape of geometry that is used for mesh blending.
-#[derive(Clone, Debug)]
-pub struct GeometryShape {
-    /// Vertices.
-    pub vertices: Vec<mint::Point3<f32>>,
-    /// Normals.
-    pub normals: Vec<mint::Vector3<f32>>,
-    /// Tangents.
-    pub tangents: Vec<mint::Vector4<f32>>,
-    /// Texture co-ordinates.
-    pub tex_coords: Vec<mint::Point2<f32>>,
-}
-
-impl GeometryShape {
-    /// Create an empty shape.
-    pub fn empty() -> Self {
-        GeometryShape {
-            vertices: Vec::new(),
-            normals: Vec::new(),
-            tangents: Vec::new(),
-            tex_coords: Vec::new(),
-        }
-    }
-}
-
-/// A collection of vertices, their normals, and faces that defines the
-/// shape of a polyhedral object.
-#[derive(Clone, Debug)]
-pub struct Geometry {
-    /// The original shape of geometry.
-    pub base_shape: GeometryShape,
-    /// A map containing blend shapes and their names.
-    pub shapes: HashMap<String, GeometryShape>,
-    /// Faces.
-    pub faces: Vec<[u32; 3]>,
-}
-
-impl Geometry {
-    /// Create new `Geometry` without any data in it.
-    pub fn empty() -> Self {
-        Geometry {
-            base_shape: GeometryShape::empty(),
-            shapes: HashMap::new(),
-            faces: Vec::new(),
-        }
-    }
-
-    /// Create `Geometry` from vector of vertices.
-    pub fn from_vertices(vertices: Vec<mint::Point3<f32>>) -> Self {
-        Geometry {
-            base_shape: GeometryShape {
-                vertices,
-                normals: Vec::new(),
-                .. GeometryShape::empty()
-            },
-            .. Geometry::empty()
-        }
-    }
-
-    fn generate<P, G, Fpos, Fnor>(gen: G, fpos: Fpos, fnor: Fnor) -> Self where
-        P: EmitTriangles<Vertex=usize>,
-        G: IndexedPolygon<P> + SharedVertex<GenVertex>,
-        Fpos: Fn(GenVertex) -> mint::Point3<f32>,
-        Fnor: Fn(GenVertex) -> mint::Vector3<f32>,
-    {
-        Geometry {
-            base_shape: GeometryShape {
-                vertices: gen.shared_vertex_iter().map(fpos).collect(),
-                normals: gen.shared_vertex_iter().map(fnor).collect(),
-                // @alteous: TODO: Add similar functions for tangents and texture
-                // co-ordinates
-                .. GeometryShape::empty()
-            },
-            shapes: HashMap::new(),
-            faces: gen.indexed_polygon_iter()
-                       .triangulate()
-                       .map(|t| [t.x as u32, t.y as u32, t.z as u32])
-                       .collect(),
-        }
-    }
-
-    /// Create new Plane with desired size.
-    pub fn new_plane(sx: f32, sy: f32) -> Self {
-        Self::generate(generators::Plane::new(),
-            |GenVertex{ pos, ..}| {
-                [pos[0] * 0.5 * sx, pos[1] * 0.5 * sy, 0.0].into()
-            },
-            |v| v.normal.into()
-        )
-    }
-
-    /// Create new Box with desired size.
-    pub fn new_box(sx: f32, sy: f32, sz: f32) -> Self {
-        Self::generate(generators::Cube::new(),
-            |GenVertex{ pos, ..}| {
-                [pos[0] * 0.5 * sx, pos[1] * 0.5 * sy, pos[2] * 0.5 * sz].into()
-            },
-            |v| v.normal.into()
-        )
-    }
-
-    /// Create new Cylinder or Cone with desired top and bottom radius, height
-    /// and number of segments.
-    pub fn new_cylinder(radius_top: f32, radius_bottom: f32, height: f32,
-                        radius_segments: usize) -> Self
-    {
-        Self::generate(generators::Cylinder::new(radius_segments),
-            //Three.js has height along the Y axis for some reason
-            |GenVertex{ pos, ..}| {
-                let scale = (pos[2] + 1.0) * 0.5 * radius_top +
-                            (1.0 - pos[2]) * 0.5 * radius_bottom;
-                [pos[1] * scale, pos[2] * 0.5 * height, pos[0] * scale].into()
-            },
-            |GenVertex{ normal, ..}| {
-                [normal[1], normal[2], normal[0]].into()
-            },
-        )
-    }
-
-    /// Create new Sphere with desired radius and number of segments.
-    pub fn new_sphere(radius: f32, width_segments: usize,
-                      height_segments: usize) -> Self
-    {
-        Self::generate(generators::SphereUV::new(width_segments, height_segments),
-            |GenVertex{ pos, ..}| {
-                [pos[0] * radius, pos[1] * radius, pos[2] * radius].into()
-            },
-            |v| v.normal.into()
-        )
-    }
-}
-
-
-/// An image applied (mapped) to the surface of a shape or polygon.
-#[derive(Clone, Debug)]
-pub struct Texture<T> {
-    view: h::ShaderResourceView<BackendResources, T>,
-    sampler: h::Sampler<BackendResources>,
-    total_size: [u32; 2],
-    tex0: [f32; 2],
-    tex1: [f32; 2],
-}
-
-impl<T> Texture<T> {
-    #[doc(hidden)]
-    pub fn new(view: h::ShaderResourceView<BackendResources, T>,
-               sampler: h::Sampler<BackendResources>,
-               total_size: [u32; 2]) -> Self {
-        Texture {
-            view,
-            sampler,
-            total_size,
-            tex0: [0.0; 2],
-            tex1: [total_size[0] as f32, total_size[1] as f32],
-        }
-    }
-
-    #[doc(hidden)]
-    pub fn to_param(&self) -> (h::ShaderResourceView<BackendResources, T>, h::Sampler<BackendResources>) {
-        (self.view.clone(), self.sampler.clone())
-    }
-
-    /// See [`Sprite::set_texel_range`](struct.Sprite.html#method.set_texel_range).
-    pub fn set_texel_range(&mut self, base: mint::Point2<i16>, size: mint::Vector2<u16>) {
-        self.tex0 = [
-            base.x as f32,
-            self.total_size[1] as f32 - base.y as f32 - size.y as f32,
-        ];
-        self.tex1 = [
-            base.x as f32 + size.x as f32,
-            self.total_size[1] as f32 - base.y as f32,
-        ];
-    }
-
-    /// Returns normalized UV rectangle (x0, y0, x1, y1) of the current texel range.
-    pub fn get_uv_range(&self) -> [f32; 4] {
-        [self.tex0[0] / self.total_size[0] as f32,
-         self.tex0[1] / self.total_size[1] as f32,
-         self.tex1[0] / self.total_size[0] as f32,
-         self.tex1[1] / self.total_size[1] as f32]
-    }
-}
-
-fn concat_path<'a>(base: Option<&Path>, name: &'a str) -> Cow<'a, Path> {
-    match base {
-        Some(base) => Cow::Owned(base.join(name)),
-        None => Cow::Borrowed(Path::new(name))
-    }
-}
-
-impl Factory {
     fn load_texture_impl(
         path: &Path,
         sampler: Sampler,
@@ -677,9 +456,9 @@ impl Factory {
         use image::ImageFormat as F;
 
         let extension = path.extension()
-                            .expect("no extension for an image?")
-                            .to_string_lossy()
-                            .to_lowercase();
+            .expect("no extension for an image?")
+            .to_string_lossy()
+            .to_lowercase();
         let format = match extension.as_str() {
             "png" => F::PNG,
             "jpg" | "jpeg" => F::JPEG,
@@ -695,14 +474,14 @@ impl Factory {
         };
 
         let file = File::open(&path)
-                        .unwrap_or_else(|e| panic!("Unable to open {}: {:?}", path.display(), e));
+            .unwrap_or_else(|e| panic!("Unable to open {}: {:?}", path.display(), e));
         let img = image::load(BufReader::new(file), format)
-                        .unwrap_or_else(|e| panic!("Unable to decode {}: {:?}", path.display(), e))
-                        .flipv().to_rgba();
+            .unwrap_or_else(|e| panic!("Unable to decode {}: {:?}", path.display(), e))
+            .flipv().to_rgba();
         let (width, height) = img.dimensions();
         let kind = t::Kind::D2(width as t::Size, height as t::Size, t::AaMode::Single);
         let (_, view) = factory.create_texture_immutable_u8::<gfx::format::Srgba8>(kind, &[&img])
-                               .unwrap_or_else(|e| panic!("Unable to create GPU texture for {}: {:?}", path.display(), e));
+            .unwrap_or_else(|e| panic!("Unable to create GPU texture for {}: {:?}", path.display(), e));
         Texture::new(view, sampler.0, [width, height])
     }
 
@@ -814,9 +593,9 @@ impl Factory {
 
                     indices.clear();
                     indices.extend(gr.indices.iter().cloned()
-                                             .triangulate()
-                                             .vertices()
-                                             .map(|tuple| lru.index(tuple) as u16));
+                        .triangulate()
+                        .vertices()
+                        .map(|tuple| lru.index(tuple) as u16));
                 };
 
                 info!("\tmaterial {} with {} normals and {} uvs", gr.name, num_normals, num_uvs);
@@ -845,38 +624,11 @@ impl Factory {
 
         (groups, meshes)
     }
+}
 
-    /// Update the geometry of `DynamicMesh`.
-    pub fn mix(&mut self, mesh: &DynamicMesh, shapes: &[(&str, f32)]) {
-        let f2i = |x: f32| I8Norm(cmp::min(cmp::max((x * 127.) as isize, -128), 127) as i8);
-
-        self.hub.lock().unwrap().update_mesh(mesh);
-        let shapes: Vec<_> = shapes.iter().map(|&(name, k)|
-            (&mesh.geometry.shapes[name], k)
-        ).collect();
-        let mut mapping = self.backend.write_mapping(&mesh.dynamic.buffer).unwrap();
-
-        for i in 0 .. mesh.geometry.base_shape.vertices.len() {
-            let (mut pos, ksum) = shapes.iter().fold((Vector3::new(0.0, 0.0, 0.0), 0.0), |(pos, ksum), &(ref shape, k)| {
-                let p: [f32; 3] = shape.vertices[i].into();
-                (pos + k * Vector3::from(p), ksum + k)
-            });
-            if ksum != 1.0 {
-                let p: [f32; 3] = mesh.geometry.base_shape.vertices[i].into();
-                pos += (1.0 - ksum) * Vector3::from(p);
-            }
-            let normal = if mesh.geometry.base_shape.normals.is_empty() {
-                NORMAL_Z
-            } else {
-                let n = mesh.geometry.base_shape.normals[i];
-                [f2i(n.x), f2i(n.y), f2i(n.z), I8Norm(0)]
-            };
-            mapping[i] = Vertex {
-                pos: [pos.x, pos.y, pos.z, 1.0],
-                uv: [0.0, 0.0], //TODO
-                normal,
-                tangent: TANGENT_X, // @alteous: TODO: Provide tangent.
-            };
-        }
+fn concat_path<'a>(base: Option<&Path>, name: &'a str) -> Cow<'a, Path> {
+    match base {
+        Some(base) => Cow::Owned(base.join(name)),
+        None => Cow::Borrowed(Path::new(name))
     }
 }

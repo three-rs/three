@@ -82,10 +82,10 @@ fn make_indices(meta: &[u16]) -> Vec<[u32; 3]> {
 
 fn make_geometry() -> three::Geometry {
     three::Geometry {
-        base_shape: three::GeometryShape {
+        base_shape: three::geometry::Shape {
             vertices: make_vertices(VERTICES),
             normals: Vec::new(),
-            .. three::GeometryShape::empty()
+            .. three::geometry::Shape::empty()
         },
         faces: make_indices(INDICES),
         .. three::Geometry::empty()
@@ -102,10 +102,10 @@ fn main() {
     let mut geom = make_geometry();
     for (i, &data) in V_FLY.iter().enumerate() {
         let name = format!("fly{:02}", i);
-        geom.shapes.insert(name, three::GeometryShape {
+        geom.shapes.insert(name, three::geometry::Shape {
             vertices: make_vertices(data),
             normals: Vec::new(),
-            .. three::GeometryShape::empty()
+            .. three::geometry::Shape::empty()
         });
     }
 

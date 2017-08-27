@@ -17,10 +17,14 @@ use std::path::PathBuf;
 pub use self::back::Factory as BackendFactory;
 pub use self::back::Resources as BackendResources;
 pub use self::back::CommandBuffer as BackendCommandBuffer;
-use camera::Projection;
-use factory::{Factory, ShadowMap, Texture};
-use scene::{Color, Background, Material};
-use {SubLight, SubNode, Scene, ShadowProjection, Camera, Font};
+use camera::{Camera, Projection};
+use factory::Factory;
+use scene::{Color, Background, Scene};
+use material::Material;
+use hub::{SubLight, SubNode};
+use light::{ShadowMap, ShadowProjection};
+use texture::Texture;
+use text::Font;
 
 /// The format of the back buffer color requested from the windowing system.
 pub type ColorFormat = gfx::format::Srgba8;
@@ -431,7 +435,7 @@ impl Renderer {
                     let dim = target.get_dimensions();
                     let aspect = dim.0 as f32 / dim.1 as f32;
                     let mx_proj: [[f32; 4]; 4] = match projection {
-                        &ShadowProjection::Ortho(ref p) => p.get_matrix(aspect),
+                        &ShadowProjection::Orthographic(ref p) => p.get_matrix(aspect),
                     }.into();
                     let mx_view = Matrix4::from(
                         node.world_transform.inverse_transform().unwrap());
@@ -696,7 +700,7 @@ impl Renderer {
                         ),
                     };
                     let uv_range = match map {
-                        Some(ref map) => map.get_uv_range(),
+                        Some(ref map) => map.uv_range(),
                         None => [0.0; 4],
                     };
                     self.encoder.update_constant_buffer(&gpu_data.constants, &Locals {

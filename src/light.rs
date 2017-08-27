@@ -1,0 +1,118 @@
+//! Contains different types of light sources.
+use gfx;
+
+use camera::Orthographic;
+use hub::Operation;
+use object::Object;
+use render::{BackendResources, ShadowFormat};
+
+/// `ShadowMap` is used to render shadows from [`PointLight`](struct.PointLight.html)
+/// and [`DirectionalLight`](struct.DirectionalLight.html).
+#[derive(Clone, Debug)]
+pub struct ShadowMap {
+    pub(crate) resource: gfx::handle::ShaderResourceView<BackendResources, f32>,
+    pub(crate) target: gfx::handle::DepthStencilView<BackendResources, ShadowFormat>,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) enum ShadowProjection {
+    Orthographic(Orthographic),
+}
+
+impl ShadowMap {
+    pub(crate) fn to_target(&self) -> gfx::handle::DepthStencilView<BackendResources, ShadowFormat> {
+        self.target.clone()
+    }
+
+    pub(crate) fn to_resource(&self) -> gfx::handle::ShaderResourceView<BackendResources, f32> {
+        self.resource.clone()
+    }
+}
+
+/// Omni-directional, fixed-intensity and fixed-color light source that affects
+/// all objects in the scene equally.
+pub struct Ambient {
+    pub(crate) object: Object,
+}
+
+impl Ambient {
+    #[doc(hidden)]
+    pub fn new(object: Object) -> Self {
+        Ambient {
+            object,
+        }
+    }
+}
+
+/// The light source that illuminates all objects equally from a given direction,
+/// like an area light of infinite size and infinite distance from the scene;
+/// there is shading, but cannot be any distance falloff.
+pub struct Directional {
+    pub(crate) object: Object,
+    pub(crate) shadow: Option<ShadowMap>,
+}
+
+impl Directional {
+    #[doc(hidden)]
+    pub fn new(object: Object) -> Self {
+        Directional {
+            object,
+            shadow: None,
+        }
+    }
+
+    /// Returns `true` if it has [`ShadowMap`](struct.ShadowMap.html), `false` otherwise.
+    pub fn has_shadow(&self) -> bool {
+        self.shadow.is_some()
+    }
+
+    /// Adds shadow map for this light source.
+    pub fn set_shadow(&mut self, map: ShadowMap,
+                      extent_y: f32, near: f32, far: f32) {
+        let sp = ShadowProjection::Orthographic(Orthographic {
+            center: [0.0; 2].into(),
+            extent_y,
+            near,
+            far,
+        });
+        self.shadow = Some(map.clone());
+        let msg = Operation::SetShadow(map, sp);
+        let _ = self.tx.send((self.node.downgrade(), msg));
+    }
+}
+
+/// `HemisphereLight` uses two different colors in opposite to
+/// [`Ambient`](struct.Ambient.html).
+///
+/// The color of each fragment is determined by direction of normal. If the
+/// normal points in the direction of the upper hemisphere, the fragment has
+/// color of the "sky". If the direction of the normal is opposite, then fragment
+/// takes color of the "ground". In other cases, color is determined as
+/// interpolation between colors of upper and lower hemispheres, depending on
+/// how much the normal is oriented to the upper and the lower hemisphere.
+pub struct Hemisphere {
+    pub(crate) object: Object,
+}
+
+impl Hemisphere {
+    #[doc(hidden)]
+    pub fn new(object: Object) -> Self {
+        Hemisphere {
+            object,
+        }
+    }
+}
+
+/// Light originates from a single point, and spreads outward in all directions.
+pub struct Point {
+    pub(crate) object: Object,
+}
+
+impl Point {
+    #[doc(hidden)]
+    pub fn new(object: Object) -> Self {
+        Point {
+            object,
+        }
+    }
+}
