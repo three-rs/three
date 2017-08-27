@@ -192,7 +192,12 @@
       },
       {
          "mesh" : 0,
-         "name" : "SciFiHelmet"
+         "name" : "SciFiHelmet",
+         "translation" : [
+            0.0,
+            0.0,
+            -4.85
+         ]
       }
    ],
    "samplers" : [
