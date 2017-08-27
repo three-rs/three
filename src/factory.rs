@@ -18,7 +18,7 @@ use obj;
 use camera::{Orthographic, Perspective};
 use render::{BackendFactory, BackendResources, BasicPipelineState,
              GpuData, DynamicData, Vertex, ShadowFormat,
-             get_shader, pipe as basic_pipe};
+             load_program, pipe as basic_pipe};
 use scene::{Color, Background, Scene, SceneId};
 use text::{Text, TextData, Font};
 use camera::Camera;
@@ -67,7 +67,7 @@ pub struct Factory {
     backend: BackendFactory,
     scene_id: SceneId,
     hub: HubPtr,
-    root_shader_path: String,
+    root_shader_path: PathBuf,
     quad_buf: gfx::handle::Buffer<BackendResources, Vertex>,
     texture_cache: HashMap<PathBuf, Texture<[f32; 4]>>,
     default_sampler: gfx::handle::Sampler<BackendResources>,
@@ -84,14 +84,14 @@ fn f2i(x: f32) -> I8Norm {
 
 impl Factory {
     #[doc(hidden)]
-    pub fn new(mut backend: BackendFactory, shader_path: &str) -> Self {
+    pub fn new(mut backend: BackendFactory, shader_path: &Path) -> Self {
         let quad_buf = backend.create_vertex_buffer(&QUAD);
         let default_sampler = backend.create_sampler_linear();
         Factory {
             backend: backend,
             scene_id: 0,
             hub: Hub::new(),
-            root_shader_path: shader_path.to_string(),
+            root_shader_path: shader_path.to_owned(),
             quad_buf,
             texture_cache: HashMap::new(),
             default_sampler: default_sampler,
@@ -370,16 +370,8 @@ impl Factory {
         depth_state: gfx::state::Depth,
         stencil_state: gfx::state::Stencil,
     ) -> Result<BasicPipelineState, ()> {
-        let code_vs = get_shader(&self.root_shader_path, shader_path, "vs");
-        let code_ps = get_shader(&self.root_shader_path, shader_path, "ps");
+        let program = load_program(&self.root_shader_path, shader_path, &mut self.backend)?;
 
-        let program = match self.backend.link_program(code_vs.as_bytes(), code_ps.as_bytes()) {
-            Ok(prog) => prog,
-            Err(e) => {
-                error!("Program {} link error {:?}", shader_path, e);
-                return Err(())
-            }
-        };
         let init = basic_pipe::Init {
             out_color: ("Target0", color_mask, blend_state),
             out_depth: (depth_state, stencil_state),
@@ -441,9 +433,9 @@ impl Factory {
         let path_buf = file_path.as_ref().to_owned();
         let mut buffer = Vec::new();
         let mut file = File::open(path_buf.clone()).expect(
-            &format!("Can't open font file:\nFile: {:?}", path_buf.clone()));
+            &format!("Can't open font file:\nFile: {}", &path_buf.display()));
         file.read_to_end(&mut buffer).expect(
-            &format!("Can't read font file:\nFile: {:?}", path_buf.clone()));
+            &format!("Can't read font file:\nFile: {}", &path_buf.display()));
         Font::new(buffer, path_buf, self.backend.clone())
     }
 
