@@ -402,11 +402,6 @@ impl Renderer {
     /// corresponds to (1,1).
     pub fn map_to_ndc<P: Into<mint::Point2<f32>>>(&self, point: P) -> mint::Point2<f32> {
         let point = point.into();
-        println!("{:?} ({} {})", point, self.size.0, self.size.1);
-        println!("{:?}", mint::Point2 {
-            x: 2.0 * point.x / self.size.0 as f32 - 1.0,
-            y: 1.0 - 2.0 * point.y / self.size.1 as f32,
-        });
         mint::Point2 {
             x: 2.0 * point.x / self.size.0 as f32 - 1.0,
             y: 1.0 - 2.0 * point.y / self.size.1 as f32,

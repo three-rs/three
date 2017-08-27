@@ -1,5 +1,9 @@
+//! Primitives for creating and controlling [`Window`](struct.Window.html).
+use std::path::{Path, PathBuf};
+
 use glutin;
 use glutin::GlContext;
+use mint;
 
 use camera::{Camera, Projection};
 use factory::Factory;
@@ -25,36 +29,43 @@ pub struct Window {
     pub scene: Scene,
 }
 
-pub struct WindowBuilder {
+/// Builder for creating new [`Window`](struct.Window.html) with desired parameters.
+pub struct Builder {
     dimensions: (u32, u32),
     fullscreen: bool,
     multisampling: u16,
-    shader_path: String,
+    shader_path: PathBuf,
     title: String,
     vsync: bool,
 }
 
-impl WindowBuilder {
+impl Builder {
+    /// Set the size of the viewport (the resolution) in pixels. Defaults to 1024x768.
     pub fn dimensions(&mut self, width: u32, height: u32) -> &mut Self {
         self.dimensions = (width, height);
         self
     }
 
+    /// Whether enable fullscreen mode or not. Defauls to `false`.
     pub fn fullscreen(&mut self, option: bool) -> &mut Self {
         self.fullscreen = option;
         self
     }
 
+    /// Sets the multisampling level to request. A value of `0` indicates that multisampling must
+    /// not be enabled. Must be the power of 2. Defaults to `0`.
     pub fn multisampling(&mut self, option: u16) -> &mut Self {
         self.multisampling = option;
         self
     }
 
+    /// Whether to enable vertical synchronization or not. Defaults to `true`.
     pub fn vsync(&mut self, option: bool) -> &mut Self {
         self.vsync = option;
         self
     }
 
+    /// Create new `Window` with desired parameters.
     pub fn build(&mut self) -> Window {
         use glutin::get_primary_monitor;
 
@@ -90,14 +101,14 @@ impl WindowBuilder {
 }
 
 impl Window {
-    /// Create new `Window` with specific title.
-    pub fn new(title: &str, shader_path: &str) -> WindowBuilder {
-        WindowBuilder {
+    /// Create new `Builder` with standard parameters.
+    pub fn builder<T: Into<String>, P: AsRef<Path>>(title: T, shader_path: P) -> Builder {
+        Builder {
             dimensions: (1024, 768),
             fullscreen: false,
             multisampling: 0,
-            shader_path: shader_path.to_owned(),
-            title: title.to_owned(),
+            shader_path: shader_path.as_ref().to_owned(),
+            title: title.into(),
             vsync: true,
         }
     }
@@ -130,7 +141,8 @@ impl Window {
                         button, .. } => input.mouse_input(state, button),
                     MouseMoved {
                         position: (x, y), ..
-                    } => input.mouse_moved(renderer.map_to_ndc(x as f32, y as f32)),
+                    } => input.mouse_moved([x as f32, y as f32].into(),
+                                           renderer.map_to_ndc([x as f32, y as f32])),
                     MouseWheel { delta, .. } => input.mouse_wheel_input(delta),
                     _ => {}
                 },
@@ -144,5 +156,11 @@ impl Window {
     /// Render the current scene with specific [`Camera`](struct.Camera.html).
     pub fn render<P: Projection>(&mut self, camera: &Camera<P>) {
         self.renderer.render(&self.scene, camera);
+    }
+
+    /// Get current window size in pixels.
+    pub fn size(&self) -> mint::Vector2<f32> {
+        let size = self.window.get_inner_size_pixels().expect("Can't get window size");
+        [size.0 as f32, size.1 as f32].into()
     }
 }
