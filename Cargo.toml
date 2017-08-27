@@ -24,9 +24,9 @@ froggy = "0.3"
 genmesh = "0.5"
 gfx = "0.16"
 gfx_glyph = "0.3"
-gltf = { path = "../gltf", version = "0.9" }
-gltf-importer = { path = "../gltf/gltf-importer", version = "0.9" }
-gltf-utils = { path = "../gltf/gltf-utils", version = "0.9" }
+gltf = "0.9"
+gltf-importer = "0.9"
+gltf-utils = "0.1"
 image = "0.13"
 itertools = "0.6"
 log = "0.3"
