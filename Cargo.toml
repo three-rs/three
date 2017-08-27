@@ -24,14 +24,15 @@ froggy = "0.4"
 genmesh = "0.5"
 gfx = "0.16"
 gfx_glyph = "0.3"
-gltf = "0.9"
-gltf-importer = "0.9"
-gltf-utils = "0.1"
+gltf = { path = "../gltf", version = "0.9.1" }
+gltf-importer = { path = "../gltf/gltf-importer", version = "0.9.1" }
+gltf-utils = { path = "../gltf/gltf-utils", version = "0.1.1" }
 image = "0.13"
 itertools = "0.6"
 log = "0.3"
 obj = { version = "0.6", features = ["genmesh"] }
 mint = "0.4.2"
+vec_map = "0.8"
 winit = "0.7.5"
 # OpenGL
 gfx_device_gl = { version = "0.14", optional = true }
@@ -52,13 +53,13 @@ name = "materials"
 name = "obj"
 
 [[example]]
-name = "pbr"
-
-[[example]]
 name = "shapes"
 
 [[example]]
 name = "sprite"
+
+[[example]]
+name = "gltf"
 
 [[example]]
 name = "group"

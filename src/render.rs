@@ -216,6 +216,20 @@ pub(crate) fn decode_color(c: Color) -> [f32; 4] {
     [f(c>>16), f(c>>8), f(c), 0.0]
 }
 
+/// Linear to sRGB conversion from https://en.wikipedia.org/wiki/SRGB
+pub(crate) fn encode_color(c: [f32; 4]) -> u32 {
+    let f = |x: f32| -> u32 {
+        let y = if x > 0.0031308 {
+            let a = 0.055;
+            (1.0 + a) * x.powf(-2.4) - a
+        } else {
+            12.92 * x
+        };
+        (y * 255.0).round() as u32
+    };
+    f(c[0]) << 16 | f(c[1]) << 8 | f(c[2])
+}
+
 //TODO: private fields?
 #[derive(Clone, Debug)]
 pub struct GpuData {

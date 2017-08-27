@@ -1,3 +1,5 @@
+mod load_gltf;
+
 use std::{cmp, iter};
 use std::collections::hash_map::{HashMap, Entry};
 use std::io::{BufReader, Read};
