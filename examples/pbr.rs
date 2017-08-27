@@ -105,7 +105,7 @@ fn load_mesh(
         .map(|x| x.into())
         .collect();
     let tex_coords = primitive
-        .tex_coords_f32(buffers, 0)
+        .tex_coords_f32(0, buffers)
         .unwrap()
         .map(|x| x.into())
         .collect();
