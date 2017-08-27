@@ -19,10 +19,10 @@ impl Cloud {
             group: factory.group(),
             meshes: Vec::new()
         };
-        let geo = three::Geometry::new_box(20.0, 20.0, 20.0);
+        let geo = three::Geometry::cuboid(20.0, 20.0, 20.0);
         let material = three::Material::MeshLambert{ color: COLOR_WHITE, flat: true };
         let template = factory.mesh(geo, material.clone());
-        for i in 0 .. rng.gen_range(3, 6) {
+        for i in 0i32 .. rng.gen_range(3, 6) {
             let mut m = factory.mesh_instance(&template, None);
             let rot: cgmath::Quaternion<f32> = rng.gen();
             let q = rot.normalize();

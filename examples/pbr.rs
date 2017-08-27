@@ -110,7 +110,7 @@ fn load_mesh(
         .map(|x| x.into())
         .collect();
     let geometry = three::Geometry {
-        base_shape: three::GeometryShape {
+        base_shape: three::geometry::Shape {
             vertices: vertices,
             normals: normals,
             tangents: tangents,

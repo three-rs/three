@@ -26,7 +26,7 @@ fn main() {
     }
 
     let mut sphere = {
-        let geometry = three::Geometry::new_sphere(3.0, 20, 20);
+        let geometry = three::Geometry::sphere(3.0, 20, 20);
         let material = three::Material::MeshPhong { color: 0xffA0A0, glossiness: 80.0 };
         win.factory.mesh(geometry, material)
     };
@@ -34,7 +34,7 @@ fn main() {
     win.scene.add(&sphere);
 
     let mut plane = {
-        let geometry = three::Geometry::new_plane(100.0, 100.0);
+        let geometry = three::Geometry::plane(100.0, 100.0);
         let material = three::Material::MeshLambert { color: 0xA0ffA0, flat: false };
         win.factory.mesh(geometry, material)
     };
