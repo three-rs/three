@@ -107,8 +107,7 @@ impl Geometry {
 
     /// Create new Cylinder or Cone with desired top and bottom radius, height
     /// and number of segments.
-    pub fn cylinder(radius_top: f32, radius_bottom: f32, height: f32,
-                        radius_segments: usize) -> Self
+    pub fn cylinder(radius_top: f32, radius_bottom: f32, height: f32, radius_segments: usize) -> Self
     {
         Self::generate(generators::Cylinder::new(radius_segments),
                        //Three.js has height along the Y axis for some reason
