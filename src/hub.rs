@@ -164,15 +164,15 @@ impl Hub {
     }
 
     pub(crate) fn update_graph(&mut self) {
-        let mut cursor = self.nodes.cursor_alive();
-        while let Some(mut item) = cursor.next() {
+        let mut cursor = self.nodes.cursor();
+        while let Some((left, mut item, _)) = cursor.next() {
             if !item.visible {
                 item.world_visible = false;
                 continue
             }
             let (visibility, affilation, transform) = match item.parent {
                 Some(ref parent_ptr) => {
-                    match item.look_back(parent_ptr) {
+                    match left.get(parent_ptr) {
                         Some(parent) => {
                             (parent.world_visible,
                              parent.scene_id,
