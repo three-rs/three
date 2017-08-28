@@ -18,6 +18,7 @@ use itertools::Either;
 use mint;
 use obj;
 
+use audio::{AudioData, Clip, Source};
 use render::{BackendFactory, BackendResources, BasicPipelineState,
              GpuData, DynamicData, Vertex, ShadowFormat,
              load_program, pipe as basic_pipe};
@@ -416,6 +417,13 @@ impl Factory {
         Text::with_object(object)
     }
 
+    /// Create new audio source.
+    pub fn audio_source(&mut self) -> Source {
+        let data = AudioData::new();
+        let object = self.hub.lock().unwrap().spawn_audio_source(data);
+        Source::with_object(object)
+    }
+
     /// Update the geometry of `DynamicMesh`.
     pub fn mix(&mut self, mesh: &DynamicMesh, shapes: &[(&str, f32)]) {
         let f2i = |x: f32| I8Norm(cmp::min(cmp::max((x * 127.) as isize, -128), 127) as i8);
@@ -453,14 +461,14 @@ impl Factory {
     /// Load TrueTypeFont (.ttf) from file.
     /// #### Panics
     /// Panics if I/O operations with file fails (e.g. file not found or corrupted)
-    pub fn load_font<'a, P: AsRef<Path>>(&'a mut self, file_path: P) -> Font {
-        let path_buf = file_path.as_ref().to_owned();
+    pub fn load_font<P: AsRef<Path>>(&mut self, file_path: P) -> Font {
+        let file_path = file_path.as_ref();
         let mut buffer = Vec::new();
-        let mut file = File::open(path_buf.clone()).expect(
-            &format!("Can't open font file:\nFile: {}", &path_buf.display()));
+        let mut file = File::open(&file_path).expect(
+            &format!("Can't open font file:\nFile: {}", file_path.display()));
         file.read_to_end(&mut buffer).expect(
-            &format!("Can't read font file:\nFile: {}", &path_buf.display()));
-        Font::new(buffer, path_buf, self.backend.clone())
+            &format!("Can't read font file:\nFile: {}", file_path.display()));
+        Font::new(buffer, file_path.to_owned(), self.backend.clone())
     }
 
     fn load_texture_impl(
@@ -639,6 +647,16 @@ impl Factory {
         }
 
         (groups, meshes)
+    }
+
+    /// Load audio from file. Supported formats are Flac, Vorbis and WAV.
+    pub fn load_audio<P: AsRef<Path>>(&self, path: P) -> Clip {
+        let mut buffer = Vec::new();
+        let mut file = File::open(&path).expect(
+            &format!("Can't open audio file:\nFile: {}", path.as_ref().display()));
+        file.read_to_end(&mut buffer).expect(
+            &format!("Can't read audio file:\nFile: {}", path.as_ref().display()));
+        Clip::new(buffer)
     }
 }
 
