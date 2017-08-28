@@ -430,7 +430,7 @@ impl Renderer {
         hub.update_graph();
 
         // update dynamic meshes
-        for mut node in hub.nodes.iter_mut() {
+        for node in hub.nodes.iter_mut() {
             if !node.visible || node.scene_id != Some(scene.unique_id) {
                 continue
             }
