@@ -86,7 +86,7 @@ impl Orbit {
         }
 
         if input.mouse_movements().len() > 0 {
-            let mouse_delta = input.mouse_delta();
+            let mouse_delta = input.mouse_delta_ndc();
             let pre = Decomposed {
                 disp: -self.target.to_vec(),
                 .. Decomposed::one()

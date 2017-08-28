@@ -24,7 +24,7 @@ fn main() {
 
     let shaders_path: String = format!("{}/data/shaders", env!("CARGO_MANIFEST_DIR"));
     let shaders_path_str: &str = shaders_path.as_str();
-    let mut win = three::Window::new("Three-rs Aviator demo", shaders_path_str).build();
+    let mut win = three::Window::builder("Three-rs Aviator demo", shaders_path_str).build();
     win.scene.background = three::Background::Color(COLOR_BACKGROUND);
 
     let mut cam = win.factory.perspective_camera(60.0, 1.0, 1000.0);
@@ -71,7 +71,7 @@ fn main() {
         // assume the original velocities are given for 60fps
         let time = 60.0 * timer.get(&win.input);
 
-        airplane.update(time, win.input.mouse_pos());
+        airplane.update(time, win.input.mouse_pos_ndc());
 
         let sea_angle = Rad(0.005 * time);
         let sea_q = Quaternion::from_angle_z(sea_angle) * sea_base_q;

@@ -12,7 +12,7 @@ use mint;
 
 use std::mem;
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub use self::back::Factory as BackendFactory;
 pub use self::back::Resources as BackendResources;
@@ -145,19 +145,38 @@ gfx_defines! {
     }
 }
 
-pub fn get_shader(root: &str, raw_path: &str, variant: &str) -> String {
+#[derive(Debug, Clone, Copy, PartialEq, Hash)]
+pub enum ShaderType {
+    Vertex,
+    Fragment,
+}
+
+impl ShaderType {
+    #[cfg(feature = "opengl")]
+    // Append specific postfix to the given name
+    pub fn as_file_name<S: Into<String>>(&self, name: S) -> String {
+        match *self {
+            ShaderType::Vertex => name.into() + "_vs.glsl",
+            ShaderType::Fragment => name.into() + "_ps.glsl",
+        }
+    }
+}
+
+pub fn get_shader(root: &Path, name: &str, variant: ShaderType) -> String {
     use std::fs::File;
     use std::io::{BufRead, BufReader, Read};
     let mut code = String::new();
-    let shader_path = format!("{}_{}.glsl", raw_path, variant);
+    let shader_path = root.join(variant.as_file_name(name));
     let template_file = File::open(&shader_path)
-                             .expect(&format!("Unable to open shader {}", shader_path));
+                             .expect(&format!("Unable to open shader {}", &shader_path.display()));
     for line in BufReader::new(template_file).lines() {
         let line = line.unwrap();
         if line.starts_with("#include") {
             for dep_name in line.split(' ').skip(1) {
                 code += &format!("//!including {}:\n", dep_name);
-                File::open(format!("{}/{}.glsl", root, dep_name))
+                let mut file_name = root.join(dep_name);
+                file_name.set_extension("glsl");
+                File::open(file_name)
                      .expect(&format!("Unable to open snippet for {}", dep_name))
                      .read_to_string(&mut code).unwrap();
             }
@@ -169,16 +188,18 @@ pub fn get_shader(root: &str, raw_path: &str, variant: &str) -> String {
     code
 }
 
-fn load_program<R, F>(root: &str, name: &str, factory: &mut F)
-                      -> gfx::handle::Program<R> where
+pub fn load_program<R, F, P: AsRef<Path>>(root: P, name: &str, factory: &mut F)
+                      -> Result<gfx::handle::Program<R>, ()> where
     R: gfx::Resources,
     F: gfx::Factory<R>,
 {
-    let full_name = format!("{}/{}", root, name);
-    let code_vs = get_shader(root, &full_name, "vs");
-    let code_ps = get_shader(root, &full_name, "ps");
+    let code_vs = get_shader(root.as_ref(), name, ShaderType::Vertex);
+    let code_ps = get_shader(root.as_ref(), name, ShaderType::Fragment);
 
-    factory.link_program(code_vs.as_bytes(), code_ps.as_bytes()).unwrap()
+    factory.link_program(code_vs.as_bytes(), code_ps.as_bytes()).map_err(|e| {
+        error!("Unable to link program {}: {}", root.as_ref().join(name).display(), e);
+        () // TODO: Better error type
+    })
 }
 
 /// sRGB to linear conversion from:
@@ -276,17 +297,17 @@ impl Renderer {
     pub fn new(builder: glutin::WindowBuilder,
                context: glutin::ContextBuilder,
                event_loop: &glutin::EventsLoop,
-               shader_path: &str) -> (Self, glutin::GlWindow, Factory) {
+               shader_path: &Path) -> (Self, glutin::GlWindow, Factory) {
         use gfx::texture as t;
         let (window, device, mut gl_factory, color, depth) =
             gfx_window_glutin::init(builder, context, event_loop);
-        let prog_basic = load_program(shader_path, "basic", &mut gl_factory);
-        let prog_gouraud = load_program(shader_path, "gouraud", &mut gl_factory);
-        let prog_phong = load_program(shader_path, "phong", &mut gl_factory);
-        let prog_sprite = load_program(shader_path, "sprite", &mut gl_factory);
-        let prog_shadow = load_program(shader_path, "shadow", &mut gl_factory);
-        let prog_quad = load_program(shader_path, "quad", &mut gl_factory);
-        let prog_pbr = load_program(shader_path, "pbr", &mut gl_factory);
+        let prog_basic = load_program(shader_path, "basic", &mut gl_factory).unwrap();
+        let prog_gouraud = load_program(shader_path, "gouraud", &mut gl_factory).unwrap();
+        let prog_phong = load_program(shader_path, "phong", &mut gl_factory).unwrap();
+        let prog_sprite = load_program(shader_path, "sprite", &mut gl_factory).unwrap();
+        let prog_shadow = load_program(shader_path, "shadow", &mut gl_factory).unwrap();
+        let prog_quad = load_program(shader_path, "quad", &mut gl_factory).unwrap();
+        let prog_pbr = load_program(shader_path, "pbr", &mut gl_factory).unwrap();
         let rast_fill = gfx::state::Rasterizer::new_fill().with_cull_back();
         let rast_wire = gfx::state::Rasterizer {
             method: gfx::state::RasterMethod::Line(1),
@@ -379,10 +400,11 @@ impl Renderer {
     /// Map screen pixel coordinates to Normalized Display Coordinates.
     /// The lower left corner corresponds to (-1,-1), and the upper right corner
     /// corresponds to (1,1).
-    pub fn map_to_ndc(&self, x: f32, y: f32) -> mint::Point2<f32> {
+    pub fn map_to_ndc<P: Into<mint::Point2<f32>>>(&self, point: P) -> mint::Point2<f32> {
+        let point = point.into();
         mint::Point2 {
-            x: 2.0 * x / self.size.0 as f32 - 1.0,
-            y: 1.0 - 2.0 * y / self.size.1 as f32,
+            x: 2.0 * point.x / self.size.0 as f32 - 1.0,
+            y: 1.0 - 2.0 * point.y / self.size.1 as f32,
         }
     }
 
@@ -754,9 +776,9 @@ impl Renderer {
                     self.size.1 as i32 + quad.pos[1] - quad.size[1]
                 },
             ];
-            let p0 = self.map_to_ndc(pos[0] as f32, pos[1] as f32);
-            let p1 = self.map_to_ndc((pos[0] + quad.size[0]) as f32,
-                                     (pos[1] + quad.size[1]) as f32);
+            let p0 = self.map_to_ndc([pos[0] as f32, pos[1] as f32]);
+            let p1 = self.map_to_ndc([(pos[0] + quad.size[0]) as f32,
+                                     (pos[1] + quad.size[1]) as f32]);
             self.encoder.update_constant_buffer(&self.quad_buf, &QuadParams {
                 rect: [p0.x, p0.y, p1.x, p1.y],
             });
