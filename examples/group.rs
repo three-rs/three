@@ -132,9 +132,14 @@ fn main() {
     let mut cubes = create_cubes(&mut win.factory, &materials, &levels);
     cubes[0].group.set_parent(&win.scene);
 
+    let font = win.factory.load_font(format!("{}/data/fonts/DejaVuSans.ttf", env!("CARGO_MANIFEST_DIR")));
+    let mut fps_counter = win.factory.ui_text(&font, "FPS: 00");
+
     let timer = win.input.time();
     while win.update() && !win.input.hit(three::KEY_ESCAPE) {
         let time = timer.get(&win.input);
+        let delta_time = win.input.delta_time();
+        fps_counter.set_text(format!("FPS: {}", 1.0 / delta_time));
         for cube in cubes.iter_mut() {
             let level = &levels[cube.level_id];
             let angle = Rad(time * level.speed);
