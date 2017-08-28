@@ -416,7 +416,7 @@ impl Renderer {
         hub.update_graph();
 
         // update dynamic meshes
-        for mut node in hub.nodes.iter_alive_mut() {
+        for mut node in hub.nodes.iter_mut() {
             if !node.visible || node.scene_id != Some(scene.unique_id) {
                 continue
             }
@@ -443,7 +443,7 @@ impl Renderer {
         }
         let mut lights = Vec::new();
         let mut shadow_requests = Vec::new();
-        for node in hub.nodes.iter_alive() {
+        for node in hub.nodes.iter() {
             if !node.visible || node.scene_id != Some(scene.unique_id) {
                 continue
             }
@@ -515,7 +515,7 @@ impl Renderer {
                 mx_vp: request.matrix.into(),
                 num_lights: 0,
             });
-            for node in hub.nodes.iter_alive() {
+            for node in hub.nodes.iter() {
                 if !node.visible || node.scene_id != Some(scene.unique_id) {
                     continue;
                 }
@@ -574,7 +574,7 @@ impl Renderer {
             Some(ref request) => request.resource.clone(),
             None => shadow_default.clone(),
         };
-        for node in hub.nodes.iter_alive() {
+        for node in hub.nodes.iter() {
             if !node.visible || node.scene_id != Some(scene.unique_id) {
                 continue;
             }
@@ -749,7 +749,7 @@ impl Renderer {
         }
 
         // draw ui text
-        for node in hub.nodes.iter_alive() {
+        for node in hub.nodes.iter() {
             if let SubNode::UiText(ref text) = node.sub_node {
                 text.font.queue(&text.section, text.layout);
                 if !self.font_cache.contains_key(&text.font.path) {
@@ -763,7 +763,7 @@ impl Renderer {
 
         // draw debug quads
         self.debug_quads.sync_pending();
-        for quad in self.debug_quads.iter_alive() {
+        for quad in self.debug_quads.iter() {
             let pos = [
                 if quad.pos[0] >= 0 {
                     quad.pos[0]
