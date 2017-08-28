@@ -20,7 +20,7 @@ default = ["opengl"]
 [dependencies]
 bitflags = "0.9"
 cgmath = { version = "0.15", features = ["mint"] }
-froggy = "0.3"
+froggy = "0.4"
 genmesh = "0.5"
 gfx = "0.16"
 gfx_glyph = "0.3"
