@@ -128,7 +128,7 @@ fn load_mesh(
             occlusion_strength: mat.occlusion_texture().map_or(1.0, |t| t.strength()),
             emissive_factor: mat.emissive_factor(),
             normal_scale: mat.normal_texture().map_or(1.0, |t| t.scale()),
-            
+
             base_color_map: pbr.base_color_texture().map(|t| load_texture(&t, buffers, factory)),
             normal_map: mat.normal_texture().map(|t| load_texture(&t, buffers, factory)),
             emissive_map: mat.emissive_texture().map(|t| load_texture(&t, buffers, factory)),
@@ -141,7 +141,7 @@ fn load_mesh(
 
 fn main() {
     let shaders = concat!(env!("CARGO_MANIFEST_DIR"), "/data/shaders");
-    let mut win = three::Window::new("Three-rs PBR example", shaders).build();
+    let mut win = three::Window::builder("Three-rs PBR example", shaders).build();
     let mut cam = win.factory.perspective_camera(75.0, 0.01, 100.0);
     let mut yaw: f32 = 0.8;
     let mut distance: f32 = 3.9;

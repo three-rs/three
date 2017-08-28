@@ -16,12 +16,14 @@ struct State {
     keys_pressed: HashSet<Key>,
     mouse_pressed: HashSet<MouseButton>,
     mouse_pos: mint::Point2<f32>,
+    mouse_pos_ndc: mint::Point2<f32>,
 }
 
 struct Delta {
     time_delta: TimerDuration,
     keys_hit: Vec<Key>,
     mouse_moves: Vec<mint::Vector2<f32>>,
+    mouse_moves_ndc: Vec<mint::Vector2<f32>>,
     mouse_hit: Vec<MouseButton>,
     mouse_wheel: Vec<f32>,
 }
@@ -37,11 +39,13 @@ impl Input {
             keys_pressed: HashSet::new(),
             mouse_pressed: HashSet::new(),
             mouse_pos: [0.0; 2].into(),
+            mouse_pos_ndc: [0.0; 2].into(),
         };
         let diff = Delta {
             time_delta: 0.0,
             keys_hit: Vec::new(),
             mouse_moves: Vec::new(),
+            mouse_moves_ndc: Vec::new(),
             mouse_hit: Vec::new(),
             mouse_wheel: Vec::new(),
         };
@@ -55,6 +59,7 @@ impl Input {
         self.1.time_delta = dt.as_secs() as f32 + 1e-9 * dt.subsec_nanos() as f32;
         self.1.keys_hit.clear();
         self.1.mouse_moves.clear();
+        self.1.mouse_moves_ndc.clear();
         self.1.mouse_hit.clear();
         self.1.mouse_wheel.clear();
     }
@@ -71,10 +76,15 @@ impl Input {
         self.1.time_delta
     }
 
-    /// Get current mouse pointer position in Normalized Display Coordinates.
-    /// See [`map_to_ndc`](struct.Renderer.html#method.map_to_ndc).
+    /// Get current mouse pointer position in pixels from top-left
     pub fn mouse_pos(&self) -> mint::Point2<f32> {
         self.0.mouse_pos
+    }
+
+    /// Get current mouse pointer position in Normalized Display Coordinates.
+    /// See [`map_to_ndc`](struct.Renderer.html#method.map_to_ndc).
+    pub fn mouse_pos_ndc(&self) -> mint::Point2<f32> {
+        self.0.mouse_pos_ndc
     }
 
     /// Get list of all mouse wheel movements since last frame.
@@ -87,15 +97,30 @@ impl Input {
         self.1.mouse_wheel.iter().sum()
     }
 
-    /// Get list of all mouse movements since last frame.
+    /// Get list of all mouse movements since last frame in pixels.
     pub fn mouse_movements(&self) -> &[mint::Vector2<f32>] {
         &self.1.mouse_moves[..]
     }
 
-    /// Get summarized mouse movements (the sum of all movements since last frame).
+    /// Get list of all mouse movements since last frame in NDC.
+    pub fn mouse_movements_ndc(&self) -> &[mint::Vector2<f32>] {
+        &self.1.mouse_moves_ndc[..]
+    }
+
+    /// Get summarized mouse movements (the sum of all movements since last frame) in pixels.
     pub fn mouse_delta(&self) -> mint::Vector2<f32> {
         use cgmath::Vector2;
         self.1.mouse_moves.iter()
+            .cloned()
+            .map(Vector2::from)
+            .sum::<Vector2<f32>>()
+            .into()
+    }
+
+    /// Get summarized mouse movements (the sum of all movements since last frame) in NDC.
+    pub fn mouse_delta_ndc(&self) -> mint::Vector2<f32> {
+        use cgmath::Vector2;
+        self.1.mouse_moves_ndc.iter()
             .cloned()
             .map(Vector2::from)
             .sum::<Vector2<f32>>()
@@ -126,10 +151,12 @@ impl Input {
         }
     }
 
-    pub(crate) fn mouse_moved(&mut self, pos: mint::Point2<f32>) {
+    pub(crate) fn mouse_moved(&mut self, pos: mint::Point2<f32>, pos_ndc: mint::Point2<f32>) {
         use cgmath::Point2;
         self.1.mouse_moves.push((Point2::from(pos) - Point2::from(self.0.mouse_pos)).into());
+        self.1.mouse_moves_ndc.push((Point2::from(pos_ndc) - Point2::from(self.0.mouse_pos_ndc)).into());
         self.0.mouse_pos = pos;
+        self.0.mouse_pos_ndc = pos_ndc;
     }
 
     pub(crate) fn mouse_wheel_input(&mut self, delta: MouseScrollDelta) {

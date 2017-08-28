@@ -45,14 +45,14 @@ mod sprite;
 mod text;
 mod texture;
 #[cfg(feature = "opengl")]
-mod window;
+pub mod window;
 
 pub use controls::{KEY_SPACE, KEY_ESCAPE, MOUSE_LEFT, MOUSE_RIGHT, AXIS_DOWN_UP, AXIS_LEFT_RIGHT};
 pub use controls::{Button, Input, Timer, KeyAxis};
 pub use factory::Factory;
 pub use geometry::Geometry;
 pub use render::{ColorFormat, DepthFormat, Renderer, ShadowType, DebugQuadHandle};
-pub use scene::{Scene, Color, Background};
+pub use scene::{Background, Color, Scene};
 pub use material::Material;
 pub use mesh::{Mesh, DynamicMesh};
 pub use node::{NodePointer, NodeTransform, NodeInfo};
