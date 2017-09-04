@@ -5,6 +5,7 @@ use image;
 use mint;
 use std::{fs, io};
 
+use camera::Camera;
 use std::path::{Path, PathBuf};
 use vec_map::VecMap;
 use {Geometry, Group, Material, Mesh, Texture};
@@ -205,6 +206,7 @@ impl super::Factory {
         the_node: &gltf::Node,
         buffers: &gltf_importer::Buffers,
         base: &Path,
+        cameras: &mut Vec<Camera>,
         meshes: &mut VecMap<Vec<Mesh>>,
         instances: &mut Vec<Mesh>,
     ) -> Group {
@@ -259,6 +261,34 @@ impl super::Factory {
                 }
             }
 
+            if let Some(entry) = item.node.camera() {
+                match entry.projection() {
+                    gltf::camera::Projection::Orthographic(x) => {
+                        let center: mint::Point2<f32> = [0.0, 0.0].into();
+                        let extent_y = x.ymag();
+                        let range = x.znear()..x.zfar();
+                        let camera = self.orthographic_camera(
+                            center,
+                            extent_y,
+                            range,
+                        );
+                        item.group.add(&camera);
+                        cameras.push(camera);
+                    },
+                    gltf::camera::Projection::Perspective(x) => {
+                        let fov_y = x.yfov().to_degrees();
+                        let near = x.znear();
+                        let camera = if let Some(far) = x.zfar() {
+                            self.perspective_camera(fov_y, near..far)
+                        } else {
+                            self.perspective_camera(fov_y, near..)
+                        };
+                        item.group.add(&camera);
+                        cameras.push(camera);
+                    },
+                }
+            }
+
             for child in item.node.children() {
                 let child_group = self.group();
                 item.group.add(&child_group);
@@ -275,23 +305,29 @@ impl super::Factory {
     }
 
     /// Load a scene from glTF 2.0 format.
-    pub fn load_gltf(&mut self, path_str: &str) -> (Group, VecMap<Vec<Mesh>>) {
+    pub fn load_gltf(&mut self, path_str: &str) -> (
+        Group,
+        Vec<Camera>,
+        VecMap<Vec<Mesh>>,
+    ) {
         info!("Loading {}", path_str);
         let path = Path::new(path_str);
         let default = Path::new("");
         let base = path.parent().unwrap_or(&default);
         let (gltf, buffers) = gltf_importer::import(path).expect("invalid glTF 2.0");
+        let mut cameras = Vec::new();
         let mut meshes = VecMap::new();
         let mut instances = Vec::new();
         let mut group = self.group();
 
-        if let Some(scene) = gltf.scenes().nth(0) {
+        if let Some(scene) = gltf.default_scene() {
             for root in scene.nodes() {
                 let node = self.load_gltf_node(
                     &gltf,
                     &root,
                     &buffers,
                     base,
+                    &mut cameras,
                     &mut meshes,
                     &mut instances,
                 );
@@ -308,6 +344,6 @@ impl super::Factory {
             meshes.insert(i, instances);
         }
 
-        (group, meshes)
+        (group, cameras, meshes)
     }
 }

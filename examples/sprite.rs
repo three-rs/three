@@ -41,8 +41,8 @@ impl Animator {
 fn main() {
     let shaders_path: String = format!("{}/data/shaders", env!("CARGO_MANIFEST_DIR"));
     let shaders_path_str: &str = shaders_path.as_str();
-    let mut win = three::Window::builder("Three-rs sprite example", shaders_path_str).build();
-    let cam = win.factory.orthographic_camera([0.0, 0.0], 10.0, -10.0, 10.0);
+    let mut win = three::Window::new("Three-rs sprite example", shaders_path_str).build();
+    let cam = win.factory.orthographic_camera([0.0, 0.0], 10.0, -10.0 .. 10.0);
 
     let pikachu_path: String = format!("{}/test_data/pikachu_anim.png", env!("CARGO_MANIFEST_DIR"));
     let pikachu_path_str: &str = pikachu_path.as_str();

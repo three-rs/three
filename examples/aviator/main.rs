@@ -27,7 +27,7 @@ fn main() {
     let mut win = three::Window::builder("Three-rs Aviator demo", shaders_path_str).build();
     win.scene.background = three::Background::Color(COLOR_BACKGROUND);
 
-    let mut cam = win.factory.perspective_camera(60.0, 1.0, 1000.0);
+    let mut cam = win.factory.perspective_camera(60.0, 1.0 .. 1000.0);
     cam.set_position([0.0, 100.0, 200.0]);
     win.scene.add(&cam);
 
@@ -39,7 +39,7 @@ fn main() {
     let mut dir_light = win.factory.directional_light(0xffffff, 0.9);
     dir_light.look_at([150.0, 350.0, 350.0], [0.0, 0.0, 0.0], None);
     let shadow_map = win.factory.shadow_map(2048, 2048);
-    dir_light.set_shadow(shadow_map, 400.0, 1.0, 1000.0);
+    dir_light.set_shadow(shadow_map, 400.0, 1.0 .. 1000.0);
     win.scene.add(&dir_light);
     let ambient_light = win.factory.ambient_light(0xdc8874, 0.5);
     win.scene.add(&ambient_light);
