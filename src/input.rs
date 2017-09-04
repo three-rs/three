@@ -1,4 +1,5 @@
-use glutin::{MouseButton, MouseScrollDelta, ElementState, VirtualKeyCode as Key};
+use glutin::{MouseButton, MouseScrollDelta, ElementState};
+pub use glutin::VirtualKeyCode as Key;
 use mint;
 
 use std::collections::HashSet;
@@ -71,7 +72,7 @@ impl Input {
         }
     }
 
-    /// Get current delta time (time since previous frame)
+    /// Get current delta time (time since previous frame) in seconds.
     pub fn delta_time(&self) -> f32 {
         self.1.time_delta
     }
