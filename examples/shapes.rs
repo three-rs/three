@@ -7,8 +7,8 @@ use cgmath::prelude::*;
 fn main() {
     let shaders_path: String = format!("{}/data/shaders", env!("CARGO_MANIFEST_DIR"));
     let shaders_path_str: &str = shaders_path.as_str();
-    let mut win = three::Window::builder("Three-rs shapes example", shaders_path_str).build();
-    let mut cam = win.factory.perspective_camera(75.0, 1.0, 50.0);
+    let mut win = three::Window::new("Three-rs shapes example", shaders_path_str).build();
+    let mut cam = win.factory.perspective_camera(75.0, 1.0 .. 50.0);
     cam.set_position([0.0, 0.0, 10.0]);
 
     let mut mbox = {

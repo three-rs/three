@@ -37,50 +37,23 @@ fn main() {
 
     let default = concat!(env!("CARGO_MANIFEST_DIR"), "/test_data/Lantern.gltf");
     let path = std::env::args().nth(1).unwrap_or(default.into());
-    let (group, _meshes) = win.factory.load_gltf(&path);
+    let (group, mut cameras, _meshes) = win.factory.load_gltf(&path);
     win.scene.add(&group);
 
+    let mut cam = if cameras.len() > 0 {
+        cameras.swap_remove(0)
+    } else {
+        let default = win.factory.perspective_camera(60.0, 0.001 .. 100.0);
+        win.scene.add(&default);
+        default
+    };
+
+    let init = cam.sync(&win.scene).world_transform;
+    let mut controls = three::controls::FirstPerson::builder(&cam)
+        .position(init.position)
+        .build();
     while win.update() && !three::KEY_ESCAPE.is_hit(&win.input) {
-        if three::Button::Key(three::Key::Q).is_hit(&win.input) {
-            st.yaw -= st.look_speed;
-        }
-        if three::Button::Key(three::Key::E).is_hit(&win.input) {
-            st.yaw += st.look_speed;
-        }
-        if three::Button::Key(three::Key::R).is_hit(&win.input) {
-            st.pitch -= st.look_speed;
-        }
-        if three::Button::Key(three::Key::F).is_hit(&win.input) {
-            st.pitch += st.look_speed;
-        }
-        if three::Button::Key(three::Key::X).is_hit(&win.input) {
-            st.position.y += st.move_speed;
-        }
-        if three::Button::Key(three::Key::Z).is_hit(&win.input) {
-            st.position.y -= st.move_speed;
-        }
-        if three::Button::Key(three::Key::W).is_hit(&win.input) {
-            st.position.x += st.move_speed * st.yaw.sin();
-            st.position.z -= st.move_speed * st.yaw.cos();
-        }
-        if three::Button::Key(three::Key::S).is_hit(&win.input) {
-            st.position.x -= st.move_speed * st.yaw.sin();
-            st.position.z += st.move_speed * st.yaw.cos();
-        }
-        if three::Button::Key(three::Key::D).is_hit(&win.input) {
-            st.position.x += st.move_speed * st.yaw.cos();
-            st.position.z += st.move_speed * st.yaw.sin();
-        }
-        if three::Button::Key(three::Key::A).is_hit(&win.input) {
-            st.position.x -= st.move_speed * st.yaw.cos();
-            st.position.z -= st.move_speed * st.yaw.sin();
-        }
-        if three::Button::Key(three::Key::P).is_hit(&win.input) {
-            println!("pos: {:?}, yaw: {}", st.position, st.yaw);
-        }
-        let yrot = cgmath::Quaternion::<f32>::from_angle_y(cgmath::Rad(-st.yaw));
-        let xrot = cgmath::Quaternion::<f32>::from_angle_x(cgmath::Rad(-st.pitch));
-        cam.set_transform(cgmath::Point3::from_vec(st.position), yrot * xrot, 1.0);
+        controls.update(&win.input);
         win.render(&cam); 
     }
 }

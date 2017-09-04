@@ -5,7 +5,7 @@ use glutin;
 use glutin::GlContext;
 use mint;
 
-use camera::{Camera, Projection};
+use camera::Camera;
 use factory::Factory;
 use input::Input;
 use render::Renderer;
@@ -154,7 +154,7 @@ impl Window {
     }
 
     /// Render the current scene with specific [`Camera`](struct.Camera.html).
-    pub fn render<P: Projection>(&mut self, camera: &Camera<P>) {
+    pub fn render(&mut self, camera: &Camera) {
         self.renderer.render(&self.scene, camera);
     }
 
