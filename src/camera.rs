@@ -32,7 +32,7 @@ impl From<ops::RangeFrom<f32>> for ZRange {
 pub enum Projection {
     /// An orthographic projection.
     Orthographic(Orthographic),
-    /// A finite perspective projection.
+    /// A perspective projection.
     Perspective(Perspective),
 }
 
@@ -46,8 +46,8 @@ pub struct Camera {
 
 impl Camera {
     /// Computes the projection matrix representing the camera's projection.
-    pub fn project(&self, aspect_ratio: f32) -> mint::ColumnMatrix4<f32> {
-        self.projection.project(aspect_ratio)
+    pub fn matrix(&self, aspect_ratio: f32) -> mint::ColumnMatrix4<f32> {
+        self.projection.matrix(aspect_ratio)
     }
 }
 
@@ -68,10 +68,10 @@ impl Projection {
     }
 
     /// Computes the projection matrix representing the camera's projection.
-    pub fn project(&self, aspect_ratio: f32) -> mint::ColumnMatrix4<f32> {
-         match *self {
-            Projection::Orthographic(ref x) => x.project(aspect_ratio),
-            Projection::Perspective(ref x) => x.project(aspect_ratio),
+    pub fn matrix(&self, aspect_ratio: f32) -> mint::ColumnMatrix4<f32> {
+        match *self {
+            Projection::Orthographic(ref x) => x.matrix(aspect_ratio),
+            Projection::Perspective(ref x) => x.matrix(aspect_ratio),
         }
     }
 }
@@ -110,7 +110,7 @@ pub struct Orthographic {
 
 impl Orthographic {
     /// Computes the projection matrix representing the camera's projection.
-    pub fn project(&self, aspect_ratio: f32) -> mint::ColumnMatrix4<f32> {
+    pub fn matrix(&self, aspect_ratio: f32) -> mint::ColumnMatrix4<f32> {
         let extent_x = aspect_ratio * self.extent_y;
         cgmath::ortho(
             self.center.x - extent_x,

@@ -20,7 +20,7 @@ pub struct Orbit {
 }
 
 /// Helper struct to construct [`Orbit`](struct.Orbit.html) with desired settings.
-pub struct OrbitBuilder {
+pub struct Builder {
     object: Object,
     position: mint::Point3<f32>,
     target: mint::Point3<f32>,
@@ -28,14 +28,12 @@ pub struct OrbitBuilder {
     speed: f32,
 }
 
-impl OrbitBuilder {
-    /// Create new `OrbitBuilder` with default values.
-    ///
-    /// Use `build` method to get `OrbitControls`.
+impl Builder {
+    /// Create new `Builder` with default values.
     pub fn new<P>(object: &Object, position: P, target: P) -> Self
         where P: Into<mint::Point3<f32>>,
     {
-        OrbitBuilder {
+        Builder {
             object: object.clone(),
             position: position.into(),
             target: target.into(),
@@ -79,6 +77,13 @@ impl OrbitBuilder {
 }
 
 impl Orbit {
+    /// Create new `Builder` with default values.
+    pub fn builder<P>(object: &Object, position: P, target: P) -> Builder
+        where P: Into<mint::Point3<f32>>
+    {
+        Builder::new(object, position, target)
+    }
+    
     /// Update current position and rotation of the controlled object according to the last frame input.
     pub fn update(&mut self, input: &Input) {
         if !self.button.is_hit(input) && input.mouse_wheel().abs() < 1e-6 {

@@ -471,7 +471,7 @@ impl Renderer {
                     let dim = target.get_dimensions();
                     let aspect = dim.0 as f32 / dim.1 as f32;
                     let mx_proj: [[f32; 4]; 4] = match projection {
-                        &ShadowProjection::Orthographic(ref p) => p.project(aspect),
+                        &ShadowProjection::Orthographic(ref p) => p.matrix(aspect),
                     }.into();
                     let mx_view = Matrix4::from(
                         node.world_transform.inverse_transform().unwrap());
@@ -556,7 +556,7 @@ impl Renderer {
 
         // prepare target and globals
         let mx_vp = {
-            let p: [[f32; 4]; 4] = camera.project(self.get_aspect()).into();
+            let p: [[f32; 4]; 4] = camera.matrix(self.get_aspect()).into();
             let node = &hub.nodes[&camera.object.node];
             let w = match node.scene_id {
                 Some(id) if id == scene.unique_id => node.world_transform,
