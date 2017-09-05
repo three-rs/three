@@ -9,7 +9,7 @@ fn main() {
 
     let shaders_path: String = format!("{}/data/shaders", env!("CARGO_MANIFEST_DIR"));
     let shaders_path_str: &str = shaders_path.as_str();
-    let mut win = three::Window::new("Three-rs obj loading example", shaders_path_str).build();
+    let mut win = three::Window::builder("Three-rs obj loading example", shaders_path_str).build();
     let cam = win.factory.perspective_camera(60.0, 1.0 .. 10.0);
     let mut controls = three::controls::Orbit::builder(
         &cam,
