@@ -1,10 +1,13 @@
-use std::{cmp, iter};
+mod load_gltf;
+
+use std::{cmp, iter, ops};
 use std::collections::hash_map::{HashMap, Entry};
 use std::io::{BufReader, Read};
 use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::borrow::Cow;
 
+use camera;
 use cgmath::Vector3;
 use genmesh::{Polygon, Triangulate};
 use gfx;
@@ -15,7 +18,6 @@ use itertools::Either;
 use mint;
 use obj;
 
-use camera::{Orthographic, Perspective};
 use render::{BackendFactory, BackendResources, BasicPipelineState,
              GpuData, DynamicData, Vertex, ShadowFormat,
              load_program, pipe as basic_pipe};
@@ -115,31 +117,53 @@ impl Factory {
         }
     }
 
-    /// Create new [Orthographic](https://en.wikipedia.org/wiki/Orthographic_projection) Camera.
-    /// It's used basically to render 2D.
-    pub fn orthographic_camera<P>(&mut self, center: P,
-                               extent_y: f32, near: f32, far: f32)
-                               -> Camera<Orthographic>
-    where P: Into<mint::Point2<f32>>
-    {
+    /// Create new [Orthographic] Camera.
+    /// It's used to render 2D.
+    ///
+    /// [Orthographic]: https://en.wikipedia.org/wiki/Orthographic_projection
+    pub fn orthographic_camera<P: Into<mint::Point2<f32>>>(
+        &mut self,
+        center: P,
+        extent_y: f32,
+        range: ops::Range<f32>,
+    ) -> Camera {
         Camera {
             object: self.hub.lock().unwrap().spawn_empty(),
-            projection: Orthographic {
-                center: center.into(),
-                extent_y, near, far,
-            },
+            projection: camera::Projection::orthographic(center, extent_y, range),
         }
     }
 
-    /// Create new [Perspective](https://en.wikipedia.org/wiki/Perspective_(graphical)) Camera.
-    /// It's used basically to render 3D.
-    pub fn perspective_camera(&mut self, fov_y: f32, near: f32, far: f32)
-                              -> Camera<Perspective> {
+    /// Create new [Perspective] Camera.
+    ///
+    /// It's used to render 3D.
+    ///
+    /// # Examples
+    ///
+    /// Creating a finite perspective camera.
+    ///
+    /// ```rust,no_run
+    /// # #![allow(unreachable_code, unused_variables)]
+    /// # let mut factory: three::Factory = unimplemented!();
+    /// let camera = factory.perspective_camera(60.0, 0.1 .. 1.0);
+    /// ```
+    ///
+    /// Creating an infinite perspective camera.
+    ///
+    /// ```rust,no_run
+    /// # #![allow(unreachable_code, unused_variables)]
+    /// # let mut factory: three::Factory = unimplemented!();
+    /// let camera = factory.perspective_camera(60.0, 0.1 ..);
+    /// ```
+    ///
+    /// [Perspective]: https://en.wikipedia.org/wiki/Perspective_(graphical)
+    pub fn perspective_camera<R: Into<camera::ZRange>>(
+        &mut self,
+        fov_y: f32,
+        range: R,
+    ) -> Camera {
         Camera {
             object: self.hub.lock().unwrap().spawn_empty(),
-            projection: Perspective {
-                fov_y, near, far,
-            },
+            projection: camera::Projection::perspective(fov_y, range),
         }
     }
 

@@ -17,7 +17,7 @@ use std::path::{Path, PathBuf};
 pub use self::back::Factory as BackendFactory;
 pub use self::back::Resources as BackendResources;
 pub use self::back::CommandBuffer as BackendCommandBuffer;
-use camera::{Camera, Projection};
+use camera::Camera;
 use factory::Factory;
 use scene::{Color, Background, Scene};
 use material::Material;
@@ -216,6 +216,20 @@ pub(crate) fn decode_color(c: Color) -> [f32; 4] {
     [f(c>>16), f(c>>8), f(c), 0.0]
 }
 
+/// Linear to sRGB conversion from https://en.wikipedia.org/wiki/SRGB
+pub(crate) fn encode_color(c: [f32; 4]) -> u32 {
+    let f = |x: f32| -> u32 {
+        let y = if x > 0.0031308 {
+            let a = 0.055;
+            (1.0 + a) * x.powf(-2.4) - a
+        } else {
+            12.92 * x
+        };
+        (y * 255.0).round() as u32
+    };
+    f(c[0]) << 16 | f(c[1]) << 8 | f(c[2])
+}
+
 //TODO: private fields?
 #[derive(Clone, Debug)]
 pub struct GpuData {
@@ -409,7 +423,7 @@ impl Renderer {
     }
 
     /// See [`Window::render`](struct.Window.html#method.render).
-    pub fn render<P: Projection>(&mut self, scene: &Scene, camera: &Camera<P>) {
+    pub fn render(&mut self, scene: &Scene, camera: &Camera) {
         self.device.cleanup();
         let mut hub = scene.hub.lock().unwrap();
         hub.process_messages();
@@ -457,7 +471,7 @@ impl Renderer {
                     let dim = target.get_dimensions();
                     let aspect = dim.0 as f32 / dim.1 as f32;
                     let mx_proj: [[f32; 4]; 4] = match projection {
-                        &ShadowProjection::Orthographic(ref p) => p.get_matrix(aspect),
+                        &ShadowProjection::Orthographic(ref p) => p.matrix(aspect),
                     }.into();
                     let mx_view = Matrix4::from(
                         node.world_transform.inverse_transform().unwrap());
@@ -542,7 +556,7 @@ impl Renderer {
 
         // prepare target and globals
         let mx_vp = {
-            let p: [[f32; 4]; 4] = camera.projection.get_matrix(self.get_aspect()).into();
+            let p: [[f32; 4]; 4] = camera.matrix(self.get_aspect()).into();
             let node = &hub.nodes[&camera.object.node];
             let w = match node.scene_id {
                 Some(id) if id == scene.unique_id => node.world_transform,

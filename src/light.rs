@@ -1,5 +1,6 @@
 //! Contains different types of light sources.
 use gfx;
+use std::ops;
 
 use camera::Orthographic;
 use hub::Operation;
@@ -68,12 +69,11 @@ impl Directional {
 
     /// Adds shadow map for this light source.
     pub fn set_shadow(&mut self, map: ShadowMap,
-                      extent_y: f32, near: f32, far: f32) {
+                      extent_y: f32, range: ops::Range<f32>) {
         let sp = ShadowProjection::Orthographic(Orthographic {
             center: [0.0; 2].into(),
             extent_y,
-            near,
-            far,
+            range,
         });
         self.shadow = Some(map.clone());
         let msg = Operation::SetShadow(map, sp);
