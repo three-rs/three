@@ -109,7 +109,7 @@ fn main() {
     let mut win = three::Window::builder("Three-rs group example", shaders_path_str).build();
     win.scene.background = three::Background::Color(0x204060);
 
-    let mut cam = win.factory.perspective_camera(60.0, 1.0, 100.0);
+    let mut cam = win.factory.perspective_camera(60.0, 1.0 .. 100.0);
     cam.look_at([-1.8, -8.0, 7.0], [0.0, 0.0, 3.5], None);
 
     let mut light = win.factory.point_light(0xffffff, 1.0);

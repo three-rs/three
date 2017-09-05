@@ -9,6 +9,9 @@ extern crate genmesh;
 #[macro_use]
 extern crate gfx;
 extern crate gfx_glyph;
+extern crate gltf;
+extern crate gltf_importer;
+extern crate gltf_utils;
 extern crate image;
 #[macro_use]
 extern crate itertools;
@@ -16,6 +19,7 @@ extern crate itertools;
 extern crate log;
 extern crate mint;
 extern crate obj;
+extern crate vec_map;
 extern crate winit;
 // OpenGL
 #[cfg(feature = "opengl")]
