@@ -6,7 +6,6 @@ fn main() {
     let mut args = env::args();
     let obj_path: String = format!("{}/test_data/car.obj", env!("CARGO_MANIFEST_DIR"));
     let path = args.nth(1).unwrap_or(obj_path);
-
     let shaders_path: String = format!("{}/data/shaders", env!("CARGO_MANIFEST_DIR"));
     let shaders_path_str: &str = shaders_path.as_str();
     let mut win = three::Window::builder("Three-rs obj loading example", shaders_path_str).build();
