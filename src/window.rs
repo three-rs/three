@@ -146,6 +146,19 @@ impl Window {
                     MouseWheel { delta, .. } => input.mouse_wheel_input(delta),
                     _ => {}
                 },
+                glutin::Event::DeviceEvent { event, .. } => match event {
+                    glutin::DeviceEvent::Motion { axis, value } => {
+                        let delta = if axis == 0 {
+                            [value as f32, 0.0].into()
+                        } else if axis == 1 {
+                            [0.0, value as f32].into()
+                        } else {
+                            return;
+                        };
+                        input.mouse_moved_raw(delta);
+                    },
+                    _ => {}
+                },
                 _ => {}
             }
         });
