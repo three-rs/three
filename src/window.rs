@@ -163,4 +163,14 @@ impl Window {
         let size = self.window.get_inner_size_pixels().expect("Can't get window size");
         [size.0 as f32, size.1 as f32].into()
     }
+
+    /// Set cursor visibility
+    pub fn show_cursor(&self, enable: bool) {
+        if enable {
+            self.window.set_cursor_state(glutin::CursorState::Normal);
+        } else {
+            self.window.set_cursor_state(glutin::CursorState::Hide);
+        }
+    }
+    
 }
