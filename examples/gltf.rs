@@ -24,9 +24,10 @@ fn main() {
     let init = cam.sync(&win.scene).world_transform;
     let mut controls = three::controls::FirstPerson::builder(&cam)
         .position(init.position)
+        .move_speed(4.0)
         .build();
     while win.update() && !three::KEY_ESCAPE.is_hit(&win.input) {
         controls.update(&win.input);
-        win.render(&cam); 
+        win.render(&cam);
     }
 }

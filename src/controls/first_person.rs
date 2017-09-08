@@ -1,10 +1,32 @@
 use cgmath;
 use mint;
-use std;
 
 use cgmath::Rotation3;
-use input::{Button, Input, Key};
+use input::{Input, Key, KeyAxis};
 use object::Object;
+
+#[derive(Clone)]
+struct Axes {
+    pub forward: Option<KeyAxis>,
+    pub strafing: Option<KeyAxis>,
+    pub vertical: Option<KeyAxis>,
+}
+
+impl Default for Axes {
+    fn default() -> Self {
+        Axes {
+            forward: Some(KeyAxis {
+                pos: Key::W,
+                neg: Key::S,
+            }),
+            strafing: Some(KeyAxis {
+                pos: Key::D,
+                neg: Key::A,
+            }),
+            vertical: None,
+        }
+    }
+}
 
 /// Controls for first person camera.
 pub struct FirstPerson {
@@ -14,6 +36,9 @@ pub struct FirstPerson {
     pitch: f32,
     move_speed: f32,
     look_speed: f32,
+    axes: Axes,
+    vertical_move: bool,
+    vertical_look: bool,
 }
 
 /// Constructs custom [`FirstPerson`](struct.FirstPerson.html) controls.
@@ -24,6 +49,9 @@ pub struct Builder {
     pitch: f32,
     move_speed: f32,
     look_speed: f32,
+    axes: Axes,
+    vertical_move: bool,
+    vertical_look: bool,
 }
 
 impl Builder {
@@ -35,7 +63,10 @@ impl Builder {
             yaw: 0.0,
             pitch: 0.0,
             move_speed: 1.0,
-            look_speed: std::f32::consts::PI / 2.0,
+            look_speed: 0.5,
+            axes: Axes::default(),
+            vertical_move: true,
+            vertical_look: true,
         }
     }
 
@@ -71,11 +102,51 @@ impl Builder {
         self
     }
 
-    /// Setup the yaw and pitch movement speed in radians per second.
+    /// Setup mouse sensitivity.
     ///
-    /// Defaults to PI/2 radians per second.
+    /// Defaults to 0.5
     pub fn look_speed(&mut self, speed: f32) -> &mut Self {
         self.look_speed = speed;
+        self
+    }
+
+    /// Setup whether controlled object should move along `y` axis when looking down or up.
+    ///
+    /// Defaults to true.
+    pub fn vertical_movement(&mut self, value: bool) -> &mut Self {
+        self.vertical_move = value;
+        self
+    }
+
+    /// Setup whether controlled object can adjust pitch using mouse.
+    ///
+    /// Defaults to true.
+    pub fn vertical_look(&mut self, value: bool) -> &mut Self {
+        self.vertical_look = value;
+        self
+    }
+
+    /// Setup key axis for moving forward/backward.
+    ///
+    /// Defaults to `W` and `S` keys.
+    pub fn axis_forward(&mut self, axis: Option<KeyAxis>) -> &mut Self {
+        self.axes.forward = axis;
+        self
+    }
+
+    /// Setup button for "strafing" left/right.
+    ///
+    /// Defaults to `A` and `D` keys.
+    pub fn axis_strafing(&mut self, axis: Option<KeyAxis>) -> &mut Self {
+        self.axes.strafing = axis;
+        self
+    }
+
+    /// Setup button for moving up/down.
+    ///
+    /// Defaults to `None`.
+    pub fn axis_vertical(&mut self, axis: Option<KeyAxis>) -> &mut Self {
+        self.axes.vertical = axis;
         self
     }
 
@@ -88,6 +159,9 @@ impl Builder {
             pitch: self.pitch,
             move_speed: self.move_speed,
             look_speed: self.look_speed,
+            axes: self.axes.clone(),
+            vertical_move: self.vertical_move,
+            vertical_look: self.vertical_look,
         }
     }
 }
@@ -102,48 +176,35 @@ impl FirstPerson {
     pub fn default(object: &Object) -> Self {
         Self::builder(object).build()
     }
- 
+
     /// Updates the position, yaw, and pitch of the controlled object according to
     /// the last frame input.
     pub fn update(&mut self, input: &Input) {
         let dtime = input.delta_time();
         let dlook = dtime * self.look_speed;
-        let dmove = dtime * self.move_speed;
 
-        if Button::Key(Key::Q).is_hit(input) {
-            self.yaw -= dlook;
+        let mouse = input.mouse_delta_raw();
+
+        self.yaw += dlook * mouse.x;
+        if self.vertical_look {
+            self.pitch += dlook * mouse.y;
         }
-        if Button::Key(Key::E).is_hit(input) {
-            self.yaw += dlook;
-        }
-        if Button::Key(Key::R).is_hit(input) {
-            self.pitch -= dlook;
-        }
-        if Button::Key(Key::F).is_hit(input) {
-            self.pitch += dlook;
-        }
-        if Button::Key(Key::X).is_hit(input) {
-            self.position.y += dmove;
-        }
-        if Button::Key(Key::Z).is_hit(input) {
-            self.position.y -= dmove;
-        }
-        if Button::Key(Key::W).is_hit(input) {
-            self.position.x += dmove * self.yaw.sin();
-            self.position.z -= dmove * self.yaw.cos();
-        }
-        if Button::Key(Key::S).is_hit(input) {
-            self.position.x -= dmove * self.yaw.sin();
-            self.position.z += dmove * self.yaw.cos();
-        }
-        if Button::Key(Key::D).is_hit(input) {
-            self.position.x += dmove * self.yaw.cos();
-            self.position.z += dmove * self.yaw.sin();
-        }
-        if Button::Key(Key::A).is_hit(input) {
-            self.position.x -= dmove * self.yaw.cos();
-            self.position.z -= dmove * self.yaw.sin();
-        }
+
+        self.axes.vertical.map(|a| if let Some(time) = a.timed(input) {
+            self.position.y += self.move_speed * time;
+        });
+
+        self.axes.forward.map(|a| if let Some(time) = a.timed(input) {
+            self.position.x += self.move_speed * time * self.yaw.sin();
+            self.position.z -= self.move_speed * time * self.yaw.cos();
+            if self.vertical_move {
+                self.position.y -= self.move_speed * time * self.pitch.sin();
+            }
+        });
+        self.axes.strafing.map(|a| if let Some(time) = a.timed(input) {
+            self.position.x += self.move_speed * time * self.yaw.cos();
+            self.position.z += self.move_speed * time * self.yaw.sin();
+        });
 
         let yrot = cgmath::Quaternion::from_angle_y(cgmath::Rad(-self.yaw));
         let xrot = cgmath::Quaternion::from_angle_x(cgmath::Rad(-self.pitch));
