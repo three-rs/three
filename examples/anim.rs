@@ -1,4 +1,3 @@
-extern crate gfx;
 extern crate mint;
 extern crate three;
 
