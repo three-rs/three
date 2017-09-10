@@ -1,6 +1,7 @@
 use node::NodePointer;
 use std::sync::mpsc;
 use hub::{Message, HubPtr, Operation};
+use texture::Texture;
 
 /// Color represented by 4-bytes hex number.
 pub type Color = u32;
@@ -8,11 +9,14 @@ pub type Color = u32;
 pub type SceneId = usize;
 
 /// Background type.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub enum Background {
     /// Basic solid color background.
     Color(Color),
-    //TODO: texture, cubemap
+    /// Texture background, covers the whole screen.
+    // TODO: different wrap modes?
+    Texture(Texture<[f32; 4]>),
+    //TODO: cubemap
 }
 
 /// Game scene contains game objects and can be rendered by [`Camera`](struct.Camera.html).
