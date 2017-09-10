@@ -10,11 +10,10 @@ fn main() {
     let shaders_path_str: &str = shaders_path.as_str();
     let mut win = three::Window::builder("Three-rs obj loading example", shaders_path_str).build();
     let cam = win.factory.perspective_camera(60.0, 1.0 .. 10.0);
-    let mut controls = three::controls::Orbit::builder(
-        &cam,
-        [0.0, 2.0, -5.0],
-        [0.0, 0.0, 0.0]
-    ).build();
+    let mut controls = three::controls::Orbit::builder(&cam)
+        .position([0.0, 2.0, -5.0])
+        .target([0.0, 0.0, 0.0])
+        .build();
 
     let mut dir_light = win.factory.directional_light(0xffffff, 0.9);
     dir_light.look_at([15.0, 35.0, 35.0], [0.0, 0.0, 2.0], None);

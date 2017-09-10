@@ -30,16 +30,35 @@ pub struct Builder {
 
 impl Builder {
     /// Create new `Builder` with default values.
-    pub fn new<P>(object: &Object, position: P, target: P) -> Self
-        where P: Into<mint::Point3<f32>>,
+    pub fn new(object: &Object) -> Self
     {
         Builder {
             object: object.clone(),
-            position: position.into(),
-            target: target.into(),
+            position: [0.0, 0.0, 0.0].into(),
+            target: [0.0, 0.0, 0.0].into(),
             button: MOUSE_LEFT,
             speed: 1.0,
         }
+    }
+
+    /// Set the initial position.
+    ///
+    /// Defaults to the world origin.
+    pub fn position<P>(&mut self, position: P) -> &mut Self
+        where P: Into<mint::Point3<f32>>,
+    {
+        self.position = position.into();
+        self
+    }
+
+    /// Set the target position.
+    ///
+    /// Defaults to the world origin.
+    pub fn target<P>(&mut self, target: P) -> &mut Self
+        where P: Into<mint::Point3<f32>>,
+    {
+        self.target = target.into();
+        self
     }
 
     /// Setup the speed of the movements. Default value is 1.0
@@ -78,12 +97,11 @@ impl Builder {
 
 impl Orbit {
     /// Create new `Builder` with default values.
-    pub fn builder<P>(object: &Object, position: P, target: P) -> Builder
-        where P: Into<mint::Point3<f32>>
+    pub fn builder(object: &Object) -> Builder
     {
-        Builder::new(object, position, target)
+        Builder::new(object)
     }
-    
+
     /// Update current position and rotation of the controlled object according to the last frame input.
     pub fn update(&mut self, input: &Input) {
         if !self.button.is_hit(input) && input.mouse_wheel().abs() < 1e-6 {

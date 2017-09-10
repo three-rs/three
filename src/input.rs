@@ -25,6 +25,7 @@ struct Delta {
     keys_hit: Vec<Key>,
     mouse_moves: Vec<mint::Vector2<f32>>,
     mouse_moves_ndc: Vec<mint::Vector2<f32>>,
+    mouse_moves_raw: Vec<mint::Vector2<f32>>,
     mouse_hit: Vec<MouseButton>,
     mouse_wheel: Vec<f32>,
 }
@@ -47,6 +48,7 @@ impl Input {
             keys_hit: Vec::new(),
             mouse_moves: Vec::new(),
             mouse_moves_ndc: Vec::new(),
+            mouse_moves_raw: Vec::new(),
             mouse_hit: Vec::new(),
             mouse_wheel: Vec::new(),
         };
@@ -61,6 +63,7 @@ impl Input {
         self.1.keys_hit.clear();
         self.1.mouse_moves.clear();
         self.1.mouse_moves_ndc.clear();
+        self.1.mouse_moves_raw.clear();
         self.1.mouse_hit.clear();
         self.1.mouse_wheel.clear();
     }
@@ -108,24 +111,33 @@ impl Input {
         &self.1.mouse_moves_ndc[..]
     }
 
-    /// Get summarized mouse movements (the sum of all movements since last frame) in pixels.
-    pub fn mouse_delta(&self) -> mint::Vector2<f32> {
+    /// Get list of all raw inputs since last frame. It usually corresponds to mouse movements.
+    pub fn mouse_movements_raw(&self) -> &[mint::Vector2<f32>] {
+        &self.1.mouse_moves_raw[..]
+    }
+
+    fn calculate_delta(moves: &[mint::Vector2<f32>]) -> mint::Vector2<f32> {
         use cgmath::Vector2;
-        self.1.mouse_moves.iter()
+        moves.iter()
             .cloned()
             .map(Vector2::from)
             .sum::<Vector2<f32>>()
             .into()
     }
 
+    /// Get summarized mouse movements (the sum of all movements since last frame) in pixels.
+    pub fn mouse_delta(&self) -> mint::Vector2<f32> {
+        Input::calculate_delta(self.mouse_movements())
+    }
+
     /// Get summarized mouse movements (the sum of all movements since last frame) in NDC.
     pub fn mouse_delta_ndc(&self) -> mint::Vector2<f32> {
-        use cgmath::Vector2;
-        self.1.mouse_moves_ndc.iter()
-            .cloned()
-            .map(Vector2::from)
-            .sum::<Vector2<f32>>()
-            .into()
+        Input::calculate_delta(self.mouse_movements_ndc())
+    }
+
+    /// Get summarized raw input since last frame. It usually corresponds to mouse movements.
+    pub fn mouse_delta_raw(&self) -> mint::Vector2<f32> {
+        Input::calculate_delta(self.mouse_movements_raw())
     }
 
     pub(crate) fn keyboard_input(&mut self, state: ElementState, key: Key) {
@@ -158,6 +170,10 @@ impl Input {
         self.1.mouse_moves_ndc.push((Point2::from(pos_ndc) - Point2::from(self.0.mouse_pos_ndc)).into());
         self.0.mouse_pos = pos;
         self.0.mouse_pos_ndc = pos_ndc;
+    }
+
+    pub(crate) fn mouse_moved_raw(&mut self, delta: mint::Vector2<f32>) {
+        self.1.mouse_moves_raw.push(delta);
     }
 
     pub(crate) fn mouse_wheel_input(&mut self, delta: MouseScrollDelta) {
