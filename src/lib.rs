@@ -19,8 +19,8 @@ extern crate itertools;
 extern crate log;
 extern crate mint;
 extern crate obj;
+extern crate rodio;
 extern crate vec_map;
-extern crate winit;
 // OpenGL
 #[cfg(feature = "opengl")]
 extern crate gfx_device_gl;
@@ -31,6 +31,7 @@ extern crate glutin;
 
 #[macro_use]
 mod macros;
+pub mod audio;
 pub mod camera;
 pub mod controls;
 pub mod custom;
@@ -69,6 +70,7 @@ pub use window::Window;
 #[cfg(feature = "opengl")]
 pub use glutin::VirtualKeyCode as Key;
 
+use audio::Source;
 use light::{Ambient, Directional, Hemisphere, Point};
-three_object_wrapper!(Group, Mesh, DynamicMesh, Sprite, Text);
+three_object_wrapper!(Group, Mesh, DynamicMesh, Source, Sprite, Text);
 three_object_wrapper!(Ambient, Hemisphere, Point, Directional);

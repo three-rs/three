@@ -179,11 +179,11 @@ impl Window {
 
     /// Set cursor visibility
     pub fn show_cursor(&self, enable: bool) {
-        if enable {
-            self.window.set_cursor_state(glutin::CursorState::Normal);
+        let _ = if enable {
+            self.window.set_cursor_state(glutin::CursorState::Normal)
         } else {
-            self.window.set_cursor_state(glutin::CursorState::Hide);
-        }
+            self.window.set_cursor_state(glutin::CursorState::Hide)
+        };
     }
-    
+
 }

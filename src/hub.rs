@@ -1,3 +1,4 @@
+use audio::{AudioData, Operation as AudioOperation};
 use scene::Color;
 use light::{ShadowMap, ShadowProjection};
 use material::Material;
@@ -33,6 +34,7 @@ pub(crate) struct LightData {
 #[derive(Debug)]
 pub(crate) enum SubNode {
     Empty,
+    Audio(AudioData),
     UiText(TextData),
     Visual(Material, GpuData),
     Light(LightData),
@@ -40,6 +42,7 @@ pub(crate) enum SubNode {
 
 pub(crate) type Message = (froggy::WeakPointer<Node>, Operation);
 pub(crate) enum Operation {
+    SetAudio(AudioOperation),
     SetParent(NodePointer),
     SetVisible(bool),
     SetText(TextOperation),
@@ -91,6 +94,10 @@ impl Hub {
         self.spawn(SubNode::UiText(text))
     }
 
+    pub(crate) fn spawn_audio_source(&mut self, data: AudioData) -> Object {
+        self.spawn(SubNode::Audio(data))
+    }
+
     pub(crate) fn process_messages(&mut self) {
         while let Ok((pnode, operation)) = self.message_rx.try_recv() {
             let node = match pnode.upgrade() {
@@ -98,6 +105,11 @@ impl Hub {
                 Err(_) => continue,
             };
             match operation {
+                Operation::SetAudio(operation) => {
+                    if let SubNode::Audio(ref mut data) = node.sub_node {
+                        Hub::process_audio(operation, data);
+                    }
+                }
                 Operation::SetParent(parent) => {
                     node.parent = Some(parent);
                 }
@@ -141,6 +153,16 @@ impl Hub {
             }
         }
         self.nodes.sync_pending();
+    }
+
+    fn process_audio(operation: AudioOperation, data: &mut AudioData) {
+        match operation {
+            AudioOperation::Append(clip) => data.source.append(clip),
+            AudioOperation::Pause => data.source.pause(),
+            AudioOperation::Resume => data.source.resume(),
+            AudioOperation::Stop => data.source.stop(),
+            AudioOperation::SetVolume(volume) => data.source.set_volume(volume),
+        }
     }
 
     fn process_text(operation: TextOperation, data: &mut TextData) {
