@@ -7,8 +7,8 @@ fn main() {
 
     let vertices = vec![
         [-0.5, -0.5, -0.5].into(),
-        [ 0.5, -0.5, -0.5].into(),
-        [ 0.0,  0.5, -0.5].into(),
+        [0.5, -0.5, -0.5].into(),
+        [0.0, 0.5, -0.5].into(),
     ];
     let geometry = three::Geometry::with_vertices(vertices);
     let material = three::Material::MeshBasic {

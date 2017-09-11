@@ -10,11 +10,11 @@ fn main() {
 
     let default = concat!(env!("CARGO_MANIFEST_DIR"), "/test_data/Lantern.gltf");
     let path = std::env::args().nth(1).unwrap_or(default.into());
-    let (group, mut cameras, _meshes) = win.factory.load_gltf(&path);
-    win.scene.add(&group);
+    let mut gltf = win.factory.load_gltf(&path);
+    win.scene.add(&gltf.group);
 
-    let mut cam = if cameras.len() > 0 {
-        cameras.swap_remove(0)
+    let mut cam = if gltf.cameras.len() > 0 {
+        gltf.cameras.swap_remove(0)
     } else {
         let default = win.factory.perspective_camera(60.0, 0.001 .. 100.0);
         win.scene.add(&default);

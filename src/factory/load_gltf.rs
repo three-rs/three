@@ -1,3 +1,4 @@
+use animation;
 use geometry;
 use gltf;
 use gltf_importer;
@@ -5,10 +6,16 @@ use image;
 use mint;
 use std::{fs, io};
 
-use {Geometry, Group, Material, Mesh, Texture};
 use camera::Camera;
+use gltf::Gltf;
+use gltf_utils::AccessorIter;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use vec_map::VecMap;
+
+use {Geometry, Group, Material, Mesh, Object, Texture};
+
+type GltfNodeIndex = usize;
 
 impl super::Factory {
     /// Loads a `glTF` texture.
@@ -194,18 +201,18 @@ impl super::Factory {
         cameras: &mut Vec<Camera>,
         meshes: &mut VecMap<Vec<Mesh>>,
         instances: &mut Vec<Mesh>,
+        node_map: &mut HashMap<GltfNodeIndex, Object>,
     ) -> Group {
+        fn clone_child<'a>(
+            gltf: &'a Gltf,
+            node: &gltf::Node,
+        ) -> gltf::Node<'a> {
+            gltf.nodes().nth(node.index()).unwrap()
+        }
+
         struct Item<'a> {
             group: Group,
             node: gltf::Node<'a>,
-        }
-
-        // TODO: Temporary workaround lifetime issue.
-        fn clone_child<'a>(
-            gltf: &'a gltf::Gltf,
-            child: &gltf::Node,
-        ) -> gltf::Node<'a> {
-            gltf.nodes().nth(child.index()).unwrap()
         }
 
         let mut groups = Vec::<Group>::new();
@@ -269,22 +276,95 @@ impl super::Factory {
                 let child_group = self.group();
                 item.group.add(&child_group);
                 stack.push(Item {
-                    node: clone_child(gltf, &child),
+                    node: clone_child(&gltf, &child),
                     group: child_group,
                 });
             }
 
+            node_map.insert(item.node.index(), (*item.group).clone());
             groups.push(item.group);
         }
 
         groups.swap_remove(0)
     }
 
+    /// Loads animations from glTF 2.0.
+    pub fn load_gltf_animations(
+        &mut self,
+        gltf: &Gltf,
+        node_map: &HashMap<GltfNodeIndex, Object>,
+        buffers: &gltf_importer::Buffers,
+    ) -> Vec<animation::Clip> {
+        use gltf::animation::InterpolationAlgorithm::*;
+        let mut clips = Vec::new();
+        for animation in gltf.animations() {
+            let mut tracks = Vec::new();
+            let name = animation.name().map(str::to_string);
+            for channel in animation.channels() {
+                let sampler = channel.sampler();
+                let target = channel.target();
+                let node = target.node();
+                let object = match node_map.get(&node.index()) {
+                    Some(object) => object.clone(),
+                    // This animation does not correspond to any loaded node.
+                    None => continue,
+                };
+                let input = sampler.input();
+                let output = sampler.output();
+                let interpolation = match sampler.interpolation() {
+                    Linear => animation::Interpolation::Linear,
+                    Step => animation::Interpolation::Discrete,
+                    CubicSpline => animation::Interpolation::Cubic,
+                    CatmullRomSpline => animation::Interpolation::CatmullRom,
+                };
+                use animation::{Binding, Track, Values};
+                let times: Vec<f32> = AccessorIter::new(input, buffers).collect();
+                let (binding, values) = match target.path() {
+                    gltf::animation::TrsProperty::Translation => {
+                        let values = AccessorIter::<[f32; 3]>::new(output, buffers)
+                            .map(|v| mint::Vector3::from(v))
+                            .collect::<Vec<_>>();
+                        assert_eq!(values.len(), times.len());
+                        (Binding::Position, Values::Vector3(values))
+                    }
+                    gltf::animation::TrsProperty::Rotation => {
+                        let values = AccessorIter::<[f32; 4]>::new(output, buffers)
+                            .map(|r| mint::Quaternion::from(r))
+                            .collect::<Vec<_>>();
+                        assert_eq!(values.len(), times.len());
+                        (Binding::Orientation, Values::Quaternion(values))
+                    }
+                    gltf::animation::TrsProperty::Scale => {
+                        // TODO: Groups do not handle non-uniform scaling, so for now
+                        // we'll choose Y to be the scale factor in all directions.
+                        let values = AccessorIter::<[f32; 3]>::new(output, buffers)
+                            .map(|s| s[1])
+                            .collect::<Vec<_>>();
+                        assert_eq!(values.len(), times.len());
+                        (Binding::Scale, Values::Scalar(values))
+                    }
+                    gltf::animation::TrsProperty::Weights => unimplemented!(),
+                };
+                tracks.push((
+                    Track {
+                        binding,
+                        interpolation,
+                        times,
+                        values,
+                    },
+                    object,
+                ));
+            }
+            clips.push(animation::Clip { name, tracks });
+        }
+        clips
+    }
+
     /// Load a scene from glTF 2.0 format.
     pub fn load_gltf(
         &mut self,
         path_str: &str,
-    ) -> (Group, Vec<Camera>, VecMap<Vec<Mesh>>) {
+    ) -> super::Gltf {
         info!("Loading {}", path_str);
         let path = Path::new(path_str);
         let default = Path::new("");
@@ -293,6 +373,8 @@ impl super::Factory {
         let mut cameras = Vec::new();
         let mut meshes = VecMap::new();
         let mut instances = Vec::new();
+        let mut node_map = HashMap::new();
+        let mut clips = Vec::new();
         let mut group = self.group();
 
         if let Some(scene) = gltf.default_scene() {
@@ -305,9 +387,11 @@ impl super::Factory {
                     &mut cameras,
                     &mut meshes,
                     &mut instances,
+                    &mut node_map,
                 );
                 group.add(&node);
             }
+            clips = self.load_gltf_animations(&gltf, &node_map, &buffers);
         }
 
         // Put the instances in any empty spot in the mesh map.
@@ -319,6 +403,11 @@ impl super::Factory {
             meshes.insert(i, instances);
         }
 
-        (group, cameras, meshes)
+        super::Gltf {
+            group,
+            cameras,
+            clips,
+            meshes,
+        }
     }
 }

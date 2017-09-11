@@ -7,6 +7,7 @@ use std::fs::File;
 use std::io::{BufReader, Read};
 use std::path::{Path, PathBuf};
 
+use animation;
 use camera;
 use cgmath::Vector3;
 use genmesh::{Polygon, Triangulate};
@@ -32,6 +33,7 @@ use scene::{Background, Color, Scene, SceneId};
 use sprite::Sprite;
 use text::{Font, Text, TextData};
 use texture::{CubeMap, CubeMapPath, FilterMethod, Sampler, Texture, WrapMode};
+use vec_map::VecMap;
 
 const TANGENT_X: [I8Norm; 4] = [I8Norm(1), I8Norm(0), I8Norm(0), I8Norm(1)];
 const NORMAL_Z: [I8Norm; 4] = [I8Norm(0), I8Norm(0), I8Norm(1), I8Norm(0)];
@@ -72,6 +74,28 @@ pub struct Factory {
     quad_buf: gfx::handle::Buffer<BackendResources, Vertex>,
     texture_cache: HashMap<PathBuf, Texture<[f32; 4]>>,
     default_sampler: gfx::handle::Sampler<BackendResources>,
+}
+
+/// Loaded glTF 2.0 returned by [`Factory::load_gltf`].
+///
+/// [`Factory::load_gltf`]: struct.Factory.html#method.load_gltf
+pub struct Gltf {
+    /// Imported camera views.
+    pub cameras: Vec<Camera>,
+
+    /// Imported animation clips.
+    pub clips: Vec<animation::Clip>,
+
+    /// Imported meshes.
+    ///
+    /// Must be kept alive in order to be displayed.
+    pub meshes: VecMap<Vec<Mesh>>,
+
+    /// The root nodes of the default scene.
+    ///
+    /// If the glTF contained no default scene then this group will have no
+    /// children.
+    pub group: Group,
 }
 
 fn f2i(x: f32) -> I8Norm {
