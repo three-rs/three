@@ -2,6 +2,7 @@ use cgmath::{Matrix4, Vector3, Transform as Transform_};
 use froggy;
 use gfx;
 use gfx::traits::{Device, Factory as Factory_, FactoryExt};
+use gfx::memory::Typed;
 #[cfg(feature = "opengl")]
 use gfx_device_gl as back;
 #[cfg(feature = "opengl")]
@@ -322,6 +323,7 @@ impl Renderer {
         let prog_shadow = load_program(shader_path, "shadow", &mut gl_factory).unwrap();
         let prog_quad = load_program(shader_path, "quad", &mut gl_factory).unwrap();
         let prog_pbr = load_program(shader_path, "pbr", &mut gl_factory).unwrap();
+        let rast_quad = gfx::state::Rasterizer::new_fill();
         let rast_fill = gfx::state::Rasterizer::new_fill().with_cull_back();
         let rast_wire = gfx::state::Rasterizer {
             method: gfx::state::RasterMethod::Line(1),
@@ -376,7 +378,7 @@ impl Renderer {
                 gfx::Primitive::TriangleList, rast_shadow, shadow_pipe::new()
                 ).unwrap(),
             pso_quad: gl_factory.create_pipeline_from_program(&prog_quad,
-                gfx::Primitive::TriangleStrip, rast_fill, quad_pipe::new()
+                gfx::Primitive::TriangleStrip, rast_quad, quad_pipe::new()
                 ).unwrap(),
             pso_pbr: gl_factory.create_pipeline_from_program(&prog_pbr,
                 gfx::Primitive::TriangleList, rast_fill, pbr_pipe::new()
@@ -565,13 +567,35 @@ impl Renderer {
             };
             Matrix4::from(p) * Matrix4::from(w.inverse_transform().unwrap())
         };
+
+        self.encoder.clear_depth(&self.out_depth, 1.0);
+        self.encoder.clear_stencil(&self.out_depth, 0);
+
         match scene.background {
             Background::Color(color) => {
                 self.encoder.clear(&self.out_color, decode_color(color));
-            }
+            },
+            Background::Texture(ref texture) => {
+                // TODO: Reduce code duplication (see drawing debug quads)
+                self.encoder.update_constant_buffer(&self.quad_buf, &QuadParams {
+                    rect: [-1.0, -1.0, 1.0, 1.0],
+                });
+                let slice = gfx::Slice {
+                    start: 0,
+                    end: 4,
+                    base_vertex: 0,
+                    instances: None,
+                    buffer: gfx::IndexBuffer::Auto,
+                };
+                let data = quad_pipe::Data {
+                    params: self.quad_buf.clone(),
+                    resource: texture.to_param().0.raw().clone(),
+                    sampler: texture.to_param().1,
+                    target: self.out_color.clone(),
+                };
+                self.encoder.draw(&slice, &self.pso_quad, &data);
+            },
         }
-        self.encoder.clear_depth(&self.out_depth, 1.0);
-        self.encoder.clear_stencil(&self.out_depth, 0);
         self.encoder.update_constant_buffer(&self.const_buf, &Globals {
             mx_vp: mx_vp.into(),
             num_lights: lights.len() as u32,
@@ -818,7 +842,6 @@ impl Renderer {
     /// Draw [`ShadowMap`](struct.ShadowMap.html) for debug purposes.
     pub fn debug_shadow_quad(&mut self, map: &ShadowMap, _num_components: u8,
                              pos: [i16; 2], size: [u16; 2]) -> DebugQuadHandle {
-        use gfx::memory::Typed;
         DebugQuadHandle(self.debug_quads.create(DebugQuad {
             resource: map.to_resource().raw().clone(),
             pos: [pos[0] as i32, pos[1] as i32],
