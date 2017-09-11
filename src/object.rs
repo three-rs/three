@@ -1,3 +1,4 @@
+use std::fmt;
 use std::sync::mpsc;
 
 use mint;
@@ -13,10 +14,19 @@ use scene::Scene;
 /// for each case (e.g. [`Camera`](struct.Camera.html),
 /// [`AmbientLight`](struct.AmbientLight.html),
 /// [`Mesh`](struct.Mesh.html), ...).
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Object {
     pub(crate) node: NodePointer,
     pub(crate) tx: mpsc::Sender<Message>,
+}
+
+impl fmt::Debug for Object {
+    fn fmt(
+        &self,
+        f: &mut fmt::Formatter,
+    ) -> fmt::Result {
+        self.node.fmt(f)
+    }
 }
 
 impl AsRef<NodePointer> for Object {

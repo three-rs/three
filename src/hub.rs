@@ -31,12 +31,18 @@ pub(crate) struct LightData {
     pub(crate) shadow: Option<(ShadowMap, ShadowProjection)>,
 }
 
+/// A sub-node specifies and contains the context-specific data owned by a `Node`.
 #[derive(Debug)]
 pub(crate) enum SubNode {
+    /// No extra data, such as in the case of `Group`.
     Empty,
+    /// Audio data.
     Audio(AudioData),
+    /// Renderable text for 2D user interface.
     UiText(TextData),
+    /// Renderable 3D content, such as a mesh.
     Visual(Material, GpuData),
+    /// Lighting information for illumination and shadow casting.
     Light(LightData),
 }
 

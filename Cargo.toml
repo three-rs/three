@@ -24,9 +24,9 @@ froggy = "0.4"
 genmesh = "0.5"
 gfx = "0.16"
 gfx_glyph = "0.3"
-gltf = "0.9.1"
-gltf-importer = "0.9.1"
-gltf-utils = "0.9.1"
+gltf = { features = ["names"], version = "0.9.2" }
+gltf-importer = { features = ["names"], version = "0.9.2" }
+gltf-utils = { features = ["names"], version = "0.9.2" }
 image = "0.13"
 itertools = "0.6"
 log = "0.3"
@@ -63,6 +63,9 @@ name = "tutorial"
 
 [[example]]
 name = "gltf"
+
+[[example]]
+name = "gltf-animation"
 
 [[example]]
 name = "group"
