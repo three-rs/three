@@ -39,7 +39,7 @@ pub mod geometry;
 mod hub;
 mod input;
 pub mod light;
-mod material;
+pub mod material;
 mod mesh;
 mod node;
 mod object;

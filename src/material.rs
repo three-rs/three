@@ -255,7 +255,7 @@ impl MeshPbrBuilder{
         self
      }
 
-     pub fn build(&self) -> Material{
+     pub fn build(&self) -> Material {
        Material:: MeshPbr{
         base_color_factor: self.base_color_factor,
         metallic_roughness: self.metallic_roughness,

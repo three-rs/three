@@ -14,23 +14,18 @@ fn main() {
 
     let geometry = three::Geometry::cylinder(1.0, 2.0, 2.0, 5);
     let mut materials = vec![
-        three::Material::MeshBasic { color: 0xffffff, map: None, wireframe: false },
-        three::Material::MeshLambert { color: 0xffffff, flat: true },
-        three::Material::MeshLambert { color: 0xffffff, flat: false },
-        three::Material::MeshPhong { color: 0xffffff, glossiness: 80.0 },
-        three::Material::MeshPbr {
-            base_color_factor: [0.2, 0.2, 0.2, 1.0],
-            metallic_roughness: [0.5, 0.5],
-            occlusion_strength: 0.2,
-            emissive_factor: [0.0, 0.0, 0.0],
-            normal_scale: 1.0,
-            base_color_map: None,
-            normal_map: None,
-            emissive_map: None,
-            metallic_roughness_map: None,
-            occlusion_map: None,
-        },
+        three::material::MeshBasicBuilder::new().color(0xffffff).build(),
+        three::material::MeshLambertBuilder::new().color(0xffffff).flat(true).build(),
+        three::material::MeshLambertBuilder::new().color(0xffffff).build(),
+        three::material::MeshPhongBuilder::new().color(0xffffff).glossiness(80.0).build(),
+        three::material::MeshPbrBuilder::new()
+        .base_color_factor([0.2,  0.2, 0.2, 1.0])
+        .metallic_roughness([0.5, 0.5])
+        .occlusion_strength(0.2)
+        .normal_scale(1.0)
+        .build(),
     ];
+    
     let count = materials.len();
 
     let _cubes: Vec<_> = materials.drain(..).enumerate().map(|(i, mat)| {
