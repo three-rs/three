@@ -67,7 +67,7 @@ pub use render::{ColorFormat, DebugQuadHandle, DepthFormat, Renderer, ShadowType
 pub use scene::{Background, Color, Scene};
 pub use sprite::Sprite;
 pub use text::{Align, Font, Layout, Text};
-pub use texture::{FilterMethod, Sampler, Texture, WrapMode};
+pub use texture::{CubeMap, CubeMapPath, FilterMethod, Sampler, Texture, WrapMode};
 #[cfg(feature = "opengl")]
 pub use window::Window;
 

@@ -1,5 +1,5 @@
 #version 150 core
-#include locals lights
+#include locals lights globals
 
 #define MAX_SHADOWS 2
 
@@ -11,11 +11,6 @@ flat out float v_Smooth;
 out vec4 v_LightEval[MAX_SHADOWS];
 flat out vec4 v_LightEvalFlat[MAX_SHADOWS];
 out vec4 v_ShadowCoord[MAX_SHADOWS];
-
-uniform b_Globals {
-    mat4 u_ViewProj;
-    uint u_NumLights;
-};
 
 void main() {
     vec4 world = u_World * a_Position;

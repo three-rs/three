@@ -1,5 +1,5 @@
 #version 150 core
-#include locals lights
+#include locals lights globals
 
 in vec3 v_World;
 in vec3 v_Normal;
@@ -10,11 +10,6 @@ out vec4 Target0;
 
 uniform sampler2DShadow t_Shadow0;
 uniform sampler2DShadow t_Shadow1;
-
-uniform b_Globals {
-    mat4 u_ViewProj;
-    uint u_NumLights;
-};
 
 void main() {
     vec4 color = vec4(0.0);
