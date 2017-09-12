@@ -21,17 +21,12 @@
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #version 150 core
-#include locals
+#include locals globals
 
 in vec4 a_Position;
 in vec2 a_TexCoord;
 in vec4 a_Normal;
 in vec4 a_Tangent;
-
-uniform b_Globals {
-    mat4 u_ViewProj;
-    uint u_NumLights;
-};
 
 out vec3 v_Position;
 out vec2 v_TexCoord;
