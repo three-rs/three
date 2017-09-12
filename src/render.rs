@@ -102,6 +102,7 @@ gfx_defines! {
 
     constant QuadParams {
         rect: [f32; 4] = "u_Rect",
+        depth: f32 = "u_Depth",
     }
 
     pipeline quad_pipe {
@@ -109,6 +110,7 @@ gfx_defines! {
         resource: gfx::RawShaderResource = "t_Input",
         sampler: gfx::Sampler = "t_Input",
         target: gfx::RenderTarget<ColorFormat> = "Target0",
+        depth_target: gfx::DepthTarget<DepthFormat> = gfx::preset::depth::LESS_EQUAL_TEST,
     }
 
     constant PbrParams {
@@ -646,44 +648,15 @@ impl Renderer {
         self.encoder.clear_depth(&self.out_depth, 1.0);
         self.encoder.clear_stencil(&self.out_depth, 0);
 
-        match scene.background {
-            Background::Color(color) => {
-                self.encoder.clear(&self.out_color, decode_color(color));
-            }
-            Background::Texture(ref texture) => {
-                // TODO: Reduce code duplication (see drawing debug quads)
-                self.encoder.update_constant_buffer(
-                    &self.quad_buf,
-                    &QuadParams {
-                        rect: [-1.0, -1.0, 1.0, 1.0],
-                    },
-                );
-                let slice = gfx::Slice {
-                    start: 0,
-                    end: 4,
-                    base_vertex: 0,
-                    instances: None,
-                    buffer: gfx::IndexBuffer::Auto,
-                };
-                let data = quad_pipe::Data {
-                    params: self.quad_buf.clone(),
-                    resource: texture.to_param().0.raw().clone(),
-                    sampler: texture.to_param().1,
-                    target: self.out_color.clone(),
-                };
-                self.encoder.draw(&slice, &self.pso_quad, &data);
-            }
+        if let Background::Color(color) = scene.background {
+            self.encoder.clear(&self.out_color, decode_color(color));
         }
-        self.encoder.update_constant_buffer(
-            &self.const_buf,
-            &Globals {
-                mx_vp: mx_vp.into(),
-                num_lights: lights.len() as u32,
-            },
-        );
-        self.encoder
-            .update_buffer(&self.light_buf, &lights, 0)
-            .unwrap();
+
+        self.encoder.update_constant_buffer(&self.const_buf, &Globals {
+            mx_vp: mx_vp.into(),
+            num_lights: lights.len() as u32,
+        });
+        self.encoder.update_buffer(&self.light_buf, &lights, 0).unwrap();
 
         // render everything
         let (shadow_default, shadow_sampler) = self.shadow_default.to_param();
@@ -849,6 +822,33 @@ impl Renderer {
             };
         }
 
+        // draw background (if any)
+        match scene.background {
+            Background::Texture(ref texture) => {
+                // TODO: Reduce code duplication (see drawing debug quads)
+                self.encoder.update_constant_buffer(&self.quad_buf, &QuadParams {
+                    rect: [-1.0, -1.0, 1.0, 1.0],
+                    depth: 1.0,
+                });
+                let slice = gfx::Slice {
+                    start: 0,
+                    end: 4,
+                    base_vertex: 0,
+                    instances: None,
+                    buffer: gfx::IndexBuffer::Auto,
+                };
+                let data = quad_pipe::Data {
+                    params: self.quad_buf.clone(),
+                    resource: texture.to_param().0.raw().clone(),
+                    sampler: texture.to_param().1,
+                    target: self.out_color.clone(),
+                    depth_target: self.out_depth.clone(),
+                };
+                self.encoder.draw(&slice, &self.pso_quad, &data);
+            },
+            _ => {},
+        }
+
         // draw ui text
         for node in hub.nodes.iter() {
             if let SubNode::UiText(ref text) = node.sub_node {
@@ -879,16 +879,11 @@ impl Renderer {
                 },
             ];
             let p0 = self.map_to_ndc([pos[0] as f32, pos[1] as f32]);
-            let p1 = self.map_to_ndc([
-                (pos[0] + quad.size[0]) as f32,
-                (pos[1] + quad.size[1]) as f32,
-            ]);
-            self.encoder.update_constant_buffer(
-                &self.quad_buf,
-                &QuadParams {
-                    rect: [p0.x, p0.y, p1.x, p1.y],
-                },
-            );
+            let p1 = self.map_to_ndc([(pos[0] + quad.size[0]) as f32,
+                                     (pos[1] + quad.size[1]) as f32,
+            ]);self.encoder.update_constant_buffer(&self.quad_buf, &QuadParams {
+                rect: [p0.x, p0.y, p1.x, p1.y],
+            depth: -1.0,},);
             let slice = gfx::Slice {
                 start: 0,
                 end: 4,
@@ -901,6 +896,7 @@ impl Renderer {
                 resource: quad.resource.clone(),
                 sampler: self.map_default.to_param().1,
                 target: self.out_color.clone(),
+                depth_target: self.out_depth.clone(),
             };
             self.encoder.draw(&slice, &self.pso_quad, &data);
         }
