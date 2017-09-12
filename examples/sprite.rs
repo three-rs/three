@@ -68,6 +68,12 @@ fn main() {
     };
     anim.update_uv();
 
+    // Specify background image. Remove `if` to enable.
+    if false {
+        let background = win.factory.load_texture("test_data/texture.png");
+        win.scene.background = three::Background::Texture(background);
+    }
+
     while win.update() && !three::KEY_ESCAPE.is_hit(&win.input) {
         let row = three::AXIS_LEFT_RIGHT
             .delta_hits(&win.input)
