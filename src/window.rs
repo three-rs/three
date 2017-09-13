@@ -1,4 +1,5 @@
 //! Primitives for creating and controlling [`Window`](struct.Window.html).
+
 use std::path::{Path, PathBuf};
 
 use glutin;
@@ -41,26 +42,39 @@ pub struct Builder {
 
 impl Builder {
     /// Set the size of the viewport (the resolution) in pixels. Defaults to 1024x768.
-    pub fn dimensions(&mut self, width: u32, height: u32) -> &mut Self {
+    pub fn dimensions(
+        &mut self,
+        width: u32,
+        height: u32,
+    ) -> &mut Self {
         self.dimensions = (width, height);
         self
     }
 
     /// Whether enable fullscreen mode or not. Defauls to `false`.
-    pub fn fullscreen(&mut self, option: bool) -> &mut Self {
+    pub fn fullscreen(
+        &mut self,
+        option: bool,
+    ) -> &mut Self {
         self.fullscreen = option;
         self
     }
 
     /// Sets the multisampling level to request. A value of `0` indicates that multisampling must
     /// not be enabled. Must be the power of 2. Defaults to `0`.
-    pub fn multisampling(&mut self, option: u16) -> &mut Self {
+    pub fn multisampling(
+        &mut self,
+        option: u16,
+    ) -> &mut Self {
         self.multisampling = option;
         self
     }
 
     /// Whether to enable vertical synchronization or not. Defaults to `true`.
-    pub fn vsync(&mut self, option: bool) -> &mut Self {
+    pub fn vsync(
+        &mut self,
+        option: bool,
+    ) -> &mut Self {
         self.vsync = option;
         self
     }
@@ -75,7 +89,8 @@ impl Builder {
             glutin::WindowBuilder::new()
         };
 
-        let builder = builder.clone()
+        let builder = builder
+            .clone()
             .with_dimensions(self.dimensions.0, self.dimensions.1)
             .with_title(self.title.clone());
 
@@ -84,10 +99,7 @@ impl Builder {
             .with_multisampling(self.multisampling);
 
         let event_loop = glutin::EventsLoop::new();
-        let (renderer, window, mut factory) = Renderer::new(builder,
-                                                            context,
-                                                            &event_loop,
-                                                            &self.shader_path);
+        let (renderer, window, mut factory) = Renderer::new(builder, context, &event_loop, &self.shader_path);
         let scene = factory.scene();
         Window {
             event_loop,
@@ -102,7 +114,10 @@ impl Builder {
 
 impl Window {
     /// Create new `Builder` with standard parameters.
-    pub fn builder<T: Into<String>, P: AsRef<Path>>(title: T, shader_path: P) -> Builder {
+    pub fn builder<T: Into<String>, P: AsRef<Path>>(
+        title: T,
+        shader_path: P,
+    ) -> Builder {
         Builder {
             dimensions: (1024, 768),
             fullscreen: false,
@@ -124,25 +139,26 @@ impl Window {
         let window = &self.window;
 
         self.event_loop.poll_events(|event| {
-            use glutin::WindowEvent::{Resized, Closed, KeyboardInput,
-                MouseInput, MouseMoved, MouseWheel};
+            use glutin::WindowEvent::{Closed, KeyboardInput, MouseInput, MouseMoved, MouseWheel, Resized};
             match event {
-                glutin::Event::WindowEvent { event, ..} => match event {
+                glutin::Event::WindowEvent { event, .. } => match event {
                     Resized(..) => renderer.resize(window),
                     Closed => running = false,
                     KeyboardInput {
                         input: glutin::KeyboardInput {
                             state,
-                            virtual_keycode: Some(keycode), ..
-                        }, ..
+                            virtual_keycode: Some(keycode),
+                            ..
+                        },
+                        ..
                     } => input.keyboard_input(state, keycode),
-                    MouseInput {
-                        state,
-                        button, .. } => input.mouse_input(state, button),
+                    MouseInput { state, button, .. } => input.mouse_input(state, button),
                     MouseMoved {
                         position: (x, y), ..
-                    } => input.mouse_moved([x as f32, y as f32].into(),
-                                           renderer.map_to_ndc([x as f32, y as f32])),
+                    } => input.mouse_moved(
+                        [x as f32, y as f32].into(),
+                        renderer.map_to_ndc([x as f32, y as f32]),
+                    ),
                     MouseWheel { delta, .. } => input.mouse_wheel_input(delta),
                     _ => {}
                 },
@@ -156,7 +172,7 @@ impl Window {
                             return;
                         };
                         input.mouse_moved_raw(delta);
-                    },
+                    }
                     _ => {}
                 },
                 _ => {}
@@ -167,23 +183,30 @@ impl Window {
     }
 
     /// Render the current scene with specific [`Camera`](struct.Camera.html).
-    pub fn render(&mut self, camera: &Camera) {
+    pub fn render(
+        &mut self,
+        camera: &Camera,
+    ) {
         self.renderer.render(&self.scene, camera);
     }
 
     /// Get current window size in pixels.
     pub fn size(&self) -> mint::Vector2<f32> {
-        let size = self.window.get_inner_size_pixels().expect("Can't get window size");
+        let size = self.window
+            .get_inner_size_pixels()
+            .expect("Can't get window size");
         [size.0 as f32, size.1 as f32].into()
     }
 
     /// Set cursor visibility
-    pub fn show_cursor(&self, enable: bool) {
+    pub fn show_cursor(
+        &self,
+        enable: bool,
+    ) {
         let _ = if enable {
             self.window.set_cursor_state(glutin::CursorState::Normal)
         } else {
             self.window.set_cursor_state(glutin::CursorState::Hide)
         };
     }
-
 }

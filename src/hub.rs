@@ -1,19 +1,19 @@
 use audio::{AudioData, Operation as AudioOperation};
-use scene::Color;
 use light::{ShadowMap, ShadowProjection};
 use material::Material;
-use text::{TextData, Operation as TextOperation};
-use render::GpuData;
-use object::Object;
 use mesh::DynamicMesh;
 use node::{Node, NodePointer};
+use object::Object;
+use render::GpuData;
+use scene::Color;
+use text::{Operation as TextOperation, TextData};
 
+use cgmath::Transform;
 use froggy;
 use mint;
-use cgmath::Transform;
 
-use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
+use std::sync::mpsc;
 
 #[derive(Clone, Debug)]
 pub(crate) enum SubLight {
@@ -46,7 +46,11 @@ pub(crate) enum Operation {
     SetParent(NodePointer),
     SetVisible(bool),
     SetText(TextOperation),
-    SetTransform(Option<mint::Point3<f32>>, Option<mint::Quaternion<f32>>, Option<f32>),
+    SetTransform(
+        Option<mint::Point3<f32>>,
+        Option<mint::Quaternion<f32>>,
+        Option<f32>,
+    ),
     SetMaterial(Material),
     SetTexelRange(mint::Point2<i16>, mint::Vector2<u16>),
     SetShadow(ShadowMap, ShadowProjection),
@@ -71,7 +75,10 @@ impl Hub {
         Arc::new(Mutex::new(hub))
     }
 
-    fn spawn(&mut self, sub: SubNode) -> Object {
+    fn spawn(
+        &mut self,
+        sub: SubNode,
+    ) -> Object {
         Object {
             node: self.nodes.create(sub.into()),
             tx: self.message_tx.clone(),
@@ -82,19 +89,32 @@ impl Hub {
         self.spawn(SubNode::Empty)
     }
 
-    pub(crate) fn spawn_visual(&mut self, mat: Material, gpu_data: GpuData) -> Object {
+    pub(crate) fn spawn_visual(
+        &mut self,
+        mat: Material,
+        gpu_data: GpuData,
+    ) -> Object {
         self.spawn(SubNode::Visual(mat, gpu_data))
     }
 
-    pub(crate) fn spawn_light(&mut self, data: LightData) -> Object {
+    pub(crate) fn spawn_light(
+        &mut self,
+        data: LightData,
+    ) -> Object {
         self.spawn(SubNode::Light(data))
     }
 
-    pub(crate) fn spawn_ui_text(&mut self, text: TextData) -> Object {
+    pub(crate) fn spawn_ui_text(
+        &mut self,
+        text: TextData,
+    ) -> Object {
         self.spawn(SubNode::UiText(text))
     }
 
-    pub(crate) fn spawn_audio_source(&mut self, data: AudioData) -> Object {
+    pub(crate) fn spawn_audio_source(
+        &mut self,
+        data: AudioData,
+    ) -> Object {
         self.spawn(SubNode::Audio(data))
     }
 
@@ -105,11 +125,9 @@ impl Hub {
                 Err(_) => continue,
             };
             match operation {
-                Operation::SetAudio(operation) => {
-                    if let SubNode::Audio(ref mut data) = node.sub_node {
-                        Hub::process_audio(operation, data);
-                    }
-                }
+                Operation::SetAudio(operation) => if let SubNode::Audio(ref mut data) = node.sub_node {
+                    Hub::process_audio(operation, data);
+                },
                 Operation::SetParent(parent) => {
                     node.parent = Some(parent);
                 }
@@ -127,35 +145,30 @@ impl Hub {
                         node.transform.scale = scale;
                     }
                 }
-                Operation::SetMaterial(material) => {
-                    if let SubNode::Visual(ref mut mat, _) = node.sub_node {
-                        *mat = material;
+                Operation::SetMaterial(material) => if let SubNode::Visual(ref mut mat, _) = node.sub_node {
+                    *mat = material;
+                },
+                Operation::SetTexelRange(base, size) => if let SubNode::Visual(ref mut material, _) = node.sub_node {
+                    match *material {
+                        Material::Sprite { ref mut map } => map.set_texel_range(base, size),
+                        _ => panic!("Unsupported material for texel range request"),
                     }
-                }
-                Operation::SetTexelRange(base, size) => {
-                    if let SubNode::Visual(ref mut material, _) = node.sub_node {
-                        match *material {
-                            Material::Sprite { ref mut map } => map.set_texel_range(base, size),
-                            _ => panic!("Unsupported material for texel range request")
-                        }
-                    }
-                }
-                Operation::SetText(operation) => {
-                    if let SubNode::UiText(ref mut data) = node.sub_node {
-                        Hub::process_text(operation, data);
-                    }
-                }
-                Operation::SetShadow(map, proj) => {
-                    if let SubNode::Light(ref mut data) = node.sub_node {
-                        data.shadow = Some((map, proj));
-                    }
-                }
+                },
+                Operation::SetText(operation) => if let SubNode::UiText(ref mut data) = node.sub_node {
+                    Hub::process_text(operation, data);
+                },
+                Operation::SetShadow(map, proj) => if let SubNode::Light(ref mut data) = node.sub_node {
+                    data.shadow = Some((map, proj));
+                },
             }
         }
         self.nodes.sync_pending();
     }
 
-    fn process_audio(operation: AudioOperation, data: &mut AudioData) {
+    fn process_audio(
+        operation: AudioOperation,
+        data: &mut AudioData,
+    ) {
         match operation {
             AudioOperation::Append(clip) => data.source.append(clip),
             AudioOperation::Pause => data.source.pause(),
@@ -165,7 +178,10 @@ impl Hub {
         }
     }
 
-    fn process_text(operation: TextOperation, data: &mut TextData) {
+    fn process_text(
+        operation: TextOperation,
+        data: &mut TextData,
+    ) {
         use gfx_glyph::Scale;
         match operation {
             TextOperation::Color(color) => {
@@ -173,7 +189,7 @@ impl Hub {
                 let mut color = decode_color(color);
                 color[3] = data.section.color[3];
                 data.section.color = color;
-            },
+            }
             TextOperation::Font(font) => data.font = font,
             TextOperation::Layout(layout) => data.layout = layout,
             TextOperation::Opacity(opacity) => data.section.color[3] = opacity,
@@ -190,20 +206,18 @@ impl Hub {
         while let Some((left, mut item, _)) = cursor.next() {
             if !item.visible {
                 item.world_visible = false;
-                continue
+                continue;
             }
             let (visibility, affilation, transform) = match item.parent {
-                Some(ref parent_ptr) => {
-                    match left.get(parent_ptr) {
-                        Some(parent) => {
-                            (parent.world_visible,
-                             parent.scene_id,
-                             parent.world_transform.concat(&item.transform))
-                        }
-                        None => {
-                            error!("Parent node was created after the child, ignoring");
-                            (false, item.scene_id, item.transform)
-                        }
+                Some(ref parent_ptr) => match left.get(parent_ptr) {
+                    Some(parent) => (
+                        parent.world_visible,
+                        parent.scene_id,
+                        parent.world_transform.concat(&item.transform),
+                    ),
+                    None => {
+                        error!("Parent node was created after the child, ignoring");
+                        (false, item.scene_id, item.transform)
                     }
                 },
                 None => (true, item.scene_id, item.transform),
@@ -214,11 +228,13 @@ impl Hub {
         }
     }
 
-    pub(crate) fn update_mesh(&mut self, mesh: &DynamicMesh) {
+    pub(crate) fn update_mesh(
+        &mut self,
+        mesh: &DynamicMesh,
+    ) {
         match self.nodes[&mesh.node].sub_node {
-            SubNode::Visual(_, ref mut gpu_data) =>
-                gpu_data.pending = Some(mesh.dynamic.clone()),
-            _ => unreachable!()
+            SubNode::Visual(_, ref mut gpu_data) => gpu_data.pending = Some(mesh.dynamic.clone()),
+            _ => unreachable!(),
         }
     }
 }
