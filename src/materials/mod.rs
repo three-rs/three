@@ -1,6 +1,7 @@
 use render::BasicPipelineState;
 use scene::Color;
 use texture::Texture;
+pub use builder;
 
 /// Material is the enhancement of Texture that is used to setup appearance of [`Mesh`](struct.Mesh.html).
 #[allow(missing_docs)]
@@ -27,7 +28,6 @@ pub enum Material {
         occlusion_strength: f32,
         emissive_factor: [f32; 3],
         normal_scale: f32,
-
         base_color_map: Option<Texture<[f32; 4]>>,
         normal_map: Option<Texture<[f32; 4]>>,
         emissive_map: Option<Texture<[f32; 4]>>,
@@ -42,4 +42,27 @@ pub enum Material {
         map: Option<Texture<[f32; 4]>>,
         pipeline: BasicPipelineState,
     },
+}
+
+impl Material {
+
+    pub fn line_basic(color:Color) -> Material{
+        Material::LineBasic{color}
+    }
+
+    pub fn mesh_basic() -> MeshBasicBuilder{
+        MeshBasicBuilder::new()
+    }
+
+    pub fn mesh_lambert() -> MeshLambertBuilder{
+        MeshLambertBuilder::new()
+    }
+
+    pub fn mesh_phong() -> MeshPhongBuilder{
+        MeshPhongBuilder::new()
+    }
+
+    pub fn mesh_pbr() -> MeshPbrBuilder{
+        MeshPbrBuilder::new()
+     }
 }
