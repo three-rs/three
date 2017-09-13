@@ -15,11 +15,16 @@ fn main() {
     let mut dir_light = win.factory.directional_light(0xffffff, 0.9);
     dir_light.look_at([15.0, 35.0, 35.0], [0.0, 0.0, 2.0], None);
     let shadow_map = win.factory.shadow_map(1024, 1024);
-    let _debug_shadow = win.renderer.debug_shadow_quad(&shadow_map, 1, [10, 10], [256, 256]);
+    let _debug_shadow = win.renderer
+        .debug_shadow_quad(&shadow_map, 1, [10, 10], [256, 256]);
     dir_light.set_shadow(shadow_map, 40.0, 1.0 .. 200.0);
 
-    let mut lights: [&mut three::Object; 4] = [&mut hemisphere_light,
-        &mut ambient_light, &mut point_light, &mut dir_light];
+    let mut lights: [&mut three::Object; 4] = [
+        &mut hemisphere_light,
+        &mut ambient_light,
+        &mut point_light,
+        &mut dir_light,
+    ];
     for l in lights.iter_mut() {
         win.scene.add(l);
         l.set_visible(false);
@@ -27,7 +32,10 @@ fn main() {
 
     let mut sphere = {
         let geometry = three::Geometry::sphere(3.0, 20, 20);
-        let material = three::Material::MeshPhong { color: 0xffA0A0, glossiness: 80.0 };
+        let material = three::Material::MeshPhong {
+            color: 0xffA0A0,
+            glossiness: 80.0,
+        };
         win.factory.mesh(geometry, material)
     };
     sphere.set_position([0.0, 0.0, 2.5]);
@@ -35,7 +43,10 @@ fn main() {
 
     let mut plane = {
         let geometry = three::Geometry::plane(100.0, 100.0);
-        let material = three::Material::MeshLambert { color: 0xA0ffA0, flat: false };
+        let material = three::Material::MeshLambert {
+            color: 0xA0ffA0,
+            flat: false,
+        };
         win.factory.mesh(geometry, material)
     };
     plane.set_position([0.0, -30.0, 0.0]);

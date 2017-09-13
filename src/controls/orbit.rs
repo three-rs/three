@@ -1,5 +1,5 @@
-use cgmath::{Point3, Vector3, Decomposed, Quaternion, Rad};
-use cgmath::{Rotation, Rotation3, EuclideanSpace, Transform as Transform_, InnerSpace};
+use cgmath::{Decomposed, Point3, Quaternion, Rad, Vector3};
+use cgmath::{EuclideanSpace, InnerSpace, Rotation, Rotation3, Transform as Transform_};
 use mint;
 
 use input::{Button, Input, MOUSE_LEFT};
@@ -30,8 +30,7 @@ pub struct Builder {
 
 impl Builder {
     /// Create new `Builder` with default values.
-    pub fn new(object: &Object) -> Self
-    {
+    pub fn new(object: &Object) -> Self {
         Builder {
             object: object.clone(),
             position: [0.0, 0.0, 0.0].into(),
@@ -44,8 +43,12 @@ impl Builder {
     /// Set the initial position.
     ///
     /// Defaults to the world origin.
-    pub fn position<P>(&mut self, position: P) -> &mut Self
-        where P: Into<mint::Point3<f32>>,
+    pub fn position<P>(
+        &mut self,
+        position: P,
+    ) -> &mut Self
+    where
+        P: Into<mint::Point3<f32>>,
     {
         self.position = position.into();
         self
@@ -54,21 +57,31 @@ impl Builder {
     /// Set the target position.
     ///
     /// Defaults to the world origin.
-    pub fn target<P>(&mut self, target: P) -> &mut Self
-        where P: Into<mint::Point3<f32>>,
+    pub fn target<P>(
+        &mut self,
+        target: P,
+    ) -> &mut Self
+    where
+        P: Into<mint::Point3<f32>>,
     {
         self.target = target.into();
         self
     }
 
     /// Setup the speed of the movements. Default value is 1.0
-    pub fn speed(&mut self, speed: f32) -> &mut Self {
+    pub fn speed(
+        &mut self,
+        speed: f32,
+    ) -> &mut Self {
         self.speed = speed;
         self
     }
 
     /// Setup control button. Default is left mouse button (`MOUSE_LEFT`).
-    pub fn button(&mut self, button: Button) -> &mut Self {
+    pub fn button(
+        &mut self,
+        button: Button,
+    ) -> &mut Self {
         self.button = button;
         self
     }
@@ -97,22 +110,24 @@ impl Builder {
 
 impl Orbit {
     /// Create new `Builder` with default values.
-    pub fn builder(object: &Object) -> Builder
-    {
+    pub fn builder(object: &Object) -> Builder {
         Builder::new(object)
     }
 
     /// Update current position and rotation of the controlled object according to the last frame input.
-    pub fn update(&mut self, input: &Input) {
+    pub fn update(
+        &mut self,
+        input: &Input,
+    ) {
         if !self.button.is_hit(input) && input.mouse_wheel().abs() < 1e-6 {
-            return
+            return;
         }
 
         if input.mouse_movements().len() > 0 {
             let mouse_delta = input.mouse_delta_ndc();
             let pre = Decomposed {
                 disp: -self.target.to_vec(),
-                .. Decomposed::one()
+                ..Decomposed::one()
             };
             let q_ver = Quaternion::from_angle_y(Rad(self.speed * (mouse_delta.x)));
             let axis = self.transform.rot * Vector3::unit_x();

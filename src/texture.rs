@@ -20,9 +20,11 @@ pub struct Texture<T> {
 }
 
 impl<T> Texture<T> {
-    pub(crate) fn new(view: h::ShaderResourceView<BackendResources, T>,
-               sampler: h::Sampler<BackendResources>,
-               total_size: [u32; 2]) -> Self {
+    pub(crate) fn new(
+        view: h::ShaderResourceView<BackendResources, T>,
+        sampler: h::Sampler<BackendResources>,
+        total_size: [u32; 2],
+    ) -> Self {
         Texture {
             view,
             sampler,
@@ -32,12 +34,21 @@ impl<T> Texture<T> {
         }
     }
 
-    pub(crate) fn to_param(&self) -> (h::ShaderResourceView<BackendResources, T>, h::Sampler<BackendResources>) {
+    pub(crate) fn to_param(
+        &self,
+    ) -> (
+        h::ShaderResourceView<BackendResources, T>,
+        h::Sampler<BackendResources>,
+    ) {
         (self.view.clone(), self.sampler.clone())
     }
 
     /// See [`Sprite::set_texel_range`](struct.Sprite.html#method.set_texel_range).
-    pub fn set_texel_range(&mut self, base: mint::Point2<i16>, size: mint::Vector2<u16>) {
+    pub fn set_texel_range(
+        &mut self,
+        base: mint::Point2<i16>,
+        size: mint::Vector2<u16>,
+    ) {
         self.tex0 = [
             base.x as f32,
             self.total_size[1] as f32 - base.y as f32 - size.y as f32,
@@ -50,9 +61,11 @@ impl<T> Texture<T> {
 
     /// Returns normalized UV rectangle (x0, y0, x1, y1) of the current texel range.
     pub fn uv_range(&self) -> [f32; 4] {
-        [self.tex0[0] / self.total_size[0] as f32,
+        [
+            self.tex0[0] / self.total_size[0] as f32,
             self.tex0[1] / self.total_size[1] as f32,
             self.tex1[0] / self.total_size[0] as f32,
-            self.tex1[1] / self.total_size[1] as f32]
+            self.tex1[1] / self.total_size[1] as f32,
+        ]
     }
 }

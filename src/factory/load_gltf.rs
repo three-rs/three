@@ -5,10 +5,10 @@ use image;
 use mint;
 use std::{fs, io};
 
+use {Geometry, Group, Material, Mesh, Texture};
 use camera::Camera;
 use std::path::{Path, PathBuf};
 use vec_map::VecMap;
-use {Geometry, Group, Material, Mesh, Texture};
 
 impl super::Factory {
     /// Loads a `glTF` texture.
@@ -36,7 +36,7 @@ impl super::Factory {
                         .unwrap()
                         .to_rgba()
                 }
-            },
+            }
             gltf::image::Data::Uri { uri, mime_type } => {
                 let path: PathBuf = base.join(uri);
                 if let Some(ty) = mime_type {
@@ -47,19 +47,15 @@ impl super::Factory {
                     };
                     let file = fs::File::open(&path).unwrap();
                     let reader = io::BufReader::new(file);
-                    image::load(reader, format)
-                        .unwrap()
-                        .to_rgba()
+                    image::load(reader, format).unwrap().to_rgba()
                 } else {
-                    image::open(&path)
-                        .unwrap()
-                        .to_rgba()
+                    image::open(&path).unwrap().to_rgba()
                 }
-            },
+            }
         };
         let (width, height) = (image.width() as u16, image.height() as u16);
         use gltf::texture::{MagFilter, WrappingMode};
-        use ::{FilterMethod, WrapMode};
+        use {FilterMethod, WrapMode};
         let params = texture.sampler();
         // gfx does not support separate min / mag
         // filters yet, so for now we'll use `mag_filter` for both.
@@ -90,33 +86,24 @@ impl super::Factory {
     ) -> Material {
         let pbr = mat.pbr_metallic_roughness();
         let mut is_basic_material = true;
-        let base_color_map = pbr
-            .base_color_texture()
+        let base_color_map = pbr.base_color_texture()
             .map(|t| self.load_gltf_texture(&t, buffers, base));
-        let normal_map = mat
-            .normal_texture()
-            .map(|t| {
-                is_basic_material = false;
-                self.load_gltf_texture(&t, buffers, base)
-            });
-        let emissive_map = mat
-            .emissive_texture()
-            .map(|t| {
-                is_basic_material = false;
-                self.load_gltf_texture(&t, buffers, base)
-            });
-        let metallic_roughness_map = pbr
-            .metallic_roughness_texture()
-            .map(|t| {
-                is_basic_material = false;
-                self.load_gltf_texture(&t, buffers, base)
-            });
-        let occlusion_map = mat
-            .occlusion_texture()
-            .map(|t| {
-                is_basic_material = false;
-                self.load_gltf_texture(&t, buffers, base)
-            });
+        let normal_map = mat.normal_texture().map(|t| {
+            is_basic_material = false;
+            self.load_gltf_texture(&t, buffers, base)
+        });
+        let emissive_map = mat.emissive_texture().map(|t| {
+            is_basic_material = false;
+            self.load_gltf_texture(&t, buffers, base)
+        });
+        let metallic_roughness_map = pbr.metallic_roughness_texture().map(|t| {
+            is_basic_material = false;
+            self.load_gltf_texture(&t, buffers, base)
+        });
+        let occlusion_map = mat.occlusion_texture().map(|t| {
+            is_basic_material = false;
+            self.load_gltf_texture(&t, buffers, base)
+        });
         if is_basic_material {
             Material::MeshBasic {
                 color: ::render::encode_color(pbr.base_color_factor()),
@@ -187,13 +174,9 @@ impl super::Factory {
                     tex_coords: tex_coords,
                 },
                 faces: faces,
-                .. Geometry::empty()
+                ..Geometry::empty()
             };
-            let material = self.load_gltf_material(
-                &primitive.material(),
-                buffers,
-                base,
-            );
+            let material = self.load_gltf_material(&primitive.material(), buffers, base);
             primitives.push(self.mesh(geometry, material));
         }
         primitives
@@ -228,7 +211,7 @@ impl super::Factory {
             Item {
                 group: self.group(),
                 node: the_node.clone(),
-            }
+            },
         ];
 
         while let Some(mut item) = stack.pop() {
@@ -248,12 +231,7 @@ impl super::Factory {
                         instances.push(instance);
                     }
                 } else {
-                    let primitives = self
-                        .load_gltf_mesh(
-                            &entry,
-                            buffers,
-                            base,
-                        );
+                    let primitives = self.load_gltf_mesh(&entry, buffers, base);
                     for primitive in &primitives {
                         item.group.add(&primitive);
                     }
@@ -266,26 +244,22 @@ impl super::Factory {
                     gltf::camera::Projection::Orthographic(x) => {
                         let center: mint::Point2<f32> = [0.0, 0.0].into();
                         let extent_y = x.ymag();
-                        let range = x.znear()..x.zfar();
-                        let camera = self.orthographic_camera(
-                            center,
-                            extent_y,
-                            range,
-                        );
+                        let range = x.znear() .. x.zfar();
+                        let camera = self.orthographic_camera(center, extent_y, range);
                         item.group.add(&camera);
                         cameras.push(camera);
-                    },
+                    }
                     gltf::camera::Projection::Perspective(x) => {
                         let fov_y = x.yfov().to_degrees();
                         let near = x.znear();
                         let camera = if let Some(far) = x.zfar() {
-                            self.perspective_camera(fov_y, near..far)
+                            self.perspective_camera(fov_y, near .. far)
                         } else {
-                            self.perspective_camera(fov_y, near..)
+                            self.perspective_camera(fov_y, near ..)
                         };
                         item.group.add(&camera);
                         cameras.push(camera);
-                    },
+                    }
                 }
             }
 
@@ -305,11 +279,10 @@ impl super::Factory {
     }
 
     /// Load a scene from glTF 2.0 format.
-    pub fn load_gltf(&mut self, path_str: &str) -> (
-        Group,
-        Vec<Camera>,
-        VecMap<Vec<Mesh>>,
-    ) {
+    pub fn load_gltf(
+        &mut self,
+        path_str: &str,
+    ) -> (Group, Vec<Camera>, VecMap<Vec<Mesh>>) {
         info!("Loading {}", path_str);
         let path = Path::new(path_str);
         let default = Path::new("");

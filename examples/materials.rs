@@ -14,10 +14,23 @@ fn main() {
 
     let geometry = three::Geometry::cylinder(1.0, 2.0, 2.0, 5);
     let mut materials = vec![
-        three::Material::MeshBasic { color: 0xffffff, map: None, wireframe: false },
-        three::Material::MeshLambert { color: 0xffffff, flat: true },
-        three::Material::MeshLambert { color: 0xffffff, flat: false },
-        three::Material::MeshPhong { color: 0xffffff, glossiness: 80.0 },
+        three::Material::MeshBasic {
+            color: 0xffffff,
+            map: None,
+            wireframe: false,
+        },
+        three::Material::MeshLambert {
+            color: 0xffffff,
+            flat: true,
+        },
+        three::Material::MeshLambert {
+            color: 0xffffff,
+            flat: false,
+        },
+        three::Material::MeshPhong {
+            color: 0xffffff,
+            glossiness: 80.0,
+        },
         three::Material::MeshPbr {
             base_color_factor: [0.2, 0.2, 0.2, 1.0],
             metallic_roughness: [0.5, 0.5],
@@ -33,13 +46,17 @@ fn main() {
     ];
     let count = materials.len();
 
-    let _cubes: Vec<_> = materials.drain(..).enumerate().map(|(i, mat)| {
-        let offset = 4.0 * (i as f32 + 0.5 - 0.5 * count as f32);
-        let mut mesh = win.factory.mesh(geometry.clone(), mat);
-        mesh.set_position([offset, 0.0, 0.0]);
-        win.scene.add(&mesh);
-        mesh
-    }).collect();
+    let _cubes: Vec<_> = materials
+        .drain(..)
+        .enumerate()
+        .map(|(i, mat)| {
+            let offset = 4.0 * (i as f32 + 0.5 - 0.5 * count as f32);
+            let mut mesh = win.factory.mesh(geometry.clone(), mat);
+            mesh.set_position([offset, 0.0, 0.0]);
+            win.scene.add(&mesh);
+            mesh
+        })
+        .collect();
 
     while win.update() && !three::KEY_ESCAPE.is_hit(&win.input) {
         if let Some(diff) = three::AXIS_LEFT_RIGHT.timed(&win.input) {
