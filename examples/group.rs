@@ -1,6 +1,6 @@
-extern crate three;
 extern crate cgmath;
 extern crate mint;
+extern crate three;
 
 use cgmath::{Angle, Decomposed, One, Quaternion, Rad, Rotation3, Transform, Vector3};
 
@@ -15,11 +15,11 @@ struct Cube {
     orientation: Quaternion<f32>,
 }
 
-fn create_cubes(factory: &mut three::Factory,
-                materials: &[three::Material],
-                levels: &[Level])
-                -> Vec<Cube>
-{
+fn create_cubes(
+    factory: &mut three::Factory,
+    materials: &[three::Material],
+    levels: &[Level],
+) -> Vec<Cube> {
     let mut geometry = three::Geometry::cuboid(2.0, 2.0, 2.0);
     for v in geometry.base_shape.vertices.iter_mut() {
         v.z += 1.0;
@@ -32,7 +32,8 @@ fn create_cubes(factory: &mut three::Factory,
         group.set_scale(2.0);
         group.add(&mesh);
         Cube {
-            group, mesh,
+            group,
+            mesh,
             level_id: 0,
             orientation: Quaternion::one(),
         }
@@ -49,23 +50,29 @@ fn create_cubes(factory: &mut three::Factory,
             parent_id: 0,
             mat_id: 1,
             lev_id: 1,
-        }
+        },
     ];
 
-    let axis = [Vector3::unit_z(),
-                Vector3::unit_x(), -Vector3::unit_x(),
-                Vector3::unit_y(), -Vector3::unit_y()];
-    let children: Vec<_> = axis.iter().map(|&axe| {
-        Decomposed {
-            disp: Vector3::new(0.0, 0.0, 1.0),
-            rot: Quaternion::from_axis_angle(axe, Rad::turn_div_4()),
-            scale: 1.0,
-        }.concat(&Decomposed {
-            disp: Vector3::new(0.0, 0.0, 1.0),
-            rot: Quaternion::one(),
-            scale: 0.4,
+    let axis = [
+        Vector3::unit_z(),
+        Vector3::unit_x(),
+        -Vector3::unit_x(),
+        Vector3::unit_y(),
+        -Vector3::unit_y(),
+    ];
+    let children: Vec<_> = axis.iter()
+        .map(|&axe| {
+            Decomposed {
+                disp: Vector3::new(0.0, 0.0, 1.0),
+                rot: Quaternion::from_axis_angle(axe, Rad::turn_div_4()),
+                scale: 1.0,
+            }.concat(&Decomposed {
+                disp: Vector3::new(0.0, 0.0, 1.0),
+                rot: Quaternion::one(),
+                scale: 0.4,
+            })
         })
-    }).collect();
+        .collect();
 
     while let Some(next) = stack.pop() {
         for child in &children {
@@ -94,12 +101,14 @@ fn create_cubes(factory: &mut three::Factory,
     list
 }
 
-const COLORS: [three::Color; 6] = [
-    0xffff80, 0x8080ff, 0x80ff80, 0xff8080, 0x80ffff, 0xff80ff
-];
+const COLORS: [three::Color; 6] = [0xffff80, 0x8080ff, 0x80ff80, 0xff8080, 0x80ffff, 0xff80ff];
 
 const SPEEDS: [f32; 5] = [
-    0.7, -1.0, 1.3, -1.6, 1.9,
+    0.7,
+    -1.0,
+    1.3,
+    -1.6,
+    1.9,
     //-2.2, //TODO when performance allows
 ];
 
@@ -116,12 +125,11 @@ fn main() {
     light.set_position([0.0, -10.0, 10.0]);
     win.scene.add(&light);
 
-    let materials: Vec<_> = COLORS.iter().map(|&color| {
-        three::Material::MeshLambert { color, flat: false }
-    }).collect();
-    let levels: Vec<_> = SPEEDS.iter().map(|&speed| {
-        Level { speed }
-    }).collect();
+    let materials: Vec<_> = COLORS
+        .iter()
+        .map(|&color| three::Material::MeshLambert { color, flat: false })
+        .collect();
+    let levels: Vec<_> = SPEEDS.iter().map(|&speed| Level { speed }).collect();
     let mut cubes = create_cubes(&mut win.factory, &materials, &levels);
     win.scene.add(&cubes[0].group);
 

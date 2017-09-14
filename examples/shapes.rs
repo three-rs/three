@@ -13,7 +13,11 @@ fn main() {
 
     let mut mbox = {
         let geometry = three::Geometry::cuboid(3.0, 2.0, 1.0);
-        let material = three::Material::MeshBasic { color: 0x00ff00, map: None, wireframe: true };
+        let material = three::Material::MeshBasic {
+            color: 0x00ff00,
+            map: None,
+            wireframe: true,
+        };
         win.factory.mesh(geometry, material)
     };
     mbox.set_position([-3.0, -3.0, 0.0]);
@@ -21,7 +25,11 @@ fn main() {
 
     let mut mcyl = {
         let geometry = three::Geometry::cylinder(1.0, 2.0, 2.0, 5);
-        let material = three::Material::MeshBasic { color: 0xff0000, map: None, wireframe: true };
+        let material = three::Material::MeshBasic {
+            color: 0xff0000,
+            map: None,
+            wireframe: true,
+        };
         win.factory.mesh(geometry, material)
     };
     mcyl.set_position([3.0, -3.0, 0.0]);
@@ -29,7 +37,11 @@ fn main() {
 
     let mut msphere = {
         let geometry = three::Geometry::sphere(2.0, 5, 5);
-        let material = three::Material::MeshBasic { color: 0xff0000, map: None, wireframe: true };
+        let material = three::Material::MeshBasic {
+            color: 0xff0000,
+            map: None,
+            wireframe: true,
+        };
         win.factory.mesh(geometry, material)
     };
     msphere.set_position([-3.0, 3.0, 0.0]);

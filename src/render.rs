@@ -1,8 +1,8 @@
-use cgmath::{Matrix4, Vector3, Transform as Transform_};
+use cgmath::{Matrix4, Transform as Transform_, Vector3};
 use froggy;
 use gfx;
-use gfx::traits::{Device, Factory as Factory_, FactoryExt};
 use gfx::memory::Typed;
+use gfx::traits::{Device, Factory as Factory_, FactoryExt};
 #[cfg(feature = "opengl")]
 use gfx_device_gl as back;
 #[cfg(feature = "opengl")]
@@ -11,21 +11,21 @@ use gfx_window_glutin;
 use glutin;
 use mint;
 
-use std::mem;
 use std::collections::HashMap;
+use std::mem;
 use std::path::{Path, PathBuf};
 
+pub use self::back::CommandBuffer as BackendCommandBuffer;
 pub use self::back::Factory as BackendFactory;
 pub use self::back::Resources as BackendResources;
-pub use self::back::CommandBuffer as BackendCommandBuffer;
 use camera::Camera;
 use factory::Factory;
-use scene::{Color, Background, Scene};
-use material::Material;
 use hub::{SubLight, SubNode};
 use light::{ShadowMap, ShadowProjection};
-use texture::Texture;
+use material::Material;
+use scene::{Background, Color, Scene};
 use text::Font;
+use texture::Texture;
 
 /// The format of the back buffer color requested from the windowing system.
 pub type ColorFormat = gfx::format::Srgba8;
@@ -155,7 +155,10 @@ pub enum ShaderType {
 impl ShaderType {
     #[cfg(feature = "opengl")]
     // Append specific postfix to the given name
-    pub fn as_file_name<S: Into<String>>(&self, name: S) -> String {
+    pub fn as_file_name<S: Into<String>>(
+        &self,
+        name: S,
+    ) -> String {
         match *self {
             ShaderType::Vertex => name.into() + "_vs.glsl",
             ShaderType::Fragment => name.into() + "_ps.glsl",
@@ -163,13 +166,16 @@ impl ShaderType {
     }
 }
 
-pub fn get_shader(root: &Path, name: &str, variant: ShaderType) -> String {
+pub fn get_shader(
+    root: &Path,
+    name: &str,
+    variant: ShaderType,
+) -> String {
     use std::fs::File;
     use std::io::{BufRead, BufReader, Read};
     let mut code = String::new();
     let shader_path = root.join(variant.as_file_name(name));
-    let template_file = File::open(&shader_path)
-                             .expect(&format!("Unable to open shader {}", &shader_path.display()));
+    let template_file = File::open(&shader_path).expect(&format!("Unable to open shader {}", &shader_path.display()));
     for line in BufReader::new(template_file).lines() {
         let line = line.unwrap();
         if line.starts_with("#include") {
@@ -178,8 +184,9 @@ pub fn get_shader(root: &Path, name: &str, variant: ShaderType) -> String {
                 let mut file_name = root.join(dep_name);
                 file_name.set_extension("glsl");
                 File::open(file_name)
-                     .expect(&format!("Unable to open snippet for {}", dep_name))
-                     .read_to_string(&mut code).unwrap();
+                    .expect(&format!("Unable to open snippet for {}", dep_name))
+                    .read_to_string(&mut code)
+                    .unwrap();
             }
         } else {
             code.push_str(&line);
@@ -189,18 +196,28 @@ pub fn get_shader(root: &Path, name: &str, variant: ShaderType) -> String {
     code
 }
 
-pub fn load_program<R, F, P: AsRef<Path>>(root: P, name: &str, factory: &mut F)
-                      -> Result<gfx::handle::Program<R>, ()> where
+pub fn load_program<R, F, P: AsRef<Path>>(
+    root: P,
+    name: &str,
+    factory: &mut F,
+) -> Result<gfx::handle::Program<R>, ()>
+where
     R: gfx::Resources,
     F: gfx::Factory<R>,
 {
     let code_vs = get_shader(root.as_ref(), name, ShaderType::Vertex);
     let code_ps = get_shader(root.as_ref(), name, ShaderType::Fragment);
 
-    factory.link_program(code_vs.as_bytes(), code_ps.as_bytes()).map_err(|e| {
-        error!("Unable to link program {}: {}", root.as_ref().join(name).display(), e);
-        () // TODO: Better error type
-    })
+    factory
+        .link_program(code_vs.as_bytes(), code_ps.as_bytes())
+        .map_err(|e| {
+            error!(
+                "Unable to link program {}: {}",
+                root.as_ref().join(name).display(),
+                e
+            );
+            () // TODO: Better error type
+        })
 }
 
 /// sRGB to linear conversion from:
@@ -214,7 +231,7 @@ pub(crate) fn decode_color(c: Color) -> [f32; 4] {
             x / 12.92
         }
     };
-    [f(c>>16), f(c>>8), f(c), 0.0]
+    [f(c >> 16), f(c >> 8), f(c), 0.0]
 }
 
 /// Linear to sRGB conversion from https://en.wikipedia.org/wiki/SRGB
@@ -309,13 +326,14 @@ pub struct Renderer {
 impl Renderer {
     #[cfg(feature = "opengl")]
     #[doc(hidden)]
-    pub fn new(builder: glutin::WindowBuilder,
-               context: glutin::ContextBuilder,
-               event_loop: &glutin::EventsLoop,
-               shader_path: &Path) -> (Self, glutin::GlWindow, Factory) {
+    pub fn new(
+        builder: glutin::WindowBuilder,
+        context: glutin::ContextBuilder,
+        event_loop: &glutin::EventsLoop,
+        shader_path: &Path,
+    ) -> (Self, glutin::GlWindow, Factory) {
         use gfx::texture as t;
-        let (window, device, mut gl_factory, color, depth) =
-            gfx_window_glutin::init(builder, context, event_loop);
+        let (window, device, mut gl_factory, color, depth) = gfx_window_glutin::init(builder, context, event_loop);
         let prog_basic = load_program(shader_path, "basic", &mut gl_factory).unwrap();
         let prog_gouraud = load_program(shader_path, "gouraud", &mut gl_factory).unwrap();
         let prog_phong = load_program(shader_path, "phong", &mut gl_factory).unwrap();
@@ -327,23 +345,23 @@ impl Renderer {
         let rast_fill = gfx::state::Rasterizer::new_fill().with_cull_back();
         let rast_wire = gfx::state::Rasterizer {
             method: gfx::state::RasterMethod::Line(1),
-            .. rast_fill
+            ..rast_fill
         };
         let rast_shadow = gfx::state::Rasterizer {
             offset: Some(gfx::state::Offset(2, 2)),
-            .. rast_fill
+            ..rast_fill
         };
-        let (_, srv_white) = gl_factory.create_texture_immutable::<gfx::format::Rgba8>(
-            t::Kind::D2(1, 1, t::AaMode::Single), &[&[[0xFF; 4]]]
-            ).unwrap();
-        let (_, srv_shadow) = gl_factory.create_texture_immutable::<(gfx::format::R32, gfx::format::Float)>(
-            t::Kind::D2(1, 1, t::AaMode::Single), &[&[0x3F800000]]
-            ).unwrap();
+        let (_, srv_white) = gl_factory
+            .create_texture_immutable::<gfx::format::Rgba8>(t::Kind::D2(1, 1, t::AaMode::Single), &[&[[0xFF; 4]]])
+            .unwrap();
+        let (_, srv_shadow) = gl_factory
+            .create_texture_immutable::<(gfx::format::R32, gfx::format::Float)>(t::Kind::D2(1, 1, t::AaMode::Single), &[&[0x3F800000]])
+            .unwrap();
         let sampler = gl_factory.create_sampler_linear();
         let sampler_shadow = gl_factory.create_sampler(t::SamplerInfo {
             comparison: Some(gfx::state::Comparison::Less),
             border: t::PackedColor(!0), // clamp to 1.0
-            .. t::SamplerInfo::new(t::FilterMethod::Bilinear, t::WrapMode::Border)
+            ..t::SamplerInfo::new(t::FilterMethod::Bilinear, t::WrapMode::Border)
         });
         let renderer = Renderer {
             device: device,
@@ -354,35 +372,81 @@ impl Renderer {
             pbr_buf: gl_factory.create_constant_buffer(1),
             out_color: color,
             out_depth: depth,
-            pso_line_basic: gl_factory.create_pipeline_from_program(&prog_basic,
-                gfx::Primitive::LineStrip, rast_fill, pipe::new()
-                ).unwrap(),
-            pso_mesh_basic_fill: gl_factory.create_pipeline_from_program(&prog_basic,
-                gfx::Primitive::TriangleList, rast_fill, pipe::new()
-                ).unwrap(),
-            pso_mesh_basic_wireframe: gl_factory.create_pipeline_from_program(&prog_basic,
-                gfx::Primitive::TriangleList, rast_wire, pipe::new(),
-                ).unwrap(),
-            pso_mesh_gouraud: gl_factory.create_pipeline_from_program(&prog_gouraud,
-                gfx::Primitive::TriangleList, rast_fill, pipe::new()
-                ).unwrap(),
-            pso_mesh_phong: gl_factory.create_pipeline_from_program(&prog_phong,
-                gfx::Primitive::TriangleList, rast_fill, pipe::new()
-                ).unwrap(),
-            pso_sprite: gl_factory.create_pipeline_from_program(&prog_sprite,
-                gfx::Primitive::TriangleStrip, rast_fill, pipe::Init {
-                    out_color: ("Target0", gfx::state::MASK_ALL, gfx::preset::blend::ALPHA),
-                    .. pipe::new()
-                }).unwrap(),
-            pso_shadow: gl_factory.create_pipeline_from_program(&prog_shadow,
-                gfx::Primitive::TriangleList, rast_shadow, shadow_pipe::new()
-                ).unwrap(),
-            pso_quad: gl_factory.create_pipeline_from_program(&prog_quad,
-                gfx::Primitive::TriangleStrip, rast_quad, quad_pipe::new()
-                ).unwrap(),
-            pso_pbr: gl_factory.create_pipeline_from_program(&prog_pbr,
-                gfx::Primitive::TriangleList, rast_fill, pbr_pipe::new()
-                ).unwrap(),
+            pso_line_basic: gl_factory
+                .create_pipeline_from_program(
+                    &prog_basic,
+                    gfx::Primitive::LineStrip,
+                    rast_fill,
+                    pipe::new(),
+                )
+                .unwrap(),
+            pso_mesh_basic_fill: gl_factory
+                .create_pipeline_from_program(
+                    &prog_basic,
+                    gfx::Primitive::TriangleList,
+                    rast_fill,
+                    pipe::new(),
+                )
+                .unwrap(),
+            pso_mesh_basic_wireframe: gl_factory
+                .create_pipeline_from_program(
+                    &prog_basic,
+                    gfx::Primitive::TriangleList,
+                    rast_wire,
+                    pipe::new(),
+                )
+                .unwrap(),
+            pso_mesh_gouraud: gl_factory
+                .create_pipeline_from_program(
+                    &prog_gouraud,
+                    gfx::Primitive::TriangleList,
+                    rast_fill,
+                    pipe::new(),
+                )
+                .unwrap(),
+            pso_mesh_phong: gl_factory
+                .create_pipeline_from_program(
+                    &prog_phong,
+                    gfx::Primitive::TriangleList,
+                    rast_fill,
+                    pipe::new(),
+                )
+                .unwrap(),
+            pso_sprite: gl_factory
+                .create_pipeline_from_program(
+                    &prog_sprite,
+                    gfx::Primitive::TriangleStrip,
+                    rast_fill,
+                    pipe::Init {
+                        out_color: ("Target0", gfx::state::MASK_ALL, gfx::preset::blend::ALPHA),
+                        ..pipe::new()
+                    },
+                )
+                .unwrap(),
+            pso_shadow: gl_factory
+                .create_pipeline_from_program(
+                    &prog_shadow,
+                    gfx::Primitive::TriangleList,
+                    rast_shadow,
+                    shadow_pipe::new(),
+                )
+                .unwrap(),
+            pso_quad: gl_factory
+                .create_pipeline_from_program(
+                    &prog_quad,
+                    gfx::Primitive::TriangleStrip,
+                    rast_quad,
+                    quad_pipe::new(),
+                )
+                .unwrap(),
+            pso_pbr: gl_factory
+                .create_pipeline_from_program(
+                    &prog_pbr,
+                    gfx::Primitive::TriangleList,
+                    rast_fill,
+                    pbr_pipe::new(),
+                )
+                .unwrap(),
             map_default: Texture::new(srv_white, sampler, [1, 1]),
             shadow_default: Texture::new(srv_shadow, sampler_shadow, [1, 1]),
             shadow: ShadowType::Basic,
@@ -395,13 +459,16 @@ impl Renderer {
     }
 
     #[doc(hidden)]
-    pub fn resize(&mut self, window: &glutin::GlWindow) {
+    pub fn resize(
+        &mut self,
+        window: &glutin::GlWindow,
+    ) {
         let size = window.get_inner_size_pixels().unwrap();
 
         // skip updating view and self size if some
         // of the sides equals to zero (fixes crash on minimize on Windows machines)
         if size.0 == 0 || size.1 == 0 {
-            return
+            return;
         }
 
         self.size = size;
@@ -416,7 +483,10 @@ impl Renderer {
     /// Map screen pixel coordinates to Normalized Display Coordinates.
     /// The lower left corner corresponds to (-1,-1), and the upper right corner
     /// corresponds to (1,1).
-    pub fn map_to_ndc<P: Into<mint::Point2<f32>>>(&self, point: P) -> mint::Point2<f32> {
+    pub fn map_to_ndc<P: Into<mint::Point2<f32>>>(
+        &self,
+        point: P,
+    ) -> mint::Point2<f32> {
         let point = point.into();
         mint::Point2 {
             x: 2.0 * point.x / self.size.0 as f32 - 1.0,
@@ -425,7 +495,11 @@ impl Renderer {
     }
 
     /// See [`Window::render`](struct.Window.html#method.render).
-    pub fn render(&mut self, scene: &Scene, camera: &Camera) {
+    pub fn render(
+        &mut self,
+        scene: &Scene,
+        camera: &Camera,
+    ) {
         self.device.cleanup();
         let mut hub = scene.hub.lock().unwrap();
         hub.process_messages();
@@ -434,7 +508,7 @@ impl Renderer {
         // update dynamic meshes
         for node in hub.nodes.iter_mut() {
             if !node.visible || node.scene_id != Some(scene.unique_id) {
-                continue
+                continue;
             }
             if let SubNode::Visual(_, ref mut gpu_data) = node.sub_node {
                 if let Some(dynamic) = gpu_data.pending.take() {
@@ -444,7 +518,7 @@ impl Renderer {
                             &gpu_data.vertices,
                             0,
                             0,
-                            dynamic.num_vertices
+                            dynamic.num_vertices,
                         )
                         .unwrap();
                 }
@@ -461,7 +535,7 @@ impl Renderer {
         let mut shadow_requests = Vec::new();
         for node in hub.nodes.iter() {
             if !node.visible || node.scene_id != Some(scene.unique_id) {
-                continue
+                continue;
             }
             if let SubNode::Light(ref light) = node.sub_node {
                 if lights.len() == MAX_LIGHTS {
@@ -475,8 +549,7 @@ impl Renderer {
                     let mx_proj: [[f32; 4]; 4] = match projection {
                         &ShadowProjection::Orthographic(ref p) => p.matrix(aspect),
                     }.into();
-                    let mx_view = Matrix4::from(
-                        node.world_transform.inverse_transform().unwrap());
+                    let mx_view = Matrix4::from(node.world_transform.inverse_transform().unwrap());
                     shadow_requests.push(ShadowRequest {
                         target,
                         resource: map.to_resource(),
@@ -490,21 +563,17 @@ impl Renderer {
                 let mut p = node.world_transform.disp.extend(1.0);
                 let d = node.world_transform.rot * Vector3::unit_z();
                 let intensity = match light.sub_light {
-                    SubLight::Ambient => {
-                        [light.intensity, 0.0, 0.0, 0.0]
-                    }
+                    SubLight::Ambient => [light.intensity, 0.0, 0.0, 0.0],
                     SubLight::Directional => {
                         p = d.extend(0.0);
                         [0.0, light.intensity, 0.0, 0.0]
                     }
-                    SubLight::Hemisphere{ ground } => {
+                    SubLight::Hemisphere { ground } => {
                         color_back = ground | 0x010101; // can't be 0
                         p = d.extend(0.0);
                         [light.intensity, 0.0, 0.0, 0.0]
                     }
-                    SubLight::Point => {
-                        [0.0, light.intensity, 0.0, 0.0]
-                    }
+                    SubLight::Point => [0.0, light.intensity, 0.0, 0.0],
                 };
                 let projection = if shadow_index >= 0 {
                     shadow_requests[shadow_index as usize].matrix.into()
@@ -527,24 +596,30 @@ impl Renderer {
         // render shadow maps
         for request in &shadow_requests {
             self.encoder.clear_depth(&request.target, 1.0);
-            self.encoder.update_constant_buffer(&self.const_buf, &Globals {
-                mx_vp: request.matrix.into(),
-                num_lights: 0,
-            });
+            self.encoder.update_constant_buffer(
+                &self.const_buf,
+                &Globals {
+                    mx_vp: request.matrix.into(),
+                    num_lights: 0,
+                },
+            );
             for node in hub.nodes.iter() {
                 if !node.visible || node.scene_id != Some(scene.unique_id) {
                     continue;
                 }
                 let gpu_data = match node.sub_node {
                     SubNode::Visual(_, ref data) => data,
-                    _ => continue
+                    _ => continue,
                 };
-                self.encoder.update_constant_buffer(&gpu_data.constants, &Locals {
-                    mx_world: Matrix4::from(node.world_transform).into(),
-                    color: [0.0; 4],
-                    mat_params: [0.0; 4],
-                    uv_range: [0.0; 4],
-                });
+                self.encoder.update_constant_buffer(
+                    &gpu_data.constants,
+                    &Locals {
+                        mx_world: Matrix4::from(node.world_transform).into(),
+                        color: [0.0; 4],
+                        mat_params: [0.0; 4],
+                        uv_range: [0.0; 4],
+                    },
+                );
                 //TODO: avoid excessive cloning
                 let data = shadow_pipe::Data {
                     vbuf: gpu_data.vertices.clone(),
@@ -574,12 +649,15 @@ impl Renderer {
         match scene.background {
             Background::Color(color) => {
                 self.encoder.clear(&self.out_color, decode_color(color));
-            },
+            }
             Background::Texture(ref texture) => {
                 // TODO: Reduce code duplication (see drawing debug quads)
-                self.encoder.update_constant_buffer(&self.quad_buf, &QuadParams {
-                    rect: [-1.0, -1.0, 1.0, 1.0],
-                });
+                self.encoder.update_constant_buffer(
+                    &self.quad_buf,
+                    &QuadParams {
+                        rect: [-1.0, -1.0, 1.0, 1.0],
+                    },
+                );
                 let slice = gfx::Slice {
                     start: 0,
                     end: 4,
@@ -594,13 +672,18 @@ impl Renderer {
                     target: self.out_color.clone(),
                 };
                 self.encoder.draw(&slice, &self.pso_quad, &data);
-            },
+            }
         }
-        self.encoder.update_constant_buffer(&self.const_buf, &Globals {
-            mx_vp: mx_vp.into(),
-            num_lights: lights.len() as u32,
-        });
-        self.encoder.update_buffer(&self.light_buf, &lights, 0).unwrap();
+        self.encoder.update_constant_buffer(
+            &self.const_buf,
+            &Globals {
+                mx_vp: mx_vp.into(),
+                num_lights: lights.len() as u32,
+            },
+        );
+        self.encoder
+            .update_buffer(&self.light_buf, &lights, 0)
+            .unwrap();
 
         // render everything
         let (shadow_default, shadow_sampler) = self.shadow_default.to_param();
@@ -618,7 +701,7 @@ impl Renderer {
             }
             let (material, gpu_data) = match node.sub_node {
                 SubNode::Visual(ref mat, ref data) => (mat, data),
-                _ => continue
+                _ => continue,
             };
 
             //TODO: batch per PSO
@@ -639,7 +722,7 @@ impl Renderer {
                         &gpu_data.constants,
                         &Locals {
                             mx_world: Matrix4::from(node.world_transform).into(),
-                            .. unsafe { mem::zeroed() }
+                            ..unsafe { mem::zeroed() }
                         },
                     );
                     let mut pbr_flags = PbrFlags::empty();
@@ -684,12 +767,7 @@ impl Renderer {
                                 .unwrap_or(&self.map_default)
                                 .to_param()
                         },
-                        normal_map: {
-                            normal_map
-                                .as_ref()
-                                .unwrap_or(&self.map_default)
-                                .to_param()
-                        },
+                        normal_map: { normal_map.as_ref().unwrap_or(&self.map_default).to_param() },
                         emissive_map: {
                             emissive_map
                                 .as_ref()
@@ -712,63 +790,48 @@ impl Renderer {
                         depth_target: self.out_depth.clone(),
                     };
                     self.encoder.draw(&gpu_data.slice, &self.pso_pbr, &data);
-                },
+                }
                 ref other => {
                     let (pso, color, param0, map) = match *other {
                         Material::MeshPbr { .. } => unreachable!(),
-                        Material::LineBasic { color } => (
-                            &self.pso_line_basic,
+                        Material::LineBasic { color } => (&self.pso_line_basic, color, 0.0, None),
+                        Material::MeshBasic {
                             color,
-                            0.0,
-                            None,
-                        ),
-                        Material::MeshBasic { color, ref map, wireframe: false } => (
-                            &self.pso_mesh_basic_fill,
+                            ref map,
+                            wireframe: false,
+                        } => (&self.pso_mesh_basic_fill, color, 0.0, map.as_ref()),
+                        Material::MeshBasic {
                             color,
-                            0.0,
-                            map.as_ref(),
-                        ),
-                        Material::MeshBasic { color, map: _, wireframe: true } => (
-                            &self.pso_mesh_basic_wireframe,
-                            color,
-                            0.0,
-                            None,
-                        ),
+                            map: _,
+                            wireframe: true,
+                        } => (&self.pso_mesh_basic_wireframe, color, 0.0, None),
                         Material::MeshLambert { color, flat } => (
                             &self.pso_mesh_gouraud,
                             color,
-                            if flat {0.0} else {1.0},
+                            if flat { 0.0 } else { 1.0 },
                             None,
                         ),
-                        Material::MeshPhong { color, glossiness } => (
-                            &self.pso_mesh_phong,
+                        Material::MeshPhong { color, glossiness } => (&self.pso_mesh_phong, color, glossiness, None),
+                        Material::Sprite { ref map } => (&self.pso_sprite, !0, 0.0, Some(map)),
+                        Material::CustomBasicPipeline {
                             color,
-                            glossiness,
-                            None,
-                        ),
-                        Material::Sprite { ref map } => (
-                            &self.pso_sprite,
-                            !0,
-                            0.0,
-                            Some(map),
-                        ),
-                        Material::CustomBasicPipeline { color, ref map, ref pipeline } => (
-                            pipeline,
-                            color,
-                            0.0,
-                            map.as_ref(),
-                        ),
+                            ref map,
+                            ref pipeline,
+                        } => (pipeline, color, 0.0, map.as_ref()),
                     };
                     let uv_range = match map {
                         Some(ref map) => map.uv_range(),
                         None => [0.0; 4],
                     };
-                    self.encoder.update_constant_buffer(&gpu_data.constants, &Locals {
-                        mx_world: Matrix4::from(node.world_transform).into(),
-                        color: decode_color(color),
-                        mat_params: [param0, 0.0, 0.0, 0.0],
-                        uv_range,
-                    });
+                    self.encoder.update_constant_buffer(
+                        &gpu_data.constants,
+                        &Locals {
+                            mx_world: Matrix4::from(node.world_transform).into(),
+                            color: decode_color(color),
+                            mat_params: [param0, 0.0, 0.0, 0.0],
+                            uv_range,
+                        },
+                    );
                     //TODO: avoid excessive cloning
                     let data = pipe::Data {
                         vbuf: gpu_data.vertices.clone(),
@@ -782,7 +845,7 @@ impl Renderer {
                         out_depth: (self.out_depth.clone(), (0, 0)),
                     };
                     self.encoder.draw(&gpu_data.slice, pso, &data);
-                },
+                }
             };
         }
 
@@ -791,7 +854,8 @@ impl Renderer {
             if let SubNode::UiText(ref text) = node.sub_node {
                 text.font.queue(&text.section, text.layout);
                 if !self.font_cache.contains_key(&text.font.path) {
-                    self.font_cache.insert(text.font.path.clone(), text.font.clone());
+                    self.font_cache
+                        .insert(text.font.path.clone(), text.font.clone());
                 }
             }
         }
@@ -815,11 +879,16 @@ impl Renderer {
                 },
             ];
             let p0 = self.map_to_ndc([pos[0] as f32, pos[1] as f32]);
-            let p1 = self.map_to_ndc([(pos[0] + quad.size[0]) as f32,
-                                     (pos[1] + quad.size[1]) as f32]);
-            self.encoder.update_constant_buffer(&self.quad_buf, &QuadParams {
-                rect: [p0.x, p0.y, p1.x, p1.y],
-            });
+            let p1 = self.map_to_ndc([
+                (pos[0] + quad.size[0]) as f32,
+                (pos[1] + quad.size[1]) as f32,
+            ]);
+            self.encoder.update_constant_buffer(
+                &self.quad_buf,
+                &QuadParams {
+                    rect: [p0.x, p0.y, p1.x, p1.y],
+                },
+            );
             let slice = gfx::Slice {
                 start: 0,
                 end: 4,
@@ -840,8 +909,13 @@ impl Renderer {
     }
 
     /// Draw [`ShadowMap`](struct.ShadowMap.html) for debug purposes.
-    pub fn debug_shadow_quad(&mut self, map: &ShadowMap, _num_components: u8,
-                             pos: [i16; 2], size: [u16; 2]) -> DebugQuadHandle {
+    pub fn debug_shadow_quad(
+        &mut self,
+        map: &ShadowMap,
+        _num_components: u8,
+        pos: [i16; 2],
+        size: [u16; 2],
+    ) -> DebugQuadHandle {
         DebugQuadHandle(self.debug_quads.create(DebugQuad {
             resource: map.to_resource().raw().clone(),
             pos: [pos[0] as i32, pos[1] as i32],

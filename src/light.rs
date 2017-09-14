@@ -1,4 +1,5 @@
 //! Contains different types of light sources.
+
 use gfx;
 use std::ops;
 
@@ -39,9 +40,7 @@ pub struct Ambient {
 impl Ambient {
     #[doc(hidden)]
     pub fn new(object: Object) -> Self {
-        Ambient {
-            object,
-        }
+        Ambient { object }
     }
 }
 
@@ -68,8 +67,12 @@ impl Directional {
     }
 
     /// Adds shadow map for this light source.
-    pub fn set_shadow(&mut self, map: ShadowMap,
-                      extent_y: f32, range: ops::Range<f32>) {
+    pub fn set_shadow(
+        &mut self,
+        map: ShadowMap,
+        extent_y: f32,
+        range: ops::Range<f32>,
+    ) {
         let sp = ShadowProjection::Orthographic(Orthographic {
             center: [0.0; 2].into(),
             extent_y,
@@ -97,9 +100,7 @@ pub struct Hemisphere {
 impl Hemisphere {
     #[doc(hidden)]
     pub fn new(object: Object) -> Self {
-        Hemisphere {
-            object,
-        }
+        Hemisphere { object }
     }
 }
 
@@ -111,8 +112,6 @@ pub struct Point {
 impl Point {
     #[doc(hidden)]
     pub fn new(object: Object) -> Self {
-        Point {
-            object,
-        }
+        Point { object }
     }
 }

@@ -77,7 +77,10 @@ pub struct DynamicMesh {
 
 impl Mesh {
     /// Set mesh material.
-    pub fn set_material(&mut self, material: Material) {
+    pub fn set_material(
+        &mut self,
+        material: Material,
+    ) {
         let msg = Operation::SetMaterial(material);
         let _ = self.tx.send((self.node.downgrade(), msg));
     }
@@ -85,7 +88,10 @@ impl Mesh {
 
 impl DynamicMesh {
     /// Set mesh material.
-    pub fn set_material(&mut self, material: Material) {
+    pub fn set_material(
+        &mut self,
+        material: Material,
+    ) {
         let msg = Operation::SetMaterial(material);
         let _ = self.tx.send((self.node.downgrade(), msg));
     }

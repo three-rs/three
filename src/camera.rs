@@ -1,4 +1,5 @@
 //! Contains useful [`Camera`](struct.Camera.html) struct and `Projections`.
+
 use cgmath;
 use mint;
 use std::ops;
@@ -46,29 +47,51 @@ pub struct Camera {
 
 impl Camera {
     /// Computes the projection matrix representing the camera's projection.
-    pub fn matrix(&self, aspect_ratio: f32) -> mint::ColumnMatrix4<f32> {
+    pub fn matrix(
+        &self,
+        aspect_ratio: f32,
+    ) -> mint::ColumnMatrix4<f32> {
         self.projection.matrix(aspect_ratio)
     }
 }
 
 impl Projection {
     /// Constructs an orthographic projection.
-    pub fn orthographic<P>(center: P, extent_y: f32, range: ops::Range<f32>) -> Self
-        where P: Into<mint::Point2<f32>>
+    pub fn orthographic<P>(
+        center: P,
+        extent_y: f32,
+        range: ops::Range<f32>,
+    ) -> Self
+    where
+        P: Into<mint::Point2<f32>>,
     {
         let center = center.into();
-        Projection::Orthographic(Orthographic { center, extent_y, range })
+        Projection::Orthographic(Orthographic {
+            center,
+            extent_y,
+            range,
+        })
     }
 
     /// Constructs a perspective projection.
-    pub fn perspective<R>(fov_y: f32, range: R) -> Self
-        where R: Into<ZRange>
+    pub fn perspective<R>(
+        fov_y: f32,
+        range: R,
+    ) -> Self
+    where
+        R: Into<ZRange>,
     {
-        Projection::Perspective(Perspective { fov_y, zrange: range.into() })
+        Projection::Perspective(Perspective {
+            fov_y,
+            zrange: range.into(),
+        })
     }
 
     /// Computes the projection matrix representing the camera's projection.
-    pub fn matrix(&self, aspect_ratio: f32) -> mint::ColumnMatrix4<f32> {
+    pub fn matrix(
+        &self,
+        aspect_ratio: f32,
+    ) -> mint::ColumnMatrix4<f32> {
         match *self {
             Projection::Orthographic(ref x) => x.matrix(aspect_ratio),
             Projection::Perspective(ref x) => x.matrix(aspect_ratio),
@@ -110,7 +133,10 @@ pub struct Orthographic {
 
 impl Orthographic {
     /// Computes the projection matrix representing the camera's projection.
-    pub fn matrix(&self, aspect_ratio: f32) -> mint::ColumnMatrix4<f32> {
+    pub fn matrix(
+        &self,
+        aspect_ratio: f32,
+    ) -> mint::ColumnMatrix4<f32> {
         let extent_x = aspect_ratio * self.extent_y;
         cgmath::ortho(
             self.center.x - extent_x,
@@ -131,21 +157,22 @@ pub struct Perspective {
     /// Note: the horizontal FOV is computed based on the aspect.
     pub fov_y: f32,
     /// The distance to the clipping planes.
-    pub zrange: ZRange, 
+    pub zrange: ZRange,
 }
 
 impl Perspective {
     /// Computes the projection matrix representing the camera's projection.
-    pub fn matrix(&self, aspect_ratio: f32) -> mint::ColumnMatrix4<f32> {
+    pub fn matrix(
+        &self,
+        aspect_ratio: f32,
+    ) -> mint::ColumnMatrix4<f32> {
         match self.zrange {
-            ZRange::Finite(ref range) => {
-                cgmath::perspective(
-                    cgmath::Deg(self.fov_y),
-                    aspect_ratio,
-                    range.start,
-                    range.end,
-                ).into()
-            },
+            ZRange::Finite(ref range) => cgmath::perspective(
+                cgmath::Deg(self.fov_y),
+                aspect_ratio,
+                range.start,
+                range.end,
+            ).into(),
             ZRange::Infinite(ref range) => {
                 let m00 = 1.0 / (aspect_ratio * f32::tan(0.5 * self.fov_y));
                 let m11 = 1.0 / f32::tan(0.5 * self.fov_y);
@@ -159,7 +186,7 @@ impl Perspective {
                     [0.0, 0.0, m32, 0.0],
                 ];
                 m.into()
-            },
+            }
         }
     }
 }

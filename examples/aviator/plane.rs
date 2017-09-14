@@ -2,7 +2,7 @@ use cgmath::{Quaternion, Rad, Rotation3};
 use mint;
 use three;
 
-use {COLOR_RED, COLOR_WHITE, COLOR_BROWN, COLOR_BROWN_DARK};
+use {COLOR_BROWN, COLOR_BROWN_DARK, COLOR_RED, COLOR_WHITE};
 
 
 pub struct AirPlane {
@@ -24,28 +24,43 @@ impl AirPlane {
             let mut geo = three::Geometry::cuboid(80.0, 50.0, 50.0);
             for v in geo.base_shape.vertices.iter_mut() {
                 if v.x < 0.0 {
-                    v.z += if v.y > 0.0 {-20.0} else {20.0};
-                    v.y += if v.y > 0.0 {-10.0} else {30.0};
+                    v.z += if v.y > 0.0 { -20.0 } else { 20.0 };
+                    v.y += if v.y > 0.0 { -10.0 } else { 30.0 };
                 }
             }
-            factory.mesh(geo, three::Material::MeshLambert{ color: COLOR_RED, flat: false })
+            factory.mesh(
+                geo,
+                three::Material::MeshLambert {
+                    color: COLOR_RED,
+                    flat: false,
+                },
+            )
         };
         group.add(&cockpit);
         let mut engine = factory.mesh(
             three::Geometry::cuboid(20.0, 50.0, 50.0),
-            three::Material::MeshLambert{ color: COLOR_WHITE, flat: false }
+            three::Material::MeshLambert {
+                color: COLOR_WHITE,
+                flat: false,
+            },
         );
         engine.set_position([40.0, 0.0, 0.0]);
         group.add(&engine);
         let mut tail = factory.mesh(
             three::Geometry::cuboid(15.0, 20.0, 5.0),
-            three::Material::MeshLambert{ color: COLOR_RED, flat: false }
+            three::Material::MeshLambert {
+                color: COLOR_RED,
+                flat: false,
+            },
         );
         tail.set_position([-35.0, 25.0, 0.0]);
         group.add(&tail);
         let wing = factory.mesh(
             three::Geometry::cuboid(40.0, 8.0, 150.0),
-            three::Material::MeshLambert{ color: COLOR_RED, flat: false }
+            three::Material::MeshLambert {
+                color: COLOR_RED,
+                flat: false,
+            },
         );
         group.add(&wing);
 
@@ -54,12 +69,18 @@ impl AirPlane {
         group.add(&propeller_group);
         let propeller = factory.mesh(
             three::Geometry::cuboid(20.0, 10.0, 10.0),
-            three::Material::MeshLambert{ color: COLOR_BROWN, flat: false }
+            three::Material::MeshLambert {
+                color: COLOR_BROWN,
+                flat: false,
+            },
         );
         propeller_group.add(&propeller);
         let mut blade = factory.mesh(
             three::Geometry::cuboid(1.0, 100.0, 20.0),
-            three::Material::MeshLambert{ color: COLOR_BROWN_DARK, flat: false }
+            three::Material::MeshLambert {
+                color: COLOR_BROWN_DARK,
+                flat: false,
+            },
         );
         blade.set_position([8.0, 0.0, 0.0]);
         propeller_group.add(&blade);
@@ -76,9 +97,14 @@ impl AirPlane {
         }
     }
 
-    pub fn update(&mut self, time: f32, target: mint::Point2<f32>) {
+    pub fn update(
+        &mut self,
+        time: f32,
+        target: mint::Point2<f32>,
+    ) {
         let q = Quaternion::from_angle_x(Rad(0.3 * time));
         self.propeller_group.set_orientation(q);
-        self.group.set_position([0.0 + target.x * 100.0, 100.0 + target.y * 75.0, 0.0]);
+        self.group
+            .set_position([0.0 + target.x * 100.0, 100.0 + target.y * 75.0, 0.0]);
     }
 }
