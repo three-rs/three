@@ -71,7 +71,10 @@ impl Builder {
     }
 
     /// Set the initial yaw angle in radians. Default is 0.0.
-    pub fn yaw(&mut self, yaw: f32) -> &mut Self {
+    pub fn yaw(
+        &mut self,
+        yaw: f32,
+    ) -> &mut Self {
         self.yaw = yaw;
         self
     }
@@ -79,7 +82,10 @@ impl Builder {
     /// Set the initial pitch angle in radians.
     ///
     /// Defaults to 0.0.
-    pub fn pitch(&mut self, pitch: f32) -> &mut Self {
+    pub fn pitch(
+        &mut self,
+        pitch: f32,
+    ) -> &mut Self {
         self.pitch = pitch;
         self
     }
@@ -87,8 +93,12 @@ impl Builder {
     /// Set the initial position.
     ///
     /// Defaults to the world origin.
-    pub fn position<P>(&mut self, position: P) -> &mut Self
-        where P: Into<mint::Point3<f32>>
+    pub fn position<P>(
+        &mut self,
+        position: P,
+    ) -> &mut Self
+    where
+        P: Into<mint::Point3<f32>>,
     {
         self.position = position.into();
         self
@@ -97,7 +107,10 @@ impl Builder {
     /// Setup the movement speed in world units per second.
     ///
     /// Defaults to 1.0 world units per second.
-    pub fn move_speed(&mut self, speed: f32) -> &mut Self {
+    pub fn move_speed(
+        &mut self,
+        speed: f32,
+    ) -> &mut Self {
         self.move_speed = speed;
         self
     }
@@ -105,7 +118,10 @@ impl Builder {
     /// Setup mouse sensitivity.
     ///
     /// Defaults to 0.5
-    pub fn look_speed(&mut self, speed: f32) -> &mut Self {
+    pub fn look_speed(
+        &mut self,
+        speed: f32,
+    ) -> &mut Self {
         self.look_speed = speed;
         self
     }
@@ -113,7 +129,10 @@ impl Builder {
     /// Setup whether controlled object should move along `y` axis when looking down or up.
     ///
     /// Defaults to true.
-    pub fn vertical_movement(&mut self, value: bool) -> &mut Self {
+    pub fn vertical_movement(
+        &mut self,
+        value: bool,
+    ) -> &mut Self {
         self.vertical_move = value;
         self
     }
@@ -121,7 +140,10 @@ impl Builder {
     /// Setup whether controlled object can adjust pitch using mouse.
     ///
     /// Defaults to true.
-    pub fn vertical_look(&mut self, value: bool) -> &mut Self {
+    pub fn vertical_look(
+        &mut self,
+        value: bool,
+    ) -> &mut Self {
         self.vertical_look = value;
         self
     }
@@ -129,7 +151,10 @@ impl Builder {
     /// Setup key axis for moving forward/backward.
     ///
     /// Defaults to `W` and `S` keys.
-    pub fn axis_forward(&mut self, axis: Option<KeyAxis>) -> &mut Self {
+    pub fn axis_forward(
+        &mut self,
+        axis: Option<KeyAxis>,
+    ) -> &mut Self {
         self.axes.forward = axis;
         self
     }
@@ -137,7 +162,10 @@ impl Builder {
     /// Setup button for "strafing" left/right.
     ///
     /// Defaults to `A` and `D` keys.
-    pub fn axis_strafing(&mut self, axis: Option<KeyAxis>) -> &mut Self {
+    pub fn axis_strafing(
+        &mut self,
+        axis: Option<KeyAxis>,
+    ) -> &mut Self {
         self.axes.strafing = axis;
         self
     }
@@ -145,7 +173,10 @@ impl Builder {
     /// Setup button for moving up/down.
     ///
     /// Defaults to `None`.
-    pub fn axis_vertical(&mut self, axis: Option<KeyAxis>) -> &mut Self {
+    pub fn axis_vertical(
+        &mut self,
+        axis: Option<KeyAxis>,
+    ) -> &mut Self {
         self.axes.vertical = axis;
         self
     }
@@ -179,7 +210,10 @@ impl FirstPerson {
 
     /// Updates the position, yaw, and pitch of the controlled object according to
     /// the last frame input.
-    pub fn update(&mut self, input: &Input) {
+    pub fn update(
+        &mut self,
+        input: &Input,
+    ) {
         let dtime = input.delta_time();
         let dlook = dtime * self.look_speed;
 
@@ -190,21 +224,27 @@ impl FirstPerson {
             self.pitch += dlook * mouse.y;
         }
 
-        self.axes.vertical.map(|a| if let Some(time) = a.timed(input) {
-            self.position.y += self.move_speed * time;
-        });
+        self.axes
+            .vertical
+            .map(|a| if let Some(time) = a.timed(input) {
+                self.position.y += self.move_speed * time;
+            });
 
-        self.axes.forward.map(|a| if let Some(time) = a.timed(input) {
-            self.position.x += self.move_speed * time * self.yaw.sin();
-            self.position.z -= self.move_speed * time * self.yaw.cos();
-            if self.vertical_move {
-                self.position.y -= self.move_speed * time * self.pitch.sin();
-            }
-        });
-        self.axes.strafing.map(|a| if let Some(time) = a.timed(input) {
-            self.position.x += self.move_speed * time * self.yaw.cos();
-            self.position.z += self.move_speed * time * self.yaw.sin();
-        });
+        self.axes
+            .forward
+            .map(|a| if let Some(time) = a.timed(input) {
+                self.position.x += self.move_speed * time * self.yaw.sin();
+                self.position.z -= self.move_speed * time * self.yaw.cos();
+                if self.vertical_move {
+                    self.position.y -= self.move_speed * time * self.pitch.sin();
+                }
+            });
+        self.axes
+            .strafing
+            .map(|a| if let Some(time) = a.timed(input) {
+                self.position.x += self.move_speed * time * self.yaw.cos();
+                self.position.z += self.move_speed * time * self.yaw.sin();
+            });
 
         let yrot = cgmath::Quaternion::from_angle_y(cgmath::Rad(-self.yaw));
         let xrot = cgmath::Quaternion::from_angle_x(cgmath::Rad(-self.pitch));

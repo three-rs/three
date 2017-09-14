@@ -8,6 +8,4 @@ pub mod orbit;
 
 pub use self::first_person::FirstPerson;
 pub use self::orbit::Orbit;
-pub use input::{Button, Key, KeyAxis, Timer, Input,
-                KEY_ESCAPE, KEY_SPACE, MOUSE_LEFT, MOUSE_RIGHT,
-                AXIS_LEFT_RIGHT, AXIS_DOWN_UP};
+pub use input::{Button, Input, Key, KeyAxis, Timer, AXIS_DOWN_UP, AXIS_LEFT_RIGHT, KEY_ESCAPE, KEY_SPACE, MOUSE_LEFT, MOUSE_RIGHT};

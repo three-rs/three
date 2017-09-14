@@ -1,4 +1,5 @@
 //! Contains reexports for custom pipeline state.
-pub use gfx::Primitive as Primitive;
-pub use gfx::state as state;
-pub use gfx::preset as preset;
+
+pub use gfx::Primitive;
+pub use gfx::preset;
+pub use gfx::state;

@@ -1,6 +1,6 @@
+use hub::{HubPtr, Message, Operation};
 use node::NodePointer;
 use std::sync::mpsc;
-use hub::{Message, HubPtr, Operation};
 use texture::Texture;
 
 /// Color represented by 4-bytes hex number.
@@ -31,7 +31,10 @@ pub struct Scene {
 
 impl Scene {
     /// Add new [`Object`](struct.Object.html) to the scene.
-    pub fn add<P: AsRef<NodePointer>>(&mut self, child: &P) {
+    pub fn add<P: AsRef<NodePointer>>(
+        &mut self,
+        child: &P,
+    ) {
         let msg = Operation::SetParent(self.node.clone());
         let _ = self.tx.send((child.as_ref().downgrade(), msg));
     }

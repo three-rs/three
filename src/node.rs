@@ -2,9 +2,9 @@ use cgmath;
 use froggy;
 use mint;
 
-use scene::SceneId;
 use hub::SubNode;
 use material::Material;
+use scene::SceneId;
 
 /// Pointer to a Node
 pub type NodePointer = froggy::Pointer<Node>;
