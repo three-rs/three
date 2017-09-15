@@ -1,9 +1,11 @@
 use cgmath;
 use mint;
+use std::ops;
 
 use cgmath::Rotation3;
 use input::{Input, Key, KeyAxis};
 use object::Object;
+use std::f32::consts::PI;
 
 #[derive(Clone, Debug)]
 struct Axes {
@@ -34,6 +36,7 @@ pub struct FirstPerson {
     position: mint::Point3<f32>,
     yaw: f32,
     pitch: f32,
+    pitch_range: Option<ops::Range<f32>>,
     move_speed: f32,
     look_speed: f32,
     axes: Axes,
@@ -45,6 +48,7 @@ pub struct FirstPerson {
 pub struct Builder {
     object: Object,
     position: mint::Point3<f32>,
+    pitch_range: Option<ops::Range<f32>>,
     yaw: f32,
     pitch: f32,
     move_speed: f32,
@@ -62,6 +66,7 @@ impl Builder {
             position: [0.0, 0.0, 0.0].into(),
             yaw: 0.0,
             pitch: 0.0,
+            pitch_range: Some(-PI / 2.0 .. PI / 2.0),
             move_speed: 1.0,
             look_speed: 0.5,
             axes: Axes::default(),
@@ -92,6 +97,17 @@ impl Builder {
         self
     }
 
+    /// Set the initial pitch range in radians.
+    ///
+    /// Defaults to `Some(-PI / 2.0 .. PI / 2.0)`.
+    pub fn pitch_range(
+        &mut self,
+        range: Option<ops::Range<f32>>,
+    ) -> &mut Self {
+        self.pitch_range = range;
+        self
+    }
+    
     /// Set the initial position.
     ///
     /// Defaults to the world origin.
@@ -191,6 +207,7 @@ impl Builder {
             position: self.position,
             yaw: self.yaw,
             pitch: self.pitch,
+            pitch_range: self.pitch_range.clone(),
             move_speed: self.move_speed,
             look_speed: self.look_speed,
             axes: self.axes.clone(),
@@ -226,6 +243,15 @@ impl FirstPerson {
         pitch: f32,
     ) -> &mut Self {
         self.pitch = pitch;
+        self
+    }
+
+    /// Sets the pitch range in radians.
+    pub fn pitch_range(
+        &mut self,
+        range: Option<ops::Range<f32>>,
+    ) -> &mut Self {
+        self.pitch_range = range;
         self
     }
 
@@ -296,9 +322,7 @@ impl FirstPerson {
         self
     }
 
-    /// Setup button for moving up/down.
-    ///
-    /// Defaults to `None`.
+    /// Sets button for moving up/down.
     pub fn set_axis_vertical(
         &mut self,
         axis: Option<KeyAxis>,
@@ -321,6 +345,14 @@ impl FirstPerson {
         self.yaw += dlook * mouse.x;
         if self.vertical_look {
             self.pitch += dlook * mouse.y;
+            if let Some(range) = self.pitch_range.as_ref() {
+                if self.pitch < range.start {
+                    self.pitch = range.start;
+                }
+                if self.pitch > range.end {
+                    self.pitch = range.end;
+                }
+            }
         }
 
         self.axes
