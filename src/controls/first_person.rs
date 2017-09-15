@@ -5,7 +5,7 @@ use cgmath::Rotation3;
 use input::{Input, Key, KeyAxis};
 use object::Object;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct Axes {
     pub forward: Option<KeyAxis>,
     pub strafing: Option<KeyAxis>,
@@ -70,7 +70,9 @@ impl Builder {
         }
     }
 
-    /// Set the initial yaw angle in radians. Default is 0.0.
+    /// Set the initial yaw angle in radians.
+    ///
+    /// Default is 0.0.
     pub fn yaw(
         &mut self,
         yaw: f32,
@@ -126,7 +128,8 @@ impl Builder {
         self
     }
 
-    /// Setup whether controlled object should move along `y` axis when looking down or up.
+    /// Setup whether controlled object should move along `y` axis when looking
+    /// down or up.
     ///
     /// Defaults to true.
     pub fn vertical_movement(
@@ -206,6 +209,102 @@ impl FirstPerson {
     /// Create `FirstPerson` controls with default parameters.
     pub fn default(object: &Object) -> Self {
         Self::builder(object).build()
+    }
+
+    /// Sets the yaw angle in radians.
+    pub fn set_yaw(
+        &mut self,
+        yaw: f32,
+    ) -> &mut Self {
+        self.yaw = yaw;
+        self
+    }
+
+    /// Sets the pitch angle in radians.
+    pub fn set_pitch(
+        &mut self,
+        pitch: f32,
+    ) -> &mut Self {
+        self.pitch = pitch;
+        self
+    }
+
+    /// Sets the object position.
+    pub fn set_position<P>(
+        &mut self,
+        position: P,
+    ) -> &mut Self
+    where
+        P: Into<mint::Point3<f32>>,
+    {
+        self.position = position.into();
+        self
+    }
+
+    /// Sets the movement speed in world units per second.
+    pub fn set_move_speed(
+        &mut self,
+        speed: f32,
+    ) -> &mut Self {
+        self.move_speed = speed;
+        self
+    }
+
+    /// Sets the mouse sensitivity.
+    pub fn set_look_speed(
+        &mut self,
+        speed: f32,
+    ) -> &mut Self {
+        self.look_speed = speed;
+        self
+    }
+
+    /// Specifies whether controlled object should move along `y` axis when looking
+    /// down or up.
+    pub fn set_vertical_movement(
+        &mut self,
+        value: bool,
+    ) -> &mut Self {
+        self.vertical_move = value;
+        self
+    }
+
+    /// Specifies whether controlled object can adjust pitch using mouse.
+    pub fn set_vertical_look(
+        &mut self,
+        value: bool,
+    ) -> &mut Self {
+        self.vertical_look = value;
+        self
+    }
+
+    /// Sets the key axis for moving forward/backward.
+    pub fn set_axis_forward(
+        &mut self,
+        axis: Option<KeyAxis>,
+    ) -> &mut Self {
+        self.axes.forward = axis;
+        self
+    }
+
+    /// Sets the button for "strafing" left/right.
+    pub fn set_axis_strafing(
+        &mut self,
+        axis: Option<KeyAxis>,
+    ) -> &mut Self {
+        self.axes.strafing = axis;
+        self
+    }
+
+    /// Setup button for moving up/down.
+    ///
+    /// Defaults to `None`.
+    pub fn set_axis_vertical(
+        &mut self,
+        axis: Option<KeyAxis>,
+    ) -> &mut Self {
+        self.axes.vertical = axis;
+        self
     }
 
     /// Updates the position, yaw, and pitch of the controlled object according to
