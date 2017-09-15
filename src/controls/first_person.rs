@@ -1,11 +1,13 @@
 use cgmath;
 use mint;
+use std::ops;
 
 use cgmath::Rotation3;
 use input::{Input, Key, KeyAxis};
 use object::Object;
+use std::f32::consts::PI;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct Axes {
     pub forward: Option<KeyAxis>,
     pub strafing: Option<KeyAxis>,
@@ -34,6 +36,7 @@ pub struct FirstPerson {
     position: mint::Point3<f32>,
     yaw: f32,
     pitch: f32,
+    pitch_range: Option<ops::Range<f32>>,
     move_speed: f32,
     look_speed: f32,
     axes: Axes,
@@ -45,6 +48,7 @@ pub struct FirstPerson {
 pub struct Builder {
     object: Object,
     position: mint::Point3<f32>,
+    pitch_range: Option<ops::Range<f32>>,
     yaw: f32,
     pitch: f32,
     move_speed: f32,
@@ -62,6 +66,7 @@ impl Builder {
             position: [0.0, 0.0, 0.0].into(),
             yaw: 0.0,
             pitch: 0.0,
+            pitch_range: Some(-PI / 2.0 .. PI / 2.0),
             move_speed: 1.0,
             look_speed: 0.5,
             axes: Axes::default(),
@@ -70,7 +75,9 @@ impl Builder {
         }
     }
 
-    /// Set the initial yaw angle in radians. Default is 0.0.
+    /// Set the initial yaw angle in radians.
+    ///
+    /// Default is 0.0.
     pub fn yaw(
         &mut self,
         yaw: f32,
@@ -90,6 +97,17 @@ impl Builder {
         self
     }
 
+    /// Set the initial pitch range in radians.
+    ///
+    /// Defaults to `Some(-PI / 2.0 .. PI / 2.0)`.
+    pub fn pitch_range(
+        &mut self,
+        range: Option<ops::Range<f32>>,
+    ) -> &mut Self {
+        self.pitch_range = range;
+        self
+    }
+    
     /// Set the initial position.
     ///
     /// Defaults to the world origin.
@@ -126,7 +144,8 @@ impl Builder {
         self
     }
 
-    /// Setup whether controlled object should move along `y` axis when looking down or up.
+    /// Setup whether controlled object should move along `y` axis when looking
+    /// down or up.
     ///
     /// Defaults to true.
     pub fn vertical_movement(
@@ -188,6 +207,7 @@ impl Builder {
             position: self.position,
             yaw: self.yaw,
             pitch: self.pitch,
+            pitch_range: self.pitch_range.clone(),
             move_speed: self.move_speed,
             look_speed: self.look_speed,
             axes: self.axes.clone(),
@@ -208,6 +228,109 @@ impl FirstPerson {
         Self::builder(object).build()
     }
 
+    /// Sets the yaw angle in radians.
+    pub fn set_yaw(
+        &mut self,
+        yaw: f32,
+    ) -> &mut Self {
+        self.yaw = yaw;
+        self
+    }
+
+    /// Sets the pitch angle in radians.
+    pub fn set_pitch(
+        &mut self,
+        pitch: f32,
+    ) -> &mut Self {
+        self.pitch = pitch;
+        self
+    }
+
+    /// Sets the pitch range in radians.
+    pub fn pitch_range(
+        &mut self,
+        range: Option<ops::Range<f32>>,
+    ) -> &mut Self {
+        self.pitch_range = range;
+        self
+    }
+
+    /// Sets the object position.
+    pub fn set_position<P>(
+        &mut self,
+        position: P,
+    ) -> &mut Self
+    where
+        P: Into<mint::Point3<f32>>,
+    {
+        self.position = position.into();
+        self
+    }
+
+    /// Sets the movement speed in world units per second.
+    pub fn set_move_speed(
+        &mut self,
+        speed: f32,
+    ) -> &mut Self {
+        self.move_speed = speed;
+        self
+    }
+
+    /// Sets the mouse sensitivity.
+    pub fn set_look_speed(
+        &mut self,
+        speed: f32,
+    ) -> &mut Self {
+        self.look_speed = speed;
+        self
+    }
+
+    /// Specifies whether controlled object should move along `y` axis when looking
+    /// down or up.
+    pub fn set_vertical_movement(
+        &mut self,
+        value: bool,
+    ) -> &mut Self {
+        self.vertical_move = value;
+        self
+    }
+
+    /// Specifies whether controlled object can adjust pitch using mouse.
+    pub fn set_vertical_look(
+        &mut self,
+        value: bool,
+    ) -> &mut Self {
+        self.vertical_look = value;
+        self
+    }
+
+    /// Sets the key axis for moving forward/backward.
+    pub fn set_axis_forward(
+        &mut self,
+        axis: Option<KeyAxis>,
+    ) -> &mut Self {
+        self.axes.forward = axis;
+        self
+    }
+
+    /// Sets the button for "strafing" left/right.
+    pub fn set_axis_strafing(
+        &mut self,
+        axis: Option<KeyAxis>,
+    ) -> &mut Self {
+        self.axes.strafing = axis;
+        self
+    }
+
+    /// Sets button for moving up/down.
+    pub fn set_axis_vertical(
+        &mut self,
+        axis: Option<KeyAxis>,
+    ) -> &mut Self {
+        self.axes.vertical = axis;
+        self
+    }
+
     /// Updates the position, yaw, and pitch of the controlled object according to
     /// the last frame input.
     pub fn update(
@@ -222,6 +345,14 @@ impl FirstPerson {
         self.yaw += dlook * mouse.x;
         if self.vertical_look {
             self.pitch += dlook * mouse.y;
+            if let Some(range) = self.pitch_range.as_ref() {
+                if self.pitch < range.start {
+                    self.pitch = range.start;
+                }
+                if self.pitch > range.end {
+                    self.pitch = range.end;
+                }
+            }
         }
 
         self.axes
