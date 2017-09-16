@@ -4,7 +4,6 @@ use material::Material;
 use object::Object;
 use render::DynamicData;
 
-
 /// [`Geometry`](struct.Geometry.html) with some [`Material`](struct.Material.html).
 ///
 /// # Examples
@@ -87,6 +86,11 @@ impl Mesh {
 }
 
 impl DynamicMesh {
+    /// Returns the number of vertices of the geometry base shape.
+    pub fn vertex_count(&self) -> usize {
+        self.geometry.base_shape.vertices.len()
+    }
+
     /// Set mesh material.
     pub fn set_material(
         &mut self,

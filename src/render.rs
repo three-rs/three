@@ -1,3 +1,5 @@
+//! The renderer.
+
 use cgmath::{Matrix4, SquareMatrix, Transform as Transform_, Vector3};
 use froggy;
 use gfx;

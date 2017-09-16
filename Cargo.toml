@@ -50,6 +50,9 @@ name = "lights"
 name = "materials"
 
 [[example]]
+name = "mesh-update"
+
+[[example]]
 name = "obj"
 
 [[example]]
