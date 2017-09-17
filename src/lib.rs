@@ -64,7 +64,7 @@ pub use mesh::{DynamicMesh, Mesh};
 pub use node::{NodeInfo, NodePointer, NodeTransform};
 pub use object::{Group, Object};
 pub use render::{ColorFormat, DebugQuadHandle, DepthFormat, Renderer, ShadowType};
-pub use scene::{Background, Color, Scene};
+pub use scene::{Background, Color, Scene, web_colors, crayon_colors};
 pub use sprite::Sprite;
 pub use text::{Align, Font, Layout, Text};
 pub use texture::{FilterMethod, Sampler, Texture, WrapMode};
