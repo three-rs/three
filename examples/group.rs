@@ -101,7 +101,14 @@ fn create_cubes(
     list
 }
 
-const COLORS: [three::Color; 6] = [0xffff80, 0x8080ff, 0x80ff80, 0xff8080, 0x80ffff, 0xff80ff];
+const COLORS: [three::Color; 6] = [
+    three::crayon_colors::CANARY,
+    three::crayon_colors::CELESTIAL_BLUE,
+    three::crayon_colors::GRANNY_SMITH_APPLE,
+    three::crayon_colors::BITTERSWEET,
+    three::crayon_colors::TURQUOISE_BLUE,
+    three::crayon_colors::PURPLE_MOUNTAINS_MAJESTY
+];
 
 const SPEEDS: [f32; 5] = [
     0.7,
