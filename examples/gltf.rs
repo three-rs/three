@@ -21,6 +21,20 @@ fn main() {
         default
     };
 
+    // To enable skybox remove this if expression.
+    if false {
+        let skybox_path = three::CubeMapPath {
+            front: "test_data/skybox/posz.jpg",
+            back: "test_data/skybox/negz.jpg",
+            up: "test_data/skybox/posy.jpg",
+            down: "test_data/skybox/negy.jpg",
+            left: "test_data/skybox/negx.jpg",
+            right: "test_data/skybox/posx.jpg",
+        };
+        let skybox = win.factory.load_cubemap(&skybox_path);
+        win.scene.background = three::Background::Skybox(skybox);
+    }
+
     let init = cam.sync(&win.scene).world_transform;
     let mut controls = three::controls::FirstPerson::builder(&cam)
         .position(init.position)

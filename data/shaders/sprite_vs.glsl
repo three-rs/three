@@ -1,13 +1,9 @@
 #version 150 core
-#include locals
+#include locals globals
 
 in vec4 a_Position;
 in vec2 a_TexCoord;
 out vec2 v_TexCoord;
-
-uniform b_Globals {
-    mat4 u_ViewProj;
-};
 
 void main() {
     v_TexCoord = mix(u_UvRange.xy, u_UvRange.zw, a_TexCoord);

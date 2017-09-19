@@ -1,4 +1,4 @@
-use cgmath::{Matrix4, Transform as Transform_, Vector3};
+use cgmath::{Matrix4, SquareMatrix, Transform as Transform_, Vector3};
 use froggy;
 use gfx;
 use gfx::memory::Typed;
@@ -45,6 +45,7 @@ const STENCIL_SIDE: gfx::state::StencilSide = gfx::state::StencilSide {
     op_pass: gfx::state::StencilOp::Keep,
 };
 
+#[cfg_attr(rustfmt, rustfmt_skip)]
 gfx_defines! {
     vertex Vertex {
         pos: [f32; 4] = "a_Position",
@@ -73,6 +74,8 @@ gfx_defines! {
 
     constant Globals {
         mx_vp: [[f32; 4]; 4] = "u_ViewProj",
+        mx_inv_proj: [[f32; 4]; 4] = "u_InverseProj",
+        mx_view: [[f32; 4]; 4] = "u_View",
         num_lights: u32 = "u_NumLights",
     }
 
@@ -102,13 +105,17 @@ gfx_defines! {
 
     constant QuadParams {
         rect: [f32; 4] = "u_Rect",
+        depth: f32 = "u_Depth",
     }
 
     pipeline quad_pipe {
         params: gfx::ConstantBuffer<QuadParams> = "b_Params",
+        globals: gfx::ConstantBuffer<Globals> = "b_Globals",
         resource: gfx::RawShaderResource = "t_Input",
         sampler: gfx::Sampler = "t_Input",
         target: gfx::RenderTarget<ColorFormat> = "Target0",
+        depth_target: gfx::DepthTarget<DepthFormat> =
+            gfx::preset::depth::LESS_EQUAL_TEST,
     }
 
     constant PbrParams {
@@ -314,6 +321,7 @@ pub struct Renderer {
     pso_shadow: gfx::PipelineState<back::Resources, shadow_pipe::Meta>,
     pso_quad: gfx::PipelineState<back::Resources, quad_pipe::Meta>,
     pso_pbr: gfx::PipelineState<back::Resources, pbr_pipe::Meta>,
+    pso_skybox: gfx::PipelineState<back::Resources, quad_pipe::Meta>,
     map_default: Texture<[f32; 4]>,
     shadow_default: Texture<f32>,
     debug_quads: froggy::Storage<DebugQuad>,
@@ -341,6 +349,7 @@ impl Renderer {
         let prog_shadow = load_program(shader_path, "shadow", &mut gl_factory).unwrap();
         let prog_quad = load_program(shader_path, "quad", &mut gl_factory).unwrap();
         let prog_pbr = load_program(shader_path, "pbr", &mut gl_factory).unwrap();
+        let prog_skybox = load_program(shader_path, "skybox", &mut gl_factory).unwrap();
         let rast_quad = gfx::state::Rasterizer::new_fill();
         let rast_fill = gfx::state::Rasterizer::new_fill().with_cull_back();
         let rast_wire = gfx::state::Rasterizer {
@@ -439,6 +448,14 @@ impl Renderer {
                     quad_pipe::new(),
                 )
                 .unwrap(),
+            pso_skybox: gl_factory
+                .create_pipeline_from_program(
+                    &prog_skybox,
+                    gfx::Primitive::TriangleStrip,
+                    rast_quad,
+                    quad_pipe::new(),
+                )
+                .unwrap(),
             pso_pbr: gl_factory
                 .create_pipeline_from_program(
                     &prog_pbr,
@@ -529,7 +546,8 @@ impl Renderer {
         struct ShadowRequest {
             target: gfx::handle::DepthStencilView<back::Resources, ShadowFormat>,
             resource: gfx::handle::ShaderResourceView<back::Resources, f32>,
-            matrix: Matrix4<f32>,
+            mx_view: Matrix4<f32>,
+            mx_proj: Matrix4<f32>,
         }
         let mut lights = Vec::new();
         let mut shadow_requests = Vec::new();
@@ -546,14 +564,15 @@ impl Renderer {
                     let target = map.to_target();
                     let dim = target.get_dimensions();
                     let aspect = dim.0 as f32 / dim.1 as f32;
-                    let mx_proj: [[f32; 4]; 4] = match projection {
+                    let mx_proj = match projection {
                         &ShadowProjection::Orthographic(ref p) => p.matrix(aspect),
-                    }.into();
+                    };
                     let mx_view = Matrix4::from(node.world_transform.inverse_transform().unwrap());
                     shadow_requests.push(ShadowRequest {
                         target,
                         resource: map.to_resource(),
-                        matrix: Matrix4::from(mx_proj) * mx_view,
+                        mx_view: mx_view,
+                        mx_proj: mx_proj.into(),
                     });
                     shadow_requests.len() as i32 - 1
                 } else {
@@ -576,7 +595,9 @@ impl Renderer {
                     SubLight::Point => [0.0, light.intensity, 0.0, 0.0],
                 };
                 let projection = if shadow_index >= 0 {
-                    shadow_requests[shadow_index as usize].matrix.into()
+                    let request = &shadow_requests[shadow_index as usize];
+                    let matrix = request.mx_proj * request.mx_view;
+                    matrix.into()
                 } else {
                     [[0.0; 4]; 4]
                 };
@@ -596,10 +617,13 @@ impl Renderer {
         // render shadow maps
         for request in &shadow_requests {
             self.encoder.clear_depth(&request.target, 1.0);
+            let mx_vp = request.mx_proj * request.mx_view;
             self.encoder.update_constant_buffer(
                 &self.const_buf,
                 &Globals {
-                    mx_vp: request.matrix.into(),
+                    mx_vp: mx_vp.into(),
+                    mx_view: request.mx_view.into(),
+                    mx_inv_proj: request.mx_proj.into(),
                     num_lights: 0,
                 },
             );
@@ -632,7 +656,7 @@ impl Renderer {
         }
 
         // prepare target and globals
-        let mx_vp = {
+        let (mx_inv_proj, mx_view, mx_vp) = {
             let p: [[f32; 4]; 4] = camera.matrix(self.get_aspect()).into();
             let node = &hub.nodes[&camera.object.node];
             let w = match node.scene_id {
@@ -640,50 +664,30 @@ impl Renderer {
                 Some(_) => panic!("Camera does not belong to this scene"),
                 None => node.transform,
             };
-            Matrix4::from(p) * Matrix4::from(w.inverse_transform().unwrap())
+            let mx_view = Matrix4::from(w.inverse_transform().unwrap());
+            let mx_vp = Matrix4::from(p) * mx_view;
+            (Matrix4::from(p).invert().unwrap(), mx_view, mx_vp)
         };
 
-        self.encoder.clear_depth(&self.out_depth, 1.0);
-        self.encoder.clear_stencil(&self.out_depth, 0);
-
-        match scene.background {
-            Background::Color(color) => {
-                self.encoder.clear(&self.out_color, decode_color(color));
-            }
-            Background::Texture(ref texture) => {
-                // TODO: Reduce code duplication (see drawing debug quads)
-                self.encoder.update_constant_buffer(
-                    &self.quad_buf,
-                    &QuadParams {
-                        rect: [-1.0, -1.0, 1.0, 1.0],
-                    },
-                );
-                let slice = gfx::Slice {
-                    start: 0,
-                    end: 4,
-                    base_vertex: 0,
-                    instances: None,
-                    buffer: gfx::IndexBuffer::Auto,
-                };
-                let data = quad_pipe::Data {
-                    params: self.quad_buf.clone(),
-                    resource: texture.to_param().0.raw().clone(),
-                    sampler: texture.to_param().1,
-                    target: self.out_color.clone(),
-                };
-                self.encoder.draw(&slice, &self.pso_quad, &data);
-            }
-        }
         self.encoder.update_constant_buffer(
             &self.const_buf,
             &Globals {
                 mx_vp: mx_vp.into(),
+                mx_view: mx_view.into(),
+                mx_inv_proj: mx_inv_proj.into(),
                 num_lights: lights.len() as u32,
             },
         );
         self.encoder
             .update_buffer(&self.light_buf, &lights, 0)
             .unwrap();
+
+        self.encoder.clear_depth(&self.out_depth, 1.0);
+        self.encoder.clear_stencil(&self.out_depth, 0);
+
+        if let Background::Color(color) = scene.background {
+            self.encoder.clear(&self.out_color, decode_color(color));
+        }
 
         // render everything
         let (shadow_default, shadow_sampler) = self.shadow_default.to_param();
@@ -849,6 +853,56 @@ impl Renderer {
             };
         }
 
+        let quad_slice = gfx::Slice {
+            start: 0,
+            end: 4,
+            base_vertex: 0,
+            instances: None,
+            buffer: gfx::IndexBuffer::Auto,
+        };
+
+        // draw background (if any)
+        match scene.background {
+            Background::Texture(ref texture) => {
+                // TODO: Reduce code duplication (see drawing debug quads)
+                self.encoder.update_constant_buffer(
+                    &self.quad_buf,
+                    &QuadParams {
+                        rect: [-1.0, -1.0, 1.0, 1.0],
+                        depth: 1.0,
+                    },
+                );
+                let data = quad_pipe::Data {
+                    params: self.quad_buf.clone(),
+                    globals: self.const_buf.clone(),
+                    resource: texture.to_param().0.raw().clone(),
+                    sampler: texture.to_param().1,
+                    target: self.out_color.clone(),
+                    depth_target: self.out_depth.clone(),
+                };
+                self.encoder.draw(&quad_slice, &self.pso_quad, &data);
+            }
+            Background::Skybox(ref cubemap) => {
+                self.encoder.update_constant_buffer(
+                    &self.quad_buf,
+                    &QuadParams {
+                        rect: [-1.0, -1.0, 1.0, 1.0],
+                        depth: 1.0,
+                    },
+                );
+                let data = quad_pipe::Data {
+                    params: self.quad_buf.clone(),
+                    resource: cubemap.to_param().0.raw().clone(),
+                    sampler: cubemap.to_param().1,
+                    globals: self.const_buf.clone(),
+                    target: self.out_color.clone(),
+                    depth_target: self.out_depth.clone(),
+                };
+                self.encoder.draw(&quad_slice, &self.pso_skybox, &data);
+            }
+            Background::Color(_) => {}
+        }
+
         // draw ui text
         for node in hub.nodes.iter() {
             if let SubNode::UiText(ref text) = node.sub_node {
@@ -887,22 +941,18 @@ impl Renderer {
                 &self.quad_buf,
                 &QuadParams {
                     rect: [p0.x, p0.y, p1.x, p1.y],
+                    depth: -1.0,
                 },
             );
-            let slice = gfx::Slice {
-                start: 0,
-                end: 4,
-                base_vertex: 0,
-                instances: None,
-                buffer: gfx::IndexBuffer::Auto,
-            };
             let data = quad_pipe::Data {
                 params: self.quad_buf.clone(),
+                globals: self.const_buf.clone(),
                 resource: quad.resource.clone(),
                 sampler: self.map_default.to_param().1,
                 target: self.out_color.clone(),
+                depth_target: self.out_depth.clone(),
             };
-            self.encoder.draw(&slice, &self.pso_quad, &data);
+            self.encoder.draw(&quad_slice, &self.pso_quad, &data);
         }
 
         self.encoder.flush(&mut self.device);
