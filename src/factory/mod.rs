@@ -31,7 +31,7 @@ use render::{load_program, pipe as basic_pipe, BackendFactory, BackendResources,
 use scene::{Background, Color, Scene, SceneId};
 use sprite::Sprite;
 use text::{Font, Text, TextData};
-use texture::{FilterMethod, Sampler, Texture, WrapMode};
+use texture::{CubeMap, CubeMapPath, FilterMethod, Sampler, Texture, WrapMode};
 
 const TANGENT_X: [I8Norm; 4] = [I8Norm(1), I8Norm(0), I8Norm(0), I8Norm(1)];
 const NORMAL_Z: [I8Norm; 4] = [I8Norm(0), I8Norm(0), I8Norm(1), I8Norm(0)];
@@ -530,19 +530,13 @@ impl Factory {
         Font::new(buffer, file_path.to_owned(), self.backend.clone())
     }
 
-    fn load_texture_impl(
-        path: &Path,
-        sampler: Sampler,
-        factory: &mut BackendFactory,
-    ) -> Texture<[f32; 4]> {
-        use gfx::texture as t;
+    fn parse_texture_format(path: &Path) -> image::ImageFormat {
         use image::ImageFormat as F;
-
         let extension = path.extension()
             .expect("no extension for an image?")
             .to_string_lossy()
             .to_lowercase();
-        let format = match extension.as_str() {
+        match extension.as_str() {
             "png" => F::PNG,
             "jpg" | "jpeg" => F::JPEG,
             "gif" => F::GIF,
@@ -554,9 +548,17 @@ impl Factory {
             "ico" => F::ICO,
             "hdr" => F::HDR,
             _ => panic!("Unrecognized image extension: {}", extension),
-        };
+        }
+    }
 
-        let file = File::open(&path).unwrap_or_else(|e| panic!("Unable to open {}: {:?}", path.display(), e));
+    fn load_texture_impl(
+        path: &Path,
+        sampler: Sampler,
+        factory: &mut BackendFactory,
+    ) -> Texture<[f32; 4]> {
+        use gfx::texture as t;
+        let format = Factory::parse_texture_format(path);
+        let file = File::open(path).unwrap_or_else(|e| panic!("Unable to open {}: {:?}", path.display(), e));
         let img = image::load(BufReader::new(file), format)
             .unwrap_or_else(|e| panic!("Unable to decode {}: {:?}", path.display(), e))
             .flipv()
@@ -575,15 +577,54 @@ impl Factory {
         Texture::new(view, sampler.0, [width, height])
     }
 
-    fn request_texture(
+    fn load_cubemap_impl<P: AsRef<Path>>(
+        paths: &CubeMapPath<P>,
+        sampler: Sampler,
+        factory: &mut BackendFactory,
+    ) -> CubeMap<[f32; 4]> {
+        use gfx::texture as t;
+        let images = paths
+            .as_array()
+            .iter()
+            .map(|path| {
+                let format = Factory::parse_texture_format(path.as_ref());
+                let file = File::open(path).unwrap_or_else(|e| {
+                    panic!("Unable to open {}: {:?}", path.as_ref().display(), e)
+                });
+                image::load(BufReader::new(file), format)
+                    .unwrap_or_else(|e| {
+                        panic!("Unable to decode {}: {:?}", path.as_ref().display(), e)
+                    })
+                    .to_rgba()
+            })
+            .collect::<Vec<_>>();
+        let data: [&[u8]; 6] = [
+            &images[0],
+            &images[1],
+            &images[2],
+            &images[3],
+            &images[4],
+            &images[5],
+        ];
+        let size = images[0].dimensions().0;
+        let kind = t::Kind::Cube(size as t::Size);
+        let (_, view) = factory
+            .create_texture_immutable_u8::<gfx::format::Srgba8>(kind, &data)
+            .unwrap_or_else(|e| {
+                panic!("Unable to create GPU texture for cubemap: {:?}", e);
+            });
+        CubeMap::new(view, sampler.0)
+    }
+
+    fn request_texture<P: AsRef<Path>>(
         &mut self,
-        path: &Path,
+        path: P,
     ) -> Texture<[f32; 4]> {
         let sampler = self.default_sampler();
-        match self.texture_cache.entry(path.to_owned()) {
+        match self.texture_cache.entry(path.as_ref().to_owned()) {
             Entry::Occupied(e) => e.get().clone(),
             Entry::Vacant(e) => {
-                let tex = Self::load_texture_impl(path, sampler, &mut self.backend);
+                let tex = Self::load_texture_impl(path.as_ref(), sampler, &mut self.backend);
                 e.insert(tex.clone());
                 tex
             }
@@ -662,11 +703,20 @@ impl Factory {
 
     /// Load texture from file.
     /// Supported file formats are: PNG, JPEG, GIF, WEBP, PPM, TIFF, TGA, BMP, ICO, HDR.
-    pub fn load_texture(
+    pub fn load_texture<P: AsRef<Path>>(
         &mut self,
-        path_str: &str,
+        path_str: P,
     ) -> Texture<[f32; 4]> {
-        self.request_texture(Path::new(path_str))
+        self.request_texture(path_str)
+    }
+
+    /// Load cubemap from files.
+    /// Supported file formats are: PNG, JPEG, GIF, WEBP, PPM, TIFF, TGA, BMP, ICO, HDR.
+    pub fn load_cubemap<P: AsRef<Path>>(
+        &mut self,
+        paths: &CubeMapPath<P>,
+    ) -> CubeMap<[f32; 4]> {
+        Factory::load_cubemap_impl(paths, self.default_sampler(), &mut self.backend)
     }
 
     /// Load mesh from Wavefront Obj format.

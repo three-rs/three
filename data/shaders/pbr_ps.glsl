@@ -21,7 +21,7 @@
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #version 150 core
-#include locals lights
+#include locals lights globals
 
 const int BASE_COLOR_MAP          = 1 << 0;
 const int NORMAL_MAP              = 1 << 1;
@@ -34,11 +34,6 @@ uniform sampler2D u_NormalSampler;
 uniform sampler2D u_EmissiveSampler;
 uniform sampler2D u_MetallicRoughnessSampler;
 uniform sampler2D u_OcclusionSampler;
-
-uniform b_Globals {
-    mat4 u_ViewProj;
-    uint u_NumLights;
-};
 
 uniform b_PbrParams {
     vec4 u_BaseColorFactor;

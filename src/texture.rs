@@ -1,5 +1,6 @@
 use gfx::handle as h;
 use render::BackendResources;
+use std::path::Path;
 
 use mint;
 
@@ -67,5 +68,62 @@ impl<T> Texture<T> {
             self.tex1[0] / self.total_size[0] as f32,
             self.tex1[1] / self.total_size[1] as f32,
         ]
+    }
+}
+
+/// Represents paths to cube map texture, useful for loading
+/// [`CubeMap`](struct.CubeMap.html).
+#[derive(Clone, Debug)]
+pub struct CubeMapPath<P: AsRef<Path>> {
+    /// "Front" image. `Z+`.
+    pub front: P,
+    /// "Back" image. `Z-`.
+    pub back: P,
+    /// "Left" image. `X-`.
+    pub left: P,
+    /// "Right" image. `X+`.
+    pub right: P,
+    /// "Up" image. `Y+`.
+    pub up: P,
+    /// "Down" image. `Y-`.
+    pub down: P,
+}
+
+impl<P: AsRef<Path>> CubeMapPath<P> {
+    pub(crate) fn as_array(&self) -> [&P; 6] {
+        [
+            &self.right,
+            &self.left,
+            &self.up,
+            &self.down,
+            &self.front,
+            &self.back,
+        ]
+    }
+}
+
+/// Cubemap is six textures useful for
+/// [`Cubemapping`](https://en.wikipedia.org/wiki/Cube_mapping).
+#[derive(Clone, Debug)]
+pub struct CubeMap<T> {
+    view: h::ShaderResourceView<BackendResources, T>,
+    sampler: h::Sampler<BackendResources>,
+}
+
+impl<T> CubeMap<T> {
+    pub(crate) fn new(
+        view: h::ShaderResourceView<BackendResources, T>,
+        sampler: h::Sampler<BackendResources>,
+    ) -> Self {
+        CubeMap { view, sampler }
+    }
+
+    pub(crate) fn to_param(
+        &self,
+    ) -> (
+        h::ShaderResourceView<BackendResources, T>,
+        h::Sampler<BackendResources>,
+    ) {
+        (self.view.clone(), self.sampler.clone())
     }
 }

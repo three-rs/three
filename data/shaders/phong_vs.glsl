@@ -1,5 +1,5 @@
 #version 150 core
-#include locals lights
+#include locals lights globals
 
 in vec4 a_Position;
 in vec4 a_Normal;
@@ -7,11 +7,6 @@ out vec3 v_World;
 out vec3 v_Normal;
 out vec3 v_Half[MAX_LIGHTS];
 out vec4 v_ShadowCoord[MAX_LIGHTS];
-
-uniform b_Globals {
-    mat4 u_ViewProj;
-    uint u_NumLights;
-};
 
 void main() {
     vec4 world = u_World * a_Position;
