@@ -209,4 +209,10 @@ impl Window {
             self.window.set_cursor_state(glutin::CursorState::Hide)
         };
     }
+
+    /// Returns underlaying `glutin::GlWindow`.
+    #[cfg(feature = "opengl")]
+    pub fn glutin_window(&self) -> &glutin::GlWindow {
+        &self.window
+    }
 }
