@@ -28,7 +28,7 @@ use text::Font;
 use texture::Texture;
 
 /// The format of the back buffer color requested from the windowing system.
-pub type ColorFormat = gfx::format::Srgba8;
+pub type ColorFormat = gfx::format::Rgba8;
 /// The format of the depth stencil buffer requested from the windowing system.
 pub type DepthFormat = gfx::format::DepthStencil;
 pub type ShadowFormat = gfx::format::Depth32F;
