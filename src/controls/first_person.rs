@@ -107,7 +107,7 @@ impl Builder {
         self.pitch_range = range;
         self
     }
-    
+
     /// Set the initial position.
     ///
     /// Defaults to the world origin.
