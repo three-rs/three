@@ -1,11 +1,34 @@
-//! Contains input related primitives.
+//! High-level input handling.
+//!
+//! ## Controllers
+//!
+//! Controllers are used to orient objects in the scene using input devices.
+//! Any [`Object`] can be the target of a controller, including cameras.
+//!
+//! ### Orbital
+//!
+//!  * Uses mouse movement to rotate the object around its target.
+//!  * Uses the mouse scroll wheel to move the object closer to or further
+//!    from its target.
+//!
+//! ### First-person
+//!
+//!  * Uses the W and S keys to move forward or backward.
+//!  * Uses the A and D keys to strafe left or right.
+//!  * Uses mouse movement to rotate the object when the right mouse button
+//!    is held down.
+//!
+//! [`Object`]: ../object/struct.Object.html
 
-/// First person camera controls.
+/// First person controls.
 pub mod first_person;
 
-/// Mouse orbit camera controls.
+/// Mouse orbit controls.
 pub mod orbit;
 
 pub use self::first_person::FirstPerson;
 pub use self::orbit::Orbit;
-pub use input::{Button, Input, Key, KeyAxis, Timer, AXIS_DOWN_UP, AXIS_LEFT_RIGHT, KEY_ESCAPE, KEY_SPACE, MOUSE_LEFT, MOUSE_RIGHT};
+pub use input::{Button, Input, KeyAxis, Timer, AXIS_DOWN_UP, AXIS_LEFT_RIGHT, KEY_ESCAPE, KEY_SPACE, MOUSE_LEFT, MOUSE_RIGHT};
+
+/// Virtual key code.
+pub use input::Key;
