@@ -1,4 +1,60 @@
-//! Contains useful [`Camera`](struct.Camera.html) struct and `Projections`.
+//! Cameras are used to view scenes from any point in the world.
+//!
+//! ## Projections
+//!
+//! ### Finite perspective
+//!
+//! Finite persepective projections are often used for 3D rendering. In a finite
+//! perspective projection, objects moving away from the camera appear smaller and
+//! are occluded by objects that are closer to the camera.
+//!
+//! Finite [`Perspective`] projections are created with the
+//! [`Factory::perspective_camera`] method with a bounded range.
+//!
+//! ```rust,no_run
+//! # let mut window = three::Window::builder("", "").build();
+//! # let _ = {
+//! window.factory.perspective_camera(60.0, 0.1 .. 1.0);
+//! # };
+//! ```
+//!
+//! ### Infinite perspective
+//!
+//! Infinite perspective projections are perspective projections with `zfar` planes
+//! at infinity. This means objects are never considered to be 'too far away' to be
+//! visible by the camera.
+//!
+//! Infinite [`Perspective`] projections are created with the
+//! [`Factory::perspective_camera`] method with an unbounded range.
+//!
+//! ```rust,no_run
+//! # let mut window = three::Window::builder("", "").build();
+//! # let _ = {
+//! window.factory.perspective_camera(60.0, 0.1 ..);
+//! # };
+//! ```
+//!
+//! ### Orthographic
+//!
+//! Orthographic projections are often used for 2D rendering. In an orthographic
+//! projection, objects moving away from the camera retain their size but are
+//! occluded by objects that are closer to the camera.
+//!
+//! [`Orthographic`] projections are created with the
+//! [`Factory::orthographic_camera`] method.
+//!
+//! ```rust,no_run
+//! # let mut window = three::Window::builder("", "").build();
+//! # let _ = {
+//! window.factory.orthographic_camera([0.0, 0.0], 1.0, -1.0 .. 1.0)
+//! # };
+//! ```
+//!
+//! [`Factory::orthographic_camera`]: ../factory/struct.Factory.html#method.orthographic_camera
+//! [`Factory::perspective_camera`]: ../factory/struct.Factory.html#method.perspective_camera
+//! [`Object`]: ../object/struct.Object.html
+//! [`Orthographic`]: struct.Orthographic.html
+//! [`Perspective`]: struct.Perspective.html
 
 use cgmath;
 use mint;
@@ -7,7 +63,7 @@ use std::ops;
 use NodePointer;
 use object::Object;
 
-/// The z values of the near and far clipping planes of a camera's projection.
+/// The Z values of the near and far clipping planes of a camera's projection.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ZRange {
     /// Z range for a finite projection.
@@ -37,7 +93,9 @@ pub enum Projection {
     Perspective(Perspective),
 }
 
-/// Camera is used to render Scene with specific `Projection`.
+/// Camera is used to render Scene with specific [`Projection`].
+///
+/// [`Projection`]: enum.Projection.html
 pub struct Camera {
     pub(crate) object: Object,
 
@@ -119,7 +177,6 @@ impl ops::DerefMut for Camera {
 }
 
 /// Orthographic projection parameters.
-/// See [`Orthographic projection`](https://en.wikipedia.org/wiki/3D_projection#Orthographic_projection).
 #[derive(Clone, Debug, PartialEq)]
 pub struct Orthographic {
     /// The center of the projection.
@@ -150,7 +207,6 @@ impl Orthographic {
 }
 
 /// Perspective projection parameters.
-/// See [`Perspective projection`](https://en.wikipedia.org/wiki/3D_projection#Perspective_projection).
 #[derive(Clone, Debug, PartialEq)]
 pub struct Perspective {
     /// Vertical field of view in degrees.

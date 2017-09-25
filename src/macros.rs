@@ -1,6 +1,5 @@
-/// Implements conversion traits on a type wrapping a three-rs type. Useful for when you wrap a
-/// three-rs type with your own struct. Allows you to use that struct in place of any three-rs
-/// object.
+/// Implements conversion traits on a type wrapping a `three` type. Useful for when you wrap a
+/// `three` type with your own struct. Allows you to use that struct in place of any [`Object`].
 ///
 /// Implements the following traits:
 ///
@@ -8,12 +7,36 @@
 /// * `Deref<Target=Object>`
 /// * `DerefMut<Object>`
 ///
-/// ```rust,ignore
-/// // Implements conversion traits for MyStruct using field `internal_three_type`
-/// three_object_wrapper!(MyStruct::internal_three_type);
-/// // If field is omitted, it defaults to `object`
-/// three_object_wrapper!(MyStruct); // equivalent to three_object_wrapper!(MyStruct::object);
+/// # Examples
+///
+/// Creating a wrapper around a named field.
+///
+/// ```rust
+/// #[macro_use]
+/// extern crate three;
+///
+/// three_object_wrapper!(MyStruct::mesh);
+/// struct MyStruct {
+///     mesh: three::Mesh,
+/// }
+/// # fn main() {}
 /// ```
+///
+/// If the field parameter is omitted then the field name defaults to `object`.
+///
+/// ```rust
+/// #[macro_use]
+/// extern crate three;
+///
+/// // Equivalent to `three_object_wrapper!(MyStruct::object);`
+/// three_object_wrapper!(MyStruct);
+/// struct MyStruct {
+///     object: three::Mesh,
+/// }
+/// # fn main() {}
+/// ```
+///
+/// [`Object`]: object/struct.Object.html
 #[macro_export]
 macro_rules! three_object_wrapper {
     ($($name:ident),*) => {
@@ -28,14 +51,14 @@ macro_rules! three_object_wrapper {
             }
 
             impl ::std::ops::Deref for $name {
-                type Target = Object;
-                fn deref(&self) -> &Object {
+                type Target = $crate::Object;
+                fn deref(&self) -> &$crate::Object {
                     &self.$field
                 }
             }
 
             impl ::std::ops::DerefMut for $name {
-                fn deref_mut(&mut self) -> &mut Object {
+                fn deref_mut(&mut self) -> &mut $crate::Object {
                     &mut self.$field
                 }
             }
