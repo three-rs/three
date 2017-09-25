@@ -107,7 +107,7 @@ impl Builder {
         self.pitch_range = range;
         self
     }
-    
+
     /// Set the initial position.
     ///
     /// Defaults to the world origin.
@@ -355,27 +355,27 @@ impl FirstPerson {
             }
         }
 
-        self.axes
-            .vertical
-            .map(|a| if let Some(time) = a.timed(input) {
+        self.axes.vertical.map(
+            |a| if let Some(time) = a.timed(input) {
                 self.position.y += self.move_speed * time;
-            });
+            },
+        );
 
-        self.axes
-            .forward
-            .map(|a| if let Some(time) = a.timed(input) {
+        self.axes.forward.map(
+            |a| if let Some(time) = a.timed(input) {
                 self.position.x += self.move_speed * time * self.yaw.sin();
                 self.position.z -= self.move_speed * time * self.yaw.cos();
                 if self.vertical_move {
                     self.position.y -= self.move_speed * time * self.pitch.sin();
                 }
-            });
-        self.axes
-            .strafing
-            .map(|a| if let Some(time) = a.timed(input) {
+            },
+        );
+        self.axes.strafing.map(
+            |a| if let Some(time) = a.timed(input) {
                 self.position.x += self.move_speed * time * self.yaw.cos();
                 self.position.z += self.move_speed * time * self.yaw.sin();
-            });
+            },
+        );
 
         let yrot = cgmath::Quaternion::from_angle_y(cgmath::Rad(-self.yaw));
         let xrot = cgmath::Quaternion::from_angle_x(cgmath::Rad(-self.pitch));

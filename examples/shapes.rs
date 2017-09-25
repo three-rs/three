@@ -36,7 +36,7 @@ fn main() {
     win.scene.add(&mcyl);
 
     let mut msphere = {
-        let geometry = three::Geometry::sphere(2.0, 5, 5);
+        let geometry = three::Geometry::uv_sphere(2.0, 5, 5);
         let material = three::Material::MeshBasic {
             color: 0xff0000,
             map: None,
