@@ -35,7 +35,7 @@ uniform sampler2D u_EmissiveSampler;
 uniform sampler2D u_MetallicRoughnessSampler;
 uniform sampler2D u_OcclusionSampler;
 
-uniform b_PbrParams {
+layout(std140) uniform b_PbrParams {
     vec4 u_BaseColorFactor;
     vec3 u_Camera;
     vec3 u_EmissiveFactor;
