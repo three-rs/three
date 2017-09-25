@@ -178,7 +178,10 @@ impl Geometry {
     /// }
     /// # fn main() { let _ = make_square(); }
     /// ```
-    pub fn plane(width: f32, height: f32) -> Self {
+    pub fn plane(
+        width: f32,
+        height: f32,
+    ) -> Self {
         Self::generate(
             generators::Plane::new(),
             |GenVertex { pos, .. }| [pos[0] * 0.5 * width, pos[1] * 0.5 * height, 0.0].into(),
@@ -202,10 +205,20 @@ impl Geometry {
     /// }
     /// # fn main() { let _ = make_cube(); }
     /// ```
-    pub fn cuboid(width: f32, height: f32, depth: f32) -> Self {
+    pub fn cuboid(
+        width: f32,
+        height: f32,
+        depth: f32,
+    ) -> Self {
         Self::generate(
             generators::Cube::new(),
-            |GenVertex { pos, .. }| [pos[0] * 0.5 * width, pos[1] * 0.5 * height, pos[2] * 0.5 * depth].into(),
+            |GenVertex { pos, .. }| {
+                [
+                    pos[0] * 0.5 * width,
+                    pos[1] * 0.5 * height,
+                    pos[2] * 0.5 * depth,
+                ].into()
+            },
             |v| v.normal.into(),
         )
     }

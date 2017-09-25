@@ -141,40 +141,44 @@ impl Window {
         self.event_loop.poll_events(|event| {
             use glutin::WindowEvent::{Closed, KeyboardInput, MouseInput, MouseMoved, MouseWheel, Resized};
             match event {
-                glutin::Event::WindowEvent { event, .. } => match event {
-                    Resized(..) => renderer.resize(window),
-                    Closed => running = false,
-                    KeyboardInput {
-                        input: glutin::KeyboardInput {
-                            state,
-                            virtual_keycode: Some(keycode),
+                glutin::Event::WindowEvent { event, .. } => {
+                    match event {
+                        Resized(..) => renderer.resize(window),
+                        Closed => running = false,
+                        KeyboardInput {
+                            input: glutin::KeyboardInput {
+                                state,
+                                virtual_keycode: Some(keycode),
+                                ..
+                            },
                             ..
-                        },
-                        ..
-                    } => input.keyboard_input(state, keycode),
-                    MouseInput { state, button, .. } => input.mouse_input(state, button),
-                    MouseMoved {
-                        position: (x, y), ..
-                    } => input.mouse_moved(
-                        [x as f32, y as f32].into(),
-                        renderer.map_to_ndc([x as f32, y as f32]),
-                    ),
-                    MouseWheel { delta, .. } => input.mouse_wheel_input(delta),
-                    _ => {}
-                },
-                glutin::Event::DeviceEvent { event, .. } => match event {
-                    glutin::DeviceEvent::Motion { axis, value } => {
-                        let delta = if axis == 0 {
-                            [value as f32, 0.0].into()
-                        } else if axis == 1 {
-                            [0.0, value as f32].into()
-                        } else {
-                            return;
-                        };
-                        input.mouse_moved_raw(delta);
+                        } => input.keyboard_input(state, keycode),
+                        MouseInput { state, button, .. } => input.mouse_input(state, button),
+                        MouseMoved { position: (x, y), .. } => {
+                            input.mouse_moved(
+                                [x as f32, y as f32].into(),
+                                renderer.map_to_ndc([x as f32, y as f32]),
+                            )
+                        }
+                        MouseWheel { delta, .. } => input.mouse_wheel_input(delta),
+                        _ => {}
                     }
-                    _ => {}
-                },
+                }
+                glutin::Event::DeviceEvent { event, .. } => {
+                    match event {
+                        glutin::DeviceEvent::Motion { axis, value } => {
+                            let delta = if axis == 0 {
+                                [value as f32, 0.0].into()
+                            } else if axis == 1 {
+                                [0.0, value as f32].into()
+                            } else {
+                                return;
+                            };
+                            input.mouse_moved_raw(delta);
+                        }
+                        _ => {}
+                    }
+                }
                 _ => {}
             }
         });
@@ -192,9 +196,9 @@ impl Window {
 
     /// Get current window size in pixels.
     pub fn size(&self) -> mint::Vector2<f32> {
-        let size = self.window
-            .get_inner_size_pixels()
-            .expect("Can't get window size");
+        let size = self.window.get_inner_size_pixels().expect(
+            "Can't get window size",
+        );
         [size.0 as f32, size.1 as f32].into()
     }
 

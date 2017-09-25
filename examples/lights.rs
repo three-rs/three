@@ -15,8 +15,12 @@ fn main() {
     let mut dir_light = win.factory.directional_light(0xffffff, 0.9);
     dir_light.look_at([15.0, 35.0, 35.0], [0.0, 0.0, 2.0], None);
     let shadow_map = win.factory.shadow_map(1024, 1024);
-    let _debug_shadow = win.renderer
-        .debug_shadow_quad(&shadow_map, 1, [10, 10], [256, 256]);
+    let _debug_shadow = win.renderer.debug_shadow_quad(
+        &shadow_map,
+        1,
+        [10, 10],
+        [256, 256],
+    );
     dir_light.set_shadow(shadow_map, 40.0, 1.0 .. 200.0);
 
     let mut lights: [&mut three::Object; 4] = [
