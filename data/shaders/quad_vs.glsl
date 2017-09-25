@@ -2,7 +2,7 @@
 
 out vec2 v_TexCoord;
 
-uniform b_Params {
+layout(std140) uniform b_Params {
     vec4 u_Rect;
     float u_Depth;
 };

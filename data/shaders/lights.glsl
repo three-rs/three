@@ -11,6 +11,6 @@ struct Light {
     ivec4 shadow_params;
 };
 
-uniform b_Lights {
+layout(std140) uniform b_Lights {
     Light u_Lights[MAX_LIGHTS];
 };
