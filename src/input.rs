@@ -70,9 +70,7 @@ impl Input {
 
     /// Create new timer.
     pub fn time(&self) -> Timer {
-        Timer {
-            start: self.0.time_moment,
-        }
+        Timer { start: self.0.time_moment }
     }
 
     /// Get current delta time (time since previous frame) in seconds.
@@ -179,9 +177,9 @@ impl Input {
         pos_ndc: mint::Point2<f32>,
     ) {
         use cgmath::Point2;
-        self.1
-            .mouse_moves
-            .push((Point2::from(pos) - Point2::from(self.0.mouse_pos)).into());
+        self.1.mouse_moves.push(
+            (Point2::from(pos) - Point2::from(self.0.mouse_pos)).into(),
+        );
         self.1.mouse_moves_ndc.push(
             (Point2::from(pos_ndc) - Point2::from(self.0.mouse_pos_ndc)).into(),
         );
@@ -252,20 +250,24 @@ impl Button {
     ) -> u8 {
         use std::u8::MAX;
         match *self {
-            Button::Key(button) => input
-                .1
-                .keys_hit
-                .iter()
-                .filter(|&&key| key == button)
-                .take(MAX as usize)
-                .count() as u8,
-            Button::Mouse(button) => input
-                .1
-                .mouse_hit
-                .iter()
-                .filter(|&&key| key == button)
-                .take(MAX as usize)
-                .count() as u8,
+            Button::Key(button) => {
+                input
+                    .1
+                    .keys_hit
+                    .iter()
+                    .filter(|&&key| key == button)
+                    .take(MAX as usize)
+                    .count() as u8
+            }
+            Button::Mouse(button) => {
+                input
+                    .1
+                    .mouse_hit
+                    .iter()
+                    .filter(|&&key| key == button)
+                    .take(MAX as usize)
+                    .count() as u8
+            }
         }
     }
 

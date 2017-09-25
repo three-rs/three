@@ -100,9 +100,7 @@ impl AudioData {
             panic!("Can't get default audio endpoint, can't play sound");
         };
         let sink = r::Sink::new(&endpoint);
-        AudioData {
-            source: SourceInternal::D2(sink),
-        }
+        AudioData { source: SourceInternal::D2(sink) }
     }
 }
 

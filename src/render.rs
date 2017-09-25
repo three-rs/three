@@ -771,7 +771,9 @@ impl Renderer {
                                 .unwrap_or(&self.map_default)
                                 .to_param()
                         },
-                        normal_map: { normal_map.as_ref().unwrap_or(&self.map_default).to_param() },
+                        normal_map: {
+                            normal_map.as_ref().unwrap_or(&self.map_default).to_param()
+                        },
                         emissive_map: {
                             emissive_map
                                 .as_ref()
@@ -908,8 +910,10 @@ impl Renderer {
             if let SubNode::UiText(ref text) = node.sub_node {
                 text.font.queue(&text.section, text.layout);
                 if !self.font_cache.contains_key(&text.font.path) {
-                    self.font_cache
-                        .insert(text.font.path.clone(), text.font.clone());
+                    self.font_cache.insert(
+                        text.font.path.clone(),
+                        text.font.clone(),
+                    );
                 }
             }
         }
@@ -933,10 +937,12 @@ impl Renderer {
                 },
             ];
             let p0 = self.map_to_ndc([pos[0] as f32, pos[1] as f32]);
-            let p1 = self.map_to_ndc([
-                (pos[0] + quad.size[0]) as f32,
-                (pos[1] + quad.size[1]) as f32,
-            ]);
+            let p1 = self.map_to_ndc(
+                [
+                    (pos[0] + quad.size[0]) as f32,
+                    (pos[1] + quad.size[1]) as f32,
+                ],
+            );
             self.encoder.update_constant_buffer(
                 &self.quad_buf,
                 &QuadParams {
