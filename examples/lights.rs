@@ -31,7 +31,7 @@ fn main() {
     }
 
     let mut sphere = {
-        let geometry = three::Geometry::sphere(3.0, 20, 20);
+        let geometry = three::Geometry::uv_sphere(3.0, 20, 20);
         let material = three::Material::MeshPhong {
             color: 0xffA0A0,
             glossiness: 80.0,
