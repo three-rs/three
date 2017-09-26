@@ -1,13 +1,15 @@
-use glutin::{ElementState, MouseButton, MouseScrollDelta};
-pub use glutin::VirtualKeyCode as Key;
 use mint;
 
+use glutin::{ElementState, MouseButton, MouseScrollDelta};
 use std::collections::HashSet;
 use std::time;
 
 const PIXELS_PER_LINE: f32 = 38.0;
 
 pub type TimerDuration = f32;
+
+/// Virtual key code.
+pub use glutin::VirtualKeyCode as Key;
 
 // TODO: Remove
 #[allow(dead_code)]
