@@ -59,6 +59,9 @@ name = "shapes"
 name = "sprite"
 
 [[example]]
+name = "tutorial"
+
+[[example]]
 name = "gltf"
 
 [[example]]
