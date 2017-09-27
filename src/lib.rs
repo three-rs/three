@@ -5,15 +5,13 @@
 //!
 //! ## Creating a window
 //!
-//! Every `three` application begins with a [`Window`]. We begin by setting the title
-//! of this window, and define the path to the shader code directory.
+//! Every `three` application begins with a [`Window`]. We create it as follows.
 //!
 //! ```rust,no_run
 //! # extern crate three;
 //! # fn main() {
 //! let title = "Getting started with three-rs";
-//! let shaders = concat!(env!("CARGO_MANIFEST_DIR"), "/data/shaders");
-//! let mut window = three::Window::builder(title, shaders).build();
+//! let mut window = three::Window::new(title);
 //! # }
 //! ```
 //!
@@ -37,8 +35,7 @@
 //! # extern crate three;
 //! # fn main() {
 //! # let title = "Getting started with three-rs";
-//! # let shaders = concat!(env!("CARGO_MANIFEST_DIR"), "/data/shaders");
-//! # let mut window = three::Window::builder(title, shaders).build();
+//! # let mut window = three::Window::new(title);
 //! let geometry = three::Geometry::with_vertices(vec![
 //!     [-0.5, -0.5, -0.5].into(),
 //!     [ 0.5, -0.5, -0.5].into(),
@@ -63,8 +60,7 @@
 //! # extern crate three;
 //! # fn main() {
 //! # let title = "Getting started with three-rs";
-//! # let shaders = concat!(env!("CARGO_MANIFEST_DIR"), "/data/shaders");
-//! # let mut window = three::Window::builder(title, shaders).build();
+//! # let mut window = three::Window::new(title);
 //! # let vertices = vec![
 //! #     [-0.5, -0.5, -0.5].into(),
 //! #     [ 0.5, -0.5, -0.5].into(),
@@ -89,8 +85,7 @@
 //! # extern crate three;
 //! # fn main() {
 //! # let title = "Getting started with three-rs";
-//! # let shaders = concat!(env!("CARGO_MANIFEST_DIR"), "/data/shaders");
-//! # let mut window = three::Window::builder(title, shaders).build();
+//! # let mut window = three::Window::new(title);
 //! window.scene.background = three::Background::Color(0xC6F0FF);
 //! # }
 //! ```
@@ -104,8 +99,7 @@
 //! # extern crate three;
 //! # fn main() {
 //! #     let title = "Getting started with three-rs";
-//! #     let shaders = concat!(env!("CARGO_MANIFEST_DIR"), "/data/shaders");
-//! #     let mut window = three::Window::builder(title, shaders).build();
+//! #     let mut window = three::Window::new(title);
 //! #     let vertices = vec![
 //! #         [-0.5, -0.5, -0.5].into(),
 //! #         [ 0.5, -0.5, -0.5].into(),
@@ -139,8 +133,7 @@
 //!
 //! fn main() {
 //!     let title = "Getting started with three-rs";
-//!     let shaders = concat!(env!("CARGO_MANIFEST_DIR"), "/data/shaders");
-//!     let mut window = three::Window::builder(title, shaders).build();
+//!     let mut window = three::Window::new(title);
 //!
 //!     let vertices = vec![
 //!         [-0.5, -0.5, -0.5].into(),
@@ -189,7 +182,7 @@
 //! }
 //!
 //! fn main() {
-//! #    let mut window = three::Window::builder("", "").build();
+//! #    let mut window = three::Window::new("");
 //!     // Initialization code omitted.
 //!     let my_object = MyObject { group: window.factory.group() };
 //!     window.scene.add(&my_object);
@@ -255,12 +248,16 @@ extern crate gltf;
 extern crate gltf_importer;
 extern crate gltf_utils;
 extern crate image;
+extern crate includedir;
 #[macro_use]
 extern crate itertools;
+#[macro_use]
+extern crate lazy_static;
 #[macro_use]
 extern crate log;
 extern crate mint;
 extern crate obj;
+extern crate phf;
 extern crate rodio;
 extern crate vec_map;
 // OpenGL
@@ -278,6 +275,7 @@ pub mod audio;
 pub mod camera;
 pub mod controls;
 pub mod custom;
+mod data;
 mod factory;
 pub mod geometry;
 mod hub;

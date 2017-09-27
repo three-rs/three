@@ -9,6 +9,8 @@ keywords = ["gamedev", "graphics", "engine", "3D"]
 homepage = "https://github.com/kvark/three-rs"
 repository = "https://github.com/kvark/three-rs"
 documentation = "https://docs.rs/three/"
+build = "build.rs"
+include = ["data"]
 exclude = ["doc", "bors.toml", ".travis.yml", "test_data"]
 
 [lib]
@@ -16,6 +18,9 @@ exclude = ["doc", "bors.toml", ".travis.yml", "test_data"]
 [features]
 default = ["opengl"]
 "opengl" = ["gfx_device_gl", "gfx_window_glutin", "glutin"]
+
+[build-dependencies]
+includedir_codegen = "0.2.0"
 
 [dependencies]
 bitflags = "0.9"
@@ -28,9 +33,12 @@ gltf = "0.9.1"
 gltf-importer = "0.9.1"
 gltf-utils = "0.9.1"
 image = "0.13"
+includedir = "0.2.0"
 itertools = "0.6"
+lazy_static = "0.2"
 log = "0.3"
 obj = { version = "0.6", features = ["genmesh"] }
+phf = "0.7.12"
 rodio = "0.5"
 mint = "0.4.2"
 vec_map = "0.8"

@@ -1,8 +1,7 @@
 extern crate three;
 
 fn main() {
-    let shaders = concat!(env!("CARGO_MANIFEST_DIR"), "/data/shaders");
-    let mut win = three::Window::builder("Three-rs glTF example", &shaders).build();
+    let mut win = three::Window::new("Three-rs glTF example");
     let mut light = win.factory.directional_light(0xFFFFFF, 7.0);
     light.look_at([1.0, 1.0, 1.0], [0.0, 0.0, 0.0], None);
     win.scene.add(&light);

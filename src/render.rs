@@ -13,7 +13,7 @@ use mint;
 
 use std::collections::HashMap;
 use std::mem;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 pub use self::back::CommandBuffer as BackendCommandBuffer;
 pub use self::back::Factory as BackendFactory;
@@ -32,7 +32,7 @@ pub type ColorFormat = gfx::format::Rgba8;
 /// The format of the depth stencil buffer requested from the windowing system.
 pub type DepthFormat = gfx::format::DepthStencil;
 pub type ShadowFormat = gfx::format::Depth32F;
-pub type BasicPipelineState = gfx::PipelineState<back::Resources, pipe::Meta>;
+pub type BasicPipelineState = gfx::PipelineState<back::Resources, basic_pipe::Meta>;
 
 const MAX_LIGHTS: usize = 4;
 
@@ -44,6 +44,94 @@ const STENCIL_SIDE: gfx::state::StencilSide = gfx::state::StencilSide {
     op_depth_fail: gfx::state::StencilOp::Keep,
     op_pass: gfx::state::StencilOp::Keep,
 };
+
+pub mod shader {
+    use data;
+    use std::str;
+    use std::sync::Mutex;
+
+    struct ShaderSource {
+        name: String,
+        vertex: String,
+        fragment: String,
+    }
+
+    struct ShaderSourceManager {
+        locals: String,
+        lights: String,
+        globals: String,
+        shaders: Vec<ShaderSource>,
+    }
+
+    pub fn find(name: &str) -> (String, String) {
+        let m = M.lock().unwrap();
+        let entry = m.shaders.iter().find(|entry| entry.name == name).unwrap();
+        (entry.vertex.clone(), entry.fragment.clone())
+    }
+
+    pub fn preprocess(code: &str) -> String {
+        let manager = M.lock().unwrap();
+        manager.preprocess(code)
+    }
+
+    impl ShaderSourceManager {
+        fn preprocess(&self, code: &str) -> String {
+            let mut new_code = String::new();
+            for line in code.lines() {
+                if line.starts_with("#include") {
+                    for dep_name in line.split(' ').skip(1) {
+                        match dep_name {
+                            "locals" => new_code += &self.locals,
+                            "lights" => new_code += &self.lights,
+                            "globals" => new_code += &self.globals,
+                            _ => error!("Unrecognized directive #include {}", dep_name),
+                        }
+                    }
+                } else {
+                    new_code.push_str(&line);
+                    new_code.push('\n');
+                }
+            }
+            new_code
+        }
+    }
+
+    lazy_static! {
+        static ref M: Mutex<ShaderSourceManager> = {
+            let locals = data::SHADERS.get("data/shaders/locals.glsl").unwrap();
+            let lights = data::SHADERS.get("data/shaders/lights.glsl").unwrap();
+            let globals = data::SHADERS.get("data/shaders/globals.glsl").unwrap();
+            let mut manager = ShaderSourceManager {
+                locals: String::from_utf8(locals.to_vec()).unwrap(),
+                lights: String::from_utf8(lights.to_vec()).unwrap(),
+                globals: String::from_utf8(globals.to_vec()).unwrap(),
+                shaders: Vec::new(),
+            };
+            let shader_names = [
+                "basic",
+                "gouraud",
+                "pbr",
+                "phong",
+                "quad",
+                "shadow",
+                "skybox",
+                "sprite",
+            ];
+            for name in &shader_names {
+                use std::borrow::Borrow;
+                let vs = data::SHADERS.get(&format!("data/shaders/{}_vs.glsl", name)).unwrap();
+                let fs = data::SHADERS.get(&format!("data/shaders/{}_ps.glsl", name)).unwrap();
+                let ss = ShaderSource {
+                    name: name.to_string(),
+                    vertex: manager.preprocess(str::from_utf8(vs.borrow()).unwrap()),
+                    fragment: manager.preprocess(str::from_utf8(fs.borrow()).unwrap()),
+                };
+                manager.shaders.push(ss);
+            }
+            Mutex::new(manager)
+        };
+    }
+}
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
 gfx_defines! {
@@ -79,7 +167,7 @@ gfx_defines! {
         num_lights: u32 = "u_NumLights",
     }
 
-    pipeline pipe {
+    pipeline basic_pipe {
         vbuf: gfx::VertexBuffer<Vertex> = (),
         cb_locals: gfx::ConstantBuffer<Locals> = "b_Locals",
         cb_lights: gfx::ConstantBuffer<LightParam> = "b_Lights",
@@ -151,80 +239,6 @@ gfx_defines! {
         color_target: gfx::RenderTarget<ColorFormat> = "Target0",
         depth_target: gfx::DepthTarget<DepthFormat> = gfx::preset::depth::LESS_EQUAL_WRITE,
     }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Hash)]
-pub enum ShaderType {
-    Vertex,
-    Fragment,
-}
-
-impl ShaderType {
-    #[cfg(feature = "opengl")]
-    // Append specific postfix to the given name
-    pub fn as_file_name<S: Into<String>>(
-        &self,
-        name: S,
-    ) -> String {
-        match *self {
-            ShaderType::Vertex => name.into() + "_vs.glsl",
-            ShaderType::Fragment => name.into() + "_ps.glsl",
-        }
-    }
-}
-
-pub fn get_shader(
-    root: &Path,
-    name: &str,
-    variant: ShaderType,
-) -> String {
-    use std::fs::File;
-    use std::io::{BufRead, BufReader, Read};
-    let mut code = String::new();
-    let shader_path = root.join(variant.as_file_name(name));
-    let template_file = File::open(&shader_path).expect(&format!("Unable to open shader {}", &shader_path.display()));
-    for line in BufReader::new(template_file).lines() {
-        let line = line.unwrap();
-        if line.starts_with("#include") {
-            for dep_name in line.split(' ').skip(1) {
-                code += &format!("//!including {}:\n", dep_name);
-                let mut file_name = root.join(dep_name);
-                file_name.set_extension("glsl");
-                File::open(file_name)
-                    .expect(&format!("Unable to open snippet for {}", dep_name))
-                    .read_to_string(&mut code)
-                    .unwrap();
-            }
-        } else {
-            code.push_str(&line);
-            code.push('\n');
-        }
-    }
-    code
-}
-
-pub fn load_program<R, F, P: AsRef<Path>>(
-    root: P,
-    name: &str,
-    factory: &mut F,
-) -> Result<gfx::handle::Program<R>, ()>
-where
-    R: gfx::Resources,
-    F: gfx::Factory<R>,
-{
-    let code_vs = get_shader(root.as_ref(), name, ShaderType::Vertex);
-    let code_ps = get_shader(root.as_ref(), name, ShaderType::Fragment);
-
-    factory
-        .link_program(code_vs.as_bytes(), code_ps.as_bytes())
-        .map_err(|e| {
-            error!(
-                "Unable to link program {}: {}",
-                root.as_ref().join(name).display(),
-                e
-            );
-            () // TODO: Better error type
-        })
 }
 
 /// sRGB to linear conversion from:
@@ -331,6 +345,18 @@ pub struct Renderer {
     pub shadow: ShadowType,
 }
 
+fn load_program<R, F>(
+    name: &str,
+    factory: &mut F,
+) -> Result<gfx::handle::Program<R>, gfx::shade::ProgramError>
+where
+    R: gfx::Resources,
+    F: gfx::Factory<R>,
+{
+    let (vs, fs) = shader::find(name);
+    factory.link_program(vs.as_bytes(), fs.as_bytes())
+}
+
 impl Renderer {
     #[cfg(feature = "opengl")]
     #[doc(hidden)]
@@ -338,18 +364,17 @@ impl Renderer {
         builder: glutin::WindowBuilder,
         context: glutin::ContextBuilder,
         event_loop: &glutin::EventsLoop,
-        shader_path: &Path,
     ) -> (Self, glutin::GlWindow, Factory) {
         use gfx::texture as t;
         let (window, device, mut gl_factory, color, depth) = gfx_window_glutin::init(builder, context, event_loop);
-        let prog_basic = load_program(shader_path, "basic", &mut gl_factory).unwrap();
-        let prog_gouraud = load_program(shader_path, "gouraud", &mut gl_factory).unwrap();
-        let prog_phong = load_program(shader_path, "phong", &mut gl_factory).unwrap();
-        let prog_sprite = load_program(shader_path, "sprite", &mut gl_factory).unwrap();
-        let prog_shadow = load_program(shader_path, "shadow", &mut gl_factory).unwrap();
-        let prog_quad = load_program(shader_path, "quad", &mut gl_factory).unwrap();
-        let prog_pbr = load_program(shader_path, "pbr", &mut gl_factory).unwrap();
-        let prog_skybox = load_program(shader_path, "skybox", &mut gl_factory).unwrap();
+        let prog_basic = load_program("basic", &mut gl_factory).unwrap();
+        let prog_gouraud = load_program( "gouraud", &mut gl_factory).unwrap();
+        let prog_phong = load_program("phong", &mut gl_factory).unwrap();
+        let prog_sprite = load_program("sprite", &mut gl_factory).unwrap();
+        let prog_shadow = load_program("shadow", &mut gl_factory).unwrap();
+        let prog_quad = load_program("quad", &mut gl_factory).unwrap();
+        let prog_pbr = load_program("pbr", &mut gl_factory).unwrap();
+        let prog_skybox = load_program("skybox", &mut gl_factory).unwrap();
         let rast_quad = gfx::state::Rasterizer::new_fill();
         let rast_fill = gfx::state::Rasterizer::new_fill().with_cull_back();
         let rast_wire = gfx::state::Rasterizer {
@@ -386,7 +411,7 @@ impl Renderer {
                     &prog_basic,
                     gfx::Primitive::LineStrip,
                     rast_fill,
-                    pipe::new(),
+                    basic_pipe::new(),
                 )
                 .unwrap(),
             pso_mesh_basic_fill: gl_factory
@@ -394,7 +419,7 @@ impl Renderer {
                     &prog_basic,
                     gfx::Primitive::TriangleList,
                     rast_fill,
-                    pipe::new(),
+                    basic_pipe::new(),
                 )
                 .unwrap(),
             pso_mesh_basic_wireframe: gl_factory
@@ -402,7 +427,7 @@ impl Renderer {
                     &prog_basic,
                     gfx::Primitive::TriangleList,
                     rast_wire,
-                    pipe::new(),
+                    basic_pipe::new(),
                 )
                 .unwrap(),
             pso_mesh_gouraud: gl_factory
@@ -410,7 +435,7 @@ impl Renderer {
                     &prog_gouraud,
                     gfx::Primitive::TriangleList,
                     rast_fill,
-                    pipe::new(),
+                    basic_pipe::new(),
                 )
                 .unwrap(),
             pso_mesh_phong: gl_factory
@@ -418,7 +443,7 @@ impl Renderer {
                     &prog_phong,
                     gfx::Primitive::TriangleList,
                     rast_fill,
-                    pipe::new(),
+                    basic_pipe::new(),
                 )
                 .unwrap(),
             pso_sprite: gl_factory
@@ -426,9 +451,9 @@ impl Renderer {
                     &prog_sprite,
                     gfx::Primitive::TriangleStrip,
                     rast_fill,
-                    pipe::Init {
+                    basic_pipe::Init {
                         out_color: ("Target0", gfx::state::MASK_ALL, gfx::preset::blend::ALPHA),
-                        ..pipe::new()
+                        .. basic_pipe::new()
                     },
                 )
                 .unwrap(),
@@ -471,7 +496,7 @@ impl Renderer {
             font_cache: HashMap::new(),
             size: window.get_inner_size_pixels().unwrap(),
         };
-        let factory = Factory::new(gl_factory, shader_path);
+        let factory = Factory::new(gl_factory);
         (renderer, window, factory)
     }
 
@@ -839,7 +864,7 @@ impl Renderer {
                         },
                     );
                     //TODO: avoid excessive cloning
-                    let data = pipe::Data {
+                    let data = basic_pipe::Data {
                         vbuf: gpu_data.vertices.clone(),
                         cb_locals: gpu_data.constants.clone(),
                         cb_lights: self.light_buf.clone(),

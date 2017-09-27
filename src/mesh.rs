@@ -12,8 +12,7 @@ use render::DynamicData;
 /// Creating a red triangle.
 ///
 /// ```rust,no_run
-/// # let shaders_path = format!("{}/data/shaders", env!("CARGO_MANIFEST_DIR"));
-/// # let mut win = three::Window::builder("Example", &shaders_path).build();
+/// # let mut win = three::Window::new("Example");
 /// # let factory = &mut win.factory;
 /// let vertices = vec![
 ///     [-0.5, -0.5, 0.0].into(),
@@ -33,8 +32,7 @@ use render::DynamicData;
 /// Duplicating a mesh.
 ///
 /// ```rust,no_run
-/// # let shaders_path = format!("{}/data/shaders", env!("CARGO_MANIFEST_DIR"));
-/// # let mut win = three::Window::builder("Example", &shaders_path).build();
+/// # let mut win = three::Window::new("Example");
 /// # let factory = &mut win.factory;
 /// # let vertices = vec![
 /// #     [-0.5, -0.5, 0.0].into(),
