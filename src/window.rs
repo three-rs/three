@@ -1,7 +1,5 @@
 //! Primitives for creating and controlling [`Window`](struct.Window.html).
 
-use std::path::{Path, PathBuf};
-
 use glutin;
 use glutin::GlContext;
 use mint;
@@ -11,7 +9,6 @@ use factory::Factory;
 use input::Input;
 use render::Renderer;
 use scene::Scene;
-
 
 /// `Window` is the core entity of every `three-rs` application.
 ///
@@ -35,7 +32,6 @@ pub struct Builder {
     dimensions: (u32, u32),
     fullscreen: bool,
     multisampling: u16,
-    shader_path: PathBuf,
     title: String,
     vsync: bool,
 }
@@ -99,7 +95,7 @@ impl Builder {
             .with_multisampling(self.multisampling);
 
         let event_loop = glutin::EventsLoop::new();
-        let (renderer, window, mut factory) = Renderer::new(builder, context, &event_loop, &self.shader_path);
+        let (renderer, window, mut factory) = Renderer::new(builder, context, &event_loop);
         let scene = factory.scene();
         Window {
             event_loop,
@@ -113,16 +109,17 @@ impl Builder {
 }
 
 impl Window {
+    /// Create a new window with default parameters.
+    pub fn new<T: Into<String>>(title: T) -> Self {
+        Self::builder(title).build()
+    }
+
     /// Create new `Builder` with standard parameters.
-    pub fn builder<T: Into<String>, P: AsRef<Path>>(
-        title: T,
-        shader_path: P,
-    ) -> Builder {
+    pub fn builder<T: Into<String>>(title: T) -> Builder {
         Builder {
             dimensions: (1024, 768),
             fullscreen: false,
             multisampling: 0,
-            shader_path: shader_path.as_ref().to_owned(),
             title: title.into(),
             vsync: true,
         }

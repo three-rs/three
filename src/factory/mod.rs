@@ -17,6 +17,7 @@ use image;
 use itertools::Either;
 use mint;
 use obj;
+use render;
 
 use audio::{AudioData, Clip, Source};
 use camera::Camera;
@@ -27,7 +28,7 @@ use material::Material;
 use mesh::{DynamicMesh, Mesh};
 use node::Node;
 use object::Group;
-use render::{load_program, pipe as basic_pipe, BackendFactory, BackendResources, BasicPipelineState, DynamicData, GpuData, ShadowFormat, Vertex};
+use render::{basic_pipe, BackendFactory, BackendResources, BasicPipelineState, DynamicData, GpuData, ShadowFormat, Vertex};
 use scene::{Background, Color, Scene, SceneId};
 use sprite::Sprite;
 use text::{Font, Text, TextData};
@@ -68,7 +69,6 @@ pub struct Factory {
     backend: BackendFactory,
     scene_id: SceneId,
     hub: HubPtr,
-    root_shader_path: PathBuf,
     quad_buf: gfx::handle::Buffer<BackendResources, Vertex>,
     texture_cache: HashMap<PathBuf, Texture<[f32; 4]>>,
     default_sampler: gfx::handle::Sampler<BackendResources>,
@@ -79,18 +79,13 @@ fn f2i(x: f32) -> I8Norm {
 }
 
 impl Factory {
-    #[doc(hidden)]
-    pub fn new(
-        mut backend: BackendFactory,
-        shader_path: &Path,
-    ) -> Self {
+    pub(crate) fn new(mut backend: BackendFactory) -> Self {
         let quad_buf = backend.create_vertex_buffer(&QUAD);
         let default_sampler = backend.create_sampler_linear();
         Factory {
             backend: backend,
             scene_id: 0,
             hub: Hub::new(),
-            root_shader_path: shader_path.to_owned(),
             quad_buf,
             texture_cache: HashMap::new(),
             default_sampler: default_sampler,
@@ -418,7 +413,8 @@ impl Factory {
     /// Create a basic mesh pipeline using a custom shader.
     pub fn basic_pipeline(
         &mut self,
-        shader_path: &str,
+        vs: &str,
+        fs: &str,
         primitive: gfx::Primitive,
         rasterizer: gfx::state::Rasterizer,
         color_mask: gfx::state::ColorMask,
@@ -426,20 +422,25 @@ impl Factory {
         depth_state: gfx::state::Depth,
         stencil_state: gfx::state::Stencil,
     ) -> Result<BasicPipelineState, ()> {
-        let program = load_program(&self.root_shader_path, shader_path, &mut self.backend)?;
-
+        let vs = render::shader::preprocess(vs);
+        let fs = render::shader::preprocess(fs);
+        let program = self.backend.link_program(vs.as_bytes(), fs.as_bytes())
+            .map_err(|err| {
+                error!("Program compilation failed ({:?})", err);
+                ()
+            })?;
         let init = basic_pipe::Init {
             out_color: ("Target0", color_mask, blend_state),
             out_depth: (depth_state, stencil_state),
             ..basic_pipe::new()
         };
-
-        self.backend
+        let pipe = self.backend
             .create_pipeline_from_program(&program, primitive, rasterizer, init)
-            .map_err(|e| {
-                error!("Pipeline for {} init error {:?}", shader_path, e);
+            .map_err(|err| {
+                error!("Failed to create pipeline ({:?})", err);
                 ()
-            })
+            })?;
+        Ok(pipe)
     }
 
     /// Create new UI (on-screen) text. See [`Text`](struct.Text.html) for default settings.

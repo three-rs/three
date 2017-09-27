@@ -12,7 +12,7 @@
 //! [`Factory::perspective_camera`] method with a bounded range.
 //!
 //! ```rust,no_run
-//! # let mut window = three::Window::builder("", "").build();
+//! # let mut window = three::Window::new("");
 //! # let _ = {
 //! window.factory.perspective_camera(60.0, 0.1 .. 1.0);
 //! # };
@@ -28,7 +28,7 @@
 //! [`Factory::perspective_camera`] method with an unbounded range.
 //!
 //! ```rust,no_run
-//! # let mut window = three::Window::builder("", "").build();
+//! # let mut window = three::Window::new("");
 //! # let _ = {
 //! window.factory.perspective_camera(60.0, 0.1 ..);
 //! # };
@@ -44,7 +44,7 @@
 //! [`Factory::orthographic_camera`] method.
 //!
 //! ```rust,no_run
-//! # let mut window = three::Window::builder("", "").build();
+//! # let mut window = three::Window::new("");
 //! # let _ = {
 //! window.factory.orthographic_camera([0.0, 0.0], 1.0, -1.0 .. 1.0)
 //! # };
