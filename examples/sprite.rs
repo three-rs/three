@@ -42,9 +42,7 @@ impl Animator {
 }
 
 fn main() {
-    let shaders_path: String = format!("{}/data/shaders", env!("CARGO_MANIFEST_DIR"));
-    let shaders_path_str: &str = shaders_path.as_str();
-    let mut win = three::Window::builder("Three-rs sprite example", shaders_path_str).build();
+    let mut win = three::Window::new("Three-rs sprite example");
     let cam = win.factory.orthographic_camera(
         [0.0, 0.0],
         10.0,

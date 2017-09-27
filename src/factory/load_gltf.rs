@@ -5,6 +5,7 @@ use gltf_importer;
 use image;
 use mint;
 use std::{fs, io};
+use util;
 
 use camera::Camera;
 use gltf::Gltf;
@@ -115,7 +116,7 @@ impl super::Factory {
         });
         if is_basic_material {
             Material::MeshBasic {
-                color: ::render::encode_color(pbr.base_color_factor()),
+                color: util::encode_color(pbr.base_color_factor()),
                 wireframe: false,
                 map: base_color_map,
             }

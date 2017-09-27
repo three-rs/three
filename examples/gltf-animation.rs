@@ -1,9 +1,7 @@
 extern crate three;
 
 fn main() {
-    let title = "Three-rs glTF animation example";
-    let shaders = concat!(env!("CARGO_MANIFEST_DIR"), "/data/shaders");
-    let mut window = three::Window::builder(title, &shaders).build();
+    let mut window = three::Window::new("Three-rs glTF animation example");
     let mut light = window.factory.directional_light(0xFFFFFF, 0.4);
     light.look_at([1.0, 1.0, 1.0], [0.0, 0.0, 0.0], None);
     window.scene.add(&light);

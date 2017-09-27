@@ -98,9 +98,7 @@ fn make_geometry() -> three::Geometry {
 }
 
 fn main() {
-    let shaders_path: String = format!("{}/data/shaders", env!("CARGO_MANIFEST_DIR"));
-    let shaders_path_str: &str = shaders_path.as_str();
-    let mut win = three::Window::builder("Three-rs mesh blending example", shaders_path_str).build();
+    let mut win = three::Window::new("Three-rs mesh blending example");
     let mut cam = win.factory.perspective_camera(60.0, 1.0 .. 1000.0);
     cam.look_at(
         [100.0, 0.0, 100.0],
