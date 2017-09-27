@@ -12,20 +12,25 @@ use gfx_window_glutin;
 #[cfg(feature = "opengl")]
 use glutin;
 use mint;
+use util;
 
+pub mod source;
+
+use std::{io, mem, str};
 use std::collections::HashMap;
-use std::mem;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 pub use self::back::CommandBuffer as BackendCommandBuffer;
 pub use self::back::Factory as BackendFactory;
 pub use self::back::Resources as BackendResources;
+pub use self::source::Source;
+
 use camera::Camera;
 use factory::Factory;
 use hub::{SubLight, SubNode};
 use light::{ShadowMap, ShadowProjection};
 use material::Material;
-use scene::{Background, Color, Scene};
+use scene::{Background, Scene};
 use text::Font;
 use texture::Texture;
 
@@ -33,8 +38,10 @@ use texture::Texture;
 pub type ColorFormat = gfx::format::Rgba8;
 /// The format of the depth stencil buffer requested from the windowing system.
 pub type DepthFormat = gfx::format::DepthStencil;
+/// The format of the shadow buffer.
 pub type ShadowFormat = gfx::format::Depth32F;
-pub type BasicPipelineState = gfx::PipelineState<back::Resources, pipe::Meta>;
+/// The concrete type of a basic pipeline.
+pub type BasicPipelineState = gfx::PipelineState<back::Resources, basic_pipe::Meta>;
 
 const MAX_LIGHTS: usize = 4;
 
@@ -46,6 +53,37 @@ const STENCIL_SIDE: gfx::state::StencilSide = gfx::state::StencilSide {
     op_depth_fail: gfx::state::StencilOp::Keep,
     op_pass: gfx::state::StencilOp::Keep,
 };
+
+#[cfg_attr(rustfmt, rustfmt_skip)]
+quick_error! {
+    #[doc = "Error encountered when building pipelines."]
+    #[derive(Debug)]
+    pub enum PipelineCreationError {
+        #[doc = "GLSL compiler/linker error."]
+        Compilation(err: gfx::shade::ProgramError) {
+            from()
+            description("GLSL program compilation error")
+            display("GLSL program compilation error")
+            cause(err)
+        }
+
+        #[doc = "Pipeline state error."]
+        State(err: gfx::PipelineStateError<String>) {
+            from()
+            description("Pipeline state error")
+            display("Pipeline state error")
+            cause(err)
+        }
+
+        #[doc = "Standard I/O error."]
+        Io(err: io::Error) {
+            from()
+            description("I/O error")
+            display("I/O error")
+            cause(err)    
+        }
+    }
+}
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
 gfx_defines! {
@@ -81,7 +119,7 @@ gfx_defines! {
         num_lights: u32 = "u_NumLights",
     }
 
-    pipeline pipe {
+    pipeline basic_pipe {
         vbuf: gfx::VertexBuffer<Vertex> = (),
         cb_locals: gfx::ConstantBuffer<Locals> = "b_Locals",
         cb_lights: gfx::ConstantBuffer<LightParam> = "b_Lights",
@@ -155,111 +193,9 @@ gfx_defines! {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Hash)]
-pub enum ShaderType {
-    Vertex,
-    Fragment,
-}
-
-impl ShaderType {
-    #[cfg(feature = "opengl")]
-    // Append specific postfix to the given name
-    pub fn as_file_name<S: Into<String>>(
-        &self,
-        name: S,
-    ) -> String {
-        match *self {
-            ShaderType::Vertex => name.into() + "_vs.glsl",
-            ShaderType::Fragment => name.into() + "_ps.glsl",
-        }
-    }
-}
-
-pub fn get_shader(
-    root: &Path,
-    name: &str,
-    variant: ShaderType,
-) -> String {
-    use std::fs::File;
-    use std::io::{BufRead, BufReader, Read};
-    let mut code = String::new();
-    let shader_path = root.join(variant.as_file_name(name));
-    let template_file = File::open(&shader_path).expect(&format!("Unable to open shader {}", &shader_path.display()));
-    for line in BufReader::new(template_file).lines() {
-        let line = line.unwrap();
-        if line.starts_with("#include") {
-            for dep_name in line.split(' ').skip(1) {
-                code += &format!("//!including {}:\n", dep_name);
-                let mut file_name = root.join(dep_name);
-                file_name.set_extension("glsl");
-                File::open(file_name)
-                    .expect(&format!("Unable to open snippet for {}", dep_name))
-                    .read_to_string(&mut code)
-                    .unwrap();
-            }
-        } else {
-            code.push_str(&line);
-            code.push('\n');
-        }
-    }
-    code
-}
-
-pub fn load_program<R, F, P: AsRef<Path>>(
-    root: P,
-    name: &str,
-    factory: &mut F,
-) -> Result<gfx::handle::Program<R>, ()>
-where
-    R: gfx::Resources,
-    F: gfx::Factory<R>,
-{
-    let code_vs = get_shader(root.as_ref(), name, ShaderType::Vertex);
-    let code_ps = get_shader(root.as_ref(), name, ShaderType::Fragment);
-
-    factory
-        .link_program(code_vs.as_bytes(), code_ps.as_bytes())
-        .map_err(|e| {
-            error!(
-                "Unable to link program {}: {}",
-                root.as_ref().join(name).display(),
-                e
-            );
-            () // TODO: Better error type
-        })
-}
-
-/// sRGB to linear conversion from:
-/// https://www.khronos.org/registry/OpenGL/extensions/EXT/EXT_texture_sRGB_decode.txt
-pub(crate) fn decode_color(c: Color) -> [f32; 4] {
-    let f = |xu: u32| {
-        let x = (xu & 0xFF) as f32 / 255.0;
-        if x > 0.04045 {
-            ((x + 0.055) / 1.055).powf(2.4)
-        } else {
-            x / 12.92
-        }
-    };
-    [f(c >> 16), f(c >> 8), f(c), 0.0]
-}
-
-/// Linear to sRGB conversion from https://en.wikipedia.org/wiki/SRGB
-pub(crate) fn encode_color(c: [f32; 4]) -> u32 {
-    let f = |x: f32| -> u32 {
-        let y = if x > 0.0031308 {
-            let a = 0.055;
-            (1.0 + a) * x.powf(-2.4) - a
-        } else {
-            12.92 * x
-        };
-        (y * 255.0).round() as u32
-    };
-    f(c[0]) << 16 | f(c[1]) << 8 | f(c[2])
-}
-
 //TODO: private fields?
 #[derive(Clone, Debug)]
-pub struct GpuData {
+pub(crate) struct GpuData {
     pub slice: gfx::Slice<back::Resources>,
     pub vertices: gfx::handle::Buffer<back::Resources, Vertex>,
     pub constants: gfx::handle::Buffer<back::Resources, Locals>,
@@ -267,7 +203,7 @@ pub struct GpuData {
 }
 
 #[derive(Clone, Debug)]
-pub struct DynamicData {
+pub(crate) struct DynamicData {
     pub num_vertices: usize,
     pub buffer: gfx::handle::Buffer<back::Resources, Vertex>,
 }
@@ -298,6 +234,152 @@ struct DebugQuad {
     size: [i32; 2],
 }
 
+/// All pipeline state objects used by the `three` renderer.
+pub struct PipelineStates {
+    /// Corresponds to `Material::LineBasic`.
+    line_basic: BasicPipelineState,
+
+    /// Corresponds to `Material::MeshBasic` with `wireframe` set to `false`.
+    mesh_basic_fill: BasicPipelineState,
+
+    /// Corresponds to `Material::MeshBasic` with `wireframe` set to `true`.
+    mesh_basic_wireframe: BasicPipelineState,
+
+    /// Corresponds to `Material::MeshGouraud`.
+    mesh_gouraud: BasicPipelineState,
+
+    /// Corresponds to `Material::MeshPhong`.
+    mesh_phong: BasicPipelineState,
+
+    /// Corresponds to `Material::Sprite`.
+    sprite: BasicPipelineState,
+
+    /// Used internally for shadow casting.
+    shadow: gfx::PipelineState<back::Resources, shadow_pipe::Meta>,
+
+    /// Used internally for rendering sprites.
+    quad: gfx::PipelineState<back::Resources, quad_pipe::Meta>,
+
+    /// Corresponds to `Material::MeshPbr`.
+    pbr: gfx::PipelineState<back::Resources, pbr_pipe::Meta>,
+
+    /// Used internally for rendering `Background::Skybox`.
+    skybox: gfx::PipelineState<back::Resources, quad_pipe::Meta>,
+}
+
+impl PipelineStates {
+    /// Creates the set of pipeline states needed by the `three` renderer.
+    pub fn new(
+        src: &source::Set,
+        factory: &mut Factory,
+    ) -> Result<Self, PipelineCreationError> {
+        Self::init(src, &mut factory.backend)
+    }
+
+    /// Implementation of `PipelineStates::new`.
+    pub(crate) fn init(
+        src: &source::Set,
+        backend: &mut back::Factory,
+    ) -> Result<Self, PipelineCreationError> {
+        let basic = backend.create_shader_set(&src.basic.vs, &src.basic.ps)?;
+        let gouraud = backend.create_shader_set(&src.gouraud.vs, &src.gouraud.ps)?;
+        let phong = backend.create_shader_set(&src.phong.vs, &src.phong.ps)?;
+        let sprite = backend.create_shader_set(&src.sprite.vs, &src.sprite.ps)?;
+        let shadow = backend.create_shader_set(&src.shadow.vs, &src.shadow.ps)?;
+        let quad = backend.create_shader_set(&src.quad.vs, &src.quad.ps)?;
+        let pbr = backend.create_shader_set(&src.pbr.vs, &src.pbr.ps)?;
+        let skybox = backend.create_shader_set(&src.skybox.vs, &src.skybox.ps)?;
+
+        let rast_quad = gfx::state::Rasterizer::new_fill();
+        let rast_fill = gfx::state::Rasterizer::new_fill().with_cull_back();
+        let rast_wire = gfx::state::Rasterizer {
+            method: gfx::state::RasterMethod::Line(1),
+            ..rast_fill
+        };
+        let rast_shadow = gfx::state::Rasterizer {
+            offset: Some(gfx::state::Offset(2, 2)),
+            ..rast_fill
+        };
+
+        let pso_line_basic = backend.create_pipeline_state(
+            &basic,
+            gfx::Primitive::LineStrip,
+            rast_fill,
+            basic_pipe::new(),
+        )?;
+        let pso_mesh_basic_fill = backend.create_pipeline_state(
+            &basic,
+            gfx::Primitive::TriangleList,
+            rast_fill,
+            basic_pipe::new(),
+        )?;
+        let pso_mesh_basic_wireframe = backend.create_pipeline_state(
+            &basic,
+            gfx::Primitive::TriangleList,
+            rast_wire,
+            basic_pipe::new(),
+        )?;
+        let pso_mesh_gouraud = backend.create_pipeline_state(
+            &gouraud,
+            gfx::Primitive::TriangleList,
+            rast_fill,
+            basic_pipe::new(),
+        )?;
+        let pso_mesh_phong = backend.create_pipeline_state(
+            &phong,
+            gfx::Primitive::TriangleList,
+            rast_fill,
+            basic_pipe::new(),
+        )?;
+        let pso_sprite = backend.create_pipeline_state(
+            &sprite,
+            gfx::Primitive::TriangleStrip,
+            rast_fill,
+            basic_pipe::Init {
+                out_color: ("Target0", gfx::state::MASK_ALL, gfx::preset::blend::ALPHA),
+                ..basic_pipe::new()
+            },
+        )?;
+        let pso_shadow = backend.create_pipeline_state(
+            &shadow,
+            gfx::Primitive::TriangleList,
+            rast_shadow,
+            shadow_pipe::new(),
+        )?;
+        let pso_quad = backend.create_pipeline_state(
+            &quad,
+            gfx::Primitive::TriangleStrip,
+            rast_quad,
+            quad_pipe::new(),
+        )?;
+        let pso_skybox = backend.create_pipeline_state(
+            &skybox,
+            gfx::Primitive::TriangleStrip,
+            rast_quad,
+            quad_pipe::new(),
+        )?;
+        let pso_pbr = backend.create_pipeline_state(
+            &pbr,
+            gfx::Primitive::TriangleList,
+            rast_fill,
+            pbr_pipe::new(),
+        )?;
+
+        Ok(PipelineStates {
+            line_basic: pso_line_basic,
+            mesh_basic_fill: pso_mesh_basic_fill,
+            mesh_basic_wireframe: pso_mesh_basic_wireframe,
+            mesh_gouraud: pso_mesh_gouraud,
+            mesh_phong: pso_mesh_phong,
+            sprite: pso_sprite,
+            shadow: pso_shadow,
+            quad: pso_quad,
+            pbr: pso_pbr,
+            skybox: pso_skybox,
+        })
+    }
+}
+
 /// Handle for additional viewport to render some relevant debug information.
 /// See [`Renderer::debug_shadow_quad`](struct.Renderer.html#method.debug_shadow_quad).
 pub struct DebugQuadHandle(froggy::Pointer<DebugQuad>);
@@ -314,16 +396,7 @@ pub struct Renderer {
     pbr_buf: gfx::handle::Buffer<back::Resources, PbrParams>,
     out_color: gfx::handle::RenderTargetView<back::Resources, ColorFormat>,
     out_depth: gfx::handle::DepthStencilView<back::Resources, DepthFormat>,
-    pso_line_basic: BasicPipelineState,
-    pso_mesh_basic_fill: BasicPipelineState,
-    pso_mesh_basic_wireframe: BasicPipelineState,
-    pso_mesh_gouraud: BasicPipelineState,
-    pso_mesh_phong: BasicPipelineState,
-    pso_sprite: BasicPipelineState,
-    pso_shadow: gfx::PipelineState<back::Resources, shadow_pipe::Meta>,
-    pso_quad: gfx::PipelineState<back::Resources, quad_pipe::Meta>,
-    pso_pbr: gfx::PipelineState<back::Resources, pbr_pipe::Meta>,
-    pso_skybox: gfx::PipelineState<back::Resources, quad_pipe::Meta>,
+    pso: PipelineStates,
     map_default: Texture<[f32; 4]>,
     shadow_default: Texture<f32>,
     debug_quads: froggy::Storage<DebugQuad>,
@@ -335,33 +408,14 @@ pub struct Renderer {
 
 impl Renderer {
     #[cfg(feature = "opengl")]
-    #[doc(hidden)]
-    pub fn new(
+    pub(crate) fn new(
         builder: glutin::WindowBuilder,
         context: glutin::ContextBuilder,
         event_loop: &glutin::EventsLoop,
-        shader_path: &Path,
+        source: &source::Set,
     ) -> (Self, glutin::GlWindow, Factory) {
         use gfx::texture as t;
-        let (window, device, mut gl_factory, color, depth) = gfx_window_glutin::init(builder, context, event_loop);
-        let prog_basic = load_program(shader_path, "basic", &mut gl_factory).unwrap();
-        let prog_gouraud = load_program(shader_path, "gouraud", &mut gl_factory).unwrap();
-        let prog_phong = load_program(shader_path, "phong", &mut gl_factory).unwrap();
-        let prog_sprite = load_program(shader_path, "sprite", &mut gl_factory).unwrap();
-        let prog_shadow = load_program(shader_path, "shadow", &mut gl_factory).unwrap();
-        let prog_quad = load_program(shader_path, "quad", &mut gl_factory).unwrap();
-        let prog_pbr = load_program(shader_path, "pbr", &mut gl_factory).unwrap();
-        let prog_skybox = load_program(shader_path, "skybox", &mut gl_factory).unwrap();
-        let rast_quad = gfx::state::Rasterizer::new_fill();
-        let rast_fill = gfx::state::Rasterizer::new_fill().with_cull_back();
-        let rast_wire = gfx::state::Rasterizer {
-            method: gfx::state::RasterMethod::Line(1),
-            ..rast_fill
-        };
-        let rast_shadow = gfx::state::Rasterizer {
-            offset: Some(gfx::state::Offset(2, 2)),
-            ..rast_fill
-        };
+        let (window, device, mut gl_factory, out_color, out_depth) = gfx_window_glutin::init(builder, context, event_loop);
         let (_, srv_white) = gl_factory
             .create_texture_immutable::<gfx::format::Rgba8>(t::Kind::D2(1, 1, t::AaMode::Single), &[&[[0xFF; 4]]])
             .unwrap();
@@ -374,98 +428,22 @@ impl Renderer {
             border: t::PackedColor(!0), // clamp to 1.0
             ..t::SamplerInfo::new(t::FilterMethod::Bilinear, t::WrapMode::Border)
         });
+        let encoder = gl_factory.create_command_buffer().into();
+        let const_buf = gl_factory.create_constant_buffer(1);
+        let quad_buf = gl_factory.create_constant_buffer(1);
+        let light_buf = gl_factory.create_constant_buffer(MAX_LIGHTS);
+        let pbr_buf = gl_factory.create_constant_buffer(1);
+        let pso = PipelineStates::init(source, &mut gl_factory).unwrap();
         let renderer = Renderer {
-            device: device,
-            encoder: gl_factory.create_command_buffer().into(),
-            const_buf: gl_factory.create_constant_buffer(1),
-            quad_buf: gl_factory.create_constant_buffer(1),
-            light_buf: gl_factory.create_constant_buffer(MAX_LIGHTS),
-            pbr_buf: gl_factory.create_constant_buffer(1),
-            out_color: color,
-            out_depth: depth,
-            pso_line_basic: gl_factory
-                .create_pipeline_from_program(
-                    &prog_basic,
-                    gfx::Primitive::LineStrip,
-                    rast_fill,
-                    pipe::new(),
-                )
-                .unwrap(),
-            pso_mesh_basic_fill: gl_factory
-                .create_pipeline_from_program(
-                    &prog_basic,
-                    gfx::Primitive::TriangleList,
-                    rast_fill,
-                    pipe::new(),
-                )
-                .unwrap(),
-            pso_mesh_basic_wireframe: gl_factory
-                .create_pipeline_from_program(
-                    &prog_basic,
-                    gfx::Primitive::TriangleList,
-                    rast_wire,
-                    pipe::new(),
-                )
-                .unwrap(),
-            pso_mesh_gouraud: gl_factory
-                .create_pipeline_from_program(
-                    &prog_gouraud,
-                    gfx::Primitive::TriangleList,
-                    rast_fill,
-                    pipe::new(),
-                )
-                .unwrap(),
-            pso_mesh_phong: gl_factory
-                .create_pipeline_from_program(
-                    &prog_phong,
-                    gfx::Primitive::TriangleList,
-                    rast_fill,
-                    pipe::new(),
-                )
-                .unwrap(),
-            pso_sprite: gl_factory
-                .create_pipeline_from_program(
-                    &prog_sprite,
-                    gfx::Primitive::TriangleStrip,
-                    rast_fill,
-                    pipe::Init {
-                        out_color: ("Target0", gfx::state::MASK_ALL, gfx::preset::blend::ALPHA),
-                        ..pipe::new()
-                    },
-                )
-                .unwrap(),
-            pso_shadow: gl_factory
-                .create_pipeline_from_program(
-                    &prog_shadow,
-                    gfx::Primitive::TriangleList,
-                    rast_shadow,
-                    shadow_pipe::new(),
-                )
-                .unwrap(),
-            pso_quad: gl_factory
-                .create_pipeline_from_program(
-                    &prog_quad,
-                    gfx::Primitive::TriangleStrip,
-                    rast_quad,
-                    quad_pipe::new(),
-                )
-                .unwrap(),
-            pso_skybox: gl_factory
-                .create_pipeline_from_program(
-                    &prog_skybox,
-                    gfx::Primitive::TriangleStrip,
-                    rast_quad,
-                    quad_pipe::new(),
-                )
-                .unwrap(),
-            pso_pbr: gl_factory
-                .create_pipeline_from_program(
-                    &prog_pbr,
-                    gfx::Primitive::TriangleList,
-                    rast_fill,
-                    pbr_pipe::new(),
-                )
-                .unwrap(),
+            device,
+            encoder,
+            const_buf,
+            quad_buf,
+            light_buf,
+            pbr_buf,
+            out_color,
+            out_depth,
+            pso,
             map_default: Texture::new(srv_white, sampler, [1, 1]),
             shadow_default: Texture::new(srv_shadow, sampler_shadow, [1, 1]),
             shadow: ShadowType::Basic,
@@ -473,12 +451,19 @@ impl Renderer {
             font_cache: HashMap::new(),
             size: window.get_inner_size_pixels().unwrap(),
         };
-        let factory = Factory::new(gl_factory, shader_path);
+        let factory = Factory::new(gl_factory);
         (renderer, window, factory)
     }
 
-    #[doc(hidden)]
-    pub fn resize(
+    /// Reloads the shaders.
+    pub fn reload(
+        &mut self,
+        pipeline_states: PipelineStates,
+    ) {
+        self.pso = pipeline_states;
+    }
+
+    pub(crate) fn resize(
         &mut self,
         window: &glutin::GlWindow,
     ) {
@@ -608,8 +593,8 @@ impl Renderer {
                     pos: p.into(),
                     dir: d.extend(0.0).into(),
                     focus: [0.0, 0.0, 0.0, 0.0],
-                    color: decode_color(light.color),
-                    color_back: decode_color(color_back),
+                    color: util::decode_color(light.color),
+                    color_back: util::decode_color(color_back),
                     intensity,
                     shadow_params: [shadow_index, 0, 0, 0],
                 });
@@ -653,7 +638,7 @@ impl Renderer {
                     cb_globals: self.const_buf.clone(),
                     target: request.target.clone(),
                 };
-                self.encoder.draw(&gpu_data.slice, &self.pso_shadow, &data);
+                self.encoder.draw(&gpu_data.slice, &self.pso.shadow, &data);
             }
         }
 
@@ -688,7 +673,10 @@ impl Renderer {
         self.encoder.clear_stencil(&self.out_depth, 0);
 
         if let Background::Color(color) = scene.background {
-            self.encoder.clear(&self.out_color, decode_color(color));
+            self.encoder.clear(
+                &self.out_color,
+                util::decode_color(color),
+            );
         }
 
         // render everything
@@ -797,30 +785,30 @@ impl Renderer {
                         color_target: self.out_color.clone(),
                         depth_target: self.out_depth.clone(),
                     };
-                    self.encoder.draw(&gpu_data.slice, &self.pso_pbr, &data);
+                    self.encoder.draw(&gpu_data.slice, &self.pso.pbr, &data);
                 }
                 ref other => {
                     let (pso, color, param0, map) = match *other {
                         Material::MeshPbr { .. } => unreachable!(),
-                        Material::LineBasic { color } => (&self.pso_line_basic, color, 0.0, None),
+                        Material::LineBasic { color } => (&self.pso.line_basic, color, 0.0, None),
                         Material::MeshBasic {
                             color,
                             ref map,
                             wireframe: false,
-                        } => (&self.pso_mesh_basic_fill, color, 0.0, map.as_ref()),
+                        } => (&self.pso.mesh_basic_fill, color, 0.0, map.as_ref()),
                         Material::MeshBasic {
                             color,
                             map: _,
                             wireframe: true,
-                        } => (&self.pso_mesh_basic_wireframe, color, 0.0, None),
+                        } => (&self.pso.mesh_basic_wireframe, color, 0.0, None),
                         Material::MeshLambert { color, flat } => (
-                            &self.pso_mesh_gouraud,
+                            &self.pso.mesh_gouraud,
                             color,
                             if flat { 0.0 } else { 1.0 },
                             None,
                         ),
-                        Material::MeshPhong { color, glossiness } => (&self.pso_mesh_phong, color, glossiness, None),
-                        Material::Sprite { ref map } => (&self.pso_sprite, !0, 0.0, Some(map)),
+                        Material::MeshPhong { color, glossiness } => (&self.pso.mesh_phong, color, glossiness, None),
+                        Material::Sprite { ref map } => (&self.pso.sprite, !0, 0.0, Some(map)),
                         Material::CustomBasicPipeline {
                             color,
                             ref map,
@@ -835,13 +823,13 @@ impl Renderer {
                         &gpu_data.constants,
                         &Locals {
                             mx_world: Matrix4::from(node.world_transform).into(),
-                            color: decode_color(color),
+                            color: util::decode_color(color),
                             mat_params: [param0, 0.0, 0.0, 0.0],
                             uv_range,
                         },
                     );
                     //TODO: avoid excessive cloning
-                    let data = pipe::Data {
+                    let data = basic_pipe::Data {
                         vbuf: gpu_data.vertices.clone(),
                         cb_locals: gpu_data.constants.clone(),
                         cb_lights: self.light_buf.clone(),
@@ -884,7 +872,7 @@ impl Renderer {
                     target: self.out_color.clone(),
                     depth_target: self.out_depth.clone(),
                 };
-                self.encoder.draw(&quad_slice, &self.pso_quad, &data);
+                self.encoder.draw(&quad_slice, &self.pso.quad, &data);
             }
             Background::Skybox(ref cubemap) => {
                 self.encoder.update_constant_buffer(
@@ -902,7 +890,7 @@ impl Renderer {
                     target: self.out_color.clone(),
                     depth_target: self.out_depth.clone(),
                 };
-                self.encoder.draw(&quad_slice, &self.pso_skybox, &data);
+                self.encoder.draw(&quad_slice, &self.pso.skybox, &data);
             }
             Background::Color(_) => {}
         }
@@ -960,7 +948,7 @@ impl Renderer {
                 target: self.out_color.clone(),
                 depth_target: self.out_depth.clone(),
             };
-            self.encoder.draw(&quad_slice, &self.pso_quad, &data);
+            self.encoder.draw(&quad_slice, &self.pso.quad, &data);
         }
 
         self.encoder.flush(&mut self.device);
