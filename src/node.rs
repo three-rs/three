@@ -16,16 +16,23 @@ pub(crate) type Transform = cgmath::Decomposed<cgmath::Vector3<f32>, cgmath::Qua
 /// client code uses [`Object`](struct.Object.html) instead.
 #[derive(Debug)]
 pub struct Node {
+    /// `true` if this node (and its subnodes) are visible to cameras.
     pub(crate) visible: bool,
+    /// For internal use.
     pub(crate) world_visible: bool,
+    /// The transform relative to the node's parent.
     pub(crate) transform: Transform,
+    /// The transform relative to the world origin.
     pub(crate) world_transform: Transform,
+    /// Pointer to node's parent.
     pub(crate) parent: Option<NodePointer>,
+    /// The ID of the scene this node belongs to.
     pub(crate) scene_id: Option<SceneId>,
+    /// Context specific-data, for example, `UiText`, `Visual` or `Light`.
     pub(crate) sub_node: SubNode,
 }
 
-/// Position, rotation and scale of the scene [`Node`](struct.Node.html).
+/// Position, rotation, and scale of the scene [`Node`](struct.Node.html).
 #[derive(Clone, Debug)]
 pub struct NodeTransform {
     /// Position.
