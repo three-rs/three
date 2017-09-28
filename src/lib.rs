@@ -275,6 +275,7 @@ extern crate glutin;
 #[macro_use]
 mod macros;
 pub mod audio;
+pub mod animation;
 pub mod camera;
 pub mod controls;
 pub mod custom;
@@ -297,7 +298,7 @@ pub mod window;
 
 pub use controls::{AXIS_DOWN_UP, AXIS_LEFT_RIGHT, KEY_ESCAPE, KEY_SPACE, MOUSE_LEFT, MOUSE_RIGHT};
 pub use controls::{Button, Input, KeyAxis, Timer};
-pub use factory::Factory;
+pub use factory::{Factory, Gltf};
 pub use geometry::Geometry;
 #[cfg(feature = "opengl")]
 pub use glutin::VirtualKeyCode as Key;
