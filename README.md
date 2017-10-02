@@ -1,5 +1,5 @@
 # three-rs
-[![Build Status](https://travis-ci.org/kvark/three-rs.svg)](https://travis-ci.org/kvark/three-rs)
+[![Build Status](https://travis-ci.org/three-rs/three.svg)](https://travis-ci.org/three-rs/three)
 [![Docs](https://docs.rs/three/badge.svg)](https://docs.rs/three)
 [![Crates.io](https://img.shields.io/crates/v/three.svg?maxAge=2592000)](https://crates.io/crates/three)
 [![Gitter](https://badges.gitter.im/kvark/three-rs.svg)](https://gitter.im/three-rs/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
