@@ -46,8 +46,8 @@ fn main() {
     win.scene.add(&mline);
 
     let mut angle = cgmath::Rad::zero();
-    while win.update() && !three::KEY_ESCAPE.is_hit(&win.input) {
-        if let Some(diff) = three::AXIS_LEFT_RIGHT.timed(&win.input) {
+    while win.update() && !win.input.hit(three::KEY_ESCAPE) {
+        if let Some(diff) = win.input.timed(three::AXIS_LEFT_RIGHT) {
             angle += cgmath::Rad(1.5 * diff);
             let q = cgmath::Quaternion::from_angle_y(angle);
             mbox.set_orientation(q);

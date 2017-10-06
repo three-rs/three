@@ -24,7 +24,7 @@ fn main() {
         root.add(g);
     }
 
-    while win.update() && !three::KEY_ESCAPE.is_hit(&win.input) {
+    while win.update() && !win.input.hit(three::KEY_ESCAPE) {
         controls.update(&win.input);
         win.render(&cam);
     }

@@ -57,8 +57,8 @@ fn main() {
         })
         .collect();
 
-    while win.update() && !three::KEY_ESCAPE.is_hit(&win.input) {
-        if let Some(diff) = three::AXIS_LEFT_RIGHT.timed(&win.input) {
+    while win.update() && !win.input.hit(three::KEY_ESCAPE) {
+        if let Some(diff) = win.input.timed(three::AXIS_LEFT_RIGHT) {
             pos[0] += 5.0 * diff;
             light.set_position(pos);
         }
