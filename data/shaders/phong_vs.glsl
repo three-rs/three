@@ -1,5 +1,7 @@
 #version 150 core
-#include locals lights globals
+#include <locals>
+#include <lights>
+#include <globals>
 
 in vec4 a_Position;
 in vec4 a_Normal;

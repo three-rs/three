@@ -40,9 +40,7 @@ fn make_tetrahedron_geometry() -> three::Geometry {
 }
 
 fn main() {
-    let shaders_path = concat!(env!("CARGO_MANIFEST_DIR"), "/data/shaders");
-    let title = "Three-rs Mesh Update Example";
-    let mut win = three::Window::builder(title, &shaders_path).build();
+    let mut win = three::Window::new("Three-rs Mesh Update Example");
     let cam = win.factory.perspective_camera(60.0, 1.0 .. 10.0);
     let mut controls = three::controls::Orbit::builder(&cam)
         .position([0.0, 2.0, -5.0])

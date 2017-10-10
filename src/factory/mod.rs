@@ -1,10 +1,9 @@
 mod load_gltf;
 
-use std::{cmp, iter, ops};
+use std::{cmp, fs, io, iter, ops};
 use std::borrow::Cow;
 use std::collections::hash_map::{Entry, HashMap};
-use std::fs::File;
-use std::io::{BufReader, Read};
+use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use animation;
@@ -18,6 +17,7 @@ use image;
 use itertools::Either;
 use mint;
 use obj;
+use render;
 
 use audio::{AudioData, Clip, Source};
 use camera::Camera;
@@ -28,7 +28,7 @@ use material::Material;
 use mesh::{DynamicMesh, Mesh};
 use node::Node;
 use object::Group;
-use render::{load_program, pipe as basic_pipe, BackendFactory, BackendResources, BasicPipelineState, DynamicData, GpuData, ShadowFormat, Vertex};
+use render::{basic_pipe, BackendFactory, BackendResources, BasicPipelineState, DynamicData, GpuData, ShadowFormat, Vertex};
 use scene::{Background, Color, Scene, SceneId};
 use sprite::Sprite;
 use text::{Font, Text, TextData};
@@ -70,10 +70,9 @@ pub type MapVertices<'a> = gfx::mapping::Writer<'a, BackendResources, Vertex>;
 
 /// `Factory` is used to instantiate game objects.
 pub struct Factory {
-    backend: BackendFactory,
+    pub(crate) backend: BackendFactory,
     scene_id: SceneId,
     hub: HubPtr,
-    root_shader_path: PathBuf,
     quad_buf: gfx::handle::Buffer<BackendResources, Vertex>,
     texture_cache: HashMap<PathBuf, Texture<[f32; 4]>>,
     default_sampler: gfx::handle::Sampler<BackendResources>,
@@ -106,18 +105,13 @@ fn f2i(x: f32) -> I8Norm {
 }
 
 impl Factory {
-    #[doc(hidden)]
-    pub fn new(
-        mut backend: BackendFactory,
-        shader_path: &Path,
-    ) -> Self {
+    pub(crate) fn new(mut backend: BackendFactory) -> Self {
         let quad_buf = backend.create_vertex_buffer(&QUAD);
         let default_sampler = backend.create_sampler_linear();
         Factory {
             backend: backend,
             scene_id: 0,
             hub: Hub::new(),
-            root_shader_path: shader_path.to_owned(),
             quad_buf,
             texture_cache: HashMap::new(),
             default_sampler: default_sampler,
@@ -452,30 +446,36 @@ impl Factory {
     }
 
     /// Create a basic mesh pipeline using a custom shader.
-    pub fn basic_pipeline(
+    pub fn basic_pipeline<P: AsRef<Path>>(
         &mut self,
-        shader_path: &str,
+        dir: P,
+        name: &str,
         primitive: gfx::Primitive,
         rasterizer: gfx::state::Rasterizer,
         color_mask: gfx::state::ColorMask,
         blend_state: gfx::state::Blend,
         depth_state: gfx::state::Depth,
         stencil_state: gfx::state::Stencil,
-    ) -> Result<BasicPipelineState, ()> {
-        let program = load_program(&self.root_shader_path, shader_path, &mut self.backend)?;
-
+    ) -> Result<BasicPipelineState, render::PipelineCreationError> {
+        use gfx::traits::FactoryExt;
+        let vs = render::Source::user(&dir, name, "vs")?;
+        let ps = render::Source::user(&dir, name, "ps")?;
+        let shaders = self.backend.create_shader_set(
+            vs.0.as_bytes(),
+            ps.0.as_bytes(),
+        )?;
         let init = basic_pipe::Init {
             out_color: ("Target0", color_mask, blend_state),
             out_depth: (depth_state, stencil_state),
             ..basic_pipe::new()
         };
-
-        self.backend
-            .create_pipeline_from_program(&program, primitive, rasterizer, init)
-            .map_err(|e| {
-                error!("Pipeline for {} init error {:?}", shader_path, e);
-                ()
-            })
+        let pso = self.backend.create_pipeline_state(
+            &shaders,
+            primitive,
+            rasterizer,
+            init,
+        )?;
+        Ok(pso)
     }
 
     /// Create new UI (on-screen) text. See [`Text`](struct.Text.html) for default settings.
@@ -554,16 +554,19 @@ impl Factory {
         &mut self,
         file_path: P,
     ) -> Font {
+        use self::io::Read;
         let file_path = file_path.as_ref();
         let mut buffer = Vec::new();
-        let mut file = File::open(&file_path).expect(&format!(
+        let file = fs::File::open(&file_path).expect(&format!(
             "Can't open font file:\nFile: {}",
             file_path.display()
         ));
-        file.read_to_end(&mut buffer).expect(&format!(
-            "Can't read font file:\nFile: {}",
-            file_path.display()
-        ));
+        io::BufReader::new(file).read_to_end(&mut buffer).expect(
+            &format!(
+                "Can't read font file:\nFile: {}",
+                file_path.display()
+            ),
+        );
         Font::new(buffer, file_path.to_owned(), self.backend.clone())
     }
 
@@ -595,8 +598,8 @@ impl Factory {
     ) -> Texture<[f32; 4]> {
         use gfx::texture as t;
         let format = Factory::parse_texture_format(path);
-        let file = File::open(path).unwrap_or_else(|e| panic!("Unable to open {}: {:?}", path.display(), e));
-        let img = image::load(BufReader::new(file), format)
+        let file = fs::File::open(path).unwrap_or_else(|e| panic!("Unable to open {}: {:?}", path.display(), e));
+        let img = image::load(io::BufReader::new(file), format)
             .unwrap_or_else(|e| panic!("Unable to decode {}: {:?}", path.display(), e))
             .flipv()
             .to_rgba();
@@ -625,10 +628,10 @@ impl Factory {
             .iter()
             .map(|path| {
                 let format = Factory::parse_texture_format(path.as_ref());
-                let file = File::open(path).unwrap_or_else(|e| {
+                let file = fs::File::open(path).unwrap_or_else(|e| {
                     panic!("Unable to open {}: {:?}", path.as_ref().display(), e)
                 });
-                image::load(BufReader::new(file), format)
+                image::load(io::BufReader::new(file), format)
                     .unwrap_or_else(|e| {
                         panic!("Unable to decode {}: {:?}", path.as_ref().display(), e)
                     })
@@ -859,7 +862,7 @@ impl Factory {
         path: P,
     ) -> Clip {
         let mut buffer = Vec::new();
-        let mut file = File::open(&path).expect(&format!(
+        let mut file = fs::File::open(&path).expect(&format!(
             "Can't open audio file:\nFile: {}",
             path.as_ref().display()
         ));

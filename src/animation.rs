@@ -41,7 +41,7 @@
 //! Now, we load some clips from an animated glTF scene.
 //!
 //! ```rust,no_run
-//! # let mut window = three::Window::builder("", "").build();
+//! # let mut window = three::Window::new("");
 //! let mut gltf = window.factory.load_gltf("AnimatedScene.gltf");
 //! window.scene.add(&gltf.group);
 //! ```
@@ -55,7 +55,7 @@
 //! immediately.
 //!
 //! ```rust,no_run
-//! # let mut window = three::Window::builder("", "").build();
+//! # let mut window = three::Window::new("");
 //! # let mut mixer = three::animation::Mixer::new();
 //! # let mut gltf = window.factory.load_gltf("AnimatedScene.gltf");
 //! # window.scene.add(&gltf.group);
@@ -71,7 +71,7 @@
 //! game loop.
 //!
 //! ```rust,no_run
-//! # let mut window = three::Window::builder("", "").build();
+//! # let mut window = three::Window::new("");
 //! # let camera = unimplemented!();
 //! # let mut mixer = three::animation::Mixer::new();
 //! # let mut gltf = window.factory.load_gltf("AnimatedScene.gltf");

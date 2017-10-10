@@ -1,17 +1,16 @@
 //! Primitives for creating and controlling [`Window`](struct.Window.html).
 
-use std::path::{Path, PathBuf};
-
 use glutin;
 use glutin::GlContext;
 use mint;
+use render;
 
 use camera::Camera;
 use factory::Factory;
 use input::Input;
 use render::Renderer;
 use scene::Scene;
-
+use std::path::PathBuf;
 
 /// `Window` is the core entity of every `three-rs` application.
 ///
@@ -35,7 +34,7 @@ pub struct Builder {
     dimensions: (u32, u32),
     fullscreen: bool,
     multisampling: u16,
-    shader_path: PathBuf,
+    shader_directory: Option<PathBuf>,
     title: String,
     vsync: bool,
 }
@@ -70,6 +69,15 @@ impl Builder {
         self
     }
 
+    /// Specifies the user shader directory.
+    pub fn shader_directory<P: Into<PathBuf>>(
+        &mut self,
+        option: P,
+    ) -> &mut Self {
+        self.shader_directory = Some(option.into());
+        self
+    }
+
     /// Whether to enable vertical synchronization or not. Defaults to `true`.
     pub fn vsync(
         &mut self,
@@ -90,7 +98,6 @@ impl Builder {
         };
 
         let builder = builder
-            .clone()
             .with_dimensions(self.dimensions.0, self.dimensions.1)
             .with_title(self.title.clone());
 
@@ -98,8 +105,50 @@ impl Builder {
             .with_vsync(self.vsync)
             .with_multisampling(self.multisampling);
 
+        let mut source_set = render::source::Set::default();
+        if let Some(path) = self.shader_directory.as_ref() {
+            let path = path.to_str().unwrap();
+            macro_rules! try_override {
+                ($name:ident) => {
+                    match render::Source::user(path, stringify!($name), "vs") {
+                        Ok(src) => {
+                            info!("Overriding {}_vs.glsl", stringify!($name));
+                            source_set.$name.vs = src;
+                        }
+                        Err(err) => {
+                            error!("{:#?}", err);
+                            info!("Using default {}_vs.glsl", stringify!($name));
+                        }
+                    }
+                    match render::Source::user(path, stringify!($name), "ps") {
+                        Ok(src) => {
+                            info!("Overriding {}_ps.glsl", stringify!($name));
+                            source_set.$name.ps = src;
+                        }
+                        Err(err) => {
+                            error!("{:#?}", err);
+                            info!("Using default {}_ps.glsl", stringify!($name));
+                        }
+                    }
+                };
+                ( $($name:ident,)* ) => {
+                    $( try_override!($name); )*
+                };
+            }
+            try_override!(
+                basic,
+                gouraud,
+                pbr,
+                phong,
+                quad,
+                shadow,
+                skybox,
+                sprite,
+            );
+        }
+
         let event_loop = glutin::EventsLoop::new();
-        let (renderer, window, mut factory) = Renderer::new(builder, context, &event_loop, &self.shader_path);
+        let (renderer, window, mut factory) = Renderer::new(builder, context, &event_loop, &source_set);
         let scene = factory.scene();
         Window {
             event_loop,
@@ -113,16 +162,18 @@ impl Builder {
 }
 
 impl Window {
+    /// Create a new window with default parameters.
+    pub fn new<T: Into<String>>(title: T) -> Self {
+        Self::builder(title).build()
+    }
+
     /// Create new `Builder` with standard parameters.
-    pub fn builder<T: Into<String>, P: AsRef<Path>>(
-        title: T,
-        shader_path: P,
-    ) -> Builder {
+    pub fn builder<T: Into<String>>(title: T) -> Builder {
         Builder {
             dimensions: (1024, 768),
             fullscreen: false,
             multisampling: 0,
-            shader_path: shader_path.as_ref().to_owned(),
+            shader_directory: None,
             title: title.into(),
             vsync: true,
         }

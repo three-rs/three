@@ -1,9 +1,7 @@
 extern crate three;
 
 fn main() {
-    let title = "Getting started with three-rs";
-    let shaders = concat!(env!("CARGO_MANIFEST_DIR"), "/data/shaders");
-    let mut window = three::Window::builder(title, shaders).build();
+    let mut window = three::Window::new("Getting started with three-rs");
 
     let vertices = vec![
         [-0.5, -0.5, -0.5].into(),
