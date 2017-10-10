@@ -8,10 +8,10 @@ use gfx::handle::RenderTargetView;
 use gfx_glyph as g;
 use mint;
 
+use color::Color;
 use hub::Operation as HubOperation;
 use object::Object;
 use render::{BackendCommandBuffer, BackendFactory, BackendResources, ColorFormat};
-use scene::Color;
 
 pub(crate) enum Operation {
     Text(String),

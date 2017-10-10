@@ -1,6 +1,7 @@
 //! The renderer.
 
 use cgmath::{Matrix4, SquareMatrix, Transform as Transform_, Vector3};
+use color;
 use froggy;
 use gfx;
 use gfx::memory::Typed;
@@ -13,7 +14,6 @@ use gfx_window_glutin;
 use glutin;
 use material;
 use mint;
-use util;
 
 pub mod source;
 
@@ -584,8 +584,14 @@ impl Renderer {
                     pos: p.into(),
                     dir: d.extend(0.0).into(),
                     focus: [0.0, 0.0, 0.0, 0.0],
-                    color: util::decode_color(light.color),
-                    color_back: util::decode_color(color_back),
+                    color: {
+                        let rgb = color::to_linear_rgb(light.color);
+                        [rgb[0], rgb[1], rgb[2], 0.0]
+                    },
+                    color_back: {
+                        let rgb = color::to_linear_rgb(color_back);
+                        [rgb[0], rgb[1], rgb[2], 0.0]
+                    },
                     intensity,
                     shadow_params: [shadow_index, 0, 0, 0],
                 });
@@ -664,9 +670,10 @@ impl Renderer {
         self.encoder.clear_stencil(&self.out_depth, 0);
 
         if let Background::Color(color) = scene.background {
+            let rgb = color::to_linear_rgb(color);
             self.encoder.clear(
                 &self.out_color,
-                util::decode_color(color),
+                [rgb[0], rgb[1], rgb[2], 0.0],
             );
         }
 
@@ -716,8 +723,8 @@ impl Renderer {
                     if params.occlusion_map.is_some() {
                         pbr_flags.insert(OCCLUSION_MAP);
                     }
-                    let bcf = util::decode_color(params.base_color_factor);
-                    let emf = util::decode_color(params.emissive_factor);
+                    let bcf = color::to_linear_rgb(params.base_color_factor);
+                    let emf = color::to_linear_rgb(params.emissive_factor);
                     self.encoder.update_constant_buffer(
                         &self.pbr_buf,
                         &PbrParams {
@@ -819,7 +826,10 @@ impl Renderer {
                         &gpu_data.constants,
                         &Locals {
                             mx_world: Matrix4::from(node.world_transform).into(),
-                            color: util::decode_color(color),
+                            color: {
+                                let rgb = color::to_linear_rgb(color);
+                                [rgb[0], rgb[1], rgb[2], 0.0]
+                            },
                             mat_params: [param0, 0.0, 0.0, 0.0],
                             uv_range,
                         },

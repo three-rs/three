@@ -1,4 +1,5 @@
 use animation;
+use color;
 use geometry;
 use gltf;
 use gltf_importer;
@@ -6,7 +7,6 @@ use image;
 use material;
 use mint;
 use std::{fs, io};
-use util;
 
 use camera::Camera;
 use gltf::Gltf;
@@ -117,7 +117,7 @@ impl super::Factory {
         });
         let (base_color_factor, base_color_alpha) = {
             let x = pbr.base_color_factor();
-            (util::encode_color([x[0], x[1], x[2]]), x[3])
+            (color::from_linear_rgb([x[0], x[1], x[2]]), x[3])
         };
         if is_basic_material {
             material::Basic {
@@ -132,7 +132,7 @@ impl super::Factory {
                 metallic_factor: pbr.metallic_factor(),
                 roughness_factor: pbr.roughness_factor(),
                 occlusion_strength: mat.occlusion_texture().map_or(1.0, |t| t.strength()),
-                emissive_factor: util::encode_color(mat.emissive_factor()),
+                emissive_factor: color::from_linear_rgb(mat.emissive_factor()),
                 normal_scale: mat.normal_texture().map_or(1.0, |t| t.scale()),
                 base_color_map,
                 normal_map,

@@ -22,6 +22,7 @@ use render;
 
 use audio::{AudioData, Clip, Source};
 use camera::Camera;
+use color::Color;
 use geometry::{Geometry, Shape};
 use hub::{Hub, HubPtr, LightData, SubLight, SubNode};
 use light::{Ambient, Directional, Hemisphere, Point, ShadowMap};
@@ -30,7 +31,7 @@ use mesh::{DynamicMesh, Mesh};
 use node::Node;
 use object::Group;
 use render::{basic_pipe, BackendFactory, BackendResources, BasicPipelineState, DynamicData, GpuData, ShadowFormat, Vertex};
-use scene::{Background, Color, Scene, SceneId};
+use scene::{Background, Scene, SceneId};
 use sprite::Sprite;
 use text::{Font, Text, TextData};
 use texture::{CubeMap, CubeMapPath, FilterMethod, Sampler, Texture, WrapMode};
