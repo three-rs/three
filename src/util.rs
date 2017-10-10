@@ -18,7 +18,7 @@ pub fn decode_color(c: Color) -> [f32; 4] {
 }
 
 /// Linear to sRGB conversion from https://en.wikipedia.org/wiki/SRGB
-pub fn encode_color(c: [f32; 4]) -> u32 {
+pub fn encode_color(c: [f32; 3]) -> u32 {
     let f = |x: f32| -> u32 {
         let y = if x > 0.0031308 {
             let a = 0.055;

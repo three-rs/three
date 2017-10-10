@@ -48,10 +48,9 @@ fn main() {
         .build();
 
     let geometry = make_tetrahedron_geometry();
-    let material = three::Material::MeshBasic {
+    let material = three::material::Basic {
         color: 0xFFFF00,
-        wireframe: true,
-        map: None,
+        ..Default::default()
     };
     let mut mesh = win.factory.mesh_dynamic(geometry, material);
     let vertex_count = mesh.vertex_count();
