@@ -10,7 +10,8 @@ use std::time::Duration;
 
 const MANDELBROT_VERTEX_SHADER_CODE: &'static str = r#"
 #version 150 core
-#include locals globals
+#include <locals>
+#include <globals>
 
 in vec4 a_Position;
 in vec2 a_TexCoord;
@@ -83,7 +84,7 @@ fn main() {
         1.0,
         -1.0 .. 1.0,
     );
-
+ 
     let (tx, rx) = mpsc::channel();
     let mut watcher = notify::watcher(tx, Duration::from_secs(1)).unwrap();
     watcher

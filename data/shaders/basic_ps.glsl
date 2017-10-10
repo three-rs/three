@@ -1,5 +1,5 @@
 #version 150 core
-#include locals
+#include <locals>
 
 in vec2 v_TexCoord;
 out vec4 Target0;
