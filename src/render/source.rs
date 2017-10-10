@@ -27,14 +27,17 @@ impl Source {
         let mut new_code = String::new();
         for line in code.lines() {
             if line.starts_with("#include") {
-                for dep_name in line.split(' ').skip(1) {
-                    match dep_name {
-                        "locals" | "lights" | "globals" => {
-                            let path = format!("data/shaders/{}.glsl", dep_name);
+                if let Some(arg) = line.split_whitespace().skip(1).next() {
+                    if arg.starts_with('<') {
+                        if let Some(pos) = arg[1..].find('>') {
+                            let name = &arg[1..(pos + 1)];
+                            let path = format!("data/shaders/{}.glsl", name);
                             let content = &data::FILES.get(&path).unwrap();
                             new_code += str::from_utf8(content.borrow()).unwrap();
                         }
-                        relative_path => {
+                    } else if arg.starts_with('"') {
+                        if let Some(pos) = arg[1..].find('"') {
+                            let relative_path = &arg[1..(pos + 1)];
                             let path = root.join(relative_path);
                             let content = util::read_file_to_string(&path)?;
                             let include = Self::preprocess(root, &content)?;

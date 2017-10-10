@@ -1,5 +1,5 @@
 #version 150 core
-#include globals
+#include <globals>
 
 out vec3 v_TexCoord;
 
