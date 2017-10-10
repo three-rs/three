@@ -1,7 +1,7 @@
 //! Material parameters for mesh rendering.
 
+use color::Color;
 use render::BasicPipelineState;
-use scene::Color;
 use texture::Texture;
 
 pub use self::basic::Basic;

@@ -270,6 +270,7 @@ mod macros;
 pub mod audio;
 pub mod animation;
 pub mod camera;
+pub mod color;
 pub mod controls;
 pub mod custom;
 mod data;
@@ -291,6 +292,7 @@ mod util;
 #[cfg(feature = "opengl")]
 pub mod window;
 
+pub use color::Color;
 pub use controls::{AXIS_DOWN_UP, AXIS_LEFT_RIGHT, KEY_ESCAPE, KEY_SPACE, MOUSE_LEFT, MOUSE_RIGHT};
 pub use controls::{Button, Input, KeyAxis, Timer};
 pub use factory::{Factory, Gltf};
@@ -302,7 +304,7 @@ pub use mesh::{DynamicMesh, Mesh};
 pub use node::{NodeInfo, NodePointer, NodeTransform};
 pub use object::{Group, Object};
 pub use render::Renderer;
-pub use scene::{Background, Color, Scene};
+pub use scene::{Background, Scene};
 pub use sprite::Sprite;
 pub use text::{Align, Font, Layout, Text};
 pub use texture::{CubeMap, CubeMapPath, FilterMethod, Sampler, Texture, WrapMode};
