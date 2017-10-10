@@ -306,7 +306,7 @@ pub use material::Material;
 pub use mesh::{DynamicMesh, Mesh};
 pub use node::{NodeInfo, NodePointer, NodeTransform};
 pub use object::{Group, Object};
-pub use render::{ColorFormat, DebugQuadHandle, DepthFormat, Renderer, ShadowType};
+pub use render::{ColorFormat, DebugQuadHandle, DepthFormat, Renderer, ShadowType, Vertex};
 pub use scene::{Background, Color, Scene};
 pub use sprite::Sprite;
 pub use text::{Align, Font, Layout, Text};
