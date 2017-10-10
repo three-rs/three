@@ -51,7 +51,7 @@ fn main() {
 
     let pikachu_path: String = format!("{}/test_data/pikachu_anim.png", env!("CARGO_MANIFEST_DIR"));
     let pikachu_path_str: &str = pikachu_path.as_str();
-    let material = three::Material::Sprite { map: win.factory.load_texture(pikachu_path_str) };
+    let material = three::material::Sprite { map: win.factory.load_texture(pikachu_path_str) };
     let mut sprite = win.factory.sprite(material);
     sprite.set_scale(8.0);
     win.scene.add(&sprite);

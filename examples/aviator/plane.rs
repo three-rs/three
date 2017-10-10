@@ -4,7 +4,6 @@ use three;
 
 use {COLOR_BROWN, COLOR_BROWN_DARK, COLOR_RED, COLOR_WHITE};
 
-
 pub struct AirPlane {
     pub group: three::Group,
     _cockpit: three::Mesh,
@@ -30,7 +29,7 @@ impl AirPlane {
             }
             factory.mesh(
                 geo,
-                three::Material::MeshLambert {
+                three::material::Lambert {
                     color: COLOR_RED,
                     flat: false,
                 },
@@ -39,7 +38,7 @@ impl AirPlane {
         group.add(&cockpit);
         let mut engine = factory.mesh(
             three::Geometry::cuboid(20.0, 50.0, 50.0),
-            three::Material::MeshLambert {
+            three::material::Lambert {
                 color: COLOR_WHITE,
                 flat: false,
             },
@@ -48,7 +47,7 @@ impl AirPlane {
         group.add(&engine);
         let mut tail = factory.mesh(
             three::Geometry::cuboid(15.0, 20.0, 5.0),
-            three::Material::MeshLambert {
+            three::material::Lambert {
                 color: COLOR_RED,
                 flat: false,
             },
@@ -57,7 +56,7 @@ impl AirPlane {
         group.add(&tail);
         let wing = factory.mesh(
             three::Geometry::cuboid(40.0, 8.0, 150.0),
-            three::Material::MeshLambert {
+            three::material::Lambert {
                 color: COLOR_RED,
                 flat: false,
             },
@@ -69,7 +68,7 @@ impl AirPlane {
         group.add(&propeller_group);
         let propeller = factory.mesh(
             three::Geometry::cuboid(20.0, 10.0, 10.0),
-            three::Material::MeshLambert {
+            three::material::Lambert {
                 color: COLOR_BROWN,
                 flat: false,
             },
@@ -77,7 +76,7 @@ impl AirPlane {
         propeller_group.add(&propeller);
         let mut blade = factory.mesh(
             three::Geometry::cuboid(1.0, 100.0, 20.0),
-            three::Material::MeshLambert {
+            three::material::Lambert {
                 color: COLOR_BROWN_DARK,
                 flat: false,
             },

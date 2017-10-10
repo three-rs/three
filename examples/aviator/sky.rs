@@ -23,13 +23,13 @@ impl Cloud {
             meshes: Vec::new(),
         };
         let geo = three::Geometry::cuboid(20.0, 20.0, 20.0);
-        let material = three::Material::MeshLambert {
+        let material = three::material::Lambert {
             color: COLOR_WHITE,
             flat: true,
         };
         let template = factory.mesh(geo, material.clone());
         for i in 0i32 .. rng.gen_range(3, 6) {
-            let mut m = factory.mesh_instance(&template, None);
+            let mut m = factory.mesh_instance(&template);
             let rot: cgmath::Quaternion<f32> = rng.gen();
             let q = rot.normalize();
             m.set_transform(

@@ -44,7 +44,7 @@ fn main() {
 
     let mut sea = {
         let geo = three::Geometry::cylinder(600.0, 600.0, 800.0, 40);
-        let material = three::Material::MeshLambert {
+        let material = three::material::Lambert {
             color: COLOR_BLUE,
             flat: true,
         };

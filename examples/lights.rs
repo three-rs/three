@@ -34,7 +34,7 @@ fn main() {
 
     let mut sphere = {
         let geometry = three::Geometry::uv_sphere(3.0, 20, 20);
-        let material = three::Material::MeshPhong {
+        let material = three::material::Phong {
             color: 0xffA0A0,
             glossiness: 80.0,
         };
@@ -45,7 +45,7 @@ fn main() {
 
     let mut plane = {
         let geometry = three::Geometry::plane(100.0, 100.0);
-        let material = three::Material::MeshLambert {
+        let material = three::material::Lambert {
             color: 0xA0ffA0,
             flat: false,
         };

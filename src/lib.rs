@@ -41,10 +41,9 @@
 //!     [ 0.5, -0.5, -0.5].into(),
 //!     [ 0.0,  0.5, -0.5].into(),
 //! ]);
-//! let material = three::Material::MeshBasic {
+//! let material = three::material::Basic {
 //!     color: 0xFFFF00,
-//!     wireframe: false,
-//!     map: None,
+//!     .. Default::default()
 //! };
 //! let mesh = window.factory.mesh(geometry, material);
 //! # let _ = mesh;
@@ -67,10 +66,9 @@
 //! #     [ 0.0,  0.5, -0.5].into(),
 //! # ];
 //! # let geometry = three::Geometry::with_vertices(vertices);
-//! # let material = three::Material::MeshBasic {
+//! # let material = three::material::Basic {
 //! #      color: 0xFFFF00,
-//! #     wireframe: false,
-//! #     map: None,
+//! #      .. Default::default()
 //! # };
 //! # let mesh = window.factory.mesh(geometry, material);
 //! window.scene.add(&mesh);
@@ -106,10 +104,9 @@
 //! #         [ 0.0,  0.5, -0.5].into(),
 //! #     ];
 //! #     let geometry = three::Geometry::with_vertices(vertices);
-//! #     let material = three::Material::MeshBasic {
+//! #     let material = three::material::Basic {
 //! #         color: 0xFFFF00,
-//! #         wireframe: false,
-//! #         map: None,
+//! #         .. Default::default()
 //! #     };
 //! #     let mesh = window.factory.mesh(geometry, material);
 //! #     window.scene.add(&mesh);
@@ -141,10 +138,9 @@
 //!         [ 0.0,  0.5, -0.5].into(),
 //!     ];
 //!     let geometry = three::Geometry::with_vertices(vertices);
-//!     let material = three::Material::MeshBasic {
+//!     let material = three::material::Basic {
 //!         color: 0xFFFF00,
-//!         wireframe: false,
-//!         map: None,
+//!         .. Default::default()
 //!     };
 //!     let mesh = window.factory.mesh(geometry, material);
 //!     window.scene.add(&mesh);
@@ -282,7 +278,7 @@ pub mod geometry;
 mod hub;
 mod input;
 pub mod light;
-mod material;
+pub mod material;
 mod mesh;
 mod node;
 mod object;

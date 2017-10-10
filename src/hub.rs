@@ -1,6 +1,6 @@
 use audio::{AudioData, Operation as AudioOperation};
 use light::{ShadowMap, ShadowProjection};
-use material::Material;
+use material::{self, Material};
 use mesh::DynamicMesh;
 use node::{Node, NodePointer};
 use object::Object;
@@ -156,8 +156,8 @@ impl Hub {
                 }
                 Operation::SetTexelRange(base, size) => {
                     if let SubNode::Visual(ref mut material, _) = node.sub_node {
-                        match *material {
-                            Material::Sprite { ref mut map } => map.set_texel_range(base, size),
+                        match &mut material.0 {
+                            &mut material::Params::Sprite(ref mut params) => params.map.set_texel_range(base, size),
                             _ => panic!("Unsupported material for texel range request"),
                         }
                     }
