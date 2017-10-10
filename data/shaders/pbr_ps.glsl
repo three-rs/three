@@ -21,7 +21,9 @@
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #version 150 core
-#include locals lights globals
+#include <locals>
+#include <lights>
+#include <globals>
 
 const int BASE_COLOR_MAP          = 1 << 0;
 const int NORMAL_MAP              = 1 << 1;

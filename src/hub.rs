@@ -197,7 +197,7 @@ impl Hub {
         use gfx_glyph::Scale;
         match operation {
             TextOperation::Color(color) => {
-                use render::decode_color;
+                use util::decode_color;
                 let mut color = decode_color(color);
                 color[3] = data.section.color[3];
                 data.section.color = color;

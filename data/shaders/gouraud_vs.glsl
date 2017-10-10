@@ -1,5 +1,7 @@
 #version 150 core
-#include locals lights globals
+#include <locals>
+#include <lights>
+#include <globals>
 
 #define MAX_SHADOWS 2
 

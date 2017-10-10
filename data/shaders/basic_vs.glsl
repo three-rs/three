@@ -1,5 +1,6 @@
 #version 150 core
-#include locals globals
+#include <locals>
+#include <globals>
 
 in vec4 a_Position;
 in vec4 a_Normal;

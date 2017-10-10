@@ -1,5 +1,7 @@
 #version 150 core
-#include locals lights globals
+#include <locals>
+#include <lights>
+#include <globals>
 
 in vec3 v_World;
 in vec3 v_Normal;
