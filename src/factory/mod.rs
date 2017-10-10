@@ -65,6 +65,9 @@ const QUAD: [Vertex; 4] = [
     },
 ];
 
+/// Mapping writer.
+pub type MapVertices<'a> = gfx::mapping::Writer<'a, BackendResources, Vertex>;
+
 /// `Factory` is used to instantiate game objects.
 pub struct Factory {
     backend: BackendFactory,
@@ -275,12 +278,21 @@ impl Factory {
                 buffer: self.backend.create_index_buffer(data),
             }
         };
-        let (num_vertices, vertices) = {
+        let (num_vertices, vertices, upload_buf) = {
             let data = Self::mesh_vertices(&geometry.base_shape);
-            let buf = self.backend
+            let dest_buf = self.backend
                 .create_buffer_immutable(&data, gfx::buffer::Role::Vertex, gfx::memory::TRANSFER_DST)
                 .unwrap();
-            (data.len(), buf)
+            let upload_buf = self.backend.create_upload_buffer(data.len()).unwrap();
+            // TODO: Workaround for not having a 'write-to-slice' capability.
+            // Reason: The renderer copies the entire staging buffer upon updates.
+            {
+                self.backend
+                    .write_mapping(&upload_buf)
+                    .unwrap()
+                    .copy_from_slice(&data);
+            }
+            (data.len(), dest_buf, upload_buf)
         };
         let constants = self.backend.create_constant_buffer(1);
 
@@ -297,7 +309,7 @@ impl Factory {
             geometry,
             dynamic: DynamicData {
                 num_vertices,
-                buffer: self.backend.create_upload_buffer(num_vertices).unwrap(),
+                buffer: upload_buf,
             },
         }
     }
@@ -484,7 +496,16 @@ impl Factory {
         Source::with_object(object)
     }
 
-    /// Update the geometry of `DynamicMesh`.
+    /// Map vertices for updating their data.
+    pub fn map_vertices<'a>(
+        &'a mut self,
+        mesh: &'a mut DynamicMesh,
+    ) -> MapVertices<'a> {
+        self.hub.lock().unwrap().update_mesh(mesh);
+        self.backend.write_mapping(&mesh.dynamic.buffer).unwrap()
+    }
+
+    /// Interpolate between the shapes of a `DynamicMesh`.
     pub fn mix(
         &mut self,
         mesh: &DynamicMesh,
