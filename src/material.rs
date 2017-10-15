@@ -1,60 +1,64 @@
 //! Material parameters for mesh rendering.
 
+use color;
+
 use color::Color;
 use render::BasicPipelineState;
 use texture::Texture;
 
 pub use self::basic::Basic;
 
-/// Basic material parameters.
+/// Basic material API.
 pub mod basic {
     use super::*;
 
-    /// Parameters for a basic mesh material.
-    #[derive(Clone, Debug, Default)]
+    /// Parameters for a basic solid mesh material.
+    #[derive(Clone, Debug)]
     pub struct Basic {
         /// Solid color applied in the absense of `map`.
         ///
-        /// Default: `0x000000` (black).
+        /// Default: `WHITE`.
         pub color: Color,
 
-        /// Texture applied using the mesh texture co-ordiantes.
+        /// Texture applied using the mesh texture co-ordinates.
+        ///
+        /// Default: `None`.
+        pub map: Option<Texture<[f32; 4]>>,
+    }
+
+    impl Default for Basic {
+        fn default() -> Self {
+            Self {
+                color: color::WHITE,
+                map: None,
+            }
+        }
+    }
+
+    /// Parameters for a basic solid mesh material with a custom pipeline.
+    #[derive(Clone, Debug)]
+    pub struct Custom {
+        /// Solid color applied in the absense of `map`.
+        ///
+        /// Default: `WHITE`.
+        pub color: Color,
+
+        /// Texture applied using the mesh texture co-ordinates.
         ///
         /// Default: `None`.
         pub map: Option<Texture<[f32; 4]>>,
 
-        /// Specifies which pipeline should be used to render the mesh.
-        ///
-        /// Default: `Solid`.
-        pub pipeline: Pipeline,
-    }
-
-    /// Specifies which pipeline should be used to render the mesh.
-    #[derive(Clone, Debug)]
-    pub enum Pipeline {
-        /// Renders the mesh as a solid.
-        Solid,
-
-        /// Renders the mesh as a wireframe.
-        Wireframe,
-
-        /// Renders the mesh with a custom pipeline state object.
-        Custom(BasicPipelineState),
-    }
-
-    impl Default for Pipeline {
-        fn default() -> Self {
-            Pipeline::Solid
-        }
+        /// The custom pipeline state object to be applied to the mesh.
+        pub pipeline: BasicPipelineState,
     }
 }
 
 /// Parameters for a Lamberian diffusion reflection model.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct Lambert {
     /// Solid color applied in the absense of `map`.
     ///
-    /// Default: `0x000000` (black).
+    /// Default: `WHITE`.
     pub color: Color,
 
     /// Specifies whether lighting should be constant over faces.
@@ -63,12 +67,38 @@ pub struct Lambert {
     pub flat: bool,
 }
 
+impl Default for Lambert {
+    fn default() -> Self {
+        Self {
+            color: color::WHITE,
+            flat: false,
+        }
+    }
+}
+
+/// Parameters for a line material.
+#[derive(Clone, Debug)]
+pub struct Line {
+    /// Solid line color.
+    ///
+    /// Default: `0xFFFFFF` (white).
+    pub color: Color,
+}
+
+impl Default for Line {
+    fn default() -> Self {
+        Self {
+            color: color::WHITE,
+        }
+    }
+}
+
 /// Parameters for a PBR (physically based rendering) lighting model.
 #[derive(Clone, Debug)]
 pub struct Pbr {
     /// Solid base color applied in the absense of `base_color_map`.
     ///
-    /// Default: `0xFFFFFF` (white).
+    /// Default: `WHITE`.
     pub base_color_factor: Color,
 
     /// Base color alpha factor applied in the absense of `base_color_map`.
@@ -97,7 +127,7 @@ pub struct Pbr {
 
     /// Solid emissive color applied in the absense of `emissive_map`.
     ///
-    /// Default: `0x000000` (black).
+    /// Default: `BLACK`.
     pub emissive_factor: Color,
 
     /// Scalar multiplier applied to each normal vector of the `normal_map`.
@@ -136,12 +166,12 @@ pub struct Pbr {
 impl Default for Pbr {
     fn default() -> Self {
         Self {
-            base_color_factor: 0xFFFFFF,
+            base_color_factor: color::WHITE,
             base_color_alpha: 1.0,
             metallic_factor: 1.0,
             roughness_factor: 1.0,
             occlusion_strength: 1.0,
-            emissive_factor: 0x000000,
+            emissive_factor: color::BLACK,
             normal_scale: 1.0,
             base_color_map: None,
             normal_map: None,
@@ -153,11 +183,11 @@ impl Default for Pbr {
 }
 
 /// Parameters for a Phong reflection model.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct Phong {
     /// Solid color applied in the absense of `map`.
     ///
-    /// Default: `0x000000` (black).
+    /// Default: `WHITE`.
     pub color: Color,
 
     /// Determines the sharpness of specular highlights.
@@ -168,6 +198,15 @@ pub struct Phong {
     pub glossiness: f32,
 }
 
+impl Default for Phong {
+    fn default() -> Self {
+        Self {
+            color: color::WHITE,
+            glossiness: 30.0,
+        }
+    }
+}
+
 /// Texture for a 2D sprite.
 #[derive(Clone, Debug)]
 pub struct Sprite {
@@ -175,46 +214,91 @@ pub struct Sprite {
     pub map: Texture<[f32; 4]>,
 }
 
+/// Parameters for mesh wireframe rasterization.
+#[derive(Clone, Debug)]
+pub struct Wireframe {
+    /// Solid color applied to each wireframe edge.
+    ///
+    /// Default: `WHITE`.
+    pub color: Color,
+}
+
 /// Specifies the appearance of a [`Mesh`](struct.Mesh.html).
 #[derive(Clone, Debug)]
-pub struct Material(pub(crate) Params);
-
-/// Internal material parameters.
-#[derive(Clone, Debug)]
-pub(crate) enum Params {
+pub enum Material {
+    /// Renders triangle meshes with a solid color or texture.
     Basic(Basic),
+
+    /// Renders triangle meshes with a custom pipeline with a basic material as
+    /// its input.
+    CustomBasic(basic::Custom),
+
+    /// Renders line strip meshes with a solid color and unit width.
+    Line(Line),
+
+    /// Renders triangle meshes with the Gouraud illumination model.
     Lambert(Lambert),
+
+    /// Renders triangle meshes with the Phong illumination model.
     Phong(Phong),
+
+    /// Renders triangle meshes with a PBR (physically-based rendering)
+    /// illumination model
     Pbr(Pbr),
+
+    /// Renders [`Sprite`] objects with the given texture.
+    ///
+    /// [`Sprite`]: ../sprite/struct.Sprite.html
     Sprite(Sprite),
+
+    /// Renders the edges of a triangle mesh with a solid color.
+    Wireframe(Wireframe),
 }
 
 impl From<Basic> for Material {
     fn from(params: Basic) -> Material {
-        Material(Params::Basic(params))
+        Material::Basic(params)
+    }
+}
+
+impl From<basic::Custom> for Material {
+    fn from(params: basic::Custom) -> Material {
+        Material::CustomBasic(params)
     }
 }
 
 impl From<Lambert> for Material {
     fn from(params: Lambert) -> Material {
-        Material(Params::Lambert(params))
+        Material::Lambert(params)
+    }
+}
+
+impl From<Line> for Material {
+    fn from(params: Line) -> Material {
+        Material::Line(params)
     }
 }
 
 impl From<Phong> for Material {
     fn from(params: Phong) -> Material {
-        Material(Params::Phong(params))
+        Material::Phong(params)
     }
 }
 
 impl From<Pbr> for Material {
     fn from(params: Pbr) -> Material {
-        Material(Params::Pbr(params))
+        Material::Pbr(params)
     }
 }
 
 impl From<Sprite> for Material {
     fn from(params: Sprite) -> Material {
-        Material(Params::Sprite(params))
+        Material::Sprite(params)
+    }
+}
+
+impl From<Wireframe> for Material {
+    fn from(params: Wireframe) -> Material {
+        Material::Wireframe(params)
     }
 }

@@ -15,7 +15,6 @@ fn main() {
         three::material::Basic {
             color: 0xFFFFFF,
             map: None,
-            ..Default::default()
         }.into(),
         three::material::Lambert {
             color: 0xFFFFFF,
