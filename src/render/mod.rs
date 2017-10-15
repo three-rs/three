@@ -12,7 +12,6 @@ use gfx_device_gl as back;
 use gfx_window_glutin;
 #[cfg(feature = "opengl")]
 use glutin;
-use material;
 use mint;
 
 pub mod source;
@@ -30,7 +29,7 @@ use camera::Camera;
 use factory::Factory;
 use hub::{SubLight, SubNode};
 use light::{ShadowMap, ShadowProjection};
-use material::Params;
+use material::Material;
 use scene::{Background, Scene};
 use text::Font;
 use texture::Texture;
@@ -237,16 +236,19 @@ struct DebugQuad {
 
 /// All pipeline state objects used by the `three` renderer.
 pub struct PipelineStates {
-    /// Corresponds to `Material::MeshBasic` with `wireframe` set to `false`.
+    /// Corresponds to `Material::Basic`.
     mesh_basic_fill: BasicPipelineState,
 
-    /// Corresponds to `Material::MeshBasic` with `wireframe` set to `true`.
+    /// Corresponds to `Material::Line`.
+    line_basic: BasicPipelineState,
+
+    /// Corresponds to `Material::Wireframe`.
     mesh_basic_wireframe: BasicPipelineState,
 
-    /// Corresponds to `Material::MeshGouraud`.
+    /// Corresponds to `Material::Gouraud`.
     mesh_gouraud: BasicPipelineState,
 
-    /// Corresponds to `Material::MeshPhong`.
+    /// Corresponds to `Material::Phong`.
     mesh_phong: BasicPipelineState,
 
     /// Corresponds to `Material::Sprite`.
@@ -258,7 +260,7 @@ pub struct PipelineStates {
     /// Used internally for rendering sprites.
     quad: gfx::PipelineState<back::Resources, quad_pipe::Meta>,
 
-    /// Corresponds to `Material::MeshPbr`.
+    /// Corresponds to `Material::Pbr`.
     pbr: gfx::PipelineState<back::Resources, pbr_pipe::Meta>,
 
     /// Used internally for rendering `Background::Skybox`.
@@ -302,6 +304,12 @@ impl PipelineStates {
         let pso_mesh_basic_fill = backend.create_pipeline_state(
             &basic,
             gfx::Primitive::TriangleList,
+            rast_fill,
+            basic_pipe::new(),
+        )?;
+        let pso_line_basic = backend.create_pipeline_state(
+            &basic,
+            gfx::Primitive::LineStrip,
             rast_fill,
             basic_pipe::new(),
         )?;
@@ -359,6 +367,7 @@ impl PipelineStates {
 
         Ok(PipelineStates {
             mesh_basic_fill: pso_mesh_basic_fill,
+            line_basic: pso_line_basic,
             mesh_basic_wireframe: pso_mesh_basic_wireframe,
             mesh_gouraud: pso_mesh_gouraud,
             mesh_phong: pso_mesh_phong,
@@ -697,9 +706,8 @@ impl Renderer {
             };
 
             //TODO: batch per PSO
-            let material_params = &material.0;
-            match *material_params {
-                Params::Pbr(ref params) => {
+            match *material {
+                Material::Pbr(ref params) => {
                     self.encoder.update_constant_buffer(
                         &gpu_data.constants,
                         &Locals {
@@ -787,36 +795,19 @@ impl Renderer {
                 }
                 ref other => {
                     let (pso, color, param0, map) = match *other {
-                        Params::Pbr(_) => unreachable!(),
-                        Params::Basic(ref params) => {
-                            match params.pipeline {
-                                material::basic::Pipeline::Solid => {
-                                    (
-                                        &self.pso.mesh_basic_fill,
-                                        params.color,
-                                        0.0,
-                                        params.map.as_ref(),
-                                    )
-                                }
-                                material::basic::Pipeline::Wireframe => {
-                                    (
-                                        &self.pso.mesh_basic_wireframe,
-                                        params.color,
-                                        0.0,
-                                        params.map.as_ref(),
-                                    )
-                                }
-                                material::basic::Pipeline::Custom(ref pso) => (pso, params.color, 0.0, params.map.as_ref()),
-                            }
-                        }
-                        Params::Lambert(ref params) => (
+                        Material::Pbr(_) => unreachable!(),
+                        Material::Basic(ref params) => (&self.pso.mesh_basic_fill, params.color, 0.0, params.map.as_ref()),
+                        Material::CustomBasic(ref params) => (&params.pipeline, params.color, 0.0, params.map.as_ref()),
+                        Material::Lambert(ref params) => (
                             &self.pso.mesh_gouraud,
                             params.color,
                             if params.flat { 0.0 } else { 1.0 },
                             None,
                         ),
-                        Params::Phong(ref params) => (&self.pso.mesh_phong, params.color, params.glossiness, None),
-                        Params::Sprite(ref params) => (&self.pso.sprite, !0, 0.0, Some(&params.map)),
+                        Material::Line(ref params) => (&self.pso.line_basic, params.color, 0.0, None),
+                        Material::Phong(ref params) => (&self.pso.mesh_phong, params.color, params.glossiness, None),
+                        Material::Sprite(ref params) => (&self.pso.sprite, !0, 0.0, Some(&params.map)),
+                        Material::Wireframe(ref params) => (&self.pso.mesh_basic_wireframe, params.color, 0.0, None),
                     };
                     let uv_range = match map {
                         Some(ref map) => map.uv_range(),

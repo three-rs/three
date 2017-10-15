@@ -19,11 +19,7 @@ use render::DynamicData;
 ///     [ 0.5, -0.5, 0.0].into(),
 /// ];
 /// let geometry = three::Geometry::with_vertices(vertices);
-/// let red_material = three::material::Basic {
-///     color: 0xFF0000,
-///     map: None,
-///     pipeline: three::material::basic::Pipeline::Solid,
-/// };
+/// let red_material = three::material::Basic { color: three::color::RED, map: None };
 /// let mesh = factory.mesh(geometry, red_material);
 /// # let _ = mesh;
 /// ```
@@ -39,11 +35,7 @@ use render::DynamicData;
 /// #     [ 0.5, -0.5, 0.0].into(),
 /// # ];
 /// # let geometry = three::Geometry::with_vertices(vertices);
-/// # let red_material = three::material::Basic {
-/// #     color: 0xFF0000,
-/// #     map: None,
-/// #     pipeline: three::material::basic::Pipeline::Solid,
-/// # };
+/// # let red_material = three::material::Basic { color: three::color::RED, map: None };
 /// # let mesh = factory.mesh(geometry, red_material);
 /// let mut duplicate = factory.mesh_instance(&mesh);
 /// // Duplicated meshes share their geometry but may be transformed individually.
@@ -61,20 +53,13 @@ use render::DynamicData;
 /// #     [ 0.5, -0.5, 0.0].into(),
 /// # ];
 /// # let geometry = three::Geometry::with_vertices(vertices);
-/// # let red_material = three::material::Basic {
-/// #     color: 0xFF0000,
-/// #     map: None,
-/// #     pipeline: three::material::basic::Pipeline::Solid,
-/// # };
+/// # let red_material = three::material::Basic { color: three::color::RED, map: None };
 /// # let mesh = factory.mesh(geometry, red_material);
-/// let yellow_material = three::material::Basic {
-///     color: 0xFFFF00,
-///     map: None,
-///     pipeline: three::material::basic::Pipeline::Wireframe,
-/// };
+/// let yellow_material = three::material::Wireframe { color: three::color::YELLOW };
 /// let mut duplicate = factory.mesh_instance_with_material(&mesh, yellow_material);
 /// duplicate.set_position([1.2, 3.4, 5.6]);
 /// ```
+///
 /// # Notes
 ///
 /// * Meshes are removed from the scene when dropped.

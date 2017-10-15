@@ -121,11 +121,7 @@ fn main() {
 
     let mesh = win.factory.mesh_dynamic(
         geom,
-        three::material::Basic {
-            color: 0xffffff,
-            map: None,
-            pipeline: three::material::basic::Pipeline::Wireframe,
-        },
+        three::material::Wireframe { color: 0xFFFFFF },
     );
     win.scene.add(&mesh);
 

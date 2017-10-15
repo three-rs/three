@@ -123,7 +123,6 @@ impl super::Factory {
             material::Basic {
                 color: base_color_factor,
                 map: base_color_map,
-                pipeline: material::basic::Pipeline::Solid,
             }.into()
         } else {
             material::Pbr {

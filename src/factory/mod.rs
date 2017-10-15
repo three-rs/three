@@ -729,14 +729,12 @@ impl Factory {
                         (true, &Some(ref name)) => Some(self.request_texture(&concat_path(obj_dir, name))),
                         _ => None,
                     },
-                    pipeline: material::basic::Pipeline::Solid,
                 }.into()
             }
             _ => {
                 material::Basic {
                     color: 0xffffff,
                     map: None,
-                    pipeline: material::basic::Pipeline::Solid,
                 }.into()
             }
         }
@@ -848,7 +846,6 @@ impl Factory {
                         material::Basic {
                             color: 0xFFFFFF,
                             map: None,
-                            pipeline: material::basic::Pipeline::Solid,
                         }.into()
                     }
                 };
