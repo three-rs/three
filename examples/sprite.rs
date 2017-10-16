@@ -53,7 +53,7 @@ fn main() {
     };
     let mut sprite = win.factory.sprite(material);
     sprite.set_scale(8.0);
-    win.scene.add(&sprite);
+    sprite.set_parent(&win.scene);
 
     let mut anim = Animator {
         cell_size: [96, 96],

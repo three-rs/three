@@ -240,14 +240,14 @@ impl super::Factory {
                 if has_entry {
                     let mesh = meshes.get(index).unwrap();
                     for primitive in mesh.iter() {
-                        let instance = self.mesh_instance(primitive);
-                        item.group.add(&instance);
+                        let mut instance = self.mesh_instance(primitive);
+                        instance.set_parent(&item.group);
                         instances.push(instance);
                     }
                 } else {
-                    let primitives = self.load_gltf_mesh(&entry, buffers, base);
-                    for primitive in &primitives {
-                        item.group.add(&primitive);
+                    let mut primitives = self.load_gltf_mesh(&entry, buffers, base);
+                    for primitive in &mut primitives {
+                        primitive.set_parent(&item.group);
                     }
                     meshes.insert(index, primitives);
                 }
@@ -259,27 +259,27 @@ impl super::Factory {
                         let center: mint::Point2<f32> = [0.0, 0.0].into();
                         let extent_y = values.ymag();
                         let range = values.znear() .. values.zfar();
-                        let camera = self.orthographic_camera(center, extent_y, range);
-                        item.group.add(&camera);
+                        let mut camera = self.orthographic_camera(center, extent_y, range);
+                        camera.set_parent(&item.group);
                         cameras.push(camera);
                     }
                     gltf::camera::Projection::Perspective(values) => {
                         let fov_y = values.yfov().to_degrees();
                         let near = values.znear();
-                        let camera = if let Some(far) = values.zfar() {
+                        let mut camera = if let Some(far) = values.zfar() {
                             self.perspective_camera(fov_y, near .. far)
                         } else {
                             self.perspective_camera(fov_y, near ..)
                         };
-                        item.group.add(&camera);
+                        camera.set_parent(&item.group);
                         cameras.push(camera);
                     }
                 }
             }
 
             for child in item.node.children() {
-                let child_group = self.group();
-                item.group.add(&child_group);
+                let mut child_group = self.group();
+                child_group.set_parent(&item.group);
                 stack.push(Item {
                     node: clone_child(&gltf, &child),
                     group: child_group,
@@ -380,11 +380,11 @@ impl super::Factory {
         let mut instances = Vec::new();
         let mut node_map = HashMap::new();
         let mut clips = Vec::new();
-        let mut group = self.group();
+        let group = self.group();
 
         if let Some(scene) = gltf.default_scene() {
             for root in scene.nodes() {
-                let node = self.load_gltf_node(
+                let mut node = self.load_gltf_node(
                     &gltf,
                     &root,
                     &buffers,
@@ -394,7 +394,7 @@ impl super::Factory {
                     &mut instances,
                     &mut node_map,
                 );
-                group.add(&node);
+                node.set_parent(&group);
             }
             clips = self.load_gltf_animations(&gltf, &node_map, &buffers);
         }

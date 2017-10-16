@@ -24,7 +24,7 @@ fn main() {
         &mut dir_light,
     ];
     for l in lights.iter_mut() {
-        win.scene.add(l);
+        l.set_parent(&win.scene);
         l.set_visible(false);
     }
 
@@ -37,7 +37,7 @@ fn main() {
         win.factory.mesh(geometry, material)
     };
     sphere.set_position([0.0, 0.0, 2.5]);
-    win.scene.add(&sphere);
+    sphere.set_parent(&win.scene);
 
     let mut plane = {
         let geometry = three::Geometry::plane(100.0, 100.0);
@@ -48,7 +48,7 @@ fn main() {
         win.factory.mesh(geometry, material)
     };
     plane.set_position([0.0, -30.0, 0.0]);
-    win.scene.add(&plane);
+    plane.set_parent(&win.scene);
 
     let mut light_id = 0i8;
     lights[0].set_visible(true);

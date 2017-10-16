@@ -41,7 +41,7 @@ impl Cloud {
                 q,
                 rng.gen_range(0.1, 1.0),
             );
-            cloud.group.add(&m);
+            m.set_parent(&cloud.group);
             cloud.meshes.push(m);
         }
         cloud
@@ -75,7 +75,7 @@ impl Sky {
             ];
             let q = cgmath::Quaternion::from_angle_z(angle + cgmath::Rad::turn_div_4());
             c.group.set_transform(pos, q, rng.gen_range(1.0, 3.0));
-            sky.group.add(&c.group);
+            c.group.set_parent(&sky.group);
             sky.clouds.push(c);
         }
         sky

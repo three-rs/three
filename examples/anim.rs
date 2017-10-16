@@ -119,9 +119,9 @@ fn main() {
         );
     }
 
-    let mesh = win.factory
+    let mut mesh = win.factory
         .mesh_dynamic(geom, three::material::Wireframe { color: 0xFFFFFF });
-    win.scene.add(&mesh);
+    mesh.set_parent(&win.scene);
 
     let mut shape = 0;
     let (mut name0, mut name1) = ("fly00".to_string(), "fly01".to_string());

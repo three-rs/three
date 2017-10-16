@@ -17,9 +17,9 @@ pub struct AirPlane {
 
 impl AirPlane {
     pub fn new(factory: &mut three::Factory) -> Self {
-        let mut group = factory.group();
+        let group = factory.group();
 
-        let cockpit = {
+        let mut cockpit = {
             let mut geo = three::Geometry::cuboid(80.0, 50.0, 50.0);
             for v in geo.base_shape.vertices.iter_mut() {
                 if v.x < 0.0 {
@@ -35,7 +35,8 @@ impl AirPlane {
                 },
             )
         };
-        group.add(&cockpit);
+        cockpit.set_parent(&group);
+
         let mut engine = factory.mesh(
             three::Geometry::cuboid(20.0, 50.0, 50.0),
             three::material::Lambert {
@@ -44,7 +45,8 @@ impl AirPlane {
             },
         );
         engine.set_position([40.0, 0.0, 0.0]);
-        group.add(&engine);
+        engine.set_parent(&group);
+
         let mut tail = factory.mesh(
             three::Geometry::cuboid(15.0, 20.0, 5.0),
             three::material::Lambert {
@@ -53,27 +55,28 @@ impl AirPlane {
             },
         );
         tail.set_position([-35.0, 25.0, 0.0]);
-        group.add(&tail);
-        let wing = factory.mesh(
+        tail.set_parent(&group);
+
+        let mut wing = factory.mesh(
             three::Geometry::cuboid(40.0, 8.0, 150.0),
             three::material::Lambert {
                 color: COLOR_RED,
                 flat: false,
             },
         );
-        group.add(&wing);
+        wing.set_parent(&group);
 
         let mut propeller_group = factory.group();
         propeller_group.set_position([50.0, 0.0, 0.0]);
-        group.add(&propeller_group);
-        let propeller = factory.mesh(
+        propeller_group.set_parent(&group);
+        let mut propeller = factory.mesh(
             three::Geometry::cuboid(20.0, 10.0, 10.0),
             three::material::Lambert {
                 color: COLOR_BROWN,
                 flat: false,
             },
         );
-        propeller_group.add(&propeller);
+        propeller.set_parent(&propeller_group);
         let mut blade = factory.mesh(
             three::Geometry::cuboid(1.0, 100.0, 20.0),
             three::material::Lambert {
@@ -82,7 +85,7 @@ impl AirPlane {
             },
         );
         blade.set_position([8.0, 0.0, 0.0]);
-        propeller_group.add(&blade);
+        blade.set_parent(&propeller_group);
 
         AirPlane {
             group,

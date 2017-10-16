@@ -13,9 +13,9 @@ fn main() {
         color: 0xFFFF00,
         map: None,
     };
-    let mesh = window.factory.mesh(geometry, material);
+    let mut mesh = window.factory.mesh(geometry, material);
+    mesh.set_parent(&window.scene);
 
-    window.scene.add(&mesh);
     window.scene.background = three::Background::Color(0xC6F0FF);
 
     let center = [0.0, 0.0];
