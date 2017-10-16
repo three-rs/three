@@ -41,10 +41,9 @@
 //!     [ 0.5, -0.5, -0.5].into(),
 //!     [ 0.0,  0.5, -0.5].into(),
 //! ]);
-//! let material = three::Material::MeshBasic {
+//! let material = three::material::Basic {
 //!     color: 0xFFFF00,
-//!     wireframe: false,
-//!     map: None,
+//!     .. Default::default()
 //! };
 //! let mesh = window.factory.mesh(geometry, material);
 //! # let _ = mesh;
@@ -67,10 +66,9 @@
 //! #     [ 0.0,  0.5, -0.5].into(),
 //! # ];
 //! # let geometry = three::Geometry::with_vertices(vertices);
-//! # let material = three::Material::MeshBasic {
+//! # let material = three::material::Basic {
 //! #      color: 0xFFFF00,
-//! #     wireframe: false,
-//! #     map: None,
+//! #      .. Default::default()
 //! # };
 //! # let mesh = window.factory.mesh(geometry, material);
 //! window.scene.add(&mesh);
@@ -106,10 +104,9 @@
 //! #         [ 0.0,  0.5, -0.5].into(),
 //! #     ];
 //! #     let geometry = three::Geometry::with_vertices(vertices);
-//! #     let material = three::Material::MeshBasic {
+//! #     let material = three::material::Basic {
 //! #         color: 0xFFFF00,
-//! #         wireframe: false,
-//! #         map: None,
+//! #         .. Default::default()
 //! #     };
 //! #     let mesh = window.factory.mesh(geometry, material);
 //! #     window.scene.add(&mesh);
@@ -141,10 +138,9 @@
 //!         [ 0.0,  0.5, -0.5].into(),
 //!     ];
 //!     let geometry = three::Geometry::with_vertices(vertices);
-//!     let material = three::Material::MeshBasic {
+//!     let material = three::material::Basic {
 //!         color: 0xFFFF00,
-//!         wireframe: false,
-//!         map: None,
+//!         .. Default::default()
 //!     };
 //!     let mesh = window.factory.mesh(geometry, material);
 //!     window.scene.add(&mesh);
@@ -274,6 +270,7 @@ mod macros;
 pub mod audio;
 pub mod animation;
 pub mod camera;
+pub mod color;
 pub mod controls;
 pub mod custom;
 mod data;
@@ -282,7 +279,7 @@ pub mod geometry;
 mod hub;
 mod input;
 pub mod light;
-mod material;
+pub mod material;
 mod mesh;
 mod node;
 mod object;
@@ -295,6 +292,7 @@ mod util;
 #[cfg(feature = "opengl")]
 pub mod window;
 
+pub use color::Color;
 pub use controls::{AXIS_DOWN_UP, AXIS_LEFT_RIGHT, KEY_ESCAPE, KEY_SPACE, MOUSE_LEFT, MOUSE_RIGHT};
 pub use controls::{Button, Input, KeyAxis, Timer};
 pub use factory::{Factory, Gltf};
@@ -306,7 +304,7 @@ pub use mesh::{DynamicMesh, Mesh};
 pub use node::{NodeInfo, NodePointer, NodeTransform};
 pub use object::{Group, Object};
 pub use render::Renderer;
-pub use scene::{Background, Color, Scene};
+pub use scene::{Background, Scene};
 pub use sprite::Sprite;
 pub use text::{Align, Font, Layout, Text};
 pub use texture::{CubeMap, CubeMapPath, FilterMethod, Sampler, Texture, WrapMode};

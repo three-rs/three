@@ -9,11 +9,7 @@ fn main() {
         [0.0, 0.5, -0.5].into(),
     ];
     let geometry = three::Geometry::with_vertices(vertices);
-    let material = three::Material::MeshBasic {
-        color: 0xFFFF00,
-        wireframe: false,
-        map: None,
-    };
+    let material = three::material::Basic { color: 0xFFFF00, map: None };
     let mesh = window.factory.mesh(geometry, material);
 
     window.scene.add(&mesh);

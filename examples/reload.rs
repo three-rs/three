@@ -84,7 +84,7 @@ fn main() {
         1.0,
         -1.0 .. 1.0,
     );
- 
+
     let (tx, rx) = mpsc::channel();
     let mut watcher = notify::watcher(tx, Duration::from_secs(1)).unwrap();
     watcher
@@ -93,7 +93,7 @@ fn main() {
 
     let map_path = concat!(env!("CARGO_MANIFEST_DIR"), "/test_data/gradient.png");
     let map = win.factory.load_texture(map_path);
-    let material = three::Material::Sprite { map };
+    let material = three::material::Sprite { map };
     let mut sprite = win.factory.sprite(material);
     sprite.set_scale(1.0);
     win.scene.add(&sprite);

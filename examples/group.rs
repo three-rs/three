@@ -17,7 +17,7 @@ struct Cube {
 
 fn create_cubes(
     factory: &mut three::Factory,
-    materials: &[three::Material],
+    materials: &[three::material::Lambert],
     levels: &[Level],
 ) -> Vec<Cube> {
     let mut geometry = three::Geometry::cuboid(2.0, 2.0, 2.0);
@@ -79,7 +79,7 @@ fn create_cubes(
             let mat = materials[next.mat_id].clone();
             let mut cube = Cube {
                 group: factory.group(),
-                mesh: factory.mesh_instance(&list[0].mesh, Some(mat)),
+                mesh: factory.mesh_instance_with_material(&list[0].mesh, mat),
                 level_id: next.lev_id,
                 orientation: child.rot,
             };
@@ -125,7 +125,7 @@ fn main() {
 
     let materials: Vec<_> = COLORS
         .iter()
-        .map(|&color| three::Material::MeshLambert { color, flat: false })
+        .map(|&color| three::material::Lambert { color, flat: false })
         .collect();
     let levels: Vec<_> = SPEEDS.iter().map(|&speed| Level { speed }).collect();
     let mut cubes = create_cubes(&mut win.factory, &materials, &levels);

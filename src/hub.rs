@@ -1,11 +1,11 @@
 use audio::{AudioData, Operation as AudioOperation};
+use color::{self, Color};
 use light::{ShadowMap, ShadowProjection};
-use material::Material;
+use material::{self, Material};
 use mesh::DynamicMesh;
 use node::{Node, NodePointer};
 use object::Object;
 use render::GpuData;
-use scene::Color;
 use text::{Operation as TextOperation, TextData};
 
 use cgmath::Transform;
@@ -157,7 +157,7 @@ impl Hub {
                 Operation::SetTexelRange(base, size) => {
                     if let SubNode::Visual(ref mut material, _) = node.sub_node {
                         match *material {
-                            Material::Sprite { ref mut map } => map.set_texel_range(base, size),
+                            material::Material::Sprite(ref mut params) => params.map.set_texel_range(base, size),
                             _ => panic!("Unsupported material for texel range request"),
                         }
                     }
@@ -197,10 +197,8 @@ impl Hub {
         use gfx_glyph::Scale;
         match operation {
             TextOperation::Color(color) => {
-                use util::decode_color;
-                let mut color = decode_color(color);
-                color[3] = data.section.color[3];
-                data.section.color = color;
+                let rgb = color::to_linear_rgb(color);
+                data.section.color = [rgb[0], rgb[1], rgb[2], 0.0];
             }
             TextOperation::Font(font) => data.font = font,
             TextOperation::Layout(layout) => data.layout = layout,
