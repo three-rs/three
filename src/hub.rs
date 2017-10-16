@@ -15,11 +15,6 @@ use mint;
 use std::sync::{Arc, Mutex};
 use std::sync::{atomic, mpsc};
 
-/// Assigns unique IDs to spawned scene nodes.
-///
-/// Must be incremented in each call to `spawn_scene` (use `fetch_add` or otherwise).
-static SCENE_UID_COUNTER: atomic::AtomicUsize = atomic::ATOMIC_USIZE_INIT;
-
 #[derive(Clone, Debug)]
 pub(crate) enum SubLight {
     Ambient,
@@ -132,6 +127,7 @@ impl Hub {
     }
 
     pub(crate) fn spawn_scene(&mut self) -> Object {
+        static SCENE_UID_COUNTER: atomic::AtomicUsize = atomic::ATOMIC_USIZE_INIT;
         let uid = SCENE_UID_COUNTER.fetch_add(1, atomic::Ordering::Relaxed);
         let tx = self.message_tx.clone();
         let node = self.nodes.create(Node {
