@@ -19,7 +19,7 @@ fn main() {
 
     let mut camera = window.factory.perspective_camera(60.0, 0.1 .. 10.0);
     camera.set_position([0.0, 1.0, 5.0]);
-    while window.update() && !three::KEY_ESCAPE.is_hit(&window.input) {
+    while window.update() && !window.input.hit(three::KEY_ESCAPE) {
         mixer.update(window.input.delta_time());
         window.render(&camera);
     }
