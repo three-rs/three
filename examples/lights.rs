@@ -13,12 +13,8 @@ fn main() {
     let mut dir_light = win.factory.directional_light(0xffffff, 0.9);
     dir_light.look_at([15.0, 35.0, 35.0], [0.0, 0.0, 2.0], None);
     let shadow_map = win.factory.shadow_map(1024, 1024);
-    let _debug_shadow = win.renderer.debug_shadow_quad(
-        &shadow_map,
-        1,
-        [10, 10],
-        [256, 256],
-    );
+    let _debug_shadow = win.renderer
+        .debug_shadow_quad(&shadow_map, 1, [10, 10], [256, 256]);
     dir_light.set_shadow(shadow_map, 40.0, 1.0 .. 200.0);
 
     let mut lights: [&mut three::Object; 4] = [
@@ -56,10 +52,10 @@ fn main() {
 
     let mut light_id = 0i8;
     lights[0].set_visible(true);
-    while win.update() && !three::KEY_ESCAPE.is_hit(&win.input) {
-        if let Some(diff) = three::AXIS_LEFT_RIGHT.delta_hits(&win.input) {
+    while win.update() && !win.input.hit(three::KEY_ESCAPE) {
+        if let Some(axis_hits) = win.input.delta(three::AXIS_LEFT_RIGHT) {
             lights[light_id as usize].set_visible(false);
-            light_id += diff;
+            light_id += axis_hits;
             while light_id < 0 {
                 light_id += lights.len() as i8;
             }

@@ -43,15 +43,14 @@ impl Animator {
 
 fn main() {
     let mut win = three::Window::new("Three-rs sprite example");
-    let cam = win.factory.orthographic_camera(
-        [0.0, 0.0],
-        10.0,
-        -10.0 .. 10.0,
-    );
+    let cam = win.factory
+        .orthographic_camera([0.0, 0.0], 10.0, -10.0 .. 10.0);
 
     let pikachu_path: String = format!("{}/test_data/pikachu_anim.png", env!("CARGO_MANIFEST_DIR"));
     let pikachu_path_str: &str = pikachu_path.as_str();
-    let material = three::material::Sprite { map: win.factory.load_texture(pikachu_path_str) };
+    let material = three::material::Sprite {
+        map: win.factory.load_texture(pikachu_path_str),
+    };
     let mut sprite = win.factory.sprite(material);
     sprite.set_scale(8.0);
     win.scene.add(&sprite);
@@ -73,16 +72,14 @@ fn main() {
         win.scene.background = three::Background::Texture(background);
     }
 
-    while win.update() && !three::KEY_ESCAPE.is_hit(&win.input) {
-        let row = three::AXIS_LEFT_RIGHT.delta_hits(&win.input).map(
-            |mut diff| {
-                let total = anim.cell_counts[1] as i8;
-                while diff < 0 {
-                    diff += total
-                }
-                (anim.current[1] + diff as u16) % total as u16
-            },
-        );
+    while win.update() && !win.input.hit(three::KEY_ESCAPE) {
+        let row = win.input.delta(three::AXIS_LEFT_RIGHT).map(|mut diff| {
+            let total = anim.cell_counts[1] as i8;
+            while diff < 0 {
+                diff += total
+            }
+            (anim.current[1] + diff as u16) % total as u16
+        });
         anim.update(row, &win.input);
 
         win.render(&cam);

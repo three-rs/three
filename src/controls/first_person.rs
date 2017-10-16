@@ -3,25 +3,25 @@ use mint;
 use std::ops;
 
 use cgmath::Rotation3;
-use input::{Input, Key, KeyAxis};
+use input::{axis, Input, Key};
 use object::Object;
 use std::f32::consts::PI;
 
 #[derive(Clone, Debug)]
 struct Axes {
-    pub forward: Option<KeyAxis>,
-    pub strafing: Option<KeyAxis>,
-    pub vertical: Option<KeyAxis>,
+    pub forward: Option<axis::Key>,
+    pub strafing: Option<axis::Key>,
+    pub vertical: Option<axis::Key>,
 }
 
 impl Default for Axes {
     fn default() -> Self {
         Axes {
-            forward: Some(KeyAxis {
+            forward: Some(axis::Key {
                 pos: Key::W,
                 neg: Key::S,
             }),
-            strafing: Some(KeyAxis {
+            strafing: Some(axis::Key {
                 pos: Key::D,
                 neg: Key::A,
             }),
@@ -172,7 +172,7 @@ impl Builder {
     /// Defaults to `W` and `S` keys.
     pub fn axis_forward(
         &mut self,
-        axis: Option<KeyAxis>,
+        axis: Option<axis::Key>,
     ) -> &mut Self {
         self.axes.forward = axis;
         self
@@ -183,7 +183,7 @@ impl Builder {
     /// Defaults to `A` and `D` keys.
     pub fn axis_strafing(
         &mut self,
-        axis: Option<KeyAxis>,
+        axis: Option<axis::Key>,
     ) -> &mut Self {
         self.axes.strafing = axis;
         self
@@ -194,7 +194,7 @@ impl Builder {
     /// Defaults to `None`.
     pub fn axis_vertical(
         &mut self,
-        axis: Option<KeyAxis>,
+        axis: Option<axis::Key>,
     ) -> &mut Self {
         self.axes.vertical = axis;
         self
@@ -307,7 +307,7 @@ impl FirstPerson {
     /// Sets the key axis for moving forward/backward.
     pub fn set_axis_forward(
         &mut self,
-        axis: Option<KeyAxis>,
+        axis: Option<axis::Key>,
     ) -> &mut Self {
         self.axes.forward = axis;
         self
@@ -316,7 +316,7 @@ impl FirstPerson {
     /// Sets the button for "strafing" left/right.
     pub fn set_axis_strafing(
         &mut self,
-        axis: Option<KeyAxis>,
+        axis: Option<axis::Key>,
     ) -> &mut Self {
         self.axes.strafing = axis;
         self
@@ -325,7 +325,7 @@ impl FirstPerson {
     /// Sets button for moving up/down.
     pub fn set_axis_vertical(
         &mut self,
-        axis: Option<KeyAxis>,
+        axis: Option<axis::Key>,
     ) -> &mut Self {
         self.axes.vertical = axis;
         self
@@ -355,27 +355,27 @@ impl FirstPerson {
             }
         }
 
-        self.axes.vertical.map(
-            |a| if let Some(time) = a.timed(input) {
-                self.position.y += self.move_speed * time;
-            },
-        );
+        self.axes
+            .vertical
+            .map(|a| if let Some(diff) = input.timed(a) {
+                self.position.y += self.move_speed * diff * dtime;
+            });
 
-        self.axes.forward.map(
-            |a| if let Some(time) = a.timed(input) {
-                self.position.x += self.move_speed * time * self.yaw.sin();
-                self.position.z -= self.move_speed * time * self.yaw.cos();
+        self.axes
+            .forward
+            .map(|a| if let Some(diff) = input.timed(a) {
+                self.position.x += self.move_speed * diff * self.yaw.sin();
+                self.position.z -= self.move_speed * diff * self.yaw.cos();
                 if self.vertical_move {
-                    self.position.y -= self.move_speed * time * self.pitch.sin();
+                    self.position.y -= self.move_speed * diff * self.pitch.sin();
                 }
-            },
-        );
-        self.axes.strafing.map(
-            |a| if let Some(time) = a.timed(input) {
-                self.position.x += self.move_speed * time * self.yaw.cos();
-                self.position.z += self.move_speed * time * self.yaw.sin();
-            },
-        );
+            });
+        self.axes
+            .strafing
+            .map(|a| if let Some(diff) = input.timed(a) {
+                self.position.x += self.move_speed * diff * self.yaw.cos();
+                self.position.z += self.move_speed * diff * self.yaw.sin();
+            });
 
         let yrot = cgmath::Quaternion::from_angle_y(cgmath::Rad(-self.yaw));
         let xrot = cgmath::Quaternion::from_angle_x(cgmath::Rad(-self.pitch));

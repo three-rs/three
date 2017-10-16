@@ -112,9 +112,9 @@ impl Font {
         out: &RenderTargetView<BackendResources, ColorFormat>,
     ) {
         let mut brush = self.brush.borrow_mut();
-        brush.draw_queued(encoder, out).expect(
-            "Error while drawing text",
-        );
+        brush
+            .draw_queued(encoder, out)
+            .expect("Error while drawing text");
     }
 }
 

@@ -119,10 +119,8 @@ fn main() {
         );
     }
 
-    let mesh = win.factory.mesh_dynamic(
-        geom,
-        three::material::Wireframe { color: 0xFFFFFF },
-    );
+    let mesh = win.factory
+        .mesh_dynamic(geom, three::material::Wireframe { color: 0xFFFFFF });
     win.scene.add(&mesh);
 
     let mut shape = 0;
@@ -130,7 +128,7 @@ fn main() {
     let blend_time = 0.2f32;
     let mut timer = win.input.time();
 
-    while win.update() && !three::KEY_ESCAPE.is_hit(&win.input) {
+    while win.update() && !win.input.hit(three::KEY_ESCAPE) {
         let kf = timer.get(&win.input) / blend_time;
         win.factory.mix(&mesh, &[(&name1, kf), (&name0, 1.0 - kf)]);
         if kf > 1.0 {

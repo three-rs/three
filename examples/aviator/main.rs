@@ -59,15 +59,13 @@ fn main() {
     win.scene.add(&sky.group);
 
     let mut airplane = plane::AirPlane::new(&mut win.factory);
-    airplane.group.set_transform(
-        [0.0, 100.0, 0.0],
-        [0.0, 0.0, 0.0, 1.0],
-        0.25,
-    );
+    airplane
+        .group
+        .set_transform([0.0, 100.0, 0.0], [0.0, 0.0, 0.0, 1.0], 0.25);
     win.scene.add(&airplane.group);
 
     let timer = win.input.time();
-    while win.update() && !three::KEY_ESCAPE.is_hit(&win.input) {
+    while win.update() && !win.input.hit(three::KEY_ESCAPE) {
         use cgmath::{Quaternion, Rad};
         // assume the original velocities are given for 60fps
         let time = 60.0 * timer.get(&win.input);
