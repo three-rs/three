@@ -8,7 +8,7 @@ use render::DynamicData;
 ///
 /// # Examples
 ///
-/// Creating a red triangle.
+/// Creating a solid red triangle.
 ///
 /// ```rust,no_run
 /// # let mut win = three::Window::new("Example");
@@ -19,11 +19,7 @@ use render::DynamicData;
 ///     [ 0.5, -0.5, 0.0].into(),
 /// ];
 /// let geometry = three::Geometry::with_vertices(vertices);
-/// let red_material = three::Material::MeshBasic {
-///     color: 0xFF0000,
-///     wireframe: false,
-///     map: None,
-/// };
+/// let red_material = three::material::Basic { color: three::color::RED, map: None };
 /// let mesh = factory.mesh(geometry, red_material);
 /// # let _ = mesh;
 /// ```
@@ -39,20 +35,28 @@ use render::DynamicData;
 /// #     [ 0.5, -0.5, 0.0].into(),
 /// # ];
 /// # let geometry = three::Geometry::with_vertices(vertices);
-/// # let red_material = three::Material::MeshBasic {
-/// #     color: 0xFF0000,
-/// #     wireframe: false,
-/// #     map: None,
-/// # };
+/// # let red_material = three::material::Basic { color: three::color::RED, map: None };
 /// # let mesh = factory.mesh(geometry, red_material);
-/// let yellow_material = three::Material::MeshBasic {
-///    color: 0xFFFF00,
-///    wireframe: false,
-///    map: None,
-/// };
-/// let mut duplicate = factory.mesh_instance(&mesh, Some(yellow_material));
-/// // Duplicated meshes share their geometry but can be transformed individually
-/// // and be rendered with different materials.
+/// let mut duplicate = factory.mesh_instance(&mesh);
+/// // Duplicated meshes share their geometry but may be transformed individually.
+/// duplicate.set_position([1.2, 3.4, 5.6]);
+/// ```
+///
+/// Duplicating a mesh with a different material.
+///
+/// ```rust,no_run
+/// # let mut win = three::Window::new("Example");
+/// # let factory = &mut win.factory;
+/// # let vertices = vec![
+/// #     [-0.5, -0.5, 0.0].into(),
+/// #     [ 0.5, -0.5, 0.0].into(),
+/// #     [ 0.5, -0.5, 0.0].into(),
+/// # ];
+/// # let geometry = three::Geometry::with_vertices(vertices);
+/// # let red_material = three::material::Basic { color: three::color::RED, map: None };
+/// # let mesh = factory.mesh(geometry, red_material);
+/// let yellow_material = three::material::Wireframe { color: three::color::YELLOW };
+/// let mut duplicate = factory.mesh_instance_with_material(&mesh, yellow_material);
 /// duplicate.set_position([1.2, 3.4, 5.6]);
 /// ```
 ///

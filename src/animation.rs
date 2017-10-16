@@ -343,7 +343,7 @@ impl Action {
 impl Mixer {
     fn process_messages(&mut self) {
         while let Ok((weak_ptr, operation)) = self.rx.try_recv() {
-            let mut action = match weak_ptr.upgrade() {
+            let action = match weak_ptr.upgrade() {
                 Ok(ptr) => &mut self.actions[&ptr],
                 Err(_) => continue,
             };
@@ -364,7 +364,7 @@ impl Mixer {
         &mut self,
         delta_time: f32,
     ) {
-        for mut action in self.actions.iter_mut() {
+        for action in self.actions.iter_mut() {
             action.update(delta_time);
         }
     }

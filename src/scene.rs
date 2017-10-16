@@ -1,10 +1,9 @@
+
+use color::Color;
 use hub::{HubPtr, Message, Operation};
 use node::NodePointer;
 use std::sync::mpsc;
 use texture::{CubeMap, Texture};
-
-/// Color represented by 4-bytes hex number.
-pub type Color = u32;
 
 pub type SceneId = usize;
 

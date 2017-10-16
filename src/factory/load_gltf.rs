@@ -1,11 +1,12 @@
 use animation;
+use color;
 use geometry;
 use gltf;
 use gltf_importer;
 use image;
+use material;
 use mint;
 use std::{fs, io};
-use util;
 
 use camera::Camera;
 use gltf::Gltf;
@@ -114,25 +115,30 @@ impl super::Factory {
             is_basic_material = false;
             self.load_gltf_texture(&t, buffers, base)
         });
+        let (base_color_factor, base_color_alpha) = {
+            let x = pbr.base_color_factor();
+            (color::from_linear_rgb([x[0], x[1], x[2]]), x[3])
+        };
         if is_basic_material {
-            Material::MeshBasic {
-                color: util::encode_color(pbr.base_color_factor()),
-                wireframe: false,
+            material::Basic {
+                color: base_color_factor,
                 map: base_color_map,
-            }
+            }.into()
         } else {
-            Material::MeshPbr {
-                base_color_factor: pbr.base_color_factor(),
-                metallic_roughness: [pbr.metallic_factor(), pbr.roughness_factor()],
+            material::Pbr {
+                base_color_factor,
+                base_color_alpha,
+                metallic_factor: pbr.metallic_factor(),
+                roughness_factor: pbr.roughness_factor(),
                 occlusion_strength: mat.occlusion_texture().map_or(1.0, |t| t.strength()),
-                emissive_factor: mat.emissive_factor(),
+                emissive_factor: color::from_linear_rgb(mat.emissive_factor()),
                 normal_scale: mat.normal_texture().map_or(1.0, |t| t.scale()),
                 base_color_map,
                 normal_map,
                 emissive_map,
                 metallic_roughness_map,
                 occlusion_map,
-            }
+            }.into()
         }
     }
 
@@ -236,7 +242,7 @@ impl super::Factory {
                 if has_entry {
                     let mesh = meshes.get(index).unwrap();
                     for primitive in mesh.iter() {
-                        let instance = self.mesh_instance(primitive, None);
+                        let instance = self.mesh_instance(primitive);
                         item.group.add(&instance);
                         instances.push(instance);
                     }
@@ -251,18 +257,18 @@ impl super::Factory {
 
             if let Some(entry) = item.node.camera() {
                 match entry.projection() {
-                    gltf::camera::Projection::Orthographic(x) => {
+                    gltf::camera::Projection::Orthographic(values) => {
                         let center: mint::Point2<f32> = [0.0, 0.0].into();
-                        let extent_y = x.ymag();
-                        let range = x.znear() .. x.zfar();
+                        let extent_y = values.ymag();
+                        let range = values.znear() .. values.zfar();
                         let camera = self.orthographic_camera(center, extent_y, range);
                         item.group.add(&camera);
                         cameras.push(camera);
                     }
-                    gltf::camera::Projection::Perspective(x) => {
-                        let fov_y = x.yfov().to_degrees();
-                        let near = x.znear();
-                        let camera = if let Some(far) = x.zfar() {
+                    gltf::camera::Projection::Perspective(values) => {
+                        let fov_y = values.yfov().to_degrees();
+                        let near = values.znear();
+                        let camera = if let Some(far) = values.zfar() {
                             self.perspective_camera(fov_y, near .. far)
                         } else {
                             self.perspective_camera(fov_y, near ..)

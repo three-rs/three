@@ -29,15 +29,15 @@ impl Source {
             if line.starts_with("#include") {
                 if let Some(arg) = line.split_whitespace().skip(1).next() {
                     if arg.starts_with('<') {
-                        if let Some(pos) = arg[1..].find('>') {
-                            let name = &arg[1..(pos + 1)];
+                        if let Some(pos) = arg[1 ..].find('>') {
+                            let name = &arg[1 .. (pos + 1)];
                             let path = format!("data/shaders/{}.glsl", name);
                             let content = &data::FILES.get(&path).unwrap();
                             new_code += str::from_utf8(content.borrow()).unwrap();
                         }
                     } else if arg.starts_with('"') {
-                        if let Some(pos) = arg[1..].find('"') {
-                            let relative_path = &arg[1..(pos + 1)];
+                        if let Some(pos) = arg[1 ..].find('"') {
+                            let relative_path = &arg[1 .. (pos + 1)];
                             let path = root.join(relative_path);
                             let content = util::read_file_to_string(&path)?;
                             let include = Self::preprocess(root, &content)?;

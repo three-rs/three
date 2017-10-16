@@ -15,12 +15,14 @@ use gfx::format::I8Norm;
 use gfx::traits::{Factory as Factory_, FactoryExt};
 use image;
 use itertools::Either;
+use material;
 use mint;
 use obj;
 use render;
 
 use audio::{AudioData, Clip, Source};
 use camera::Camera;
+use color::Color;
 use geometry::{Geometry, Shape};
 use hub::{Hub, HubPtr, LightData, SubLight, SubNode};
 use light::{Ambient, Directional, Hemisphere, Point, ShadowMap};
@@ -29,7 +31,7 @@ use mesh::{DynamicMesh, Mesh};
 use node::Node;
 use object::Group;
 use render::{basic_pipe, BackendFactory, BackendResources, BasicPipelineState, DynamicData, GpuData, ShadowFormat, Vertex};
-use scene::{Background, Color, Scene, SceneId};
+use scene::{Background, Scene, SceneId};
 use sprite::Sprite;
 use text::{Font, Text, TextData};
 use texture::{CubeMap, CubeMapPath, FilterMethod, Sampler, Texture, WrapMode};
@@ -227,10 +229,10 @@ impl Factory {
     }
 
     /// Create new `Mesh` with desired `Geometry` and `Material`.
-    pub fn mesh(
+    pub fn mesh<M: Into<Material>>(
         &mut self,
         geometry: Geometry,
-        mat: Material,
+        material: M,
     ) -> Mesh {
         let vertices = Self::mesh_vertices(&geometry.base_shape);
         let cbuf = self.backend.create_constant_buffer(1);
@@ -245,7 +247,7 @@ impl Factory {
         };
         Mesh {
             object: self.hub.lock().unwrap().spawn_visual(
-                mat,
+                material.into(),
                 GpuData {
                     slice,
                     vertices: vbuf,
@@ -257,10 +259,10 @@ impl Factory {
     }
 
     /// Create a new `DynamicMesh` with desired `Geometry` and `Material`.
-    pub fn mesh_dynamic(
+    pub fn mesh_dynamic<M: Into<Material>>(
         &mut self,
         geometry: Geometry,
-        mat: Material,
+        material: M,
     ) -> DynamicMesh {
         let slice = {
             let data: &[u32] = gfx::memory::cast_slice(&geometry.faces);
@@ -292,7 +294,7 @@ impl Factory {
 
         DynamicMesh {
             object: self.hub.lock().unwrap().spawn_visual(
-                mat,
+                material.into(),
                 GpuData {
                     slice,
                     vertices,
@@ -310,12 +312,10 @@ impl Factory {
 
     /// Create a `Mesh` sharing the geometry with another one.
     /// Rendering a sequence of meshes with the same geometry is faster.
-    ///
-    /// When `new_mat` is `None`, the material is duplicated from its template.
+    /// The material is duplicated from the template.
     pub fn mesh_instance(
         &mut self,
         template: &Mesh,
-        new_mat: Option<Material>,
     ) -> Mesh {
         let mut hub = self.hub.lock().unwrap();
         let gpu_data = match hub.nodes[&template.node].sub_node {
@@ -325,20 +325,38 @@ impl Factory {
             },
             _ => unreachable!(),
         };
-        let mat = new_mat.unwrap_or_else(|| match hub.nodes[&template.node].sub_node {
+        let material = match hub.nodes[&template.node].sub_node {
             SubNode::Visual(ref mat, _) => mat.clone(),
             _ => unreachable!(),
-        });
-        Mesh { object: hub.spawn_visual(mat, gpu_data) }
+        };
+        Mesh { object: hub.spawn_visual(material, gpu_data) }
+    }
+
+    /// Create a `Mesh` sharing the geometry with another one but with a different material.
+    /// Rendering a sequence of meshes with the same geometry is faster.
+    pub fn mesh_instance_with_material<M: Into<Material>>(
+        &mut self,
+        template: &Mesh,
+        material: M,
+    ) -> Mesh {
+        let mut hub = self.hub.lock().unwrap();
+        let gpu_data = match hub.nodes[&template.node].sub_node {
+            SubNode::Visual(_, ref gpu) => GpuData {
+                constants: self.backend.create_constant_buffer(1),
+                ..gpu.clone()
+            },
+            _ => unreachable!(),
+        };
+        Mesh { object: hub.spawn_visual(material.into(), gpu_data) }
     }
 
     /// Create new sprite from `Material`.
     pub fn sprite(
         &mut self,
-        mat: Material,
+        material: material::Sprite,
     ) -> Sprite {
         Sprite::new(self.hub.lock().unwrap().spawn_visual(
-            mat,
+            material.into(),
             GpuData {
                 slice: gfx::Slice::new_match_vertex_buffer(&self.quad_buf),
                 vertices: self.quad_buf.clone(),
@@ -689,34 +707,36 @@ impl Factory {
                 ns: Some(glossiness),
                 ..
             } if has_normals => {
-                Material::MeshPhong {
+                material::Phong {
                     color: cf2u(color),
                     glossiness,
-                }
+                }.into()
             }
             obj::Material { kd: Some(color), .. } if has_normals => {
-                Material::MeshLambert {
+                material::Lambert {
                     color: cf2u(color),
                     flat: false,
-                }
+                }.into()
             }
             obj::Material {
                 kd: Some(color),
                 ref map_kd,
                 ..
-            } => Material::MeshBasic {
-                color: cf2u(color),
-                map: match (has_uv, map_kd) {
-                    (true, &Some(ref name)) => Some(self.request_texture(&concat_path(obj_dir, name))),
-                    _ => None,
-                },
-                wireframe: false,
-            },
-            _ => Material::MeshBasic {
-                color: 0xffffff,
-                map: None,
-                wireframe: true,
-            },
+            } => {
+                material::Basic {
+                    color: cf2u(color),
+                    map: match (has_uv, map_kd) {
+                        (true, &Some(ref name)) => Some(self.request_texture(&concat_path(obj_dir, name))),
+                        _ => None,
+                    },
+                }.into()
+            }
+            _ => {
+                material::Basic {
+                    color: 0xffffff,
+                    map: None,
+                }.into()
+            }
         }
     }
 
@@ -822,11 +842,12 @@ impl Factory {
                 );
                 let material = match gr.material {
                     Some(ref rc_mat) => self.load_obj_material(&*rc_mat, num_normals != 0, num_uvs != 0, path_parent),
-                    None => Material::MeshBasic {
-                        color: 0xffffff,
-                        map: None,
-                        wireframe: true,
-                    },
+                    None => {
+                        material::Basic {
+                            color: 0xFFFFFF,
+                            map: None,
+                        }.into()
+                    }
                 };
                 info!("\t{:?}", material);
 

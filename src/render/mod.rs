@@ -1,6 +1,7 @@
 //! The renderer.
 
 use cgmath::{Matrix4, SquareMatrix, Transform as Transform_, Vector3};
+use color;
 use froggy;
 use gfx;
 use gfx::memory::Typed;
@@ -12,7 +13,6 @@ use gfx_window_glutin;
 #[cfg(feature = "opengl")]
 use glutin;
 use mint;
-use util;
 
 pub mod source;
 
@@ -236,19 +236,19 @@ struct DebugQuad {
 
 /// All pipeline state objects used by the `three` renderer.
 pub struct PipelineStates {
-    /// Corresponds to `Material::LineBasic`.
-    line_basic: BasicPipelineState,
-
-    /// Corresponds to `Material::MeshBasic` with `wireframe` set to `false`.
+    /// Corresponds to `Material::Basic`.
     mesh_basic_fill: BasicPipelineState,
 
-    /// Corresponds to `Material::MeshBasic` with `wireframe` set to `true`.
+    /// Corresponds to `Material::Line`.
+    line_basic: BasicPipelineState,
+
+    /// Corresponds to `Material::Wireframe`.
     mesh_basic_wireframe: BasicPipelineState,
 
-    /// Corresponds to `Material::MeshGouraud`.
+    /// Corresponds to `Material::Gouraud`.
     mesh_gouraud: BasicPipelineState,
 
-    /// Corresponds to `Material::MeshPhong`.
+    /// Corresponds to `Material::Phong`.
     mesh_phong: BasicPipelineState,
 
     /// Corresponds to `Material::Sprite`.
@@ -260,7 +260,7 @@ pub struct PipelineStates {
     /// Used internally for rendering sprites.
     quad: gfx::PipelineState<back::Resources, quad_pipe::Meta>,
 
-    /// Corresponds to `Material::MeshPbr`.
+    /// Corresponds to `Material::Pbr`.
     pbr: gfx::PipelineState<back::Resources, pbr_pipe::Meta>,
 
     /// Used internally for rendering `Background::Skybox`.
@@ -301,15 +301,15 @@ impl PipelineStates {
             ..rast_fill
         };
 
-        let pso_line_basic = backend.create_pipeline_state(
-            &basic,
-            gfx::Primitive::LineStrip,
-            rast_fill,
-            basic_pipe::new(),
-        )?;
         let pso_mesh_basic_fill = backend.create_pipeline_state(
             &basic,
             gfx::Primitive::TriangleList,
+            rast_fill,
+            basic_pipe::new(),
+        )?;
+        let pso_line_basic = backend.create_pipeline_state(
+            &basic,
+            gfx::Primitive::LineStrip,
             rast_fill,
             basic_pipe::new(),
         )?;
@@ -366,8 +366,8 @@ impl PipelineStates {
         )?;
 
         Ok(PipelineStates {
-            line_basic: pso_line_basic,
             mesh_basic_fill: pso_mesh_basic_fill,
+            line_basic: pso_line_basic,
             mesh_basic_wireframe: pso_mesh_basic_wireframe,
             mesh_gouraud: pso_mesh_gouraud,
             mesh_phong: pso_mesh_phong,
@@ -593,8 +593,14 @@ impl Renderer {
                     pos: p.into(),
                     dir: d.extend(0.0).into(),
                     focus: [0.0, 0.0, 0.0, 0.0],
-                    color: util::decode_color(light.color),
-                    color_back: util::decode_color(color_back),
+                    color: {
+                        let rgb = color::to_linear_rgb(light.color);
+                        [rgb[0], rgb[1], rgb[2], 0.0]
+                    },
+                    color_back: {
+                        let rgb = color::to_linear_rgb(color_back);
+                        [rgb[0], rgb[1], rgb[2], 0.0]
+                    },
                     intensity,
                     shadow_params: [shadow_index, 0, 0, 0],
                 });
@@ -673,9 +679,10 @@ impl Renderer {
         self.encoder.clear_stencil(&self.out_depth, 0);
 
         if let Background::Color(color) = scene.background {
+            let rgb = color::to_linear_rgb(color);
             self.encoder.clear(
                 &self.out_color,
-                util::decode_color(color),
+                [rgb[0], rgb[1], rgb[2], 0.0],
             );
         }
 
@@ -700,18 +707,7 @@ impl Renderer {
 
             //TODO: batch per PSO
             match *material {
-                Material::MeshPbr {
-                    base_color_factor,
-                    metallic_roughness,
-                    occlusion_strength,
-                    emissive_factor,
-                    normal_scale,
-                    ref base_color_map,
-                    ref normal_map,
-                    ref emissive_map,
-                    ref metallic_roughness_map,
-                    ref occlusion_map,
-                } => {
+                Material::Pbr(ref params) => {
                     self.encoder.update_constant_buffer(
                         &gpu_data.constants,
                         &Locals {
@@ -720,30 +716,32 @@ impl Renderer {
                         },
                     );
                     let mut pbr_flags = PbrFlags::empty();
-                    if base_color_map.is_some() {
+                    if params.base_color_map.is_some() {
                         pbr_flags.insert(BASE_COLOR_MAP);
                     }
-                    if normal_map.is_some() {
+                    if params.normal_map.is_some() {
                         pbr_flags.insert(NORMAL_MAP);
                     }
-                    if metallic_roughness_map.is_some() {
+                    if params.metallic_roughness_map.is_some() {
                         pbr_flags.insert(METALLIC_ROUGHNESS_MAP);
                     }
-                    if emissive_map.is_some() {
+                    if params.emissive_map.is_some() {
                         pbr_flags.insert(EMISSIVE_MAP);
                     }
-                    if occlusion_map.is_some() {
+                    if params.occlusion_map.is_some() {
                         pbr_flags.insert(OCCLUSION_MAP);
                     }
+                    let bcf = color::to_linear_rgb(params.base_color_factor);
+                    let emf = color::to_linear_rgb(params.emissive_factor);
                     self.encoder.update_constant_buffer(
                         &self.pbr_buf,
                         &PbrParams {
-                            base_color_factor: base_color_factor,
+                            base_color_factor: [bcf[0], bcf[1], bcf[2], params.base_color_alpha],
                             camera: [0.0, 0.0, 1.0],
-                            emissive_factor: emissive_factor,
-                            metallic_roughness: metallic_roughness,
-                            normal_scale: normal_scale,
-                            occlusion_strength: occlusion_strength,
+                            emissive_factor: [emf[0], emf[1], emf[2]],
+                            metallic_roughness: [params.metallic_factor, params.roughness_factor],
+                            normal_scale: params.normal_scale,
+                            occlusion_strength: params.occlusion_strength,
                             pbr_flags: pbr_flags.bits(),
                             _padding0: unsafe { mem::uninitialized() },
                             _padding1: unsafe { mem::uninitialized() },
@@ -756,28 +754,36 @@ impl Renderer {
                         lights: self.light_buf.clone(),
                         params: self.pbr_buf.clone(),
                         base_color_map: {
-                            base_color_map
+                            params
+                                .base_color_map
                                 .as_ref()
                                 .unwrap_or(&self.map_default)
                                 .to_param()
                         },
                         normal_map: {
-                            normal_map.as_ref().unwrap_or(&self.map_default).to_param()
+                            params
+                                .normal_map
+                                .as_ref()
+                                .unwrap_or(&self.map_default)
+                                .to_param()
                         },
                         emissive_map: {
-                            emissive_map
+                            params
+                                .emissive_map
                                 .as_ref()
                                 .unwrap_or(&self.map_default)
                                 .to_param()
                         },
                         metallic_roughness_map: {
-                            metallic_roughness_map
+                            params
+                                .metallic_roughness_map
                                 .as_ref()
                                 .unwrap_or(&self.map_default)
                                 .to_param()
                         },
                         occlusion_map: {
-                            occlusion_map
+                            params
+                                .occlusion_map
                                 .as_ref()
                                 .unwrap_or(&self.map_default)
                                 .to_param()
@@ -789,31 +795,19 @@ impl Renderer {
                 }
                 ref other => {
                     let (pso, color, param0, map) = match *other {
-                        Material::MeshPbr { .. } => unreachable!(),
-                        Material::LineBasic { color } => (&self.pso.line_basic, color, 0.0, None),
-                        Material::MeshBasic {
-                            color,
-                            ref map,
-                            wireframe: false,
-                        } => (&self.pso.mesh_basic_fill, color, 0.0, map.as_ref()),
-                        Material::MeshBasic {
-                            color,
-                            map: _,
-                            wireframe: true,
-                        } => (&self.pso.mesh_basic_wireframe, color, 0.0, None),
-                        Material::MeshLambert { color, flat } => (
+                        Material::Pbr(_) => unreachable!(),
+                        Material::Basic(ref params) => (&self.pso.mesh_basic_fill, params.color, 0.0, params.map.as_ref()),
+                        Material::CustomBasic(ref params) => (&params.pipeline, params.color, 0.0, params.map.as_ref()),
+                        Material::Lambert(ref params) => (
                             &self.pso.mesh_gouraud,
-                            color,
-                            if flat { 0.0 } else { 1.0 },
+                            params.color,
+                            if params.flat { 0.0 } else { 1.0 },
                             None,
                         ),
-                        Material::MeshPhong { color, glossiness } => (&self.pso.mesh_phong, color, glossiness, None),
-                        Material::Sprite { ref map } => (&self.pso.sprite, !0, 0.0, Some(map)),
-                        Material::CustomBasicPipeline {
-                            color,
-                            ref map,
-                            ref pipeline,
-                        } => (pipeline, color, 0.0, map.as_ref()),
+                        Material::Line(ref params) => (&self.pso.line_basic, params.color, 0.0, None),
+                        Material::Phong(ref params) => (&self.pso.mesh_phong, params.color, params.glossiness, None),
+                        Material::Sprite(ref params) => (&self.pso.sprite, !0, 0.0, Some(&params.map)),
+                        Material::Wireframe(ref params) => (&self.pso.mesh_basic_wireframe, params.color, 0.0, None),
                     };
                     let uv_range = match map {
                         Some(ref map) => map.uv_range(),
@@ -823,7 +817,10 @@ impl Renderer {
                         &gpu_data.constants,
                         &Locals {
                             mx_world: Matrix4::from(node.world_transform).into(),
-                            color: util::decode_color(color),
+                            color: {
+                                let rgb = color::to_linear_rgb(color);
+                                [rgb[0], rgb[1], rgb[2], 0.0]
+                            },
                             mat_params: [param0, 0.0, 0.0, 0.0],
                             uv_range,
                         },
