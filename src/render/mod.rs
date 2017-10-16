@@ -506,12 +506,16 @@ impl Renderer {
     ) {
         self.device.cleanup();
         let mut hub = scene.hub.lock().unwrap();
+        let scene_id;
+        {
+            scene_id = hub.nodes[&scene.object.node].scene_id
+        }
         hub.process_messages();
         hub.update_graph();
 
         // update dynamic meshes
         for node in hub.nodes.iter_mut() {
-            if !node.visible || node.scene_id != Some(scene.unique_id) {
+            if !node.visible || node.scene_id != scene_id {
                 continue;
             }
             if let SubNode::Visual(_, ref mut gpu_data) = node.sub_node {
@@ -539,7 +543,7 @@ impl Renderer {
         let mut lights = Vec::new();
         let mut shadow_requests = Vec::new();
         for node in hub.nodes.iter() {
-            if !node.visible || node.scene_id != Some(scene.unique_id) {
+            if !node.visible || node.scene_id != scene_id {
                 continue;
             }
             if let SubNode::Light(ref light) = node.sub_node {
@@ -621,7 +625,7 @@ impl Renderer {
                 },
             );
             for node in hub.nodes.iter() {
-                if !node.visible || node.scene_id != Some(scene.unique_id) {
+                if !node.visible || node.scene_id != scene_id {
                     continue;
                 }
                 let gpu_data = match node.sub_node {
@@ -653,7 +657,7 @@ impl Renderer {
             let p: [[f32; 4]; 4] = camera.matrix(self.get_aspect()).into();
             let node = &hub.nodes[&camera.object.node];
             let w = match node.scene_id {
-                Some(id) if id == scene.unique_id => node.world_transform,
+                Some(id) if Some(id) == scene_id => node.world_transform,
                 Some(_) => panic!("Camera does not belong to this scene"),
                 None => node.transform,
             };
@@ -695,7 +699,7 @@ impl Renderer {
             None => shadow_default.clone(),
         };
         for node in hub.nodes.iter() {
-            if !node.visible || node.scene_id != Some(scene.unique_id) {
+            if !node.visible || node.scene_id != scene_id {
                 continue;
             }
             let (material, gpu_data) = match node.sub_node {
