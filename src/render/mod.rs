@@ -506,10 +506,8 @@ impl Renderer {
     ) {
         self.device.cleanup();
         let mut hub = scene.hub.lock().unwrap();
-        let scene_id;
-        {
-            scene_id = hub.nodes[&scene.object.node].scene_id
-        }
+        let scene_id = hub.nodes[&scene.object.node].scene_id;
+
         hub.process_messages();
         hub.update_graph();
 
