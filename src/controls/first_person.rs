@@ -339,9 +339,7 @@ impl FirstPerson {
         &mut self,
         input: &Input,
     ) {
-        let dtime = input.delta_time();
-        let dlook = dtime * self.look_speed;
-
+        let dlook = input.delta_time() * self.look_speed;
         let mouse = input.mouse_delta_raw();
 
         self.yaw += dlook * mouse.x;
@@ -360,7 +358,7 @@ impl FirstPerson {
         self.axes
             .vertical
             .map(|a| if let Some(diff) = input.timed(a) {
-                self.position.y += self.move_speed * diff * dtime;
+                self.position.y += self.move_speed * diff;
             });
 
         self.axes
