@@ -261,14 +261,26 @@ impl Input {
         hit.hit(self)
     }
 
-    /// Returns `Option<delta>` value for specified axis, where `delta` is either `i8` for
-    /// [`axis::Key`](struct.Key.html) or `f32` for [`axis::Raw`](struct.Raw.html).
+    /// Returns the change ('delta') in input state since the last call to
+    /// [`Window::update`].
     ///
-    /// Delta value for [`axis::Key`](struct.Key.html) represents the amount of `positive` hits minus
-    /// amount of `negative` hits.
+    /// This value depends on the type of input device is given.
     ///
-    /// Delta value for [`axis::Raw`](struct.Raw.html) represents the sum of all
-    /// [raw movements](struct.Input.html#method.axes_movements) along specific axis.
+    /// [`axis::Key`]
+    ///
+    ///  * `None` when no updates to the axis are received.
+    ///  * `Some(1)` when only positive input to the axis is received.
+    ///  * `Some(-1)` when only negative input to the axis is received.
+    ///  * `Some(0)` when both positive and negative input to the axis is received.
+    ///
+    /// [`axis::Raw`]
+    ///
+    ///  * `None` when no updates to the axis are received and
+    ///  * `Some(x)` where `x` is the sum of positive and negative inputs otherwise.
+    ///
+    /// [`Window::update`]: window/struct.Window.html#method.update
+    /// [`axis::Key`]: input/axis/struct.Key.html
+    /// [`axis::Raw`]: input/axis/struct.Raw.html
     pub fn delta<D: Delta>(
         &self,
         delta: D,
@@ -276,8 +288,10 @@ impl Input {
         delta.delta(self)
     }
 
-    /// The shortcut for [delta](struct.Input.html#method.delta) *
-    /// [delta_time](struct.Input.html#method.delta_time).
+    /// Shortcut for [`delta`] `*` [`delta_time`].
+    ///
+    /// [`delta`]: struct.Input.html#method.delta
+    /// [`delta_time`]: struct.Input.html#method.delta_time
     pub fn timed<D: Delta>(
         &self,
         delta: D,
@@ -323,9 +337,27 @@ impl Hit for Button {
         input: &Input,
     ) -> bool {
         match *self {
-            Button::Key(button) => input.state.keys_pressed.contains(&button),
-            Button::Mouse(button) => input.state.mouse_pressed.contains(&button),
+            Button::Key(button) => button.hit(input),
+            Button::Mouse(button) => button.hit(input),
         }
+    }
+}
+
+impl Hit for Key {
+    fn hit(
+        &self,
+        input: &Input,
+    ) -> bool {
+        input.state.keys_pressed.contains(self)
+    }
+}
+
+impl Hit for MouseButton {
+    fn hit(
+        &self,
+        input: &Input,
+    ) -> bool {
+        input.state.mouse_pressed.contains(self)
     }
 }
 
@@ -334,12 +366,9 @@ impl Hit for axis::Key {
         &self,
         input: &Input,
     ) -> bool {
-        input
-            .delta
-            .keys_hit
-            .iter()
-            .filter(|&&k| k == self.pos || k == self.neg)
-            .count() > 0
+        let pos_hit = input.state.keys_pressed.contains(&self.pos);
+        let neg_hit = input.state.keys_pressed.contains(&self.neg);
+        pos_hit || neg_hit
     }
 }
 
@@ -444,11 +473,11 @@ impl Delta for axis::Key {
         &self,
         input: &Input,
     ) -> Self::Output {
-        let (pos, neg) = self.hit_count(input);
-        if pos + neg == 0 {
-            None
-        } else {
-            Some(pos as i8 - neg as i8)
+        match (self.pos.hit(input), self.neg.hit(input)) {
+            (true, true) => Some(0),
+            (true, false) => Some(1),
+            (false, true) => Some(-1),
+            (false, false) => None,
         }
     }
 
@@ -457,7 +486,7 @@ impl Delta for axis::Key {
         input: &Input,
     ) -> Option<TimerDuration> {
         self.delta(input)
-            .map(|v| v as TimerDuration * input.delta_time())
+            .map(|delta| delta as TimerDuration * input.delta_time())
     }
 }
 
