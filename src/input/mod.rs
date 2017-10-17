@@ -95,6 +95,11 @@ impl Input {
         self.delta.time_delta
     }
 
+    /// Get list of all keys hit since the last frame.
+    pub fn keys_hit(&self) -> &[Key] {
+        &self.delta.keys_hit
+    }
+
     /// Get current mouse pointer position in pixels from top-left.
     pub fn mouse_pos(&self) -> mint::Point2<f32> {
         self.state.mouse_pos
