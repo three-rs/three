@@ -15,13 +15,13 @@ fn main() {
 
     let mut dir_light = win.factory.directional_light(0xffffff, 0.9);
     dir_light.look_at([15.0, 35.0, 35.0], [0.0, 0.0, 2.0], None);
-    win.scene.add(&dir_light);
+    dir_light.set_parent(&win.scene);
 
     let mut root = win.factory.group();
-    win.scene.add(&root);
-    let (group_map, _meshes) = win.factory.load_obj(&path);
-    for g in group_map.values() {
-        root.add(g);
+    root.set_parent(&win.scene);
+    let (mut group_map, _meshes) = win.factory.load_obj(&path);
+    for g in group_map.values_mut() {
+        g.set_parent(&root);
     }
 
     while win.update() && !win.input.hit(three::KEY_ESCAPE) {

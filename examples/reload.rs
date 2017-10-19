@@ -93,7 +93,7 @@ fn main() {
     let material = three::material::Sprite { map };
     let mut sprite = win.factory.sprite(material);
     sprite.set_scale(1.0);
-    win.scene.add(&sprite);
+    sprite.set_parent(&win.scene);
 
     let mut reload = true;
     while win.update() && !win.input.hit(three::KEY_ESCAPE) {

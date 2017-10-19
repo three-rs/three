@@ -27,10 +27,10 @@ fn create_cubes(
 
     let root = {
         let mut group = factory.group();
-        let mesh = factory.mesh(geometry.clone(), materials[0].clone());
+        let mut mesh = factory.mesh(geometry.clone(), materials[0].clone());
         group.set_position([0.0, 0.0, 1.0]);
         group.set_scale(2.0);
-        group.add(&mesh);
+        mesh.set_parent(&group);
         Cube {
             group,
             mesh,
@@ -85,8 +85,8 @@ fn create_cubes(
             };
             let p: mint::Vector3<f32> = child.disp.into();
             cube.group.set_transform(p, child.rot, child.scale);
-            cube.group.add(&cube.mesh);
-            list[next.parent_id].group.add(&cube.group);
+            cube.group.set_parent(&list[next.parent_id].group);
+            cube.mesh.set_parent(&cube.group);
             if next.mat_id + 1 < materials.len() && next.lev_id + 1 < levels.len() {
                 stack.push(Stack {
                     parent_id: list.len(),
@@ -121,7 +121,7 @@ fn main() {
 
     let mut light = win.factory.point_light(0xffffff, 1.0);
     light.set_position([0.0, -10.0, 10.0]);
-    win.scene.add(&light);
+    light.set_parent(&win.scene);
 
     let materials: Vec<_> = COLORS
         .iter()
@@ -129,7 +129,7 @@ fn main() {
         .collect();
     let levels: Vec<_> = SPEEDS.iter().map(|&speed| Level { speed }).collect();
     let mut cubes = create_cubes(&mut win.factory, &materials, &levels);
-    win.scene.add(&cubes[0].group);
+    cubes[0].group.set_parent(&win.scene);
 
     let timer = win.input.time();
     while win.update() && !win.input.hit(three::KEY_ESCAPE) {

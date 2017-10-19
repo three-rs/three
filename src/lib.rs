@@ -45,8 +45,7 @@
 //!     color: 0xFFFF00,
 //!     .. Default::default()
 //! };
-//! let mesh = window.factory.mesh(geometry, material);
-//! # let _ = mesh;
+//! let mut mesh = window.factory.mesh(geometry, material);
 //! # }
 //! ```
 //!
@@ -70,8 +69,8 @@
 //! #      color: 0xFFFF00,
 //! #      .. Default::default()
 //! # };
-//! # let mesh = window.factory.mesh(geometry, material);
-//! window.scene.add(&mesh);
+//! # let mut mesh = window.factory.mesh(geometry, material);
+//! mesh.set_parent(&window.scene);
 //! # }
 //! ```
 //!
@@ -108,8 +107,8 @@
 //! #         color: 0xFFFF00,
 //! #         .. Default::default()
 //! #     };
-//! #     let mesh = window.factory.mesh(geometry, material);
-//! #     window.scene.add(&mesh);
+//! #     let mut mesh = window.factory.mesh(geometry, material);
+//! #     mesh.set_parent(&window.scene);
 //! let center = [0.0, 0.0];
 //! let yextent = 1.0;
 //! let zrange = -1.0 .. 1.0;
@@ -142,8 +141,8 @@
 //!         color: 0xFFFF00,
 //!         .. Default::default()
 //!     };
-//!     let mesh = window.factory.mesh(geometry, material);
-//!     window.scene.add(&mesh);
+//!     let mut mesh = window.factory.mesh(geometry, material);
+//!     mesh.set_parent(&window.scene);
 //!
 //!     let center = [0.0, 0.0];
 //!     let yextent = 1.0;
@@ -180,8 +179,8 @@
 //! fn main() {
 //! #    let mut window = three::Window::new("");
 //!     // Initialization code omitted.
-//!     let my_object = MyObject { group: window.factory.group() };
-//!     window.scene.add(&my_object);
+//!     let mut my_object = MyObject { group: window.factory.group() };
+//!     my_object.set_parent(&window.scene);
 //! }
 //! ```
 //!

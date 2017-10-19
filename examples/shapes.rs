@@ -15,7 +15,7 @@ fn main() {
         win.factory.mesh(geometry, material)
     };
     mbox.set_position([-3.0, -3.0, 0.0]);
-    win.scene.add(&mbox);
+    mbox.set_parent(&win.scene);
 
     let mut mcyl = {
         let geometry = three::Geometry::cylinder(1.0, 2.0, 2.0, 5);
@@ -23,7 +23,7 @@ fn main() {
         win.factory.mesh(geometry, material)
     };
     mcyl.set_position([3.0, -3.0, 0.0]);
-    win.scene.add(&mcyl);
+    mcyl.set_parent(&win.scene);
 
     let mut msphere = {
         let geometry = three::Geometry::uv_sphere(2.0, 5, 5);
@@ -31,7 +31,7 @@ fn main() {
         win.factory.mesh(geometry, material)
     };
     msphere.set_position([-3.0, 3.0, 0.0]);
-    win.scene.add(&msphere);
+    msphere.set_parent(&win.scene);
 
     let mut mline = {
         let geometry = three::Geometry::with_vertices(vec![
@@ -43,7 +43,7 @@ fn main() {
         win.factory.mesh(geometry, material)
     };
     mline.set_position([3.0, 3.0, 0.0]);
-    win.scene.add(&mline);
+    mline.set_parent(&win.scene);
 
     let mut angle = cgmath::Rad::zero();
     while win.update() && !win.input.hit(three::KEY_ESCAPE) {

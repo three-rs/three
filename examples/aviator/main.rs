@@ -27,20 +27,20 @@ fn main() {
 
     let mut cam = win.factory.perspective_camera(60.0, 1.0 .. 1000.0);
     cam.set_position([0.0, 100.0, 200.0]);
-    win.scene.add(&cam);
+    cam.set_parent(&win.scene);
 
     //TODO: win.scene.fog = Some(three::Fog::new(...));
     //TODO: Phong materials
 
-    let hemi_light = win.factory.hemisphere_light(0xaaaaaa, 0x000000, 0.9);
-    win.scene.add(&hemi_light);
+    let mut hemi_light = win.factory.hemisphere_light(0xaaaaaa, 0x000000, 0.9);
+    hemi_light.set_parent(&win.scene);
     let mut dir_light = win.factory.directional_light(0xffffff, 0.9);
     dir_light.look_at([150.0, 350.0, 350.0], [0.0, 0.0, 0.0], None);
     let shadow_map = win.factory.shadow_map(2048, 2048);
     dir_light.set_shadow(shadow_map, 400.0, 1.0 .. 1000.0);
-    win.scene.add(&dir_light);
-    let ambient_light = win.factory.ambient_light(0xdc8874, 0.5);
-    win.scene.add(&ambient_light);
+    dir_light.set_parent(&win.scene);
+    let mut ambient_light = win.factory.ambient_light(0xdc8874, 0.5);
+    ambient_light.set_parent(&win.scene);
 
     let mut sea = {
         let geo = three::Geometry::cylinder(600.0, 600.0, 800.0, 40);
@@ -52,17 +52,17 @@ fn main() {
     };
     let sea_base_q = cgmath::Quaternion::from_angle_x(-cgmath::Rad::turn_div_4());
     sea.set_transform([0.0, -600.0, 0.0], sea_base_q, 1.0);
-    win.scene.add(&sea);
+    sea.set_parent(&win.scene);
 
     let mut sky = sky::Sky::new(&mut rng, &mut win.factory);
     sky.group.set_position([0.0, -600.0, 0.0]);
-    win.scene.add(&sky.group);
+    sky.group.set_parent(&win.scene);
 
     let mut airplane = plane::AirPlane::new(&mut win.factory);
     airplane
         .group
         .set_transform([0.0, 100.0, 0.0], [0.0, 0.0, 0.0, 1.0], 0.25);
-    win.scene.add(&airplane.group);
+    airplane.group.set_parent(&win.scene);
 
     let timer = win.input.time();
     while win.update() && !win.input.hit(three::KEY_ESCAPE) {

@@ -8,7 +8,7 @@ fn main() {
     let mut light = win.factory.point_light(0xffffff, 0.5);
     let mut pos = [0.0, 5.0, 5.0];
     light.set_position(pos);
-    win.scene.add(&light);
+    light.set_parent(&win.scene);
 
     let geometry = three::Geometry::cylinder(1.0, 2.0, 2.0, 5);
     let mut materials: Vec<three::Material> = vec![
@@ -52,7 +52,7 @@ fn main() {
             let offset = 4.0 * (i as f32 + 0.5 - 0.5 * count as f32);
             let mut mesh = win.factory.mesh(geometry.clone(), mat);
             mesh.set_position([offset, 0.0, 0.0]);
-            win.scene.add(&mesh);
+            mesh.set_parent(&win.scene);
             mesh
         })
         .collect();

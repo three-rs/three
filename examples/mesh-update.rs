@@ -51,7 +51,7 @@ fn main() {
     let material = three::material::Wireframe { color: 0xFFFF00 };
     let mut mesh = win.factory.mesh_dynamic(geometry, material);
     let vertex_count = mesh.vertex_count();
-    win.scene.add(&mesh);
+    mesh.set_parent(&win.scene);
 
     let mut timer = win.input.time();
     let mut vi = 0;

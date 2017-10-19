@@ -13,7 +13,7 @@ use froggy;
 use mint;
 
 use std::sync::{Arc, Mutex};
-use std::sync::mpsc;
+use std::sync::{atomic, mpsc};
 
 #[derive(Clone, Debug)]
 pub(crate) enum SubLight {
@@ -44,6 +44,8 @@ pub(crate) enum SubNode {
     Visual(Material, GpuData),
     /// Lighting information for illumination and shadow casting.
     Light(LightData),
+    /// Marks the root object of a `Scene`.
+    Scene,
 }
 
 pub(crate) type Message = (froggy::WeakPointer<Node>, Operation);
@@ -122,6 +124,17 @@ impl Hub {
         data: AudioData,
     ) -> Object {
         self.spawn(SubNode::Audio(data))
+    }
+
+    pub(crate) fn spawn_scene(&mut self) -> Object {
+        static SCENE_UID_COUNTER: atomic::AtomicUsize = atomic::ATOMIC_USIZE_INIT;
+        let uid = SCENE_UID_COUNTER.fetch_add(1, atomic::Ordering::Relaxed);
+        let tx = self.message_tx.clone();
+        let node = self.nodes.create(Node {
+            scene_id: Some(uid),
+            .. SubNode::Scene.into()
+        });
+        Object { node, tx }
     }
 
     pub(crate) fn process_messages(&mut self) {

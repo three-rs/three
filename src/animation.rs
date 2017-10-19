@@ -43,7 +43,7 @@
 //! ```rust,no_run
 //! # let mut window = three::Window::new("");
 //! let mut gltf = window.factory.load_gltf("AnimatedScene.gltf");
-//! window.scene.add(&gltf.group);
+//! gltf.group.set_parent(&window.scene);
 //! ```
 //!
 //! ### Creating animation actions
@@ -58,7 +58,7 @@
 //! # let mut window = three::Window::new("");
 //! # let mut mixer = three::animation::Mixer::new();
 //! # let mut gltf = window.factory.load_gltf("AnimatedScene.gltf");
-//! # window.scene.add(&gltf.group);
+//! # gltf.group.set_parent(&window.scene);
 //! let actions: Vec<three::animation::Action> = gltf.clips
 //!     .into_iter()
 //!     .map(|clip| mixer.action(clip))
@@ -75,7 +75,7 @@
 //! # let camera = unimplemented!();
 //! # let mut mixer = three::animation::Mixer::new();
 //! # let mut gltf = window.factory.load_gltf("AnimatedScene.gltf");
-//! # window.scene.add(&gltf.group);
+//! # gltf.group.set_parent(&window.scene);
 //! # let actions: Vec<three::animation::Action> = gltf.clips
 //! #     .into_iter()
 //! #     .map(|clip| mixer.action(clip))
