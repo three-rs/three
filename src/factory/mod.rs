@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 
 use animation;
 use camera;
+use color;
 use cgmath::Vector3;
 use genmesh::{Polygon, Triangulate};
 use gfx;
@@ -19,6 +20,7 @@ use material;
 use mint;
 use obj;
 use render;
+use scene;
 
 use audio::{AudioData, Clip, Source};
 use camera::Camera;
@@ -28,10 +30,9 @@ use hub::{Hub, HubPtr, LightData, SubLight, SubNode};
 use light::{Ambient, Directional, Hemisphere, Point, ShadowMap};
 use material::Material;
 use mesh::{DynamicMesh, Mesh};
-use node::Node;
 use object::Group;
 use render::{basic_pipe, BackendFactory, BackendResources, BasicPipelineState, DynamicData, GpuData, ShadowFormat, Vertex};
-use scene::{Background, Scene, SceneId};
+use scene::Scene;
 use sprite::Sprite;
 use text::{Font, Text, TextData};
 use texture::{CubeMap, CubeMapPath, FilterMethod, Sampler, Texture, WrapMode};
@@ -73,7 +74,6 @@ pub type MapVertices<'a> = gfx::mapping::Writer<'a, BackendResources, Vertex>;
 /// `Factory` is used to instantiate game objects.
 pub struct Factory {
     pub(crate) backend: BackendFactory,
-    scene_id: SceneId,
     hub: HubPtr,
     quad_buf: gfx::handle::Buffer<BackendResources, Vertex>,
     texture_cache: HashMap<PathBuf, Texture<[f32; 4]>>,
@@ -112,7 +112,6 @@ impl Factory {
         let default_sampler = backend.create_sampler_linear();
         Factory {
             backend: backend,
-            scene_id: 0,
             hub: Hub::new(),
             quad_buf,
             texture_cache: HashMap::new(),
@@ -122,19 +121,10 @@ impl Factory {
 
     /// Create new empty [`Scene`](struct.Scene.html).
     pub fn scene(&mut self) -> Scene {
-        self.scene_id += 1;
-        let mut hub = self.hub.lock().unwrap();
-        let node = hub.nodes.create(Node {
-            scene_id: Some(self.scene_id),
-            ..SubNode::Empty.into()
-        });
-        Scene {
-            unique_id: self.scene_id,
-            node: node,
-            tx: hub.message_tx.clone(),
-            hub: self.hub.clone(),
-            background: Background::Color(0),
-        }
+        let object = self.hub.lock().unwrap().spawn_scene();
+        let hub = self.hub.clone();
+        let background = scene::Background::Color(color::BLACK);
+        Scene { object, hub, background }
     }
 
     /// Create new [Orthographic] Camera.
@@ -801,7 +791,7 @@ impl Factory {
         let mut indices = Vec::new();
 
         for object in obj.object_iter() {
-            let mut group = Group::new(hub.spawn_empty());
+            let group = Group::new(hub.spawn_empty());
             for gr in object.group_iter() {
                 let (mut num_normals, mut num_uvs) = (0, 0);
                 {
@@ -860,7 +850,7 @@ impl Factory {
                 let (vbuf, slice) = self.backend
                     .create_vertex_buffer_with_slice(&vertices, &indices[..]);
                 let cbuf = self.backend.create_constant_buffer(1);
-                let mesh = Mesh {
+                let mut mesh = Mesh {
                     object: hub.spawn_visual(
                         material,
                         GpuData {
@@ -871,7 +861,7 @@ impl Factory {
                         },
                     ),
                 };
-                group.add(&mesh);
+                mesh.set_parent(&group);
                 meshes.push(mesh);
             }
 

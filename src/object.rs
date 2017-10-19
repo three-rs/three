@@ -82,6 +82,15 @@ impl Object {
         let _ = self.tx.send((self.node.downgrade(), msg));
     }
 
+    /// Add new [`Object`](struct.Object.html) to the group.
+    pub fn set_parent<P: AsRef<NodePointer>>(
+        &mut self,
+        parent: &P,
+    ) {
+        let msg = Operation::SetParent(parent.as_ref().clone());
+        let _ = self.tx.send((self.node.downgrade(), msg));
+    }
+
     /// Set position.
     pub fn set_position<P>(
         &mut self,
@@ -124,7 +133,8 @@ impl Object {
         hub.process_messages();
         hub.update_graph();
         let node = &hub.nodes[&self.node];
-        assert_eq!(node.scene_id, Some(scene.unique_id));
+        let root = &hub.nodes[&scene.object.node];
+        assert_eq!(node.scene_id, root.scene_id);
         NodeInfo {
             transform: node.transform.into(),
             world_transform: node.world_transform.into(),
@@ -148,14 +158,5 @@ pub struct Group {
 impl Group {
     pub(crate) fn new(object: Object) -> Self {
         Group { object }
-    }
-
-    /// Add new [`Object`](struct.Object.html) to the group.
-    pub fn add<P: AsRef<NodePointer>>(
-        &mut self,
-        child: &P,
-    ) {
-        let msg = Operation::SetParent(self.object.node.clone());
-        let _ = self.object.tx.send((child.as_ref().downgrade(), msg));
     }
 }

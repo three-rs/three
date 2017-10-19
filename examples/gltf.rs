@@ -4,19 +4,19 @@ fn main() {
     let mut win = three::Window::new("Three-rs glTF example");
     let mut light = win.factory.directional_light(0xFFFFFF, 7.0);
     light.look_at([1.0, 1.0, 1.0], [0.0, 0.0, 0.0], None);
-    win.scene.add(&light);
+    light.set_parent(&win.scene);
     win.scene.background = three::Background::Color(0xC6F0FF);
 
     let default = concat!(env!("CARGO_MANIFEST_DIR"), "/test_data/Lantern.gltf");
     let path = std::env::args().nth(1).unwrap_or(default.into());
     let mut gltf = win.factory.load_gltf(&path);
-    win.scene.add(&gltf.group);
+    gltf.group.set_parent(&win.scene);
 
     let mut cam = if gltf.cameras.len() > 0 {
         gltf.cameras.swap_remove(0)
     } else {
-        let default = win.factory.perspective_camera(60.0, 0.001 .. 100.0);
-        win.scene.add(&default);
+        let mut default = win.factory.perspective_camera(60.0, 0.001 .. 100.0);
+        default.set_parent(&win.scene);
         default
     };
 

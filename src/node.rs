@@ -1,10 +1,10 @@
 use cgmath;
 use froggy;
 use mint;
+use scene;
 
 use hub::SubNode;
 use material::Material;
-use scene::SceneId;
 
 /// Pointer to a Node
 pub type NodePointer = froggy::Pointer<Node>;
@@ -27,7 +27,7 @@ pub struct Node {
     /// Pointer to node's parent.
     pub(crate) parent: Option<NodePointer>,
     /// The ID of the scene this node belongs to.
-    pub(crate) scene_id: Option<SceneId>,
+    pub(crate) scene_id: Option<scene::Uid>,
     /// Context specific-data, for example, `UiText`, `Visual` or `Light`.
     pub(crate) sub_node: SubNode,
 }
