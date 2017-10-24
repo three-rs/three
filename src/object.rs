@@ -1,10 +1,11 @@
 use std::fmt;
 use std::sync::mpsc;
+use std::ops::Deref;
 
 use mint;
 
 use hub::{Message, Operation, SubNode};
-use node::{NodeInfo, NodePointer};
+use node::{Node, NodePointer};
 use scene::Scene;
 
 //Note: no local state should be here, only remote links
@@ -83,11 +84,11 @@ impl Object {
     }
 
     /// Add new [`Object`](struct.Object.html) to the group.
-    pub fn set_parent<P: AsRef<NodePointer>>(
+    pub fn set_parent<P: Deref<Target=Object>>(
         &mut self,
         parent: &P,
     ) {
-        let msg = Operation::SetParent(parent.as_ref().clone());
+        let msg = Operation::SetParent(parent.deref().node.clone());
         let _ = self.tx.send((self.node.downgrade(), msg));
     }
 
@@ -128,14 +129,14 @@ impl Object {
     pub fn sync(
         &mut self,
         scene: &Scene,
-    ) -> NodeInfo {
+    ) -> Node {
         let mut hub = scene.hub.lock().unwrap();
         hub.process_messages();
         hub.update_graph();
         let node = &hub.nodes[&self.node];
         let root = &hub.nodes[&scene.object.node];
         assert_eq!(node.scene_id, root.scene_id);
-        NodeInfo {
+        Node {
             transform: node.transform.into(),
             world_transform: node.world_transform.into(),
             visible: node.visible,

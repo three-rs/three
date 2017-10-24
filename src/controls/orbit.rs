@@ -3,7 +3,7 @@ use cgmath::{EuclideanSpace, InnerSpace, Rotation, Rotation3, Transform as Trans
 use mint;
 
 use input::{Button, Input, MOUSE_LEFT};
-use node::Transform;
+use node::TransformInternal;
 use object::Object;
 
 /// Simple controls for Orbital Camera.
@@ -13,7 +13,7 @@ use object::Object;
 /// to adjust distance to the central point.
 pub struct Orbit {
     object: Object,
-    transform: Transform,
+    transform: TransformInternal,
     target: Point3<f32>,
     button: Button,
     speed: f32,

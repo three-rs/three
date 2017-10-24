@@ -3,7 +3,6 @@
 ///
 /// Implements the following traits:
 ///
-/// * `AsRef<NodePointer>`
 /// * `Deref<Target=Object>`
 /// * `DerefMut<Object>`
 ///
@@ -44,12 +43,6 @@ macro_rules! three_object_wrapper {
     };
     ($($name:ident::$field:ident),*) => {
         $(
-            impl AsRef<$crate::NodePointer> for $name {
-                fn as_ref(&self) -> &$crate::NodePointer {
-                    self.$field.as_ref()
-                }
-            }
-
             impl ::std::ops::Deref for $name {
                 type Target = $crate::Object;
                 fn deref(&self) -> &$crate::Object {

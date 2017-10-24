@@ -3,7 +3,7 @@ use color::{self, Color};
 use light::{ShadowMap, ShadowProjection};
 use material::{self, Material};
 use mesh::DynamicMesh;
-use node::{Node, NodePointer};
+use node::{NodeInternal, NodePointer};
 use object::Object;
 use render::GpuData;
 use text::{Operation as TextOperation, TextData};
@@ -48,7 +48,7 @@ pub(crate) enum SubNode {
     Scene,
 }
 
-pub(crate) type Message = (froggy::WeakPointer<Node>, Operation);
+pub(crate) type Message = (froggy::WeakPointer<NodeInternal>, Operation);
 pub(crate) enum Operation {
     SetAudio(AudioOperation),
     SetParent(NodePointer),
@@ -67,7 +67,7 @@ pub(crate) enum Operation {
 pub(crate) type HubPtr = Arc<Mutex<Hub>>;
 
 pub(crate) struct Hub {
-    pub(crate) nodes: froggy::Storage<Node>,
+    pub(crate) nodes: froggy::Storage<NodeInternal>,
     pub(crate) message_tx: mpsc::Sender<Message>,
     message_rx: mpsc::Receiver<Message>,
 }
@@ -130,7 +130,7 @@ impl Hub {
         static SCENE_UID_COUNTER: atomic::AtomicUsize = atomic::ATOMIC_USIZE_INIT;
         let uid = SCENE_UID_COUNTER.fetch_add(1, atomic::Ordering::Relaxed);
         let tx = self.message_tx.clone();
-        let node = self.nodes.create(Node {
+        let node = self.nodes.create(NodeInternal {
             scene_id: Some(uid),
             .. SubNode::Scene.into()
         });
