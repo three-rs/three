@@ -170,7 +170,7 @@ impl Text {
         text: S,
     ) {
         let msg = HubOperation::SetText(Operation::Text(text.into()));
-        let _ = self.object.tx.send((self.as_ref().downgrade(), msg));
+        let _ = self.object.tx.send((self.object.as_ref().downgrade(), msg));
     }
 
     /// Change font.
@@ -179,7 +179,7 @@ impl Text {
         font: &Font,
     ) {
         let msg = HubOperation::SetText(Operation::Font(font.clone()));
-        let _ = self.object.tx.send((self.as_ref().downgrade(), msg));
+        let _ = self.object.tx.send((self.object.as_ref().downgrade(), msg));
     }
 
     /// Change text position.
@@ -190,7 +190,7 @@ impl Text {
         point: P,
     ) {
         let msg = HubOperation::SetText(Operation::Pos(point.into()));
-        let _ = self.object.tx.send((self.as_ref().downgrade(), msg));
+        let _ = self.object.tx.send((self.object.as_ref().downgrade(), msg));
     }
 
     /// Change maximum bounds size, in pixels from top-left.
@@ -200,7 +200,7 @@ impl Text {
         dimensions: V,
     ) {
         let msg = HubOperation::SetText(Operation::Size(dimensions.into()));
-        let _ = self.object.tx.send((self.as_ref().downgrade(), msg));
+        let _ = self.object.tx.send((self.object.as_ref().downgrade(), msg));
     }
 
     /// Change text color.
@@ -210,7 +210,7 @@ impl Text {
         color: Color,
     ) {
         let msg = HubOperation::SetText(Operation::Color(color));
-        let _ = self.object.tx.send((self.as_ref().downgrade(), msg));
+        let _ = self.object.tx.send((self.object.as_ref().downgrade(), msg));
     }
 
     /// Change text opacity.
@@ -221,7 +221,7 @@ impl Text {
         opacity: f32,
     ) {
         let msg = HubOperation::SetText(Operation::Opacity(opacity));
-        let _ = self.object.tx.send((self.as_ref().downgrade(), msg));
+        let _ = self.object.tx.send((self.object.as_ref().downgrade(), msg));
     }
 
     /// Change font size (scale).
@@ -231,7 +231,7 @@ impl Text {
         size: f32,
     ) {
         let msg = HubOperation::SetText(Operation::Scale(size));
-        let _ = self.object.tx.send((self.as_ref().downgrade(), msg));
+        let _ = self.object.tx.send((self.object.as_ref().downgrade(), msg));
     }
 
     /// Change text layout.
@@ -241,6 +241,6 @@ impl Text {
         layout: Layout,
     ) {
         let msg = HubOperation::SetText(Operation::Layout(layout));
-        let _ = self.object.tx.send((self.as_ref().downgrade(), msg));
+        let _ = self.object.tx.send((self.object.as_ref().downgrade(), msg));
     }
 }

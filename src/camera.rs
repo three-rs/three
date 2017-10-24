@@ -60,7 +60,7 @@ use cgmath;
 use mint;
 use std::ops;
 
-use NodePointer;
+use node::NodePointer;
 use object::Object;
 
 /// The Z values of the near and far clipping planes of a camera's projection.
