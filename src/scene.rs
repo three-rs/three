@@ -8,7 +8,7 @@ use texture::{CubeMap, Texture};
 pub type Uid = usize;
 
 /// Background type.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Background {
     /// Basic solid color background.
     Color(Color),

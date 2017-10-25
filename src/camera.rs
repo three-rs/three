@@ -60,7 +60,6 @@ use cgmath;
 use mint;
 use std::ops;
 
-use node::NodePointer;
 use object::Object;
 
 /// The Z values of the near and far clipping planes of a camera's projection.
@@ -86,6 +85,7 @@ impl From<ops::RangeFrom<f32>> for ZRange {
 }
 
 /// A camera's projection.
+#[derive(Clone, Debug, PartialEq)]
 pub enum Projection {
     /// An orthographic projection.
     Orthographic(Orthographic),
@@ -96,6 +96,7 @@ pub enum Projection {
 /// Camera is used to render Scene with specific [`Projection`].
 ///
 /// [`Projection`]: enum.Projection.html
+#[derive(Clone, Debug, PartialEq)]
 pub struct Camera {
     pub(crate) object: Object,
 
@@ -157,24 +158,7 @@ impl Projection {
     }
 }
 
-impl AsRef<NodePointer> for Camera {
-    fn as_ref(&self) -> &NodePointer {
-        &self.object.node
-    }
-}
-
-impl ops::Deref for Camera {
-    type Target = Object;
-    fn deref(&self) -> &Object {
-        &self.object
-    }
-}
-
-impl ops::DerefMut for Camera {
-    fn deref_mut(&mut self) -> &mut Object {
-        &mut self.object
-    }
-}
+three_object_wrapper!(Camera);
 
 /// Orthographic projection parameters.
 #[derive(Clone, Debug, PartialEq)]

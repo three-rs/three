@@ -33,7 +33,7 @@ pub(crate) struct NodeInternal {
 }
 
 /// Position, rotation, and scale of the scene `Node`.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Transform {
     /// Position.
     pub position: mint::Point3<f32>,
@@ -55,7 +55,7 @@ impl From<TransformInternal> for Transform {
 }
 
 /// General information about scene `Node`.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Node {
     /// Relative to parent transform.
     pub transform: Transform,

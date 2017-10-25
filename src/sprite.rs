@@ -3,6 +3,7 @@ use mint;
 use object::Object;
 
 /// Two-dimensional bitmap that is integrated into a larger scene.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Sprite {
     pub(crate) object: Object,
 }

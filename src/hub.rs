@@ -132,7 +132,7 @@ impl Hub {
         let tx = self.message_tx.clone();
         let node = self.nodes.create(NodeInternal {
             scene_id: Some(uid),
-            .. SubNode::Scene.into()
+            ..SubNode::Scene.into()
         });
         Object { node, tx }
     }

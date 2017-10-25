@@ -1,6 +1,7 @@
 use std::fmt;
-use std::sync::mpsc;
+use std::hash::{Hash, Hasher};
 use std::ops::Deref;
+use std::sync::mpsc;
 
 use mint;
 
@@ -21,18 +22,32 @@ pub struct Object {
     pub(crate) tx: mpsc::Sender<Message>,
 }
 
+impl PartialEq for Object {
+    fn eq(
+        &self,
+        other: &Object,
+    ) -> bool {
+        self.node == other.node
+    }
+}
+
+impl Eq for Object {}
+
+impl Hash for Object {
+    fn hash<H: Hasher>(
+        &self,
+        state: &mut H,
+    ) {
+        self.node.hash(state);
+    }
+}
+
 impl fmt::Debug for Object {
     fn fmt(
         &self,
         f: &mut fmt::Formatter,
     ) -> fmt::Result {
         self.node.fmt(f)
-    }
-}
-
-impl AsRef<NodePointer> for Object {
-    fn as_ref(&self) -> &NodePointer {
-        &self.node
     }
 }
 
@@ -84,11 +99,11 @@ impl Object {
     }
 
     /// Add new [`Object`](struct.Object.html) to the group.
-    pub fn set_parent<P: Deref<Target=Object>>(
+    pub fn set_parent<P: AsRef<Object>>(
         &mut self,
         parent: &P,
     ) {
-        let msg = Operation::SetParent(parent.deref().node.clone());
+        let msg = Operation::SetParent(parent.as_ref().node.clone());
         let _ = self.tx.send((self.node.downgrade(), msg));
     }
 
@@ -151,7 +166,7 @@ impl Object {
 
 /// Groups are used to combine several other objects or groups to work with them
 /// as with a single entity.
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Group {
     pub(crate) object: Object,
 }

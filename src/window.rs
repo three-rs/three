@@ -34,6 +34,7 @@ pub struct Window {
 }
 
 /// Builder for creating new [`Window`](struct.Window.html) with desired parameters.
+#[derive(Debug, Clone)]
 pub struct Builder {
     dimensions: (u32, u32),
     fullscreen: bool,
