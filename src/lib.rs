@@ -300,7 +300,7 @@ pub use geometry::Geometry;
 pub use glutin::VirtualKeyCode as Key;
 pub use material::Material;
 pub use mesh::{DynamicMesh, Mesh};
-pub use node::{NodeInfo, NodePointer, NodeTransform};
+pub use node::{Node, Transform};
 pub use object::{Group, Object};
 pub use render::Renderer;
 pub use scene::{Background, Scene};
