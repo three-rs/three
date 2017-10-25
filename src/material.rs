@@ -13,7 +13,7 @@ pub mod basic {
     use super::*;
 
     /// Parameters for a basic solid mesh material.
-    #[derive(Clone, Debug)]
+    #[derive(Clone, Debug, PartialEq)]
     pub struct Basic {
         /// Solid color applied in the absense of `map`.
         ///
@@ -36,7 +36,7 @@ pub mod basic {
     }
 
     /// Parameters for a basic solid mesh material with a custom pipeline.
-    #[derive(Clone, Debug)]
+    #[derive(Clone, Debug, PartialEq)]
     pub struct Custom {
         /// Solid color applied in the absense of `map`.
         ///
@@ -54,7 +54,7 @@ pub mod basic {
 }
 
 /// Parameters for a Lamberian diffusion reflection model.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Lambert {
     /// Solid color applied in the absense of `map`.
     ///
@@ -77,7 +77,7 @@ impl Default for Lambert {
 }
 
 /// Parameters for a line material.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Line {
     /// Solid line color.
     ///
@@ -94,7 +94,7 @@ impl Default for Line {
 }
 
 /// Parameters for a PBR (physically based rendering) lighting model.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Pbr {
     /// Solid base color applied in the absense of `base_color_map`.
     ///
@@ -183,7 +183,7 @@ impl Default for Pbr {
 }
 
 /// Parameters for a Phong reflection model.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Phong {
     /// Solid color applied in the absense of `map`.
     ///
@@ -208,14 +208,14 @@ impl Default for Phong {
 }
 
 /// Texture for a 2D sprite.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Sprite {
     /// The texture the apply to the sprite.
     pub map: Texture<[f32; 4]>,
 }
 
 /// Parameters for mesh wireframe rasterization.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Wireframe {
     /// Solid color applied to each wireframe edge.
     ///
@@ -224,7 +224,7 @@ pub struct Wireframe {
 }
 
 /// Specifies the appearance of a [`Mesh`](struct.Mesh.html).
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Material {
     /// Renders triangle meshes with a solid color or texture.
     Basic(Basic),
