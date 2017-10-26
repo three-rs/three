@@ -382,6 +382,7 @@ impl PipelineStates {
 
 /// Handle for additional viewport to render some relevant debug information.
 /// See [`Renderer::debug_shadow_quad`](struct.Renderer.html#method.debug_shadow_quad).
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct DebugQuadHandle(froggy::Pointer<DebugQuad>);
 
 /// Renders [`Scene`](struct.Scene.html) by [`Camera`](struct.Camera.html).

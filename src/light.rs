@@ -10,13 +10,13 @@ use render::{BackendResources, ShadowFormat};
 
 /// `ShadowMap` is used to render shadows from [`PointLight`](struct.PointLight.html)
 /// and [`DirectionalLight`](struct.DirectionalLight.html).
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ShadowMap {
     pub(crate) resource: gfx::handle::ShaderResourceView<BackendResources, f32>,
     pub(crate) target: gfx::handle::DepthStencilView<BackendResources, ShadowFormat>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) enum ShadowProjection {
     Orthographic(Orthographic),
 }
@@ -33,6 +33,7 @@ impl ShadowMap {
 
 /// Omni-directional, fixed-intensity and fixed-color light source that affects
 /// all objects in the scene equally.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Ambient {
     pub(crate) object: Object,
 }
@@ -47,6 +48,7 @@ impl Ambient {
 /// The light source that illuminates all objects equally from a given direction,
 /// like an area light of infinite size and infinite distance from the scene;
 /// there is shading, but cannot be any distance falloff.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Directional {
     pub(crate) object: Object,
     pub(crate) shadow: Option<ShadowMap>,
@@ -93,6 +95,7 @@ impl Directional {
 /// takes color of the "ground". In other cases, color is determined as
 /// interpolation between colors of upper and lower hemispheres, depending on
 /// how much the normal is oriented to the upper and the lower hemisphere.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Hemisphere {
     pub(crate) object: Object,
 }
@@ -105,6 +108,7 @@ impl Hemisphere {
 }
 
 /// Light originates from a single point, and spreads outward in all directions.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Point {
     pub(crate) object: Object,
 }

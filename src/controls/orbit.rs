@@ -11,6 +11,7 @@ use object::Object;
 /// Camera is rotating around the fixed point without any restrictions.
 /// By default, it uses left mouse button as control button (hold it to rotate) and mouse wheel
 /// to adjust distance to the central point.
+#[derive(Clone, Debug)]
 pub struct Orbit {
     object: Object,
     transform: TransformInternal,
@@ -20,6 +21,7 @@ pub struct Orbit {
 }
 
 /// Helper struct to construct [`Orbit`](struct.Orbit.html) with desired settings.
+#[derive(Clone, Debug)]
 pub struct Builder {
     object: Object,
     position: mint::Point3<f32>,

@@ -110,6 +110,7 @@ impl AudioData {
 ///
 /// You must add it to the scene to play sounds.
 /// You may create several `Source`s to play sounds simultaneously.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Source {
     pub(crate) object: Object,
 }
@@ -125,7 +126,7 @@ impl Source {
         clip: &Clip,
     ) {
         let msg = HubOperation::SetAudio(Operation::Append(clip.clone()));
-        let _ = self.object.tx.send((self.as_ref().downgrade(), msg));
+        let _ = self.object.tx.send((self.object.node.downgrade(), msg));
     }
 
     /// Pause current sound.
@@ -133,19 +134,19 @@ impl Source {
     /// You can [`resume`](struct.Source.html#method.resume) playback.
     pub fn pause(&self) {
         let msg = HubOperation::SetAudio(Operation::Pause);
-        let _ = self.object.tx.send((self.as_ref().downgrade(), msg));
+        let _ = self.object.tx.send((self.object.node.downgrade(), msg));
     }
 
     /// Resume playback after [`pausing`](struct.Source.html#method.pause).
     pub fn resume(&self) {
         let msg = HubOperation::SetAudio(Operation::Resume);
-        let _ = self.object.tx.send((self.as_ref().downgrade(), msg));
+        let _ = self.object.tx.send((self.object.node.downgrade(), msg));
     }
 
     /// Stop the playback by emptying the queue.
     pub fn stop(&self) {
         let msg = HubOperation::SetAudio(Operation::Stop);
-        let _ = self.object.tx.send((self.as_ref().downgrade(), msg));
+        let _ = self.object.tx.send((self.object.node.downgrade(), msg));
     }
 
     /// Adjust playback volume.
@@ -156,7 +157,7 @@ impl Source {
         volume: f32,
     ) {
         let msg = HubOperation::SetAudio(Operation::SetVolume(volume));
-        let _ = self.object.tx.send((self.as_ref().downgrade(), msg));
+        let _ = self.object.tx.send((self.object.node.downgrade(), msg));
     }
 }
 

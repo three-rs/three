@@ -8,7 +8,7 @@ use std::borrow::Borrow;
 use std::path::Path;
 
 /// Source code for a single GLSL shader.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Source(pub(crate) String);
 
 impl ops::Deref for Source {

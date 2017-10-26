@@ -4,6 +4,8 @@ use material::Material;
 use object::Object;
 use render::DynamicData;
 
+use std::hash::{Hash, Hasher};
+
 /// [`Geometry`](struct.Geometry.html) with some [`Material`](struct.Material.html).
 ///
 /// # Examples
@@ -64,16 +66,38 @@ use render::DynamicData;
 ///
 /// * Meshes are removed from the scene when dropped.
 /// * Hence, meshes must be kept in scope in order to be displayed.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Mesh {
     pub(crate) object: Object,
 }
 
 /// A dynamic version of a mesh allows changing the geometry on CPU side
 /// in order to animate the mesh.
+#[derive(Clone, Debug)]
 pub struct DynamicMesh {
     pub(crate) object: Object,
     pub(crate) geometry: Geometry,
     pub(crate) dynamic: DynamicData,
+}
+
+impl PartialEq for DynamicMesh {
+    fn eq(
+        &self,
+        other: &DynamicMesh,
+    ) -> bool {
+        self.object == other.object
+    }
+}
+
+impl Eq for DynamicMesh {}
+
+impl Hash for DynamicMesh {
+    fn hash<H: Hasher>(
+        &self,
+        state: &mut H,
+    ) {
+        self.object.hash(state);
+    }
 }
 
 impl Mesh {
