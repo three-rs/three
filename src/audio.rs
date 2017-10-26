@@ -93,6 +93,8 @@ pub(crate) struct AudioData {
 
 impl AudioData {
     pub(crate) fn new() -> Self {
+        // TODO: Change to `r::default_endpoint()` in next `rodio` release.
+        #[allow(deprecated)]
         let endpoint = if let Some(endpoint) = r::get_default_endpoint() {
             endpoint
         } else {
