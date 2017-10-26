@@ -10,7 +10,7 @@ homepage = "https://github.com/kvark/three-rs"
 repository = "https://github.com/kvark/three-rs"
 documentation = "https://docs.rs/three/"
 build = "build.rs"
-include = ["data"]
+include = ["./data/"]
 exclude = ["doc", "bors.toml", ".travis.yml", "test_data"]
 
 [lib]

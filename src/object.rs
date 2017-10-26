@@ -1,6 +1,5 @@
 use std::fmt;
 use std::hash::{Hash, Hasher};
-use std::ops::Deref;
 use std::sync::mpsc;
 
 use mint;
