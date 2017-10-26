@@ -7,7 +7,7 @@ use input::{axis, Input, Key};
 use object::Object;
 use std::f32::consts::PI;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 struct Axes {
     pub forward: Option<axis::Key>,
     pub strafing: Option<axis::Key>,
@@ -31,6 +31,7 @@ impl Default for Axes {
 }
 
 /// Controls for first person camera.
+#[derive(Clone, Debug, PartialEq)]
 pub struct FirstPerson {
     object: Object,
     position: mint::Point3<f32>,
@@ -45,6 +46,7 @@ pub struct FirstPerson {
 }
 
 /// Constructs custom [`FirstPerson`](struct.FirstPerson.html) controls.
+#[derive(Clone, Debug, PartialEq)]
 pub struct Builder {
     object: Object,
     position: mint::Point3<f32>,

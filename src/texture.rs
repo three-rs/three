@@ -7,11 +7,11 @@ use mint;
 pub use gfx::texture::{FilterMethod, WrapMode};
 
 /// The sampling properties for a `Texture`.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Sampler(pub h::Sampler<BackendResources>);
 
 /// An image applied (mapped) to the surface of a shape or polygon.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Texture<T> {
     view: h::ShaderResourceView<BackendResources, T>,
     sampler: h::Sampler<BackendResources>,
@@ -104,7 +104,7 @@ impl<P: AsRef<Path>> CubeMapPath<P> {
 
 /// Cubemap is six textures useful for
 /// [`Cubemapping`](https://en.wikipedia.org/wiki/Cube_mapping).
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct CubeMap<T> {
     view: h::ShaderResourceView<BackendResources, T>,
     sampler: h::Sampler<BackendResources>,

@@ -43,6 +43,12 @@ macro_rules! three_object_wrapper {
     };
     ($($name:ident::$field:ident),*) => {
         $(
+            impl AsRef<$crate::Object> for $name {
+                fn as_ref(&self) -> &$crate::Object {
+                    &self.$field
+                }
+            }
+
             impl ::std::ops::Deref for $name {
                 type Target = $crate::Object;
                 fn deref(&self) -> &$crate::Object {

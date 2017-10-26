@@ -103,6 +103,7 @@
 use cgmath;
 use froggy;
 use mint;
+use std::hash::{Hash, Hasher};
 use std::sync::mpsc;
 
 use Object;
@@ -226,12 +227,33 @@ enum Operation {
 type Message = (froggy::WeakPointer<ActionData>, Operation);
 
 /// Controls the playback properties of an animation
+#[derive(Clone, Debug)]
 pub struct Action {
     /// Message channel to parent mixer.
     tx: mpsc::Sender<Message>,
 
     /// Pointer to the action data held by the parent mixer.
     pointer: froggy::Pointer<ActionData>,
+}
+
+impl PartialEq for Action {
+    fn eq(
+        &self,
+        other: &Action,
+    ) -> bool {
+        self.pointer == other.pointer
+    }
+}
+
+impl Eq for Action {}
+
+impl Hash for Action {
+    fn hash<H: Hasher>(
+        &self,
+        state: &mut H,
+    ) {
+        self.pointer.hash(state);
+    }
 }
 
 /// Internal data for an animation action.

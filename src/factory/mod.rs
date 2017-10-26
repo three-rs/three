@@ -8,8 +8,8 @@ use std::path::{Path, PathBuf};
 
 use animation;
 use camera;
-use color;
 use cgmath::Vector3;
+use color;
 use genmesh::{Polygon, Triangulate};
 use gfx;
 use gfx::format::I8Norm;
@@ -124,7 +124,11 @@ impl Factory {
         let object = self.hub.lock().unwrap().spawn_scene();
         let hub = self.hub.clone();
         let background = scene::Background::Color(color::BLACK);
-        Scene { object, hub, background }
+        Scene {
+            object,
+            hub,
+            background,
+        }
     }
 
     /// Create new [Orthographic] Camera.
