@@ -323,9 +323,27 @@ impl Hit for Button {
         input: &Input,
     ) -> bool {
         match *self {
-            Button::Key(button) => input.state.keys_pressed.contains(&button),
-            Button::Mouse(button) => input.state.mouse_pressed.contains(&button),
+            Button::Key(button) => button.hit(input),
+            Button::Mouse(button) => button.hit(input),
         }
+    }
+}
+
+impl Hit for Key {
+    fn hit(
+        &self,
+        input: &Input,
+    ) -> bool {
+        input.state.keys_pressed.contains(self)
+    }
+}
+
+impl Hit for MouseButton {
+    fn hit(
+        &self,
+        input: &Input,
+    ) -> bool {
+        input.state.mouse_pressed.contains(self)
     }
 }
 
