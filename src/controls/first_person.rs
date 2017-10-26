@@ -359,24 +359,51 @@ impl FirstPerson {
 
         self.axes
             .vertical
-            .map(|a| if let Some(diff) = input.timed(a) {
-                self.position.y += self.move_speed * diff * dtime;
+            .map(|a| {
+                let mut dir = 0.0;
+                if input.hit(a.pos) {
+                    dir += 1.0;
+                }
+                if input.hit(a.neg) {
+                    dir -= 1.0;
+                }
+
+                if input.hit(a.pos) {
+                    self.position.y += dir * (self.move_speed * dtime);
+                }
+                if input.hit(a.pos) {
+                    self.position.y -= dir * (self.move_speed * dtime);
+                }
             });
 
         self.axes
             .forward
-            .map(|a| if let Some(diff) = input.timed(a) {
-                self.position.x += self.move_speed * diff * self.yaw.sin();
-                self.position.z -= self.move_speed * diff * self.yaw.cos();
+            .map(|a| {
+                let mut dir = 0.0;
+                if input.hit(a.pos) {
+                    dir += 1.0;
+                }
+                if input.hit(a.neg) {
+                    dir -= 1.0;
+                }
+                self.position.x += dir * (self.move_speed * dtime * self.yaw.sin());
+                self.position.z -= dir * (self.move_speed * dtime * self.yaw.cos());
                 if self.vertical_move {
-                    self.position.y -= self.move_speed * diff * self.pitch.sin();
+                    self.position.y -= dir * (self.move_speed * dtime * self.pitch.sin());
                 }
             });
         self.axes
             .strafing
-            .map(|a| if let Some(diff) = input.timed(a) {
-                self.position.x += self.move_speed * diff * self.yaw.cos();
-                self.position.z += self.move_speed * diff * self.yaw.sin();
+            .map(|a| {
+                let mut dir = 0.0;
+                if input.hit(a.pos) {
+                    dir += 1.0;
+                }
+                if input.hit(a.neg) {
+                    dir -= 1.0;
+                }
+                self.position.x += dir * (self.move_speed * dtime * self.yaw.cos());
+                self.position.z += dir * (self.move_speed * dtime * self.yaw.sin());
             });
 
         let yrot = cgmath::Quaternion::from_angle_y(cgmath::Rad(-self.yaw));

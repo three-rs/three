@@ -47,14 +47,19 @@ fn main() {
 
     let mut angle = cgmath::Rad::zero();
     while win.update() && !win.input.hit(three::KEY_ESCAPE) {
-        if let Some(diff) = win.input.timed(three::AXIS_LEFT_RIGHT) {
-            angle += cgmath::Rad(1.5 * diff);
-            let q = cgmath::Quaternion::from_angle_y(angle);
-            mbox.set_orientation(q);
-            mcyl.set_orientation(q);
-            msphere.set_orientation(q);
-            mline.set_orientation(q);
+        let dt = win.input.delta_time();
+        let radians_per_second = 1.5;
+        if win.input.hit(three::Key::Left) {
+            angle -= cgmath::Rad(radians_per_second * dt);
         }
+        if win.input.hit(three::Key::Right) {
+            angle += cgmath::Rad(radians_per_second * dt);
+        }
+        let q = cgmath::Quaternion::from_angle_y(angle);
+        mbox.set_orientation(q);
+        mcyl.set_orientation(q);
+        msphere.set_orientation(q);
+        mline.set_orientation(q);
         win.render(&cam);
     }
 }
