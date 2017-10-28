@@ -480,8 +480,8 @@ impl Renderer {
         gfx_window_glutin::update_views(window, &mut self.out_color, &mut self.out_depth);
     }
 
-    /// Returns current viewport aspect, i.e. width / height.
-    pub fn get_aspect(&self) -> f32 {
+    /// Returns current viewport aspect ratio, i.e. width / height.
+    pub fn aspect_ratio(&self) -> f32 {
         self.size.0 as f32 / self.size.1 as f32
     }
 
@@ -653,7 +653,7 @@ impl Renderer {
 
         // prepare target and globals
         let (mx_inv_proj, mx_view, mx_vp) = {
-            let p: [[f32; 4]; 4] = camera.matrix(self.get_aspect()).into();
+            let p: [[f32; 4]; 4] = camera.matrix(self.aspect_ratio()).into();
             let node = &hub.nodes[&camera.object.node];
             let w = match node.scene_id {
                 Some(id) if Some(id) == scene_id => node.world_transform,
