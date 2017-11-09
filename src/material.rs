@@ -8,11 +8,16 @@ use texture::Texture;
 
 pub use self::basic::Basic;
 
+use std::sync::atomic::{self, AtomicUsize};
+static MATERIAL_ID: AtomicUsize = atomic::ATOMIC_USIZE_INIT;
+
 /// Basic material API.
 pub mod basic {
     use super::*;
 
     /// Parameters for a basic solid mesh material.
+    ///
+    /// Renders triangle meshes with a solid color or texture.
     #[derive(Clone, Debug, PartialEq)]
     pub struct Basic {
         /// Solid color applied in the absense of `map`.
@@ -36,6 +41,9 @@ pub mod basic {
     }
 
     /// Parameters for a basic solid mesh material with a custom pipeline.
+    ///
+    /// Renders triangle meshes with a custom pipeline with a basic material as
+    /// its input.
     #[derive(Clone, Debug, PartialEq)]
     pub struct Custom {
         /// Solid color applied in the absense of `map`.
@@ -54,6 +62,8 @@ pub mod basic {
 }
 
 /// Parameters for a Lamberian diffusion reflection model.
+///
+/// Renders triangle meshes with the Gouraud illumination model.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Lambert {
     /// Solid color applied in the absense of `map`.
@@ -77,6 +87,8 @@ impl Default for Lambert {
 }
 
 /// Parameters for a line material.
+///
+/// Renders line strip meshes with a solid color and unit width.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Line {
     /// Solid line color.
@@ -94,6 +106,9 @@ impl Default for Line {
 }
 
 /// Parameters for a PBR (physically based rendering) lighting model.
+///
+/// Renders triangle meshes with a PBR (physically-based rendering)
+/// illumination model
 #[derive(Clone, Debug, PartialEq)]
 pub struct Pbr {
     /// Solid base color applied in the absense of `base_color_map`.
@@ -183,6 +198,8 @@ impl Default for Pbr {
 }
 
 /// Parameters for a Phong reflection model.
+///
+/// Renders triangle meshes with the Phong illumination model.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Phong {
     /// Solid color applied in the absense of `map`.
@@ -208,6 +225,10 @@ impl Default for Phong {
 }
 
 /// Texture for a 2D sprite.
+///
+/// Renders [`Sprite`] objects with the given texture.
+///
+/// [`Sprite`]: ../sprite/struct.Sprite.html
 #[derive(Clone, Debug, PartialEq)]
 pub struct Sprite {
     /// The texture the apply to the sprite.
@@ -215,6 +236,8 @@ pub struct Sprite {
 }
 
 /// Parameters for mesh wireframe rasterization.
+///
+/// Renders the edges of a triangle mesh with a solid color.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Wireframe {
     /// Solid color applied to each wireframe edge.
@@ -225,80 +248,46 @@ pub struct Wireframe {
 
 /// Specifies the appearance of a [`Mesh`](struct.Mesh.html).
 #[derive(Clone, Debug, PartialEq)]
-pub enum Material {
-    /// Renders triangle meshes with a solid color or texture.
+pub(crate) enum MaterialType {
     Basic(Basic),
-
-    /// Renders triangle meshes with a custom pipeline with a basic material as
-    /// its input.
     CustomBasic(basic::Custom),
-
-    /// Renders line strip meshes with a solid color and unit width.
     Line(Line),
-
-    /// Renders triangle meshes with the Gouraud illumination model.
     Lambert(Lambert),
-
-    /// Renders triangle meshes with the Phong illumination model.
     Phong(Phong),
-
-    /// Renders triangle meshes with a PBR (physically-based rendering)
-    /// illumination model
     Pbr(Pbr),
-
-    /// Renders [`Sprite`] objects with the given texture.
-    ///
-    /// [`Sprite`]: ../sprite/struct.Sprite.html
     Sprite(Sprite),
-
-    /// Renders the edges of a triangle mesh with a solid color.
     Wireframe(Wireframe),
 }
 
-impl From<Basic> for Material {
-    fn from(params: Basic) -> Material {
-        Material::Basic(params)
-    }
+/// Specifies the appearance of a [`Mesh`](struct.Mesh.html).
+#[derive(Debug, Clone, PartialEq)]
+pub struct Material {
+    pub(crate) mat_type: MaterialType,
+    pub(crate) id: usize,
+}
+
+macro_rules! from_for_material {
+    ($($name:ident),*) => {
+        $(
+            impl From<$name> for Material {
+                fn from(params: $name) -> Material {
+                    Material {
+                        mat_type: MaterialType::$name(params),
+                        id: MATERIAL_ID.fetch_add(1, atomic::Ordering::SeqCst),
+                    }
+                }
+            }
+        )*
+    };
 }
 
 impl From<basic::Custom> for Material {
     fn from(params: basic::Custom) -> Material {
-        Material::CustomBasic(params)
+        Material {
+            mat_type: MaterialType::CustomBasic(params),
+            id: MATERIAL_ID.fetch_add(1, atomic::Ordering::SeqCst),
+        }
     }
 }
 
-impl From<Lambert> for Material {
-    fn from(params: Lambert) -> Material {
-        Material::Lambert(params)
-    }
-}
-
-impl From<Line> for Material {
-    fn from(params: Line) -> Material {
-        Material::Line(params)
-    }
-}
-
-impl From<Phong> for Material {
-    fn from(params: Phong) -> Material {
-        Material::Phong(params)
-    }
-}
-
-impl From<Pbr> for Material {
-    fn from(params: Pbr) -> Material {
-        Material::Pbr(params)
-    }
-}
-
-impl From<Sprite> for Material {
-    fn from(params: Sprite) -> Material {
-        Material::Sprite(params)
-    }
-}
-
-impl From<Wireframe> for Material {
-    fn from(params: Wireframe) -> Material {
-        Material::Wireframe(params)
-    }
-}
+from_for_material!(Basic, Line, Wireframe, Phong, Pbr, Lambert, Sprite);

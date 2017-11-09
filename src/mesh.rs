@@ -107,11 +107,11 @@ impl Hash for DynamicMesh {
 
 impl Mesh {
     /// Set mesh material.
-    pub fn set_material(
+    pub fn set_material<M: Into<Material>>(
         &mut self,
-        material: Material,
+        material: M,
     ) {
-        let msg = Operation::SetMaterial(material);
+        let msg = Operation::SetMaterial(material.into());
         let _ = self.object.tx.send((self.object.node.downgrade(), msg));
     }
 }
@@ -123,11 +123,11 @@ impl DynamicMesh {
     }
 
     /// Set mesh material.
-    pub fn set_material(
+    pub fn set_material<M: Into<Material>>(
         &mut self,
-        material: Material,
+        material: M,
     ) {
-        let msg = Operation::SetMaterial(material);
+        let msg = Operation::SetMaterial(material.into());
         let _ = self.object.tx.send((self.object.node.downgrade(), msg));
     }
 }

@@ -21,7 +21,6 @@
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #version 150 core
-#include <locals>
 #include <globals>
 
 in vec4 a_Position;
@@ -34,10 +33,19 @@ out vec2 v_TexCoord;
 out mat3 v_Tbn;
 out vec3 v_Normal;
 
+in vec4 i_World0;
+in vec4 i_World1;
+in vec4 i_World2;
+in vec4 i_World3;
+in vec4 i_MatParams;
+in vec4 i_Color;
+in vec4 i_UvRange;
+
 void main()
 {
-    mat4 u_Model = u_World;
-    mat4 u_Mvp = u_ViewProj * u_World;
+    mat4 m_World = mat4(i_World0, i_World1, i_World2, i_World3);
+    mat4 u_Model = m_World;
+    mat4 u_Mvp = u_ViewProj * m_World;
 
     vec4 position = u_Model * a_Position;
     vec3 normal = normalize(vec3(u_Model * vec4(a_Normal.xyz, 0.0)));
