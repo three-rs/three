@@ -4,7 +4,7 @@ use std::sync::mpsc;
 
 use mint;
 
-use hub::{Message, Operation, SubNode};
+use hub::{Message, Operation};
 use node::{Node, NodePointer};
 use scene::Scene;
 
@@ -150,16 +150,7 @@ impl Object {
         let node = &hub.nodes[&self.node];
         let root = &hub.nodes[&scene.object.node];
         assert_eq!(node.scene_id, root.scene_id);
-        Node {
-            transform: node.transform.into(),
-            world_transform: node.world_transform.into(),
-            visible: node.visible,
-            world_visible: node.world_visible,
-            material: match node.sub_node {
-                SubNode::Visual(ref mat, _) => Some(mat.clone()),
-                _ => None,
-            },
-        }
+        node.to_node()
     }
 }
 

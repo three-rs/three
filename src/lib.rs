@@ -283,7 +283,7 @@ mod mesh;
 mod node;
 mod object;
 pub mod render;
-mod scene;
+pub mod scene;
 mod sprite;
 mod text;
 mod texture;
