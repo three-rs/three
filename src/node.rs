@@ -12,7 +12,7 @@ pub(crate) type TransformInternal = cgmath::Decomposed<cgmath::Vector3<f32>, cgm
 
 // Fat node of the scene graph.
 //
-// `Node` is used by `three-rs` internally,
+// `NodeInternal` is used by `three-rs` internally,
 // client code uses [`Object`](struct.Object.html) instead.
 #[derive(Debug)]
 pub(crate) struct NodeInternal {
@@ -30,6 +30,21 @@ pub(crate) struct NodeInternal {
     pub(crate) scene_id: Option<scene::Uid>,
     /// Context specific-data, for example, `UiText`, `Visual` or `Light`.
     pub(crate) sub_node: SubNode,
+}
+
+impl NodeInternal {
+    pub(crate) fn to_node(&self) -> Node {
+        Node {
+            transform: self.transform.into(),
+            world_transform: self.world_transform.into(),
+            visible: self.visible,
+            world_visible: self.world_visible,
+            material: match self.sub_node {
+                SubNode::Visual(ref mat, _) => Some(mat.clone()),
+                _ => None,
+            },
+        }
+    }
 }
 
 /// Position, rotation, and scale of the scene `Node`.
