@@ -52,7 +52,8 @@
 //! ## Managing the scene
 //!
 //! In order to be rendered by the [`Renderer`], meshes must be placed in the
-//! [`Scene`] within the viewable region.
+//! [`Scene`] within the viewable region. Any marked with the [`Object`] trait
+//! may be placed into the scene heirarchy, including user-defined structs.
 //!
 //! ```rust,no_run
 //! # extern crate three;
@@ -70,6 +71,7 @@
 //! #      .. Default::default()
 //! # };
 //! # let mut mesh = window.factory.mesh(geometry, material);
+//! use three::Object;
 //! mesh.set_parent(&window.scene);
 //! # }
 //! ```
@@ -89,8 +91,8 @@
 //!
 //! ## Creating the game loop
 //!
-//! All is left to do to render our triangle is to create a camera and to write the
-//! main game loop.
+//! All is left to do to render our triangle is to create a camera and to
+//! write the main game loop.
 //!
 //! ```rust,no_run
 //! # extern crate three;
@@ -108,6 +110,7 @@
 //! #         .. Default::default()
 //! #     };
 //! #     let mut mesh = window.factory.mesh(geometry, material);
+//! #     use three::Object;
 //! #     mesh.set_parent(&window.scene);
 //! let center = [0.0, 0.0];
 //! let yextent = 1.0;
@@ -121,11 +124,13 @@
 //!
 //! ## Putting it all together
 //!
-//! You should have the following code which renders a single yellow triangle upon
-//! a sky blue background.
+//! You should have the following code which renders a single yellow triangle
+//! upon a sky blue background.
 //!
 //! ```rust,no_run
 //! extern crate three;
+//!
+//! use three::Object;
 //!
 //! fn main() {
 //!     let title = "Getting started with three-rs";
@@ -163,18 +168,36 @@
 //! different approach to regular scene graphs whereby child objects keep their
 //! parents alive, opposed to parents keeping their children alive.
 //!
-//! At the heart of the scene heirarchy is the [`Object`] type, which is a member
-//! of all `three` objects that are placeable in the scene. One can create their
-//! own [`Object`] kind by the use of the [`three_object_wrapper!`] macro.
+//! At the heart of the scene heirarchy is the [`object::Base`] type, which
+//! is a member of all `three` objects that are placeable in the scene.
+//!
+//! All three objects are marked by the [`Object`] trait which provides the
+//! library with the [`object::Base`] type. Users may implement this trait in
+//! order to add their own structs into the scene heirarchy.
 //!
 //! ```rust,no_run
 //! #[macro_use]
 //! extern crate three;
 //!
-//! three_object_wrapper!(MyObject::group);
+//! use three::Object;
+//!
 //! struct MyObject {
 //!     group: three::Group,
 //! }
+//!
+//! impl AsRef<three::object::Base> for MyObject {
+//!     fn as_ref(&self) -> &three::object::Base {
+//!         self.group.as_ref()
+//!     }
+//! }
+//!
+//! impl AsMut<three::object::Base> for MyObject {
+//!     fn as_mut(&mut self) -> &mut three::object::Base {
+//!         self.group.as_mut()
+//!     }
+//! }
+//!
+//! impl Object for MyObject {}
 //!
 //! fn main() {
 //! #    let mut window = three::Window::new("");
@@ -224,12 +247,11 @@
 //! [`Input`]: input/struct.Input.html
 //! [`Material`]: material/enum.Material.html
 //! [`Mesh`]: mesh/struct.Mesh.html
-//! [`Object`]: object/struct.Object.html
+//! [`object::Base`]: object/struct.Base.html
+//! [`Object`]: object/trait.Object.html
 //! [`Renderer`]: struct.Renderer.html
 //! [`Scene`]: scene/struct.Scene.html
 //! [`Window`]: window/struct.Window.html
-//!
-//! [`three_object_wrapper!`]: macro.three_object_wrapper.html
 
 #[macro_use]
 extern crate bitflags;
@@ -266,6 +288,7 @@ extern crate glutin;
 
 #[macro_use]
 mod macros;
+
 pub mod audio;
 pub mod animation;
 pub mod camera;
@@ -281,7 +304,7 @@ pub mod light;
 pub mod material;
 mod mesh;
 mod node;
-mod object;
+pub mod object;
 pub mod render;
 pub mod scene;
 mod sprite;
@@ -291,26 +314,52 @@ mod util;
 #[cfg(feature = "opengl")]
 pub mod window;
 
+#[doc(inline)]
 pub use color::Color;
-pub use controls::{AXIS_DOWN_UP, AXIS_LEFT_RIGHT, KEY_ESCAPE, KEY_SPACE, MOUSE_LEFT, MOUSE_RIGHT};
-pub use controls::{Button, Input, Timer};
-pub use factory::{Factory, Gltf};
-pub use geometry::Geometry;
-#[cfg(feature = "opengl")]
-pub use glutin::VirtualKeyCode as Key;
-pub use material::Material;
-pub use mesh::{DynamicMesh, Mesh};
-pub use node::{Node, Transform};
-pub use object::{Group, Object};
-pub use render::Renderer;
-pub use scene::{Background, Scene};
-pub use sprite::Sprite;
-pub use text::{Align, Font, Layout, Text};
-pub use texture::{CubeMap, CubeMapPath, FilterMethod, Sampler, Texture, WrapMode};
-#[cfg(feature = "opengl")]
-pub use window::Window;
 
-use audio::Source;
-use light::{Ambient, Directional, Hemisphere, Point};
-three_object_wrapper!(Group, Mesh, DynamicMesh, Source, Sprite, Text);
-three_object_wrapper!(Ambient, Hemisphere, Point, Directional);
+#[doc(inline)]
+pub use controls::{AXIS_DOWN_UP, AXIS_LEFT_RIGHT, KEY_ESCAPE, KEY_SPACE, MOUSE_LEFT, MOUSE_RIGHT};
+
+#[doc(inline)]
+pub use controls::{Button, Input, Timer};
+
+#[doc(inline)]
+pub use factory::{Factory, Gltf};
+
+#[doc(inline)]
+pub use geometry::Geometry;
+
+#[cfg(feature = "opengl")]
+#[doc(inline)]
+pub use glutin::VirtualKeyCode as Key;
+
+#[doc(inline)]
+pub use material::Material;
+
+#[doc(inline)]
+pub use mesh::{DynamicMesh, Mesh};
+
+#[doc(inline)]
+pub use node::{Node, Transform};
+
+#[doc(inline)]
+pub use object::{Group, Object};
+
+#[doc(inline)]
+pub use render::Renderer;
+
+#[doc(inline)]
+pub use scene::{Background, Scene};
+
+#[doc(inline)]
+pub use sprite::Sprite;
+
+#[doc(inline)]
+pub use text::{Align, Font, Layout, Text};
+
+#[doc(inline)]
+pub use texture::{CubeMap, CubeMapPath, FilterMethod, Sampler, Texture, WrapMode};
+
+#[cfg(feature = "opengl")]
+#[doc(inline)]
+pub use window::Window;

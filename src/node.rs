@@ -13,7 +13,7 @@ pub(crate) type TransformInternal = cgmath::Decomposed<cgmath::Vector3<f32>, cgm
 // Fat node of the scene graph.
 //
 // `NodeInternal` is used by `three-rs` internally,
-// client code uses [`Object`](struct.Object.html) instead.
+// client code uses [`object::Base`](struct.Base.html) instead.
 #[derive(Debug)]
 pub(crate) struct NodeInternal {
     /// `true` if this node (and its subnodes) are visible to cameras.

@@ -1,5 +1,7 @@
 extern crate three;
 
+use three::Object;
+
 fn main() {
     let mut window = three::Window::new("Getting started with three-rs");
 

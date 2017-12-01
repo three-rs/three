@@ -30,7 +30,7 @@ use hub::{Hub, HubPtr, LightData, SubLight, SubNode};
 use light::{Ambient, Directional, Hemisphere, Point, ShadowMap};
 use material::Material;
 use mesh::{DynamicMesh, Mesh};
-use object::Group;
+use object::{Group, Object};
 use render::{basic_pipe, BackendFactory, BackendResources, BasicPipelineState, DynamicData, GpuData, ShadowFormat, Vertex};
 use scene::Scene;
 use sprite::Sprite;
@@ -316,14 +316,14 @@ impl Factory {
         template: &Mesh,
     ) -> Mesh {
         let mut hub = self.hub.lock().unwrap();
-        let gpu_data = match hub.nodes[&template.node].sub_node {
+        let gpu_data = match hub.get(&template).sub_node {
             SubNode::Visual(_, ref gpu) => GpuData {
                 constants: self.backend.create_constant_buffer(1),
                 ..gpu.clone()
             },
             _ => unreachable!(),
         };
-        let material = match hub.nodes[&template.node].sub_node {
+        let material = match hub.get(&template).sub_node {
             SubNode::Visual(ref mat, _) => mat.clone(),
             _ => unreachable!(),
         };
@@ -340,7 +340,7 @@ impl Factory {
         material: M,
     ) -> Mesh {
         let mut hub = self.hub.lock().unwrap();
-        let gpu_data = match hub.nodes[&template.node].sub_node {
+        let gpu_data = match hub.get(&template).sub_node {
             SubNode::Visual(_, ref gpu) => GpuData {
                 constants: self.backend.create_constant_buffer(1),
                 ..gpu.clone()

@@ -4,7 +4,7 @@ use light::{ShadowMap, ShadowProjection};
 use material::{self, Material};
 use mesh::DynamicMesh;
 use node::{NodeInternal, NodePointer};
-use object::Object;
+use object;
 use render::GpuData;
 use text::{Operation as TextOperation, TextData};
 
@@ -83,17 +83,39 @@ impl Hub {
         Arc::new(Mutex::new(hub))
     }
 
+    pub(crate) fn get<T>(
+        &self,
+        object: T,
+    ) -> &NodeInternal
+    where
+        T: AsRef<object::Base>,
+    {
+        let base: &object::Base = object.as_ref();
+        &self.nodes[&base.node]
+    }
+
+    pub(crate) fn get_mut<T>(
+        &mut self,
+        object: T,
+    ) -> &mut NodeInternal
+    where
+        T: AsRef<object::Base>,
+    {
+        let base: &object::Base = object.as_ref();
+        &mut self.nodes[&base.node]
+    }
+
     fn spawn(
         &mut self,
         sub: SubNode,
-    ) -> Object {
-        Object {
+    ) -> object::Base {
+        object::Base {
             node: self.nodes.create(sub.into()),
             tx: self.message_tx.clone(),
         }
     }
 
-    pub(crate) fn spawn_empty(&mut self) -> Object {
+    pub(crate) fn spawn_empty(&mut self) -> object::Base {
         self.spawn(SubNode::Empty)
     }
 
@@ -101,32 +123,32 @@ impl Hub {
         &mut self,
         mat: Material,
         gpu_data: GpuData,
-    ) -> Object {
+    ) -> object::Base {
         self.spawn(SubNode::Visual(mat, gpu_data))
     }
 
     pub(crate) fn spawn_light(
         &mut self,
         data: LightData,
-    ) -> Object {
+    ) -> object::Base {
         self.spawn(SubNode::Light(data))
     }
 
     pub(crate) fn spawn_ui_text(
         &mut self,
         text: TextData,
-    ) -> Object {
+    ) -> object::Base {
         self.spawn(SubNode::UiText(text))
     }
 
     pub(crate) fn spawn_audio_source(
         &mut self,
         data: AudioData,
-    ) -> Object {
+    ) -> object::Base {
         self.spawn(SubNode::Audio(data))
     }
 
-    pub(crate) fn spawn_scene(&mut self) -> Object {
+    pub(crate) fn spawn_scene(&mut self) -> object::Base {
         static SCENE_UID_COUNTER: atomic::AtomicUsize = atomic::ATOMIC_USIZE_INIT;
         let uid = SCENE_UID_COUNTER.fetch_add(1, atomic::Ordering::Relaxed);
         let tx = self.message_tx.clone();
@@ -134,7 +156,7 @@ impl Hub {
             scene_id: Some(uid),
             ..SubNode::Scene.into()
         });
-        Object { node, tx }
+        object::Base { node, tx }
     }
 
     pub(crate) fn process_messages(&mut self) {
@@ -249,7 +271,7 @@ impl Hub {
         &mut self,
         mesh: &DynamicMesh,
     ) {
-        match self.nodes[&mesh.node].sub_node {
+        match self.get_mut(&mesh).sub_node {
             SubNode::Visual(_, ref mut gpu_data) => gpu_data.pending = Some(mesh.dynamic.clone()),
             _ => unreachable!(),
         }

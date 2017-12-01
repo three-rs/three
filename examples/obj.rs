@@ -1,6 +1,7 @@
 extern crate three;
 
 use std::env;
+use three::Object;
 
 fn main() {
     let mut args = env::args();

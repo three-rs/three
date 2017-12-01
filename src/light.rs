@@ -1,11 +1,11 @@
 //! Contains different types of light sources.
 
 use gfx;
+use object;
 use std::ops;
 
 use camera::Orthographic;
 use hub::Operation;
-use object::Object;
 use render::{BackendResources, ShadowFormat};
 
 /// `ShadowMap` is used to render shadows from [`PointLight`](struct.PointLight.html)
@@ -35,12 +35,12 @@ impl ShadowMap {
 /// all objects in the scene equally.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Ambient {
-    pub(crate) object: Object,
+    pub(crate) object: object::Base,
 }
+three_object!(Ambient::object);
 
 impl Ambient {
-    #[doc(hidden)]
-    pub fn new(object: Object) -> Self {
+    pub(crate) fn new(object: object::Base) -> Self {
         Ambient { object }
     }
 }
@@ -50,13 +50,13 @@ impl Ambient {
 /// there is shading, but cannot be any distance falloff.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Directional {
-    pub(crate) object: Object,
+    pub(crate) object: object::Base,
     pub(crate) shadow: Option<ShadowMap>,
 }
+three_object!(Directional::object);
 
 impl Directional {
-    #[doc(hidden)]
-    pub fn new(object: Object) -> Self {
+    pub(crate) fn new(object: object::Base) -> Self {
         Directional {
             object,
             shadow: None,
@@ -82,7 +82,7 @@ impl Directional {
         });
         self.shadow = Some(map.clone());
         let msg = Operation::SetShadow(map, sp);
-        let _ = self.tx.send((self.node.downgrade(), msg));
+        let _ = self.object.tx.send((self.object.node.downgrade(), msg));
     }
 }
 
@@ -97,12 +97,12 @@ impl Directional {
 /// how much the normal is oriented to the upper and the lower hemisphere.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Hemisphere {
-    pub(crate) object: Object,
+    pub(crate) object: object::Base,
 }
+three_object!(Hemisphere::object);
 
 impl Hemisphere {
-    #[doc(hidden)]
-    pub fn new(object: Object) -> Self {
+    pub(crate) fn new(object: object::Base) -> Self {
         Hemisphere { object }
     }
 }
@@ -110,12 +110,12 @@ impl Hemisphere {
 /// Light originates from a single point, and spreads outward in all directions.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Point {
-    pub(crate) object: Object,
+    pub(crate) object: object::Base,
 }
+three_object!(Point::object);
 
 impl Point {
-    #[doc(hidden)]
-    pub fn new(object: Object) -> Self {
+    pub(crate) fn new(object: object::Base) -> Self {
         Point { object }
     }
 }

@@ -164,10 +164,12 @@ impl Input {
             .axes_raw
             .iter()
             .filter(|&&(axis, _)| axis == 0 || axis == 1)
-            .map(|&(axis, value)| if axis == 0 {
-                (value, 0.0)
-            } else {
-                (0.0, value)
+            .map(|&(axis, value)| {
+                if axis == 0 {
+                    (value, 0.0)
+                } else {
+                    (0.0, value)
+                }
             })
             .map(|t| Vector2 { x: t.0, y: t.1 })
             .sum::<Vector2<f32>>()

@@ -3,10 +3,9 @@ use std::f32::consts::PI;
 use cgmath;
 use cgmath::prelude::*;
 use rand::Rng;
-use three;
+use three::{self, Object};
 
 use COLOR_WHITE;
-
 
 struct Cloud {
     group: three::Group,

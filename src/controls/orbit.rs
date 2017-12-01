@@ -1,6 +1,7 @@
 use cgmath::{Decomposed, Point3, Quaternion, Rad, Vector3};
 use cgmath::{EuclideanSpace, InnerSpace, Rotation, Rotation3, Transform as Transform_};
 use mint;
+use object;
 
 use input::{Button, Input, MOUSE_LEFT};
 use node::TransformInternal;
@@ -13,7 +14,7 @@ use object::Object;
 /// to adjust distance to the central point.
 #[derive(Clone, Debug)]
 pub struct Orbit {
-    object: Object,
+    object: object::Base,
     transform: TransformInternal,
     target: Point3<f32>,
     button: Button,
@@ -23,7 +24,7 @@ pub struct Orbit {
 /// Helper struct to construct [`Orbit`](struct.Orbit.html) with desired settings.
 #[derive(Clone, Debug)]
 pub struct Builder {
-    object: Object,
+    object: object::Base,
     position: mint::Point3<f32>,
     target: mint::Point3<f32>,
     button: Button,
@@ -32,9 +33,9 @@ pub struct Builder {
 
 impl Builder {
     /// Create new `Builder` with default values.
-    pub fn new(object: &Object) -> Self {
+    pub fn new<T: Object>(object: &T) -> Self {
         Builder {
-            object: object.clone(),
+            object: object.upcast(),
             position: [0.0, 0.0, 0.0].into(),
             target: [0.0, 0.0, 0.0].into(),
             button: MOUSE_LEFT,
@@ -112,7 +113,7 @@ impl Builder {
 
 impl Orbit {
     /// Create new `Builder` with default values.
-    pub fn builder(object: &Object) -> Builder {
+    pub fn builder<T: Object>(object: &T) -> Builder {
         Builder::new(object)
     }
 

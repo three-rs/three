@@ -42,6 +42,7 @@
 //!
 //! ```rust,no_run
 //! # let mut window = three::Window::new("");
+//! use three::Object;
 //! let mut gltf = window.factory.load_gltf("AnimatedScene.gltf");
 //! gltf.group.set_parent(&window.scene);
 //! ```
@@ -55,6 +56,7 @@
 //! immediately.
 //!
 //! ```rust,no_run
+//! # use three::Object;
 //! # let mut window = three::Window::new("");
 //! # let mut mixer = three::animation::Mixer::new();
 //! # let mut gltf = window.factory.load_gltf("AnimatedScene.gltf");
@@ -71,6 +73,7 @@
 //! game loop.
 //!
 //! ```rust,no_run
+//! # use three::Object;
 //! # let mut window = three::Window::new("");
 //! # let camera = unimplemented!();
 //! # let mut mixer = three::animation::Mixer::new();
@@ -103,11 +106,14 @@
 use cgmath;
 use froggy;
 use mint;
+use object;
 use std::hash::{Hash, Hasher};
 use std::sync::mpsc;
 
-use Object;
 use mint::IntraXYZ as IntraXyz;
+
+/// A target of an animation.
+pub type Target = object::Base;
 
 /// Describes the interpolation behaviour between keyframes.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -157,7 +163,7 @@ pub enum Binding {
     ///
     /// The corresponding keyframe values must be [`Vector3`].
     ///
-    /// [`Object`]: ../object/struct.Object.html
+    /// [`Object`]: ../object/trait.Object.html
     /// [`Vector3`]: enum.Values.html#variant.Vector3
     Position,
 
@@ -165,7 +171,7 @@ pub enum Binding {
     ///
     /// The corresponding keyframe values must be [`Quaternion`] or [`Euler`].
     ///
-    /// [`Object`]: ../object/struct.Object.html
+    /// [`Object`]: ../object/trait.Object.html
     /// [`Quaternion`]: enum.Values.html#variant.Quaternion
     /// [`Euler`]: enum.Values.html#variant.Euler
     Orientation,
@@ -174,7 +180,7 @@ pub enum Binding {
     ///
     /// The corresponding keyframe values must be [`Scalar`].
     ///
-    /// [`Object`]: ../object/struct.Object.html
+    /// [`Object`]: ../object/trait.Object.html
     /// [`Scalar`]: enum.Values.html#variant.Scalar
     Scale,
 }
@@ -295,7 +301,7 @@ pub struct Clip {
     pub name: Option<String>,
 
     /// The animation keyframe tracks.
-    pub tracks: Vec<(Track, Object)>,
+    pub tracks: Vec<(Track, Target)>,
 }
 
 /// A track of animation keyframes.

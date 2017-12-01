@@ -1,4 +1,7 @@
 //! `Scene` and `SyncGuard` structures.
+
+use object;
+
 use color::Color;
 use hub::{Hub, HubPtr};
 use node::Node;
@@ -26,11 +29,12 @@ pub enum Background {
 ///
 /// [`Camera`]: ../camera/struct.Camera.html
 pub struct Scene {
-    pub(crate) object: Object,
+    pub(crate) object: object::Base,
     pub(crate) hub: HubPtr,
     /// See [`Background`](struct.Background.html).
     pub background: Background,
 }
+three_object!(Scene::object);
 
 /// `SyncGuard` is used to obtain information about scene nodes in the most effective way.
 ///
@@ -45,7 +49,6 @@ pub struct Scene {
 ///     mesh: three::Mesh,
 ///     is_visible: bool,
 /// }
-/// three_object_wrapper!(Enemy::mesh);
 /// # fn main() {}
 /// ```
 ///
@@ -53,7 +56,7 @@ pub struct Scene {
 ///
 /// In your game you contain all your enemy objects in `Vec<Enemy>`. In the main loop you need
 /// to iterate over all the enemies and make them visible or not, basing on current position.
-/// The most obvious way is to use [`Object::sync`], but it's not the best idea from the side of
+/// The most obvious way is to use [`object::Base::sync`], but it's not the best idea from the side of
 /// performance. Instead, you can create `SyncGuard` and use its `resolve` method to effectively
 /// walk through every enemy in your game:
 ///
@@ -65,8 +68,23 @@ pub struct Scene {
 /// #     mesh: three::Mesh,
 /// #     is_visible: bool,
 /// # }
-/// # three_object_wrapper!(Enemy::mesh);
+/// #
+/// # impl three::Object for Enemy {}
+/// #
+/// # impl AsRef<three::object::Base> for Enemy {
+/// #     fn as_ref(&self) -> &three::object::Base {
+/// #         self.mesh.as_ref()
+/// #     }
+/// # }
+/// #
+/// # impl AsMut<three::object::Base> for Enemy {
+/// #     fn as_mut(&mut self) -> &mut three::object::Base {
+/// #         self.mesh.as_mut()
+/// #     }
+/// # }
+/// #
 /// # fn main() {
+/// # use three::Object;
 /// # let mut win = three::Window::new("SyncGuard example");
 /// # let geometry = three::Geometry::default();
 /// # let material = three::material::Basic { color: three::color::RED, map: None };
@@ -74,7 +92,7 @@ pub struct Scene {
 /// # let mut enemy = Enemy { mesh, is_visible: true };
 /// # enemy.set_parent(&win.scene);
 /// # let mut enemies = vec![enemy];
-/// # while true {
+/// # loop {
 /// let mut sync = win.scene.sync_guard();
 /// for mut enemy in &mut enemies {
 ///     let node = sync.resolve(enemy);
@@ -90,7 +108,7 @@ pub struct Scene {
 /// # }}
 /// ```
 ///
-/// [`Object::sync`]: ../struct.Object.html#method.sync
+/// [`object::Base::sync`]: ../object/struct.Base.html#method.sync
 pub struct SyncGuard<'a> {
     hub: MutexGuard<'a, Hub>,
     scene_id: Option<Uid>,
@@ -100,12 +118,15 @@ impl<'a> SyncGuard<'a> {
     /// Obtains `objects`'s [`Node`] in an effective way.
     ///
     /// # Panics
-    /// Panics if `scene` doesn't have this `Object`.
+    /// Panics if `scene` doesn't have this `object::Base`.
     ///
     /// [`Node`]: ../node/struct.Node.html
-    pub fn resolve<T: AsRef<Object> + 'a>(&mut self, object: &T) -> Node {
-        let object = object.as_ref();
-        let node_internal = &self.hub.nodes[&object.node];
+    pub fn resolve<T: Object + 'a>(
+        &mut self,
+        object: &T,
+    ) -> Node {
+        let base: &object::Base = object.as_ref();
+        let node_internal = &self.hub.nodes[&base.node];
         assert_eq!(node_internal.scene_id, self.scene_id);
         node_internal.to_node()
     }
@@ -123,5 +144,3 @@ impl Scene {
         SyncGuard { hub, scene_id }
     }
 }
-
-three_object_wrapper!(Scene);

@@ -1,3 +1,5 @@
+//! Items in the scene heirarchy.
+
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::sync::mpsc;
@@ -9,30 +11,133 @@ use node::{Node, NodePointer};
 use scene::Scene;
 
 //Note: no local state should be here, only remote links
-/// `Object` represents an entity that can be added to the scene.
+/// `Base` represents a concrete entity that can be added to the scene.
 ///
-/// There is no need to use `Object` directly, there are specific wrapper types
-/// for each case (e.g. [`Camera`](struct.Camera.html),
-/// [`AmbientLight`](struct.AmbientLight.html),
-/// [`Mesh`](struct.Mesh.html), ...).
+/// One cannot construct `Base` directly. Wrapper types such as [`Camera`],
+/// [`Mesh`], and [`Group`] are provided instead.
+///
+/// Any type that implements [`Object`] may be converted to its concrete
+/// `Base` type with the method [`Object::upcast`]. This is useful for
+/// storing generic objects in containers.
+///
+/// [`Camera`]: ../camera/struct.Camera.html
+/// [`Mesh`]: ../mesh/struct.Mesh.html
+/// [`Group`]: ../object/struct.Group.html
+/// [`Object`]: ../object/trait.Object.html
+/// [`Object::upcast`]: ../object/trait.Object.html#method.upcast
 #[derive(Clone)]
-pub struct Object {
+pub struct Base {
     pub(crate) node: NodePointer,
     pub(crate) tx: mpsc::Sender<Message>,
 }
 
-impl PartialEq for Object {
+/// Marks data structures that are able to added to the scene graph.
+pub trait Object: AsRef<Base> + AsMut<Base> {
+    /// Converts into the base type.
+    fn upcast(&self) -> Base {
+        self.as_ref().clone()
+    }
+
+    /// Invisible objects are not rendered by cameras.
+    fn set_visible(
+        &mut self,
+        visible: bool,
+    ) {
+        self.as_mut().set_visible(visible)
+    }
+
+    /// Rotates object in the specific direction of `target`.
+    fn look_at<E, T>(
+        &mut self,
+        eye: E,
+        target: T,
+        up: Option<mint::Vector3<f32>>,
+    ) where
+        Self: Sized,
+        E: Into<mint::Point3<f32>>,
+        T: Into<mint::Point3<f32>>,
+    {
+        self.as_mut().look_at(eye, target, up)
+    }
+
+    /// Set both position, orientation and scale.
+    fn set_transform<P, Q>(
+        &mut self,
+        pos: P,
+        rot: Q,
+        scale: f32,
+    ) where
+        Self: Sized,
+        P: Into<mint::Point3<f32>>,
+        Q: Into<mint::Quaternion<f32>>,
+    {
+        self.as_mut().set_transform(pos, rot, scale)
+    }
+
+    /// Add new [`Base`](struct.Base.html) to the group.
+    fn set_parent<P>(
+        &mut self,
+        parent: P,
+    ) where
+        Self: Sized,
+        P: AsRef<Base>,
+    {
+        self.as_mut().set_parent(parent)
+    }
+
+    /// Set position.
+    fn set_position<P>(
+        &mut self,
+        pos: P,
+    ) where
+        Self: Sized,
+        P: Into<mint::Point3<f32>>,
+    {
+        self.as_mut().set_position(pos)
+    }
+
+    /// Set orientation.
+    fn set_orientation<Q>(
+        &mut self,
+        rot: Q,
+    ) where
+        Self: Sized,
+        Q: Into<mint::Quaternion<f32>>,
+    {
+        self.as_mut().set_orientation(rot)
+    }
+
+    /// Set scale.
+    fn set_scale(
+        &mut self,
+        scale: f32,
+    ) {
+        self.as_mut().set_scale(scale)
+    }
+
+    /// Get actual information about itself from the `scene`.
+    /// # Panics
+    /// Panics if `scene` doesn't have this `Base`.
+    fn sync(
+        &mut self,
+        scene: &Scene,
+    ) -> Node {
+        self.as_mut().sync(scene)
+    }
+}
+
+impl PartialEq for Base {
     fn eq(
         &self,
-        other: &Object,
+        other: &Base,
     ) -> bool {
         self.node == other.node
     }
 }
 
-impl Eq for Object {}
+impl Eq for Base {}
 
-impl Hash for Object {
+impl Hash for Base {
     fn hash<H: Hasher>(
         &self,
         state: &mut H,
@@ -41,7 +146,7 @@ impl Hash for Object {
     }
 }
 
-impl fmt::Debug for Object {
+impl fmt::Debug for Base {
     fn fmt(
         &self,
         f: &mut fmt::Formatter,
@@ -50,7 +155,7 @@ impl fmt::Debug for Object {
     }
 }
 
-impl Object {
+impl Base {
     /// Invisible objects are not rendered by cameras.
     pub fn set_visible(
         &mut self,
@@ -97,11 +202,13 @@ impl Object {
         let _ = self.tx.send((self.node.downgrade(), msg));
     }
 
-    /// Add new [`Object`](struct.Object.html) to the group.
-    pub fn set_parent<P: AsRef<Object>>(
+    /// Add new [`Base`](struct.Base.html) to the group.
+    pub fn set_parent<P>(
         &mut self,
-        parent: &P,
-    ) {
+        parent: P,
+    ) where
+        P: AsRef<Self>,
+    {
         let msg = Operation::SetParent(parent.as_ref().node.clone());
         let _ = self.tx.send((self.node.downgrade(), msg));
     }
@@ -139,7 +246,7 @@ impl Object {
 
     /// Get actual information about itself from the `scene`.
     /// # Panics
-    /// Panics if `scene` doesn't have this `Object`.
+    /// Panics if `scene` doesn't have this `Base`.
     pub fn sync(
         &mut self,
         scene: &Scene,
@@ -154,15 +261,28 @@ impl Object {
     }
 }
 
+impl AsRef<Base> for Base {
+    fn as_ref(&self) -> &Base {
+        self
+    }
+}
+
+impl AsMut<Base> for Base {
+    fn as_mut(&mut self) -> &mut Base {
+        self
+    }
+}
+
 /// Groups are used to combine several other objects or groups to work with them
 /// as with a single entity.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Group {
-    pub(crate) object: Object,
+    pub(crate) object: Base,
 }
+three_object!(Group::object);
 
 impl Group {
-    pub(crate) fn new(object: Object) -> Self {
+    pub(crate) fn new(object: Base) -> Self {
         Group { object }
     }
 }

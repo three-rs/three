@@ -52,15 +52,14 @@
 //!
 //! [`Factory::orthographic_camera`]: ../factory/struct.Factory.html#method.orthographic_camera
 //! [`Factory::perspective_camera`]: ../factory/struct.Factory.html#method.perspective_camera
-//! [`Object`]: ../object/struct.Object.html
+//! [`object::Base`]: ../object/struct.Base.html
 //! [`Orthographic`]: struct.Orthographic.html
 //! [`Perspective`]: struct.Perspective.html
 
 use cgmath;
 use mint;
+use object;
 use std::ops;
-
-use object::Object;
 
 /// The Z values of the near and far clipping planes of a camera's projection.
 #[derive(Clone, Debug, PartialEq)]
@@ -98,11 +97,12 @@ pub enum Projection {
 /// [`Projection`]: enum.Projection.html
 #[derive(Clone, Debug, PartialEq)]
 pub struct Camera {
-    pub(crate) object: Object,
+    pub(crate) object: object::Base,
 
     /// Projection parameters of this camera.
     pub projection: Projection,
 }
+three_object!(Camera::object);
 
 impl Camera {
     /// Computes the projection matrix representing the camera's projection.
@@ -157,8 +157,6 @@ impl Projection {
         }
     }
 }
-
-three_object_wrapper!(Camera);
 
 /// Orthographic projection parameters.
 #[derive(Clone, Debug, PartialEq)]

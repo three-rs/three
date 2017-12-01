@@ -1,5 +1,7 @@
 extern crate three;
 
+use three::Object;
+
 fn main() {
     let mut win = three::Window::new("Three-rs lights example");
     let mut cam = win.factory.perspective_camera(45.0, 1.0 .. 50.0);
@@ -17,11 +19,11 @@ fn main() {
         .debug_shadow_quad(&shadow_map, 1, [10, 10], [256, 256]);
     dir_light.set_shadow(shadow_map, 40.0, 1.0 .. 200.0);
 
-    let mut lights: [&mut three::Object; 4] = [
-        &mut hemisphere_light,
-        &mut ambient_light,
-        &mut point_light,
-        &mut dir_light,
+    let mut lights: [&mut three::object::Base; 4] = [
+        hemisphere_light.as_mut(),
+        ambient_light.as_mut(),
+        point_light.as_mut(),
+        dir_light.as_mut(),
     ];
     for l in lights.iter_mut() {
         l.set_parent(&win.scene);
