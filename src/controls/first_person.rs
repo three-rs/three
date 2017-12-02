@@ -364,27 +364,27 @@ impl FirstPerson {
             }
         }
 
-        self.axes.vertical.map(
-            |a| if let Some(diff) = input.timed(a) {
+        self.axes.vertical.map(|a| {
+            if let Some(diff) = input.timed(a) {
                 self.position.y += self.move_speed * diff;
-            },
-        );
+            }
+        });
 
-        self.axes.forward.map(
-            |a| if let Some(diff) = input.timed(a) {
+        self.axes.forward.map(|a| {
+            if let Some(diff) = input.timed(a) {
                 self.position.x += self.move_speed * diff * self.yaw.sin();
                 self.position.z -= self.move_speed * diff * self.yaw.cos();
                 if self.vertical_move {
                     self.position.y -= self.move_speed * diff * self.pitch.sin();
                 }
-            },
-        );
-        self.axes.strafing.map(
-            |a| if let Some(diff) = input.timed(a) {
+            }
+        });
+        self.axes.strafing.map(|a| {
+            if let Some(diff) = input.timed(a) {
                 self.position.x += self.move_speed * diff * self.yaw.cos();
                 self.position.z += self.move_speed * diff * self.yaw.sin();
-            },
-        );
+            }
+        });
 
         let yrot = cgmath::Quaternion::from_angle_y(cgmath::Rad(-self.yaw));
         let xrot = cgmath::Quaternion::from_angle_x(cgmath::Rad(-self.pitch));

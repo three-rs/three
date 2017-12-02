@@ -298,7 +298,7 @@ mod util;
 pub mod window;
 
 #[doc(hidden)]
-pub use mint::{Quaternion, Point3, Vector3};
+pub use mint::{Point3, Quaternion, Vector3};
 
 pub use color::Color;
 pub use controls::{AXIS_DOWN_UP, AXIS_LEFT_RIGHT, KEY_ESCAPE, KEY_SPACE, MOUSE_LEFT, MOUSE_RIGHT};

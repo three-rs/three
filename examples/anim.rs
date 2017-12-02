@@ -119,10 +119,8 @@ fn main() {
         );
     }
 
-    let mut mesh = win.factory.mesh_dynamic(
-        geom,
-        three::material::Wireframe { color: 0xFFFFFF },
-    );
+    let mut mesh = win.factory
+        .mesh_dynamic(geom, three::material::Wireframe { color: 0xFFFFFF });
     mesh.set_parent(&win.scene);
 
     let mut shape = 0;

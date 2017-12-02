@@ -59,11 +59,9 @@ fn main() {
     sky.group.set_parent(&win.scene);
 
     let mut airplane = plane::AirPlane::new(&mut win.factory);
-    airplane.group.set_transform(
-        [0.0, 100.0, 0.0],
-        [0.0, 0.0, 0.0, 1.0],
-        0.25,
-    );
+    airplane
+        .group
+        .set_transform([0.0, 100.0, 0.0], [0.0, 0.0, 0.0, 1.0], 0.25);
     airplane.group.set_parent(&win.scene);
 
     let timer = win.input.time();

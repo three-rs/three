@@ -79,11 +79,8 @@ fn main() {
     println!("Edit sprite_vs.glsl or sprite_ps.glsl and review.");
 
     let mut win = three::Window::new("Three-rs shader reloading example");
-    let cam = win.factory.orthographic_camera(
-        [0.0, 0.0],
-        1.0,
-        -1.0 .. 1.0,
-    );
+    let cam = win.factory
+        .orthographic_camera([0.0, 0.0], 1.0, -1.0 .. 1.0);
 
     let (tx, rx) = mpsc::channel();
     let mut watcher = notify::watcher(tx, Duration::from_secs(1)).unwrap();

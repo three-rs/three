@@ -85,7 +85,9 @@ impl Input {
 
     /// Create new timer.
     pub fn time(&self) -> Timer {
-        Timer { start: self.state.time_moment }
+        Timer {
+            start: self.state.time_moment,
+        }
     }
 
     /// Get current delta time (time since previous frame) in seconds.
@@ -162,10 +164,12 @@ impl Input {
             .axes_raw
             .iter()
             .filter(|&&(axis, _)| axis == 0 || axis == 1)
-            .map(|&(axis, value)| if axis == 0 {
-                (value, 0.0)
-            } else {
-                (0.0, value)
+            .map(|&(axis, value)| {
+                if axis == 0 {
+                    (value, 0.0)
+                } else {
+                    (0.0, value)
+                }
             })
             .map(|t| Vector2 { x: t.0, y: t.1 })
             .sum::<Vector2<f32>>()
@@ -222,12 +226,12 @@ impl Input {
         pos_ndc: mint::Point2<f32>,
     ) {
         use cgmath::Point2;
-        self.delta.mouse_moves.push(
-            (Point2::from(pos) - Point2::from(self.state.mouse_pos)).into(),
-        );
-        self.delta.mouse_moves_ndc.push(
-            (Point2::from(pos_ndc) - Point2::from(self.state.mouse_pos_ndc)).into(),
-        );
+        self.delta
+            .mouse_moves
+            .push((Point2::from(pos) - Point2::from(self.state.mouse_pos)).into());
+        self.delta
+            .mouse_moves_ndc
+            .push((Point2::from(pos_ndc) - Point2::from(self.state.mouse_pos_ndc)).into());
         self.state.mouse_pos = pos;
         self.state.mouse_pos_ndc = pos_ndc;
     }
@@ -403,24 +407,20 @@ impl HitCount for Button {
     ) -> Self::Output {
         use std::u8::MAX;
         match *self {
-            Button::Key(button) => {
-                input
-                    .delta
-                    .keys_hit
-                    .iter()
-                    .filter(|&&key| key == button)
-                    .take(MAX as usize)
-                    .count() as Self::Output
-            }
-            Button::Mouse(button) => {
-                input
-                    .delta
-                    .mouse_hit
-                    .iter()
-                    .filter(|&&key| key == button)
-                    .take(MAX as usize)
-                    .count() as Self::Output
-            }
+            Button::Key(button) => input
+                .delta
+                .keys_hit
+                .iter()
+                .filter(|&&key| key == button)
+                .take(MAX as usize)
+                .count() as Self::Output,
+            Button::Mouse(button) => input
+                .delta
+                .mouse_hit
+                .iter()
+                .filter(|&&key| key == button)
+                .take(MAX as usize)
+                .count() as Self::Output,
         }
     }
 }
@@ -487,9 +487,8 @@ impl Delta for axis::Key {
         &self,
         input: &Input,
     ) -> Option<TimerDuration> {
-        self.delta(input).map(|delta| {
-            delta as TimerDuration * input.delta_time()
-        })
+        self.delta(input)
+            .map(|delta| delta as TimerDuration * input.delta_time())
     }
 }
 
@@ -518,9 +517,8 @@ impl Delta for axis::Raw {
         &self,
         input: &Input,
     ) -> Option<TimerDuration> {
-        self.delta(input).map(
-            |v| v as TimerDuration * input.delta_time(),
-        )
+        self.delta(input)
+            .map(|v| v as TimerDuration * input.delta_time())
     }
 }
 

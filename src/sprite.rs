@@ -23,9 +23,7 @@ impl Sprite {
         P: Into<mint::Point2<i16>>,
         S: Into<mint::Vector2<u16>>,
     {
-        self.object.send(Operation::SetTexelRange(
-            base.into(),
-            size.into(),
-        ));
+        self.object
+            .send(Operation::SetTexelRange(base.into(), size.into()));
     }
 }

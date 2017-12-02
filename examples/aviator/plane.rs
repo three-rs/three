@@ -106,12 +106,7 @@ impl AirPlane {
     ) {
         let q = Quaternion::from_angle_x(Rad(0.3 * time));
         self.propeller_group.set_orientation(q);
-        self.group.set_position(
-            [
-                0.0 + target.x * 100.0,
-                100.0 + target.y * 75.0,
-                0.0,
-            ],
-        );
+        self.group
+            .set_position([0.0 + target.x * 100.0, 100.0 + target.y * 75.0, 0.0]);
     }
 }

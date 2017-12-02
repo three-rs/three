@@ -206,14 +206,12 @@ impl Perspective {
         aspect_ratio: f32,
     ) -> mint::ColumnMatrix4<f32> {
         match self.zrange {
-            ZRange::Finite(ref range) => {
-                cgmath::perspective(
-                    cgmath::Deg(self.fov_y),
-                    aspect_ratio,
-                    range.start,
-                    range.end,
-                ).into()
-            }
+            ZRange::Finite(ref range) => cgmath::perspective(
+                cgmath::Deg(self.fov_y),
+                aspect_ratio,
+                range.start,
+                range.end,
+            ).into(),
             ZRange::Infinite(ref range) => {
                 let m00 = 1.0 / (aspect_ratio * f32::tan(0.5 * self.fov_y));
                 let m11 = 1.0 / f32::tan(0.5 * self.fov_y);

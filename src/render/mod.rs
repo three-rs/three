@@ -683,10 +683,8 @@ impl Renderer {
 
         if let Background::Color(color) = scene.background {
             let rgb = color::to_linear_rgb(color);
-            self.encoder.clear(
-                &self.out_color,
-                [rgb[0], rgb[1], rgb[2], 0.0],
-            );
+            self.encoder
+                .clear(&self.out_color, [rgb[0], rgb[1], rgb[2], 0.0]);
         }
 
         // render everything
@@ -905,10 +903,8 @@ impl Renderer {
             if let SubNode::UiText(ref text) = node.sub_node {
                 text.font.queue(&text.section, text.layout);
                 if !self.font_cache.contains_key(&text.font.path) {
-                    self.font_cache.insert(
-                        text.font.path.clone(),
-                        text.font.clone(),
-                    );
+                    self.font_cache
+                        .insert(text.font.path.clone(), text.font.clone());
                 }
             }
         }
@@ -932,12 +928,10 @@ impl Renderer {
                 },
             ];
             let p0 = self.map_to_ndc([pos[0] as f32, pos[1] as f32]);
-            let p1 = self.map_to_ndc(
-                [
-                    (pos[0] + quad.size[0]) as f32,
-                    (pos[1] + quad.size[1]) as f32,
-                ],
-            );
+            let p1 = self.map_to_ndc([
+                (pos[0] + quad.size[0]) as f32,
+                (pos[1] + quad.size[1]) as f32,
+            ]);
             self.encoder.update_constant_buffer(
                 &self.quad_buf,
                 &QuadParams {

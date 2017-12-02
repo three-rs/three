@@ -87,7 +87,9 @@ pub struct Line {
 
 impl Default for Line {
     fn default() -> Self {
-        Self { color: color::WHITE }
+        Self {
+            color: color::WHITE,
+        }
     }
 }
 

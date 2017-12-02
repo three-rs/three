@@ -192,9 +192,12 @@ impl Factory {
         let normal_iter = if shape.normals.is_empty() {
             Either::Left(iter::repeat(NORMAL_Z))
         } else {
-            Either::Right(shape.normals.iter().map(|n| {
-                [f2i(n.x), f2i(n.y), f2i(n.z), I8Norm(0)]
-            }))
+            Either::Right(
+                shape
+                    .normals
+                    .iter()
+                    .map(|n| [f2i(n.x), f2i(n.y), f2i(n.z), I8Norm(0)]),
+            )
         };
         let uv_iter = if shape.tex_coords.is_empty() {
             Either::Left(iter::repeat([0.0, 0.0]))
@@ -207,9 +210,12 @@ impl Factory {
             // (Use mikktspace algorithm or otherwise.)
             Either::Left(iter::repeat(TANGENT_X))
         } else {
-            Either::Right(shape.tangents.iter().map(|t| {
-                [f2i(t.x), f2i(t.y), f2i(t.z), f2i(t.w)]
-            }))
+            Either::Right(
+                shape
+                    .tangents
+                    .iter()
+                    .map(|t| [f2i(t.x), f2i(t.y), f2i(t.z), f2i(t.w)]),
+            )
         };
         izip!(position_iter, normal_iter, tangent_iter, uv_iter)
             .map(|(position, normal, tangent, tex_coord)| {
@@ -235,10 +241,8 @@ impl Factory {
             self.backend.create_vertex_buffer_with_slice(&vertices, ())
         } else {
             let faces: &[u32] = gfx::memory::cast_slice(&geometry.faces);
-            self.backend.create_vertex_buffer_with_slice(
-                &vertices,
-                faces,
-            )
+            self.backend
+                .create_vertex_buffer_with_slice(&vertices, faces)
         };
         Mesh {
             object: self.hub.lock().unwrap().spawn_visual(
@@ -324,7 +328,9 @@ impl Factory {
             SubNode::Visual(ref mat, _) => mat.clone(),
             _ => unreachable!(),
         };
-        Mesh { object: hub.spawn_visual(material, gpu_data) }
+        Mesh {
+            object: hub.spawn_visual(material, gpu_data),
+        }
     }
 
     /// Create a `Mesh` sharing the geometry with another one but with a different material.
@@ -342,7 +348,9 @@ impl Factory {
             },
             _ => unreachable!(),
         };
-        Mesh { object: hub.spawn_visual(material.into(), gpu_data) }
+        Mesh {
+            object: hub.spawn_visual(material.into(), gpu_data),
+        }
     }
 
     /// Create new sprite from `Material`.
@@ -399,7 +407,9 @@ impl Factory {
         Hemisphere::new(self.hub.lock().unwrap().spawn_light(LightData {
             color: sky_color,
             intensity,
-            sub_light: SubLight::Hemisphere { ground: ground_color },
+            sub_light: SubLight::Hemisphere {
+                ground: ground_color,
+            },
             shadow: None,
         }))
     }
@@ -473,21 +483,15 @@ impl Factory {
         use gfx::traits::FactoryExt;
         let vs = render::Source::user(&dir, name, "vs")?;
         let ps = render::Source::user(&dir, name, "ps")?;
-        let shaders = self.backend.create_shader_set(
-            vs.0.as_bytes(),
-            ps.0.as_bytes(),
-        )?;
+        let shaders = self.backend
+            .create_shader_set(vs.0.as_bytes(), ps.0.as_bytes())?;
         let init = basic_pipe::Init {
             out_color: ("Target0", color_mask, blend_state),
             out_depth: (depth_state, stencil_state),
             ..basic_pipe::new()
         };
-        let pso = self.backend.create_pipeline_state(
-            &shaders,
-            primitive,
-            rasterizer,
-            init,
-        )?;
+        let pso = self.backend
+            .create_pipeline_state(&shaders, primitive, rasterizer, init)?;
         Ok(pso)
     }
 
@@ -574,12 +578,12 @@ impl Factory {
             "Can't open font file:\nFile: {}",
             file_path.display()
         ));
-        io::BufReader::new(file).read_to_end(&mut buffer).expect(
-            &format!(
+        io::BufReader::new(file)
+            .read_to_end(&mut buffer)
+            .expect(&format!(
                 "Can't read font file:\nFile: {}",
                 file_path.display()
-            ),
-        );
+            ));
         Font::new(buffer, file_path.to_owned(), self.backend.clone())
     }
 
@@ -692,22 +696,25 @@ impl Factory {
         obj_dir: Option<&Path>,
     ) -> Material {
         let cf2u = |c: [f32; 3]| {
-            c.iter().fold(0, |u, &v| {
-                (u << 8) + cmp::min((v * 255.0) as u32, 0xFF)
-            })
+            c.iter()
+                .fold(0, |u, &v| (u << 8) + cmp::min((v * 255.0) as u32, 0xFF))
         };
         match *mat {
             obj::Material {
                 kd: Some(color),
                 ns: Some(glossiness),
                 ..
-            } if has_normals => {
+            } if has_normals =>
+            {
                 material::Phong {
                     color: cf2u(color),
                     glossiness,
                 }.into()
             }
-            obj::Material { kd: Some(color), .. } if has_normals => {
+            obj::Material {
+                kd: Some(color), ..
+            } if has_normals =>
+            {
                 material::Lambert {
                     color: cf2u(color),
                     flat: false,
@@ -717,21 +724,17 @@ impl Factory {
                 kd: Some(color),
                 ref map_kd,
                 ..
-            } => {
-                material::Basic {
-                    color: cf2u(color),
-                    map: match (has_uv, map_kd) {
-                        (true, &Some(ref name)) => Some(self.request_texture(&concat_path(obj_dir, name))),
-                        _ => None,
-                    },
-                }.into()
-            }
-            _ => {
-                material::Basic {
-                    color: 0xffffff,
-                    map: None,
-                }.into()
-            }
+            } => material::Basic {
+                color: cf2u(color),
+                map: match (has_uv, map_kd) {
+                    (true, &Some(ref name)) => Some(self.request_texture(&concat_path(obj_dir, name))),
+                    _ => None,
+                },
+            }.into(),
+            _ => material::Basic {
+                color: 0xffffff,
+                map: None,
+            }.into(),
         }
     }
 
@@ -824,9 +827,14 @@ impl Factory {
                     });
 
                     indices.clear();
-                    indices.extend(gr.indices.iter().cloned().triangulate().vertices().map(
-                        |tuple| lru.index(tuple) as u16,
-                    ));
+                    indices.extend(
+                        gr.indices
+                            .iter()
+                            .cloned()
+                            .triangulate()
+                            .vertices()
+                            .map(|tuple| lru.index(tuple) as u16),
+                    );
                 };
 
                 info!(
@@ -837,19 +845,15 @@ impl Factory {
                 );
                 let material = match gr.material {
                     Some(ref rc_mat) => self.load_obj_material(&*rc_mat, num_normals != 0, num_uvs != 0, path_parent),
-                    None => {
-                        material::Basic {
-                            color: 0xFFFFFF,
-                            map: None,
-                        }.into()
-                    }
+                    None => material::Basic {
+                        color: 0xFFFFFF,
+                        map: None,
+                    }.into(),
                 };
                 info!("\t{:?}", material);
 
-                let (vbuf, slice) = self.backend.create_vertex_buffer_with_slice(
-                    &vertices,
-                    &indices[..],
-                );
+                let (vbuf, slice) = self.backend
+                    .create_vertex_buffer_with_slice(&vertices, &indices[..]);
                 let cbuf = self.backend.create_constant_buffer(1);
                 let mut mesh = Mesh {
                     object: hub.spawn_visual(
