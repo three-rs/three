@@ -103,7 +103,7 @@ pub struct Camera {
     /// Projection parameters of this camera.
     pub projection: Projection,
 }
-three_object_internal!(Camera::object);
+three_object!(Camera::object);
 
 impl Camera {
     /// Computes the projection matrix representing the camera's projection.

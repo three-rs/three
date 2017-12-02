@@ -170,25 +170,7 @@
 //! parents alive, opposed to parents keeping their children alive.
 //!
 //! At the heart of the scene heirarchy is the [`Object`] type, which is a member
-//! of all `three` objects that are placeable in the scene. One can create their
-//! own [`Object`] kind by the use of the [`three_object!`] macro.
-//!
-//! ```rust,no_run
-//! #[macro_use]
-//! extern crate three;
-//!
-//! three_object!(MyObject::group);
-//! struct MyObject {
-//!     group: three::Group,
-//! }
-//!
-//! fn main() {
-//! #    let mut window = three::Window::new("");
-//!     // Initialization code omitted.
-//!     let mut my_object = MyObject { group: window.factory.group() };
-//!     my_object.set_parent(&window.scene);
-//! }
-//! ```
+//! of all `three` objects that are placeable in the scene.
 //!
 //! ## Multiple graphics pipelines
 //!
@@ -234,8 +216,6 @@
 //! [`Renderer`]: struct.Renderer.html
 //! [`Scene`]: scene/struct.Scene.html
 //! [`Window`]: window/struct.Window.html
-//!
-//! [`three_object!`]: macro.three_object.html
 
 #[macro_use]
 extern crate bitflags;

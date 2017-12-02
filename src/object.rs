@@ -69,7 +69,7 @@ impl Object {
 
     /// Invisible objects are not rendered by cameras.
     pub fn set_visible(
-        &mut self,
+        &self,
         visible: bool,
     ) {
         self.send(Operation::SetVisible(visible));
@@ -77,7 +77,7 @@ impl Object {
 
     /// Rotates object in the specific direction of `target`.
     pub fn look_at<E, T>(
-        &mut self,
+        &self,
         eye: E,
         target: T,
         up: Option<mint::Vector3<f32>>,
@@ -100,7 +100,7 @@ impl Object {
 
     /// Set both position, orientation and scale.
     pub fn set_transform<P, Q>(
-        &mut self,
+        &self,
         pos: P,
         rot: Q,
         scale: f32,
@@ -114,7 +114,7 @@ impl Object {
 
     /// Add new [`Object`](struct.Object.html) to the group.
     pub fn set_parent<P: AsRef<Object>>(
-        &mut self,
+        &self,
         parent: &P,
     ) {
         self.send(Operation::SetParent(parent.as_ref().node.clone()));
@@ -122,7 +122,7 @@ impl Object {
 
     /// Set position.
     pub fn set_position<P>(
-        &mut self,
+        &self,
         pos: P,
     ) where
         P: Into<mint::Point3<f32>>,
@@ -132,7 +132,7 @@ impl Object {
 
     /// Set orientation.
     pub fn set_orientation<Q>(
-        &mut self,
+        &self,
         rot: Q,
     ) where
         Q: Into<mint::Quaternion<f32>>,
@@ -142,7 +142,7 @@ impl Object {
 
     /// Set scale.
     pub fn set_scale(
-        &mut self,
+        &self,
         scale: f32,
     ) {
         self.send(Operation::SetTransform(None, None, Some(scale)));
@@ -171,7 +171,7 @@ impl Object {
 pub struct Group {
     pub(crate) object: Object,
 }
-three_object_internal!(Group::object);
+three_object!(Group::object);
 
 impl Group {
     pub(crate) fn new(object: Object) -> Self {

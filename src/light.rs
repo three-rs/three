@@ -37,7 +37,7 @@ impl ShadowMap {
 pub struct Ambient {
     pub(crate) object: Object,
 }
-three_object_internal!(Ambient::object);
+three_object!(Ambient::object);
 
 impl Ambient {
     #[doc(hidden)]
@@ -54,7 +54,7 @@ pub struct Directional {
     pub(crate) object: Object,
     pub(crate) shadow: Option<ShadowMap>,
 }
-three_object_internal!(Directional::object);
+three_object!(Directional::object);
 
 impl Directional {
     #[doc(hidden)]
@@ -100,7 +100,7 @@ impl Directional {
 pub struct Hemisphere {
     pub(crate) object: Object,
 }
-three_object_internal!(Hemisphere::object);
+three_object!(Hemisphere::object);
 
 impl Hemisphere {
     #[doc(hidden)]
@@ -114,7 +114,7 @@ impl Hemisphere {
 pub struct Point {
     pub(crate) object: Object,
 }
-three_object_internal!(Point::object);
+three_object!(Point::object);
 
 impl Point {
     #[doc(hidden)]

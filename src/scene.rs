@@ -33,7 +33,7 @@ pub struct Scene {
     /// See [`Background`](struct.Background.html).
     pub background: Background,
 }
-three_object_internal!(Scene::object);
+three_object!(Scene::object);
 
 /// `SyncGuard` is used to obtain information about scene nodes in the most effective way.
 ///
@@ -48,7 +48,6 @@ three_object_internal!(Scene::object);
 ///     mesh: three::Mesh,
 ///     is_visible: bool,
 /// }
-/// three_object!(Enemy::mesh);
 /// # fn main() {}
 /// ```
 ///
@@ -68,26 +67,25 @@ three_object_internal!(Scene::object);
 /// #     mesh: three::Mesh,
 /// #     is_visible: bool,
 /// # }
-/// # three_object!(Enemy::mesh);
 /// # fn main() {
 /// # let mut win = three::Window::new("SyncGuard example");
 /// # let geometry = three::Geometry::default();
 /// # let material = three::material::Basic { color: three::color::RED, map: None };
 /// # let mesh = win.factory.mesh(geometry, material);
 /// # let mut enemy = Enemy { mesh, is_visible: true };
-/// # enemy.set_parent(&win.scene);
+/// # enemy.mesh.set_parent(&win.scene);
 /// # let mut enemies = vec![enemy];
 /// # loop {
 /// let mut sync = win.scene.sync_guard();
 /// for enemy in &mut enemies {
-///     let node = sync.resolve(enemy);
+///     let node = sync.resolve(&enemy.mesh);
 ///     let position = node.world_transform.position;
 ///     if position.x > 10.0 {
 ///         enemy.is_visible = false;
-///         enemy.set_visible(false);
+///         enemy.mesh.set_visible(false);
 ///     } else {
 ///         enemy.is_visible = true;
-///         enemy.set_visible(true);
+///         enemy.mesh.set_visible(true);
 ///     }
 /// }
 /// # }}
@@ -108,7 +106,7 @@ impl<'a> SyncGuard<'a> {
     /// [`Node`]: ../node/struct.Node.html
     pub fn resolve<T: AsRef<Object> + 'a>(
         &mut self,
-        object: &T,
+        object: T,
     ) -> Node {
         let node_internal = self.hub.get(object);
         assert_eq!(node_internal.scene_id, self.scene_id);

@@ -164,7 +164,7 @@ impl TextData {
 pub struct Text {
     pub(crate) object: Object,
 }
-three_object_internal!(Text::object);
+three_object!(Text::object);
 
 impl Text {
     pub(crate) fn with_object(object: Object) -> Self {
