@@ -61,7 +61,9 @@ impl Object {
     pub(crate) fn send<T>(
         &self,
         operation: T,
-    ) where T: Into<hub::Operation> {
+    ) where
+        T: Into<hub::Operation>,
+    {
         let _ = self.tx.send((self.node.downgrade(), operation.into()));
     }
 

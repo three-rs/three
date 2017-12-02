@@ -33,7 +33,8 @@ pub struct Builder {
 impl Builder {
     /// Create new `Builder` with default values.
     pub fn new<T>(object: T) -> Self
-        where T: AsRef<Object>
+    where
+        T: AsRef<Object>,
     {
         Builder {
             object: object.as_ref().clone(),
@@ -115,7 +116,8 @@ impl Builder {
 impl Orbit {
     /// Create new `Builder` with default values.
     pub fn builder<T>(object: T) -> Builder
-        where T: AsRef<Object>
+    where
+        T: AsRef<Object>,
     {
         Builder::new(object)
     }

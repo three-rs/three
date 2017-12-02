@@ -1,4 +1,5 @@
 //! `Scene` and `SyncGuard` structures.
+
 use color::Color;
 use hub::{Hub, HubPtr};
 use node::Node;
@@ -104,7 +105,10 @@ impl<'a> SyncGuard<'a> {
     /// Panics if `scene` doesn't have this `Object`.
     ///
     /// [`Node`]: ../node/struct.Node.html
-    pub fn resolve<T: AsRef<Object> + 'a>(&mut self, object: &T) -> Node {
+    pub fn resolve<T: AsRef<Object> + 'a>(
+        &mut self,
+        object: &T,
+    ) -> Node {
         let node_internal = self.hub.get(object);
         assert_eq!(node_internal.scene_id, self.scene_id);
         node_internal.to_node()

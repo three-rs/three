@@ -55,11 +55,7 @@ pub(crate) enum Operation {
     SetParent(NodePointer),
     SetVisible(bool),
     SetText(TextOperation),
-    SetTransform(
-        Option<mint::Point3<f32>>,
-        Option<mint::Quaternion<f32>>,
-        Option<f32>,
-    ),
+    SetTransform(Option<mint::Point3<f32>>, Option<mint::Quaternion<f32>>, Option<f32>),
     SetMaterial(Material),
     SetTexelRange(mint::Point2<i16>, mint::Vector2<u16>),
     SetShadow(ShadowMap, ShadowProjection),
@@ -94,22 +90,30 @@ impl Hub {
         }
     }
 
-    pub(crate) fn get<T>(&self, object: T) -> &NodeInternal
-        where T: AsRef<Object>
+    pub(crate) fn get<T>(
+        &self,
+        object: T,
+    ) -> &NodeInternal
+    where
+        T: AsRef<Object>,
     {
         let object: &Object = object.as_ref();
         let ptr: &NodePointer = object.as_ref();
         &self.nodes[ptr]
     }
 
-    pub(crate) fn get_mut<T>(&mut self, object: T) -> &mut NodeInternal
-        where T: AsRef<Object>
+    pub(crate) fn get_mut<T>(
+        &mut self,
+        object: T,
+    ) -> &mut NodeInternal
+    where
+        T: AsRef<Object>,
     {
         let object: &Object = object.as_ref();
         let ptr: &NodePointer = object.as_ref();
         &mut self.nodes[ptr]
     }
-    
+
     pub(crate) fn spawn_empty(&mut self) -> Object {
         self.spawn(SubNode::Empty)
     }
@@ -161,9 +165,11 @@ impl Hub {
                 Err(_) => continue,
             };
             match operation {
-                Operation::SetAudio(operation) => if let SubNode::Audio(ref mut data) = node.sub_node {
-                    Hub::process_audio(operation, data);
-                },
+                Operation::SetAudio(operation) => {
+                    if let SubNode::Audio(ref mut data) = node.sub_node {
+                        Hub::process_audio(operation, data);
+                    }
+                }
                 Operation::SetParent(parent) => {
                     node.parent = Some(parent);
                 }
@@ -181,21 +187,29 @@ impl Hub {
                         node.transform.scale = scale;
                     }
                 }
-                Operation::SetMaterial(material) => if let SubNode::Visual(ref mut mat, _) = node.sub_node {
-                    *mat = material;
-                },
-                Operation::SetTexelRange(base, size) => if let SubNode::Visual(ref mut material, _) = node.sub_node {
-                    match *material {
-                        material::Material::Sprite(ref mut params) => params.map.set_texel_range(base, size),
-                        _ => panic!("Unsupported material for texel range request"),
+                Operation::SetMaterial(material) => {
+                    if let SubNode::Visual(ref mut mat, _) = node.sub_node {
+                        *mat = material;
                     }
-                },
-                Operation::SetText(operation) => if let SubNode::UiText(ref mut data) = node.sub_node {
-                    Hub::process_text(operation, data);
-                },
-                Operation::SetShadow(map, proj) => if let SubNode::Light(ref mut data) = node.sub_node {
-                    data.shadow = Some((map, proj));
-                },
+                }
+                Operation::SetTexelRange(base, size) => {
+                    if let SubNode::Visual(ref mut material, _) = node.sub_node {
+                        match *material {
+                            material::Material::Sprite(ref mut params) => params.map.set_texel_range(base, size),
+                            _ => panic!("Unsupported material for texel range request"),
+                        }
+                    }
+                }
+                Operation::SetText(operation) => {
+                    if let SubNode::UiText(ref mut data) = node.sub_node {
+                        Hub::process_text(operation, data);
+                    }
+                }
+                Operation::SetShadow(map, proj) => {
+                    if let SubNode::Light(ref mut data) = node.sub_node {
+                        data.shadow = Some((map, proj));
+                    }
+                }
             }
         }
         self.nodes.sync_pending();
@@ -243,17 +257,19 @@ impl Hub {
                 continue;
             }
             let (visibility, affilation, transform) = match item.parent {
-                Some(ref parent_ptr) => match left.get(parent_ptr) {
-                    Some(parent) => (
-                        parent.world_visible,
-                        parent.scene_id,
-                        parent.world_transform.concat(&item.transform),
-                    ),
-                    None => {
-                        error!("Parent node was created after the child, ignoring");
-                        (false, item.scene_id, item.transform)
+                Some(ref parent_ptr) => {
+                    match left.get(parent_ptr) {
+                        Some(parent) => (
+                            parent.world_visible,
+                            parent.scene_id,
+                            parent.world_transform.concat(&item.transform),
+                        ),
+                        None => {
+                            error!("Parent node was created after the child, ignoring");
+                            (false, item.scene_id, item.transform)
+                        }
                     }
-                },
+                }
                 None => (true, item.scene_id, item.transform),
             };
             item.world_visible = visibility;

@@ -35,12 +35,7 @@ impl<T> Texture<T> {
         }
     }
 
-    pub(crate) fn to_param(
-        &self,
-    ) -> (
-        h::ShaderResourceView<BackendResources, T>,
-        h::Sampler<BackendResources>,
-    ) {
+    pub(crate) fn to_param(&self) -> (h::ShaderResourceView<BackendResources, T>, h::Sampler<BackendResources>) {
         (self.view.clone(), self.sampler.clone())
     }
 
@@ -118,12 +113,7 @@ impl<T> CubeMap<T> {
         CubeMap { view, sampler }
     }
 
-    pub(crate) fn to_param(
-        &self,
-    ) -> (
-        h::ShaderResourceView<BackendResources, T>,
-        h::Sampler<BackendResources>,
-    ) {
+    pub(crate) fn to_param(&self) -> (h::ShaderResourceView<BackendResources, T>, h::Sampler<BackendResources>) {
         (self.view.clone(), self.sampler.clone())
     }
 }

@@ -69,7 +69,8 @@ impl super::Factory {
         // gfx does not support separate min / mag
         // filters yet, so for now we'll use `mag_filter` for both.
         let mag_filter = match params.mag_filter() {
-            None | Some(MagFilter::Nearest) => FilterMethod::Scale,
+            None |
+            Some(MagFilter::Nearest) => FilterMethod::Scale,
             Some(MagFilter::Linear) => FilterMethod::Bilinear,
         };
         let wrap_s = match params.wrap_s() {
@@ -95,8 +96,9 @@ impl super::Factory {
     ) -> Material {
         let pbr = mat.pbr_metallic_roughness();
         let mut is_basic_material = true;
-        let base_color_map = pbr.base_color_texture()
-            .map(|t| self.load_gltf_texture(&t, buffers, base));
+        let base_color_map = pbr.base_color_texture().map(|t| {
+            self.load_gltf_texture(&t, buffers, base)
+        });
         let normal_map = mat.normal_texture().map(|t| {
             is_basic_material = false;
             self.load_gltf_texture(&t, buffers, base)
