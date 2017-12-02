@@ -11,6 +11,7 @@ use text::{Operation as TextOperation, TextData};
 use cgmath::Transform;
 use froggy;
 use mint;
+use scene;
 
 use std::sync::{Arc, Mutex};
 use std::sync::{atomic, mpsc};
@@ -93,6 +94,30 @@ impl Hub {
         }
     }
 
+    pub(crate) fn get<T>(
+        &self,
+        object: T,
+    ) -> &NodeInternal
+    where
+        T: AsRef<Object>,
+    {
+        let object: &Object = object.as_ref();
+        let ptr: &NodePointer = object.as_ref();
+        &self.nodes[ptr]
+    }
+
+    pub(crate) fn get_mut<T>(
+        &mut self,
+        object: T,
+    ) -> &mut NodeInternal
+    where
+        T: AsRef<Object>,
+    {
+        let object: &Object = object.as_ref();
+        let ptr: &NodePointer = object.as_ref();
+        &mut self.nodes[ptr]
+    }
+
     pub(crate) fn spawn_empty(&mut self) -> Object {
         self.spawn(SubNode::Empty)
     }
@@ -126,7 +151,7 @@ impl Hub {
         self.spawn(SubNode::Audio(data))
     }
 
-    pub(crate) fn spawn_scene(&mut self) -> Object {
+    pub(crate) fn spawn_scene(&mut self) -> (scene::Uid, Object) {
         static SCENE_UID_COUNTER: atomic::AtomicUsize = atomic::ATOMIC_USIZE_INIT;
         let uid = SCENE_UID_COUNTER.fetch_add(1, atomic::Ordering::Relaxed);
         let tx = self.message_tx.clone();
@@ -134,7 +159,7 @@ impl Hub {
             scene_id: Some(uid),
             ..SubNode::Scene.into()
         });
-        Object { node, tx }
+        (uid, Object { node, tx })
     }
 
     pub(crate) fn process_messages(&mut self) {
@@ -249,7 +274,7 @@ impl Hub {
         &mut self,
         mesh: &DynamicMesh,
     ) {
-        match self.nodes[&mesh.node].sub_node {
+        match self.get_mut(mesh).sub_node {
             SubNode::Visual(_, ref mut gpu_data) => gpu_data.pending = Some(mesh.dynamic.clone()),
             _ => unreachable!(),
         }

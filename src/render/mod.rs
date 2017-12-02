@@ -507,7 +507,7 @@ impl Renderer {
     ) {
         self.device.cleanup();
         let mut hub = scene.hub.lock().unwrap();
-        let scene_id = hub.nodes[&scene.object.node].scene_id;
+        let scene_id = hub.get(scene).scene_id;
 
         hub.process_messages();
         hub.update_graph();
@@ -654,7 +654,7 @@ impl Renderer {
         // prepare target and globals
         let (mx_inv_proj, mx_view, mx_vp) = {
             let p: [[f32; 4]; 4] = camera.matrix(self.aspect_ratio()).into();
-            let node = &hub.nodes[&camera.object.node];
+            let node = hub.get(camera);
             let w = match node.scene_id {
                 Some(id) if Some(id) == scene_id => node.world_transform,
                 Some(_) => panic!("Camera does not belong to this scene"),

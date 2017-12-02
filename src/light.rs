@@ -37,6 +37,7 @@ impl ShadowMap {
 pub struct Ambient {
     pub(crate) object: Object,
 }
+three_object!(Ambient::object);
 
 impl Ambient {
     #[doc(hidden)]
@@ -53,6 +54,7 @@ pub struct Directional {
     pub(crate) object: Object,
     pub(crate) shadow: Option<ShadowMap>,
 }
+three_object!(Directional::object);
 
 impl Directional {
     #[doc(hidden)]
@@ -81,8 +83,7 @@ impl Directional {
             range,
         });
         self.shadow = Some(map.clone());
-        let msg = Operation::SetShadow(map, sp);
-        let _ = self.tx.send((self.node.downgrade(), msg));
+        self.object.send(Operation::SetShadow(map, sp));
     }
 }
 
@@ -99,6 +100,7 @@ impl Directional {
 pub struct Hemisphere {
     pub(crate) object: Object,
 }
+three_object!(Hemisphere::object);
 
 impl Hemisphere {
     #[doc(hidden)]
@@ -112,6 +114,7 @@ impl Hemisphere {
 pub struct Point {
     pub(crate) object: Object,
 }
+three_object!(Point::object);
 
 impl Point {
     #[doc(hidden)]

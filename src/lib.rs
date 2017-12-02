@@ -8,6 +8,7 @@
 //! Every `three` application begins with a [`Window`]. We create it as follows.
 //!
 //! ```rust,no_run
+//! # #![allow(unused_mut)]
 //! # extern crate three;
 //! # fn main() {
 //! let title = "Getting started with three-rs";
@@ -32,6 +33,7 @@
 //! [`Material`], describing the appearance of the object.
 //!
 //! ```rust,no_run
+//! # #![allow(unused_mut)]
 //! # extern crate three;
 //! # fn main() {
 //! # let title = "Getting started with three-rs";
@@ -55,6 +57,7 @@
 //! [`Scene`] within the viewable region.
 //!
 //! ```rust,no_run
+//! # #![allow(unused_mut)]
 //! # extern crate three;
 //! # fn main() {
 //! # let title = "Getting started with three-rs";
@@ -79,6 +82,7 @@
 //! sky blue color instead.
 //!
 //! ```rust,no_run
+//! # #![allow(unused_mut)]
 //! # extern crate three;
 //! # fn main() {
 //! # let title = "Getting started with three-rs";
@@ -93,6 +97,7 @@
 //! main game loop.
 //!
 //! ```rust,no_run
+//! # #![allow(unused_mut)]
 //! # extern crate three;
 //! # fn main() {
 //! #     let title = "Getting started with three-rs";
@@ -125,6 +130,7 @@
 //! a sky blue background.
 //!
 //! ```rust,no_run
+//! # #![allow(unused_mut)]
 //! extern crate three;
 //!
 //! fn main() {
@@ -164,25 +170,7 @@
 //! parents alive, opposed to parents keeping their children alive.
 //!
 //! At the heart of the scene heirarchy is the [`Object`] type, which is a member
-//! of all `three` objects that are placeable in the scene. One can create their
-//! own [`Object`] kind by the use of the [`three_object_wrapper!`] macro.
-//!
-//! ```rust,no_run
-//! #[macro_use]
-//! extern crate three;
-//!
-//! three_object_wrapper!(MyObject::group);
-//! struct MyObject {
-//!     group: three::Group,
-//! }
-//!
-//! fn main() {
-//! #    let mut window = three::Window::new("");
-//!     // Initialization code omitted.
-//!     let mut my_object = MyObject { group: window.factory.group() };
-//!     my_object.set_parent(&window.scene);
-//! }
-//! ```
+//! of all `three` objects that are placeable in the scene.
 //!
 //! ## Multiple graphics pipelines
 //!
@@ -228,8 +216,6 @@
 //! [`Renderer`]: struct.Renderer.html
 //! [`Scene`]: scene/struct.Scene.html
 //! [`Window`]: window/struct.Window.html
-//!
-//! [`three_object_wrapper!`]: macro.three_object_wrapper.html
 
 #[macro_use]
 extern crate bitflags;
@@ -291,6 +277,9 @@ mod util;
 #[cfg(feature = "opengl")]
 pub mod window;
 
+#[doc(hidden)]
+pub use mint::{Point3, Quaternion, Vector3};
+
 pub use color::Color;
 pub use controls::{AXIS_DOWN_UP, AXIS_LEFT_RIGHT, KEY_ESCAPE, KEY_SPACE, MOUSE_LEFT, MOUSE_RIGHT};
 pub use controls::{Button, Input, Timer};
@@ -309,8 +298,3 @@ pub use text::{Align, Font, Layout, Text};
 pub use texture::{CubeMap, CubeMapPath, FilterMethod, Sampler, Texture, WrapMode};
 #[cfg(feature = "opengl")]
 pub use window::Window;
-
-use audio::Source;
-use light::{Ambient, Directional, Hemisphere, Point};
-three_object_wrapper!(Group, Mesh, DynamicMesh, Source, Sprite, Text);
-three_object_wrapper!(Ambient, Hemisphere, Point, Directional);

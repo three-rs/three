@@ -286,7 +286,7 @@ impl super::Factory {
                 });
             }
 
-            node_map.insert(item.node.index(), (*item.group).clone());
+            node_map.insert(item.node.index(), item.group.object.clone());
             groups.push(item.group);
         }
 

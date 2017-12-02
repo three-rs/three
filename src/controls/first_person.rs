@@ -62,9 +62,12 @@ pub struct Builder {
 
 impl Builder {
     /// Create new `Builder` with default parameters.
-    pub fn new(object: &Object) -> Self {
+    pub fn new<T>(object: T) -> Self
+    where
+        T: AsRef<Object>,
+    {
         Builder {
-            object: object.clone(),
+            object: object.as_ref().clone(),
             position: [0.0, 0.0, 0.0].into(),
             yaw: 0.0,
             pitch: 0.0,
@@ -221,12 +224,18 @@ impl Builder {
 
 impl FirstPerson {
     /// Create a `Builder`.
-    pub fn builder(object: &Object) -> Builder {
+    pub fn builder<T>(object: T) -> Builder
+    where
+        T: AsRef<Object>,
+    {
         Builder::new(object)
     }
 
     /// Create `FirstPerson` controls with default parameters.
-    pub fn default(object: &Object) -> Self {
+    pub fn default<T>(object: T) -> Self
+    where
+        T: AsRef<Object>,
+    {
         Self::builder(object).build()
     }
 
@@ -355,27 +364,27 @@ impl FirstPerson {
             }
         }
 
-        self.axes
-            .vertical
-            .map(|a| if let Some(diff) = input.timed(a) {
+        self.axes.vertical.map(|a| {
+            if let Some(diff) = input.timed(a) {
                 self.position.y += self.move_speed * diff;
-            });
+            }
+        });
 
-        self.axes
-            .forward
-            .map(|a| if let Some(diff) = input.timed(a) {
+        self.axes.forward.map(|a| {
+            if let Some(diff) = input.timed(a) {
                 self.position.x += self.move_speed * diff * self.yaw.sin();
                 self.position.z -= self.move_speed * diff * self.yaw.cos();
                 if self.vertical_move {
                     self.position.y -= self.move_speed * diff * self.pitch.sin();
                 }
-            });
-        self.axes
-            .strafing
-            .map(|a| if let Some(diff) = input.timed(a) {
+            }
+        });
+        self.axes.strafing.map(|a| {
+            if let Some(diff) = input.timed(a) {
                 self.position.x += self.move_speed * diff * self.yaw.cos();
                 self.position.z += self.move_speed * diff * self.yaw.sin();
-            });
+            }
+        });
 
         let yrot = cgmath::Quaternion::from_angle_y(cgmath::Rad(-self.yaw));
         let xrot = cgmath::Quaternion::from_angle_x(cgmath::Rad(-self.pitch));

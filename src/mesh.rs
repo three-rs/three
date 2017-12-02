@@ -70,6 +70,7 @@ use std::hash::{Hash, Hasher};
 pub struct Mesh {
     pub(crate) object: Object,
 }
+three_object!(Mesh::object);
 
 /// A dynamic version of a mesh allows changing the geometry on CPU side
 /// in order to animate the mesh.
@@ -79,6 +80,7 @@ pub struct DynamicMesh {
     pub(crate) geometry: Geometry,
     pub(crate) dynamic: DynamicData,
 }
+three_object!(DynamicMesh::object);
 
 impl PartialEq for DynamicMesh {
     fn eq(
@@ -106,8 +108,7 @@ impl Mesh {
         &mut self,
         material: Material,
     ) {
-        let msg = Operation::SetMaterial(material);
-        let _ = self.tx.send((self.node.downgrade(), msg));
+        self.object.send(Operation::SetMaterial(material));
     }
 }
 
@@ -122,7 +123,6 @@ impl DynamicMesh {
         &mut self,
         material: Material,
     ) {
-        let msg = Operation::SetMaterial(material);
-        let _ = self.tx.send((self.node.downgrade(), msg));
+        self.object.send(Operation::SetMaterial(material));
     }
 }

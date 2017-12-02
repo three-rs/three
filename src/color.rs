@@ -3,6 +3,7 @@
 /// sRGB color represented by a 4-byte hexadecimal number.
 ///
 /// ```rust
+/// # #![allow(unused)]
 /// let red = 0xFF0000;
 /// let green = 0x00FF00;
 /// let blue = 0x0000FF;

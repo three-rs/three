@@ -7,6 +7,7 @@ use object::Object;
 pub struct Sprite {
     pub(crate) object: Object,
 }
+three_object!(Sprite::object);
 
 impl Sprite {
     pub(crate) fn new(object: Object) -> Self {
@@ -22,7 +23,7 @@ impl Sprite {
         P: Into<mint::Point2<i16>>,
         S: Into<mint::Vector2<u16>>,
     {
-        let msg = Operation::SetTexelRange(base.into(), size.into());
-        let _ = self.object.tx.send((self.node.downgrade(), msg));
+        self.object
+            .send(Operation::SetTexelRange(base.into(), size.into()));
     }
 }
