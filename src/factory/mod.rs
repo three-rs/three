@@ -866,7 +866,7 @@ impl Factory {
                         },
                     ),
                 };
-                mesh.object.set_parent(&group);
+                mesh.set_parent(&group);
                 meshes.push(mesh);
             }
 
