@@ -318,8 +318,3 @@ pub use text::{Align, Font, Layout, Text};
 pub use texture::{CubeMap, CubeMapPath, FilterMethod, Sampler, Texture, WrapMode};
 #[cfg(feature = "opengl")]
 pub use window::Window;
-
-use audio::Source;
-use light::{Ambient, Directional, Hemisphere, Point};
-three_object_internal!(Group, Mesh, DynamicMesh, Source, Sprite, Text);
-three_object_internal!(Ambient, Hemisphere, Point, Directional);

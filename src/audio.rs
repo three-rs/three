@@ -120,6 +120,7 @@ impl AudioData {
 pub struct Source {
     pub(crate) object: Object,
 }
+three_object_internal!(Source::object);
 
 impl Source {
     pub(crate) fn with_object(object: Object) -> Self {

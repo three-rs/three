@@ -7,6 +7,7 @@ use object::Object;
 pub struct Sprite {
     pub(crate) object: Object,
 }
+three_object_internal!(Sprite::object);
 
 impl Sprite {
     pub(crate) fn new(object: Object) -> Self {

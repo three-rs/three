@@ -33,6 +33,7 @@ pub struct Scene {
     /// See [`Background`](struct.Background.html).
     pub background: Background,
 }
+three_object_internal!(Scene::object);
 
 /// `SyncGuard` is used to obtain information about scene nodes in the most effective way.
 ///
@@ -127,5 +128,3 @@ impl Scene {
         SyncGuard { hub, scene_id }
     }
 }
-
-three_object_internal!(Scene);

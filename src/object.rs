@@ -171,6 +171,7 @@ impl Object {
 pub struct Group {
     pub(crate) object: Object,
 }
+three_object_internal!(Group::object);
 
 impl Group {
     pub(crate) fn new(object: Object) -> Self {

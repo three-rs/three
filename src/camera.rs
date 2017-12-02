@@ -103,6 +103,7 @@ pub struct Camera {
     /// Projection parameters of this camera.
     pub projection: Projection,
 }
+three_object_internal!(Camera::object);
 
 impl Camera {
     /// Computes the projection matrix representing the camera's projection.
@@ -157,8 +158,6 @@ impl Projection {
         }
     }
 }
-
-three_object_internal!(Camera);
 
 /// Orthographic projection parameters.
 #[derive(Clone, Debug, PartialEq)]
