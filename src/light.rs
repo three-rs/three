@@ -81,8 +81,7 @@ impl Directional {
             range,
         });
         self.shadow = Some(map.clone());
-        let msg = Operation::SetShadow(map, sp);
-        let _ = self.tx.send((self.node.downgrade(), msg));
+        self.object.send(Operation::SetShadow(map, sp));
     }
 }
 

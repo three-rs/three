@@ -1,3 +1,4 @@
+use hub;
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::sync::mpsc;
@@ -19,6 +20,12 @@ use scene::Scene;
 pub struct Object {
     pub(crate) node: NodePointer,
     pub(crate) tx: mpsc::Sender<Message>,
+}
+
+impl AsRef<NodePointer> for Object {
+    fn as_ref(&self) -> &NodePointer {
+        &self.node
+    }
 }
 
 impl PartialEq for Object {
@@ -51,13 +58,19 @@ impl fmt::Debug for Object {
 }
 
 impl Object {
+    pub(crate) fn send<T>(
+        &self,
+        operation: T,
+    ) where T: Into<hub::Operation> {
+        let _ = self.tx.send((self.node.downgrade(), operation.into()));
+    }
+
     /// Invisible objects are not rendered by cameras.
     pub fn set_visible(
         &mut self,
         visible: bool,
     ) {
-        let msg = Operation::SetVisible(visible);
-        let _ = self.tx.send((self.node.downgrade(), msg));
+        self.send(Operation::SetVisible(visible));
     }
 
     /// Rotates object in the specific direction of `target`.
@@ -102,8 +115,7 @@ impl Object {
         &mut self,
         parent: &P,
     ) {
-        let msg = Operation::SetParent(parent.as_ref().node.clone());
-        let _ = self.tx.send((self.node.downgrade(), msg));
+        self.send(Operation::SetParent(parent.as_ref().node.clone()));
     }
 
     /// Set position.
@@ -113,8 +125,7 @@ impl Object {
     ) where
         P: Into<mint::Point3<f32>>,
     {
-        let msg = Operation::SetTransform(Some(pos.into()), None, None);
-        let _ = self.tx.send((self.node.downgrade(), msg));
+        self.send(Operation::SetTransform(Some(pos.into()), None, None));
     }
 
     /// Set orientation.
@@ -124,8 +135,7 @@ impl Object {
     ) where
         Q: Into<mint::Quaternion<f32>>,
     {
-        let msg = Operation::SetTransform(None, Some(rot.into()), None);
-        let _ = self.tx.send((self.node.downgrade(), msg));
+        self.send(Operation::SetTransform(None, Some(rot.into()), None));
     }
 
     /// Set scale.
@@ -133,8 +143,7 @@ impl Object {
         &mut self,
         scale: f32,
     ) {
-        let msg = Operation::SetTransform(None, None, Some(scale));
-        let _ = self.tx.send((self.node.downgrade(), msg));
+        self.send(Operation::SetTransform(None, None, Some(scale)));
     }
 
     /// Get actual information about itself from the `scene`.

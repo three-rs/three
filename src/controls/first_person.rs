@@ -62,9 +62,11 @@ pub struct Builder {
 
 impl Builder {
     /// Create new `Builder` with default parameters.
-    pub fn new(object: &Object) -> Self {
+    pub fn new<T>(object: T) -> Self
+        where T: AsRef<Object>
+    {
         Builder {
-            object: object.clone(),
+            object: object.as_ref().clone(),
             position: [0.0, 0.0, 0.0].into(),
             yaw: 0.0,
             pitch: 0.0,
@@ -221,12 +223,16 @@ impl Builder {
 
 impl FirstPerson {
     /// Create a `Builder`.
-    pub fn builder(object: &Object) -> Builder {
+    pub fn builder<T>(object: T) -> Builder
+        where T: AsRef<Object>
+    {
         Builder::new(object)
     }
 
     /// Create `FirstPerson` controls with default parameters.
-    pub fn default(object: &Object) -> Self {
+    pub fn default<T>(object: T) -> Self
+        where T: AsRef<Object>
+    {
         Self::builder(object).build()
     }
 

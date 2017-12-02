@@ -232,7 +232,7 @@ impl super::Factory {
             // TODO: Groups do not handle non-uniform scaling, so for now
             // we'll choose Y to be the scale factor in all directions.
             let (translation, rotation, scale) = item.node.transform().decomposed();
-            item.group.set_transform(translation, rotation, scale[1]);
+            item.group.object.set_transform(translation, rotation, scale[1]);
 
             if let Some(entry) = item.node.mesh() {
                 let index = entry.index();
@@ -241,13 +241,13 @@ impl super::Factory {
                     let mesh = meshes.get(index).unwrap();
                     for primitive in mesh.iter() {
                         let mut instance = self.mesh_instance(primitive);
-                        instance.set_parent(&item.group);
+                        instance.object.set_parent(&item.group);
                         instances.push(instance);
                     }
                 } else {
                     let mut primitives = self.load_gltf_mesh(&entry, buffers, base);
                     for primitive in &mut primitives {
-                        primitive.set_parent(&item.group);
+                        primitive.object.set_parent(&item.group);
                     }
                     meshes.insert(index, primitives);
                 }
@@ -260,7 +260,7 @@ impl super::Factory {
                         let extent_y = values.ymag();
                         let range = values.znear() .. values.zfar();
                         let mut camera = self.orthographic_camera(center, extent_y, range);
-                        camera.set_parent(&item.group);
+                        camera.object.set_parent(&item.group);
                         cameras.push(camera);
                     }
                     gltf::camera::Projection::Perspective(values) => {
@@ -271,7 +271,7 @@ impl super::Factory {
                         } else {
                             self.perspective_camera(fov_y, near ..)
                         };
-                        camera.set_parent(&item.group);
+                        camera.object.set_parent(&item.group);
                         cameras.push(camera);
                     }
                 }
@@ -279,14 +279,14 @@ impl super::Factory {
 
             for child in item.node.children() {
                 let mut child_group = self.group();
-                child_group.set_parent(&item.group);
+                child_group.object.set_parent(&item.group);
                 stack.push(Item {
                     node: clone_child(&gltf, &child),
                     group: child_group,
                 });
             }
 
-            node_map.insert(item.node.index(), (*item.group).clone());
+            node_map.insert(item.node.index(), item.group.object.clone());
             groups.push(item.group);
         }
 
@@ -394,7 +394,7 @@ impl super::Factory {
                     &mut instances,
                     &mut node_map,
                 );
-                node.set_parent(&group);
+                node.object.set_parent(&group);
             }
             clips = self.load_gltf_animations(&gltf, &node_map, &buffers);
         }

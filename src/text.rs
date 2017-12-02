@@ -6,10 +6,10 @@ use std::rc::Rc;
 use gfx::Encoder;
 use gfx::handle::RenderTargetView;
 use gfx_glyph as g;
+use hub;
 use mint;
 
 use color::Color;
-use hub::Operation as HubOperation;
 use object::Object;
 use render::{BackendCommandBuffer, BackendFactory, BackendResources, ColorFormat};
 
@@ -22,6 +22,12 @@ pub(crate) enum Operation {
     Color(Color),
     Opacity(f32),
     Layout(Layout),
+}
+
+impl Into<hub::Operation> for Operation {
+    fn into(self) -> hub::Operation {
+        hub::Operation::SetText(self)
+    }
 }
 
 /// Describes horizontal alignment preference for positioning & bounds.
@@ -169,8 +175,7 @@ impl Text {
         &mut self,
         text: S,
     ) {
-        let msg = HubOperation::SetText(Operation::Text(text.into()));
-        let _ = self.object.tx.send((self.object.node.downgrade(), msg));
+        self.object.send(Operation::Text(text.into()));
     }
 
     /// Change font.
@@ -178,8 +183,7 @@ impl Text {
         &mut self,
         font: &Font,
     ) {
-        let msg = HubOperation::SetText(Operation::Font(font.clone()));
-        let _ = self.object.tx.send((self.object.node.downgrade(), msg));
+        self.object.send(Operation::Font(font.clone()));
     }
 
     /// Change text position.
@@ -189,8 +193,7 @@ impl Text {
         &mut self,
         point: P,
     ) {
-        let msg = HubOperation::SetText(Operation::Pos(point.into()));
-        let _ = self.object.tx.send((self.object.node.downgrade(), msg));
+        self.object.send(Operation::Pos(point.into()));
     }
 
     /// Change maximum bounds size, in pixels from top-left.
@@ -199,8 +202,7 @@ impl Text {
         &mut self,
         dimensions: V,
     ) {
-        let msg = HubOperation::SetText(Operation::Size(dimensions.into()));
-        let _ = self.object.tx.send((self.object.node.downgrade(), msg));
+        self.object.send(Operation::Size(dimensions.into()));
     }
 
     /// Change text color.
@@ -209,8 +211,7 @@ impl Text {
         &mut self,
         color: Color,
     ) {
-        let msg = HubOperation::SetText(Operation::Color(color));
-        let _ = self.object.tx.send((self.object.node.downgrade(), msg));
+        self.object.send(Operation::Color(color));
     }
 
     /// Change text opacity.
@@ -220,8 +221,7 @@ impl Text {
         &mut self,
         opacity: f32,
     ) {
-        let msg = HubOperation::SetText(Operation::Opacity(opacity));
-        let _ = self.object.tx.send((self.object.node.downgrade(), msg));
+        self.object.send(Operation::Opacity(opacity));
     }
 
     /// Change font size (scale).
@@ -230,8 +230,7 @@ impl Text {
         &mut self,
         size: f32,
     ) {
-        let msg = HubOperation::SetText(Operation::Scale(size));
-        let _ = self.object.tx.send((self.object.node.downgrade(), msg));
+        self.object.send(Operation::Scale(size));
     }
 
     /// Change text layout.
@@ -240,7 +239,6 @@ impl Text {
         &mut self,
         layout: Layout,
     ) {
-        let msg = HubOperation::SetText(Operation::Layout(layout));
-        let _ = self.object.tx.send((self.object.node.downgrade(), msg));
+        self.object.send(Operation::Layout(layout));
     }
 }

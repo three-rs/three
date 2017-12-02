@@ -1,5 +1,6 @@
 //! Primitives for audio playback.
 
+use hub;
 use std::fmt;
 use std::io::Cursor;
 use std::rc::Rc;
@@ -8,7 +9,6 @@ use std::time::Duration;
 use rodio as r;
 use rodio::Source as _Source;
 
-use hub::Operation as HubOperation;
 use object::Object;
 
 /// Audio segment with sound effects.
@@ -86,6 +86,12 @@ pub(crate) enum Operation {
     SetVolume(f32),
 }
 
+impl Into<hub::Operation> for Operation {
+    fn into(self) -> hub::Operation {
+        hub::Operation::SetAudio(self)
+    }
+}
+
 #[derive(Debug)]
 pub(crate) struct AudioData {
     pub(crate) source: SourceInternal,
@@ -127,28 +133,24 @@ impl Source {
         &self,
         clip: &Clip,
     ) {
-        let msg = HubOperation::SetAudio(Operation::Append(clip.clone()));
-        let _ = self.object.tx.send((self.object.node.downgrade(), msg));
+        self.object.send(Operation::Append(clip.clone()));
     }
 
     /// Pause current sound.
     ///
     /// You can [`resume`](struct.Source.html#method.resume) playback.
     pub fn pause(&self) {
-        let msg = HubOperation::SetAudio(Operation::Pause);
-        let _ = self.object.tx.send((self.object.node.downgrade(), msg));
+        self.object.send(Operation::Pause);
     }
 
     /// Resume playback after [`pausing`](struct.Source.html#method.pause).
     pub fn resume(&self) {
-        let msg = HubOperation::SetAudio(Operation::Resume);
-        let _ = self.object.tx.send((self.object.node.downgrade(), msg));
+        self.object.send(Operation::Resume)
     }
 
     /// Stop the playback by emptying the queue.
     pub fn stop(&self) {
-        let msg = HubOperation::SetAudio(Operation::Stop);
-        let _ = self.object.tx.send((self.object.node.downgrade(), msg));
+        self.object.send(Operation::Stop);
     }
 
     /// Adjust playback volume.
@@ -158,8 +160,7 @@ impl Source {
         &self,
         volume: f32,
     ) {
-        let msg = HubOperation::SetAudio(Operation::SetVolume(volume));
-        let _ = self.object.tx.send((self.object.node.downgrade(), msg));
+        self.object.send(Operation::SetVolume(volume));
     }
 }
 

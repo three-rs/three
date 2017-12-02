@@ -121,12 +121,13 @@ impl Factory {
 
     /// Create new empty [`Scene`](struct.Scene.html).
     pub fn scene(&mut self) -> Scene {
-        let object = self.hub.lock().unwrap().spawn_scene();
+        let (uid, object) = self.hub.lock().unwrap().spawn_scene();
         let hub = self.hub.clone();
         let background = scene::Background::Color(color::BLACK);
         Scene {
             object,
             hub,
+            uid,
             background,
         }
     }
@@ -316,14 +317,14 @@ impl Factory {
         template: &Mesh,
     ) -> Mesh {
         let mut hub = self.hub.lock().unwrap();
-        let gpu_data = match hub.nodes[&template.node].sub_node {
+        let gpu_data = match hub.get(template).sub_node {
             SubNode::Visual(_, ref gpu) => GpuData {
                 constants: self.backend.create_constant_buffer(1),
                 ..gpu.clone()
             },
             _ => unreachable!(),
         };
-        let material = match hub.nodes[&template.node].sub_node {
+        let material = match hub.get(template).sub_node {
             SubNode::Visual(ref mat, _) => mat.clone(),
             _ => unreachable!(),
         };
@@ -340,7 +341,7 @@ impl Factory {
         material: M,
     ) -> Mesh {
         let mut hub = self.hub.lock().unwrap();
-        let gpu_data = match hub.nodes[&template.node].sub_node {
+        let gpu_data = match hub.get(template).sub_node {
             SubNode::Visual(_, ref gpu) => GpuData {
                 constants: self.backend.create_constant_buffer(1),
                 ..gpu.clone()
@@ -865,7 +866,7 @@ impl Factory {
                         },
                     ),
                 };
-                mesh.set_parent(&group);
+                mesh.object.set_parent(&group);
                 meshes.push(mesh);
             }
 

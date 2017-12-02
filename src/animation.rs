@@ -32,6 +32,7 @@
 //! First, we create a [`Mixer`] to play our animation.
 //!
 //! ```rust,no_run
+//! # #![allow(unused_mut)]
 //! // Initialization omitted.
 //! let mut mixer = three::animation::Mixer::new();
 //! ```
@@ -41,6 +42,7 @@
 //! Now, we load some clips from an animated glTF scene.
 //!
 //! ```rust,no_run
+//! # #![allow(unused_mut)]
 //! # let mut window = three::Window::new("");
 //! let mut gltf = window.factory.load_gltf("AnimatedScene.gltf");
 //! gltf.group.set_parent(&window.scene);
@@ -55,6 +57,7 @@
 //! immediately.
 //!
 //! ```rust,no_run
+//! # #![allow(unused_mut)]
 //! # let mut window = three::Window::new("");
 //! # let mut mixer = three::animation::Mixer::new();
 //! # let mut gltf = window.factory.load_gltf("AnimatedScene.gltf");
@@ -71,6 +74,7 @@
 //! game loop.
 //!
 //! ```rust,no_run
+//! # #![allow(unused_mut)]
 //! # let mut window = three::Window::new("");
 //! # let camera = unimplemented!();
 //! # let mut mixer = three::animation::Mixer::new();

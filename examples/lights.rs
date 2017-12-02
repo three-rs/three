@@ -18,10 +18,10 @@ fn main() {
     dir_light.set_shadow(shadow_map, 40.0, 1.0 .. 200.0);
 
     let mut lights: [&mut three::Object; 4] = [
-        &mut hemisphere_light,
-        &mut ambient_light,
-        &mut point_light,
-        &mut dir_light,
+        hemisphere_light.as_mut(),
+        ambient_light.as_mut(),
+        point_light.as_mut(),
+        dir_light.as_mut(),
     ];
     for l in lights.iter_mut() {
         l.set_parent(&win.scene);

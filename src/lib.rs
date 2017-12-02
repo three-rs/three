@@ -8,6 +8,7 @@
 //! Every `three` application begins with a [`Window`]. We create it as follows.
 //!
 //! ```rust,no_run
+//! # #![allow(unused_mut)]
 //! # extern crate three;
 //! # fn main() {
 //! let title = "Getting started with three-rs";
@@ -32,6 +33,7 @@
 //! [`Material`], describing the appearance of the object.
 //!
 //! ```rust,no_run
+//! # #![allow(unused_mut)]
 //! # extern crate three;
 //! # fn main() {
 //! # let title = "Getting started with three-rs";
@@ -55,6 +57,7 @@
 //! [`Scene`] within the viewable region.
 //!
 //! ```rust,no_run
+//! # #![allow(unused_mut)]
 //! # extern crate three;
 //! # fn main() {
 //! # let title = "Getting started with three-rs";
@@ -79,6 +82,7 @@
 //! sky blue color instead.
 //!
 //! ```rust,no_run
+//! # #![allow(unused_mut)]
 //! # extern crate three;
 //! # fn main() {
 //! # let title = "Getting started with three-rs";
@@ -93,6 +97,7 @@
 //! main game loop.
 //!
 //! ```rust,no_run
+//! # #![allow(unused_mut)]
 //! # extern crate three;
 //! # fn main() {
 //! #     let title = "Getting started with three-rs";
@@ -125,6 +130,7 @@
 //! a sky blue background.
 //!
 //! ```rust,no_run
+//! # #![allow(unused_mut)]
 //! extern crate three;
 //!
 //! fn main() {
@@ -165,13 +171,13 @@
 //!
 //! At the heart of the scene heirarchy is the [`Object`] type, which is a member
 //! of all `three` objects that are placeable in the scene. One can create their
-//! own [`Object`] kind by the use of the [`three_object_wrapper!`] macro.
+//! own [`Object`] kind by the use of the [`three_object!`] macro.
 //!
 //! ```rust,no_run
 //! #[macro_use]
 //! extern crate three;
 //!
-//! three_object_wrapper!(MyObject::group);
+//! three_object!(MyObject::group);
 //! struct MyObject {
 //!     group: three::Group,
 //! }
@@ -229,7 +235,7 @@
 //! [`Scene`]: scene/struct.Scene.html
 //! [`Window`]: window/struct.Window.html
 //!
-//! [`three_object_wrapper!`]: macro.three_object_wrapper.html
+//! [`three_object!`]: macro.three_object.html
 
 #[macro_use]
 extern crate bitflags;
@@ -291,6 +297,9 @@ mod util;
 #[cfg(feature = "opengl")]
 pub mod window;
 
+#[doc(hidden)]
+pub use mint::{Quaternion, Point3, Vector3};
+
 pub use color::Color;
 pub use controls::{AXIS_DOWN_UP, AXIS_LEFT_RIGHT, KEY_ESCAPE, KEY_SPACE, MOUSE_LEFT, MOUSE_RIGHT};
 pub use controls::{Button, Input, Timer};
@@ -312,5 +321,5 @@ pub use window::Window;
 
 use audio::Source;
 use light::{Ambient, Directional, Hemisphere, Point};
-three_object_wrapper!(Group, Mesh, DynamicMesh, Source, Sprite, Text);
-three_object_wrapper!(Ambient, Hemisphere, Point, Directional);
+three_object_internal!(Group, Mesh, DynamicMesh, Source, Sprite, Text);
+three_object_internal!(Ambient, Hemisphere, Point, Directional);

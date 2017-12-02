@@ -158,7 +158,7 @@ impl Projection {
     }
 }
 
-three_object_wrapper!(Camera);
+three_object_internal!(Camera);
 
 /// Orthographic projection parameters.
 #[derive(Clone, Debug, PartialEq)]

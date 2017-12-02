@@ -106,8 +106,7 @@ impl Mesh {
         &mut self,
         material: Material,
     ) {
-        let msg = Operation::SetMaterial(material);
-        let _ = self.tx.send((self.node.downgrade(), msg));
+        self.object.send(Operation::SetMaterial(material));
     }
 }
 
@@ -122,7 +121,6 @@ impl DynamicMesh {
         &mut self,
         material: Material,
     ) {
-        let msg = Operation::SetMaterial(material);
-        let _ = self.tx.send((self.node.downgrade(), msg));
+        self.object.send(Operation::SetMaterial(material));
     }
 }

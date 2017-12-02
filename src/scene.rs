@@ -28,6 +28,7 @@ pub enum Background {
 pub struct Scene {
     pub(crate) object: Object,
     pub(crate) hub: HubPtr,
+    pub(crate) uid: Uid,
     /// See [`Background`](struct.Background.html).
     pub background: Background,
 }
@@ -45,7 +46,7 @@ pub struct Scene {
 ///     mesh: three::Mesh,
 ///     is_visible: bool,
 /// }
-/// three_object_wrapper!(Enemy::mesh);
+/// three_object!(Enemy::mesh);
 /// # fn main() {}
 /// ```
 ///
@@ -65,7 +66,7 @@ pub struct Scene {
 /// #     mesh: three::Mesh,
 /// #     is_visible: bool,
 /// # }
-/// # three_object_wrapper!(Enemy::mesh);
+/// # three_object!(Enemy::mesh);
 /// # fn main() {
 /// # let mut win = three::Window::new("SyncGuard example");
 /// # let geometry = three::Geometry::default();
@@ -74,9 +75,9 @@ pub struct Scene {
 /// # let mut enemy = Enemy { mesh, is_visible: true };
 /// # enemy.set_parent(&win.scene);
 /// # let mut enemies = vec![enemy];
-/// # while true {
+/// # loop {
 /// let mut sync = win.scene.sync_guard();
-/// for mut enemy in &mut enemies {
+/// for enemy in &mut enemies {
 ///     let node = sync.resolve(enemy);
 ///     let position = node.world_transform.position;
 ///     if position.x > 10.0 {
@@ -104,8 +105,7 @@ impl<'a> SyncGuard<'a> {
     ///
     /// [`Node`]: ../node/struct.Node.html
     pub fn resolve<T: AsRef<Object> + 'a>(&mut self, object: &T) -> Node {
-        let object = object.as_ref();
-        let node_internal = &self.hub.nodes[&object.node];
+        let node_internal = self.hub.get(object);
         assert_eq!(node_internal.scene_id, self.scene_id);
         node_internal.to_node()
     }
@@ -119,9 +119,9 @@ impl Scene {
         let mut hub = self.hub.lock().unwrap();
         hub.process_messages();
         hub.update_graph();
-        let scene_id = hub.nodes[&self.object.node].scene_id;
+        let scene_id = Some(self.uid);
         SyncGuard { hub, scene_id }
     }
 }
 
-three_object_wrapper!(Scene);
+three_object_internal!(Scene);
