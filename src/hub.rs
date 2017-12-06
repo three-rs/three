@@ -6,6 +6,7 @@ use mesh::DynamicMesh;
 use node::{NodeInternal, NodePointer};
 use object;
 use render::GpuData;
+use skeleton::Bone;
 use text::{Operation as TextOperation, TextData};
 
 use cgmath::Transform;
@@ -31,6 +32,12 @@ pub(crate) struct LightData {
     pub(crate) shadow: Option<(ShadowMap, ShadowProjection)>,
 }
 
+#[derive(Clone, Debug)]
+pub(crate) struct SkeletonData {
+    pub bones: Vec<Bone>,
+    pub inverses: Vec<mint::ColumnMatrix4<f32>>,
+}
+
 /// A sub-node specifies and contains the context-specific data owned by a `Node`.
 #[derive(Debug)]
 pub(crate) enum SubNode {
@@ -46,6 +53,8 @@ pub(crate) enum SubNode {
     Light(LightData),
     /// Marks the root object of a `Scene`.
     Scene,
+    /// Array of `Bone` instances that may be bound to a `Skinned` mesh.
+    Skeleton(SkeletonData),
 }
 
 pub(crate) type Message = (froggy::WeakPointer<NodeInternal>, Operation);
@@ -157,6 +166,13 @@ impl Hub {
             ..SubNode::Scene.into()
         });
         object::Base { node, tx }
+    }
+
+    pub(crate) fn spawn_skeleton(
+        &mut self,
+        data: SkeletonData,
+    ) -> object::Base {
+        self.spawn(SubNode::Skeleton(data))
     }
 
     pub(crate) fn process_messages(&mut self) {

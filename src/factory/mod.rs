@@ -14,6 +14,7 @@ use genmesh::{Polygon, Triangulate};
 use gfx;
 use gfx::format::I8Norm;
 use gfx::traits::{Factory as Factory_, FactoryExt};
+use hub;
 use image;
 use itertools::Either;
 use material;
@@ -34,6 +35,7 @@ use object::{Group, Object};
 use render::{basic_pipe, BackendFactory, BackendResources, BasicPipelineState, DynamicData, GpuData, ShadowFormat, Vertex};
 use scene::Scene;
 use sprite::Sprite;
+use skeleton::{Bone, Skeleton};
 use text::{Font, Text, TextData};
 use texture::{CubeMap, CubeMapPath, FilterMethod, Sampler, Texture, WrapMode};
 use vec_map::VecMap;
@@ -129,6 +131,29 @@ impl Factory {
             hub,
             background,
         }
+    }
+
+    /// Create a new [`Bone`], one component of a [`Skeleton`].
+    ///
+    /// [`Bone`]: ../skeleton/struct.Bone.html
+    /// [`Skeleton`]: ../skeleton/struct.Skeleton.html
+    pub fn bone<M: Into<mint::ColumnMatrix4<f32>>>(&mut self) -> Bone {
+        let object = self.hub.lock().unwrap().spawn_empty();
+        Bone { object }
+    }
+
+    /// Create a new [`Skeleton`] from a set of [`Bone`] instances.
+    ///
+    /// * `bones` is the array of bones that form the skeleton.
+    /// * `inverses` is an optional array of inverse bind matrices for each bone.
+    pub fn skeleton(
+        &mut self,
+        bones: Vec<Bone>,
+        inverses: Vec<mint::ColumnMatrix4<f32>>,
+    ) -> Skeleton {
+        let data = hub::SkeletonData { bones, inverses };
+        let object = self.hub.lock().unwrap().spawn_skeleton(data);
+        Skeleton { object }
     }
 
     /// Create new [Orthographic] Camera.
