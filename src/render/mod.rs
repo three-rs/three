@@ -12,6 +12,7 @@ use gfx_device_gl as back;
 use gfx_window_glutin;
 #[cfg(feature = "opengl")]
 use glutin;
+use hub;
 use mint;
 
 pub mod source;
@@ -828,8 +829,24 @@ impl Renderer {
                         Some(ref map) => map.uv_range(),
                         None => [0.0; 4],
                     };
-                    Instance::basic(mx_world.into(), color, uv_range, param0)
-                }
+                    let mut joint_matrices = [Matrix4::identity(); 4];
+                    if let &Some(ref object) = skeleton {
+                        let data = match hub.get(object).sub_node {
+                            hub::SubNode::Skeleton(ref data) => data,
+                            _ => unreachable!(),
+                        };
+                        let (bones, ibms) = (&data.bones, &data.inverses);
+                        for i in 0..4 {
+                            let bone = &bones[i];
+                            let bone_transform = Matrix4::from(hub.get(bone).world_transform);
+                            let inverse_world_transform = Matrix4::from(node.world_transform).invert().unwrap();
+                            let ibm = ibms[i];
+                            let jm = inverse_world_transform * bone_transform * Matrix4::from(ibm);
+
+                            joint_matrices[i] = jm;
+                        }
+                        Instance::basic(...)
+                   }
                 PsoData::Pbr { .. } => Instance::pbr(mx_world.into()),
             };
 
