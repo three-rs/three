@@ -12,6 +12,7 @@ use gfx_device_gl as back;
 use gfx_window_glutin;
 #[cfg(feature = "opengl")]
 use glutin;
+use hub;
 use mint;
 
 pub mod source;
@@ -827,6 +828,26 @@ impl Renderer {
                         Some(ref map) => map.uv_range(),
                         None => [0.0; 4],
                     };
+
+
+                    let mut joint_matrices = [Matrix4::identity(); 4];
+                    if let &Some(ref object) = skeleton {
+                        let data = match hub.get(object).sub_node {
+                            hub::SubNode::Skeleton(ref data) => data,
+                            _ => unreachable!(),
+                        };
+                        let (bones, ibms) = (&data.bones, &data.inverses);
+                        for i in 0..4 {
+                            let bone = &bones[i];
+                            let bone_transform = Matrix4::from(hub.get(bone).world_transform);
+                            let inverse_world_transform = Matrix4::from(node.world_transform).invert().unwrap();
+                            let ibm = ibms[i];
+                            let jm = inverse_world_transform * bone_transform * Matrix4::from(ibm);
+
+                            joint_matrices[i] = jm;
+                        }
+                    }
+                    
                     self.encoder.update_constant_buffer(
                         &gpu_data.constants,
                         &Locals {
@@ -837,10 +858,10 @@ impl Renderer {
                             },
                             mat_params: [param0, 0.0, 0.0, 0.0],
                             uv_range,
-                            joint_matrix_0: Matrix4::identity().into(),
-                            joint_matrix_1: Matrix4::identity().into(),
-                            joint_matrix_2: Matrix4::identity().into(),
-                            joint_matrix_3: Matrix4::identity().into(),
+                            joint_matrix_0: joint_matrices[0].into(),
+                            joint_matrix_1: joint_matrices[1].into(),
+                            joint_matrix_2: joint_matrices[2].into(),
+                            joint_matrix_3: joint_matrices[3].into(),
                         },
                     );
                     //TODO: avoid excessive cloning
