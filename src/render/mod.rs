@@ -517,7 +517,7 @@ impl Renderer {
             if !node.visible || node.scene_id != scene_id {
                 continue;
             }
-            if let SubNode::Visual(_, ref mut gpu_data) = node.sub_node {
+            if let SubNode::Visual(_, ref mut gpu_data, _) = node.sub_node {
                 if let Some(dynamic) = gpu_data.pending.take() {
                     self.encoder
                         .copy_buffer(
@@ -628,7 +628,7 @@ impl Renderer {
                     continue;
                 }
                 let gpu_data = match node.sub_node {
-                    SubNode::Visual(_, ref data) => data,
+                    SubNode::Visual(_, ref data, _) => data,
                     _ => continue,
                 };
                 self.encoder.update_constant_buffer(
@@ -701,8 +701,8 @@ impl Renderer {
             if !node.visible || node.scene_id != scene_id {
                 continue;
             }
-            let (material, gpu_data) = match node.sub_node {
-                SubNode::Visual(ref mat, ref data) => (mat, data),
+            let (material, gpu_data, skeleton) = match node.sub_node {
+                SubNode::Visual(ref mat, ref data, ref skeleton) => (mat, data, skeleton),
                 _ => continue,
             };
 

@@ -277,6 +277,7 @@ impl Factory {
                     constants: cbuf,
                     pending: None,
                 },
+                None,
             ),
         }
     }
@@ -324,6 +325,7 @@ impl Factory {
                     constants,
                     pending: None,
                 },
+                None,
             ),
             geometry,
             dynamic: DynamicData {
@@ -342,18 +344,18 @@ impl Factory {
     ) -> Mesh {
         let mut hub = self.hub.lock().unwrap();
         let gpu_data = match hub.get(&template).sub_node {
-            SubNode::Visual(_, ref gpu) => GpuData {
+            SubNode::Visual(_, ref gpu, _) => GpuData {
                 constants: self.backend.create_constant_buffer(1),
                 ..gpu.clone()
             },
             _ => unreachable!(),
         };
         let material = match hub.get(&template).sub_node {
-            SubNode::Visual(ref mat, _) => mat.clone(),
+            SubNode::Visual(ref mat, _, _) => mat.clone(),
             _ => unreachable!(),
         };
         Mesh {
-            object: hub.spawn_visual(material, gpu_data),
+            object: hub.spawn_visual(material, gpu_data, None),
         }
     }
 
@@ -366,14 +368,14 @@ impl Factory {
     ) -> Mesh {
         let mut hub = self.hub.lock().unwrap();
         let gpu_data = match hub.get(&template).sub_node {
-            SubNode::Visual(_, ref gpu) => GpuData {
+            SubNode::Visual(_, ref gpu, _) => GpuData {
                 constants: self.backend.create_constant_buffer(1),
                 ..gpu.clone()
             },
             _ => unreachable!(),
         };
         Mesh {
-            object: hub.spawn_visual(material.into(), gpu_data),
+            object: hub.spawn_visual(material.into(), gpu_data, None),
         }
     }
 
@@ -390,6 +392,7 @@ impl Factory {
                 constants: self.backend.create_constant_buffer(1),
                 pending: None,
             },
+            None,
         ))
     }
 
@@ -888,6 +891,7 @@ impl Factory {
                             constants: cbuf,
                             pending: None,
                         },
+                        None,
                     ),
                 };
                 mesh.set_parent(&group);

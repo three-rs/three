@@ -6,7 +6,7 @@ use mesh::DynamicMesh;
 use node::{NodeInternal, NodePointer};
 use object;
 use render::GpuData;
-use skeleton::Bone;
+use skeleton::{Bone, Skeleton};
 use text::{Operation as TextOperation, TextData};
 
 use cgmath::Transform;
@@ -26,16 +26,23 @@ pub(crate) enum SubLight {
 
 #[derive(Clone, Debug)]
 pub(crate) struct LightData {
-    pub(crate) color: Color,
-    pub(crate) intensity: f32,
-    pub(crate) sub_light: SubLight,
-    pub(crate) shadow: Option<(ShadowMap, ShadowProjection)>,
+    pub color: Color,
+    pub intensity: f32,
+    pub sub_light: SubLight,
+    pub shadow: Option<(ShadowMap, ShadowProjection)>,
 }
 
 #[derive(Clone, Debug)]
 pub(crate) struct SkeletonData {
     pub bones: Vec<Bone>,
     pub inverses: Vec<mint::ColumnMatrix4<f32>>,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct VisualData {
+    pub material: Material,
+    pub gpu: GpuData,
+    pub skeleton: Option<Skeleton>,
 }
 
 /// A sub-node specifies and contains the context-specific data owned by a `Node`.
@@ -48,7 +55,7 @@ pub(crate) enum SubNode {
     /// Renderable text for 2D user interface.
     UiText(TextData),
     /// Renderable 3D content, such as a mesh.
-    Visual(Material, GpuData),
+    Visual(Material, GpuData, Option<Skeleton>),
     /// Lighting information for illumination and shadow casting.
     Light(LightData),
     /// Marks the root object of a `Scene`.
@@ -132,8 +139,9 @@ impl Hub {
         &mut self,
         mat: Material,
         gpu_data: GpuData,
+        skeleton: Option<Skeleton>,
     ) -> object::Base {
-        self.spawn(SubNode::Visual(mat, gpu_data))
+        self.spawn(SubNode::Visual(mat, gpu_data, skeleton))
     }
 
     pub(crate) fn spawn_light(
@@ -202,10 +210,10 @@ impl Hub {
                         node.transform.scale = scale;
                     }
                 }
-                Operation::SetMaterial(material) => if let SubNode::Visual(ref mut mat, _) = node.sub_node {
+                Operation::SetMaterial(material) => if let SubNode::Visual(ref mut mat, _, _) = node.sub_node {
                     *mat = material;
                 },
-                Operation::SetTexelRange(base, size) => if let SubNode::Visual(ref mut material, _) = node.sub_node {
+                Operation::SetTexelRange(base, size) => if let SubNode::Visual(ref mut material, _, _) = node.sub_node {
                     match *material {
                         material::Material::Sprite(ref mut params) => params.map.set_texel_range(base, size),
                         _ => panic!("Unsupported material for texel range request"),
@@ -288,7 +296,7 @@ impl Hub {
         mesh: &DynamicMesh,
     ) {
         match self.get_mut(&mesh).sub_node {
-            SubNode::Visual(_, ref mut gpu_data) => gpu_data.pending = Some(mesh.dynamic.clone()),
+            SubNode::Visual(_, ref mut gpu_data, _) => gpu_data.pending = Some(mesh.dynamic.clone()),
             _ => unreachable!(),
         }
     }
