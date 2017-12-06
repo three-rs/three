@@ -789,8 +789,8 @@ impl Renderer {
         }
 
         for w in hub.walk(&scene.first_child) {
-            let (material, gpu_data) = match w.node.sub_node {
-                SubNode::Visual(ref mat, ref data) => (mat, data),
+            let (material, gpu_data, skeleton) = match w.node.sub_node {
+                SubNode::Visual(ref mat, ref data, ref skeleton) => (mat, data, skeleton),
                 _ => continue,
             };
 

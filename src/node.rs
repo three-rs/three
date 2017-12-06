@@ -34,7 +34,7 @@ impl NodeInternal {
             transform: self.transform.into(),
             visible: self.visible,
             material: match self.sub_node {
-                SubNode::Visual(ref mat, _) => Some(mat.clone()),
+                SubNode::Visual(ref mat, _, _) => Some(mat.clone()),
                 _ => None,
             },
             _space: PhantomData,
