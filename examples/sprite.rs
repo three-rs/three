@@ -1,5 +1,7 @@
 extern crate three;
 
+use three::Object;
+
 struct Animator {
     cell_size: [u16; 2],
     cell_counts: [u16; 2],

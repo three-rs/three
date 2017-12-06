@@ -3,6 +3,7 @@ extern crate mint;
 extern crate three;
 
 use cgmath::{Angle, Decomposed, One, Quaternion, Rad, Rotation3, Transform, Vector3};
+use three::Object;
 
 struct Level {
     speed: f32,

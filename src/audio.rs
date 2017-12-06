@@ -1,5 +1,6 @@
 //! Primitives for audio playback.
 
+use object;
 use std::fmt;
 use std::io::Cursor;
 use std::rc::Rc;
@@ -9,7 +10,6 @@ use rodio as r;
 use rodio::Source as _Source;
 
 use hub::Operation as HubOperation;
-use object::Object;
 
 /// Audio segment with sound effects.
 ///
@@ -114,11 +114,12 @@ impl AudioData {
 /// You may create several `Source`s to play sounds simultaneously.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Source {
-    pub(crate) object: Object,
+    pub(crate) object: object::Base,
 }
+three_object!(Source::object);
 
 impl Source {
-    pub(crate) fn with_object(object: Object) -> Self {
+    pub(crate) fn with_object(object: object::Base) -> Self {
         Source { object }
     }
 
@@ -252,6 +253,6 @@ impl SourceInternal {
 
 /* TODO: Implement 3d sound.
 pub struct Listener {
-    pub(crate) object: Object,
+    pub(crate) object: object::Base,
 }
 */

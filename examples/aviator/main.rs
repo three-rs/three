@@ -8,7 +8,7 @@ mod plane;
 mod sky;
 
 use cgmath::prelude::*;
-
+use three::Object;
 
 const COLOR_BACKGROUND: three::Color = 0xf0e0b6;
 const COLOR_RED: three::Color = 0xf25346;

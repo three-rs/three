@@ -1,5 +1,7 @@
 extern crate three;
 
+use three::Object;
+
 fn main() {
     let mut window = three::Window::new("Three-rs glTF animation example");
     let mut light = window.factory.directional_light(0xFFFFFF, 0.4);

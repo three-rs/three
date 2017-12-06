@@ -1,6 +1,6 @@
 use cgmath::{Quaternion, Rad, Rotation3};
 use mint;
-use three;
+use three::{self, Object};
 
 use {COLOR_BROWN, COLOR_BROWN_DARK, COLOR_RED, COLOR_WHITE};
 

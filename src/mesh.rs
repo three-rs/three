@@ -1,7 +1,8 @@
+use object;
+
 use geometry::Geometry;
 use hub::Operation;
 use material::Material;
-use object::Object;
 use render::DynamicData;
 
 use std::hash::{Hash, Hasher};
@@ -39,6 +40,7 @@ use std::hash::{Hash, Hasher};
 /// # let geometry = three::Geometry::with_vertices(vertices);
 /// # let red_material = three::material::Basic { color: three::color::RED, map: None };
 /// # let mesh = factory.mesh(geometry, red_material);
+/// use three::Object;
 /// let mut duplicate = factory.mesh_instance(&mesh);
 /// // Duplicated meshes share their geometry but may be transformed individually.
 /// duplicate.set_position([1.2, 3.4, 5.6]);
@@ -58,6 +60,7 @@ use std::hash::{Hash, Hasher};
 /// # let red_material = three::material::Basic { color: three::color::RED, map: None };
 /// # let mesh = factory.mesh(geometry, red_material);
 /// let yellow_material = three::material::Wireframe { color: three::color::YELLOW };
+/// # use three::Object;
 /// let mut duplicate = factory.mesh_instance_with_material(&mesh, yellow_material);
 /// duplicate.set_position([1.2, 3.4, 5.6]);
 /// ```
@@ -68,17 +71,19 @@ use std::hash::{Hash, Hasher};
 /// * Hence, meshes must be kept in scope in order to be displayed.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Mesh {
-    pub(crate) object: Object,
+    pub(crate) object: object::Base,
 }
+three_object!(Mesh::object);
 
 /// A dynamic version of a mesh allows changing the geometry on CPU side
 /// in order to animate the mesh.
 #[derive(Clone, Debug)]
 pub struct DynamicMesh {
-    pub(crate) object: Object,
+    pub(crate) object: object::Base,
     pub(crate) geometry: Geometry,
     pub(crate) dynamic: DynamicData,
 }
+three_object!(DynamicMesh::object);
 
 impl PartialEq for DynamicMesh {
     fn eq(
@@ -107,7 +112,7 @@ impl Mesh {
         material: Material,
     ) {
         let msg = Operation::SetMaterial(material);
-        let _ = self.tx.send((self.node.downgrade(), msg));
+        let _ = self.object.tx.send((self.object.node.downgrade(), msg));
     }
 }
 
@@ -123,6 +128,6 @@ impl DynamicMesh {
         material: Material,
     ) {
         let msg = Operation::SetMaterial(material);
-        let _ = self.tx.send((self.node.downgrade(), msg));
+        let _ = self.object.tx.send((self.object.node.downgrade(), msg));
     }
 }

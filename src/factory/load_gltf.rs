@@ -6,16 +6,18 @@ use gltf_importer;
 use image;
 use material;
 use mint;
+use object;
 use std::{fs, io};
 
 use camera::Camera;
 use gltf::Gltf;
 use gltf_utils::AccessorIter;
+use object::Object;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use vec_map::VecMap;
 
-use {Geometry, Group, Material, Mesh, Object, Texture};
+use {Geometry, Group, Material, Mesh, Texture};
 
 type GltfNodeIndex = usize;
 
@@ -206,7 +208,7 @@ impl super::Factory {
         cameras: &mut Vec<Camera>,
         meshes: &mut VecMap<Vec<Mesh>>,
         instances: &mut Vec<Mesh>,
-        node_map: &mut HashMap<GltfNodeIndex, Object>,
+        node_map: &mut HashMap<GltfNodeIndex, object::Base>,
     ) -> Group {
         fn clone_child<'a>(
             gltf: &'a Gltf,
@@ -286,8 +288,8 @@ impl super::Factory {
                 });
             }
 
-            node_map.insert(item.node.index(), (*item.group).clone());
-            groups.push(item.group);
+            node_map.insert(item.node.index(), item.group.upcast());
+            groups.push(item.group.clone());
         }
 
         groups.swap_remove(0)
@@ -297,7 +299,7 @@ impl super::Factory {
     pub fn load_gltf_animations(
         &mut self,
         gltf: &Gltf,
-        node_map: &HashMap<GltfNodeIndex, Object>,
+        node_map: &HashMap<GltfNodeIndex, object::Base>,
         buffers: &gltf_importer::Buffers,
     ) -> Vec<animation::Clip> {
         use gltf::animation::InterpolationAlgorithm::*;

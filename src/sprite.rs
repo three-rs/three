@@ -1,15 +1,16 @@
 use hub::Operation;
 use mint;
-use object::Object;
+use object;
 
 /// Two-dimensional bitmap that is integrated into a larger scene.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Sprite {
-    pub(crate) object: Object,
+    pub(crate) object: object::Base,
 }
+three_object!(Sprite::object);
 
 impl Sprite {
-    pub(crate) fn new(object: Object) -> Self {
+    pub(crate) fn new(object: object::Base) -> Self {
         Sprite { object }
     }
 
@@ -23,6 +24,6 @@ impl Sprite {
         S: Into<mint::Vector2<u16>>,
     {
         let msg = Operation::SetTexelRange(base.into(), size.into());
-        let _ = self.object.tx.send((self.node.downgrade(), msg));
+        let _ = self.object.tx.send((self.object.node.downgrade(), msg));
     }
 }

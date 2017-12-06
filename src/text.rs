@@ -7,10 +7,10 @@ use gfx::Encoder;
 use gfx::handle::RenderTargetView;
 use gfx_glyph as g;
 use mint;
+use object;
 
 use color::Color;
 use hub::Operation as HubOperation;
-use object::Object;
 use render::{BackendCommandBuffer, BackendFactory, BackendResources, ColorFormat};
 
 pub(crate) enum Operation {
@@ -156,11 +156,12 @@ impl TextData {
 /// and add it to the scene using [`Scene::add`](struct.Scene.html#method.add).
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Text {
-    pub(crate) object: Object,
+    pub(crate) object: object::Base,
 }
+three_object!(Text::object);
 
 impl Text {
-    pub(crate) fn with_object(object: Object) -> Self {
+    pub(crate) fn with_object(object: object::Base) -> Self {
         Text { object: object }
     }
 

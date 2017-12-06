@@ -3,6 +3,7 @@ extern crate mint;
 extern crate three;
 
 use cgmath::prelude::*;
+use three::Object;
 
 fn main() {
     let mut win = three::Window::new("Three-rs shapes example");

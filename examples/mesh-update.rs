@@ -4,6 +4,7 @@ extern crate three;
 
 use cgmath::prelude::*;
 use std::f32::consts::PI;
+use three::Object;
 
 fn make_tetrahedron_geometry() -> three::Geometry {
     let vertices = vec![
