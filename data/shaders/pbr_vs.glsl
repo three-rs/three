@@ -27,6 +27,8 @@ in vec4 a_Position;
 in vec2 a_TexCoord;
 in vec4 a_Normal;
 in vec4 a_Tangent;
+in vec4 a_Joint;
+in vec4 a_Weight;
 
 out vec3 v_Position;
 out vec2 v_TexCoord;
