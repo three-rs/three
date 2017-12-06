@@ -95,10 +95,14 @@ gfx_defines! {
     }
 
     constant Locals {
-        mx_world: [[f32; 4]; 4] = "u_World",
         color: [f32; 4] = "u_Color",
         mat_params: [f32; 4] = "u_MatParams",
         uv_range: [f32; 4] = "u_UvRange",
+        mx_world: [[f32; 4]; 4] = "u_World",
+        joint_matrix_0: [[f32; 4]; 4] = "u_JointMatrix[0]",
+        joint_matrix_1: [[f32; 4]; 4] = "u_JointMatrix[1]",
+        joint_matrix_2: [[f32; 4]; 4] = "u_JointMatrix[2]",
+        joint_matrix_3: [[f32; 4]; 4] = "u_JointMatrix[3]",
     }
 
     constant LightParam {
@@ -638,6 +642,10 @@ impl Renderer {
                         color: [0.0; 4],
                         mat_params: [0.0; 4],
                         uv_range: [0.0; 4],
+                        joint_matrix_0: Matrix4::identity().into(),
+                        joint_matrix_1: Matrix4::identity().into(),
+                        joint_matrix_2: Matrix4::identity().into(),
+                        joint_matrix_3: Matrix4::identity().into(),
                     },
                 );
                 //TODO: avoid excessive cloning
@@ -829,6 +837,10 @@ impl Renderer {
                             },
                             mat_params: [param0, 0.0, 0.0, 0.0],
                             uv_range,
+                            joint_matrix_0: Matrix4::identity().into(),
+                            joint_matrix_1: Matrix4::identity().into(),
+                            joint_matrix_2: Matrix4::identity().into(),
+                            joint_matrix_3: Matrix4::identity().into(),
                         },
                     );
                     //TODO: avoid excessive cloning
