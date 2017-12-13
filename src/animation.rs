@@ -41,7 +41,7 @@
 //!
 //! Now, we load some clips from an animated glTF scene.
 //!
-//! ```rust,no_run
+//! ```rust,no_run,ignore
 //! # let mut window = three::Window::new("");
 //! let gltf = window.factory.load_gltf("AnimatedScene.gltf");
 //! window.scene.add(&gltf.group);
@@ -55,7 +55,7 @@
 //! when calling [`Mixer::update`] the created actions will begin to be played back
 //! immediately.
 //!
-//! ```rust,no_run
+//! ```rust,no_run,ignore
 //! # use three::Object;
 //! # let mut window = three::Window::new("");
 //! # let mut mixer = three::animation::Mixer::new();
@@ -72,7 +72,7 @@
 //! Finally, we run the animation actions by updating their [`Mixer`] in the main
 //! game loop.
 //!
-//! ```rust,no_run
+//! ```rust,no_run,ignore
 //! # use three::Object;
 //! # let mut window = three::Window::new("");
 //! # let camera = unimplemented!();

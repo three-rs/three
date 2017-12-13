@@ -4,6 +4,7 @@ use geometry::Geometry;
 use hub::Operation;
 use material::Material;
 use render::DynamicData;
+use skeleton::Skeleton;
 
 use std::hash::{Hash, Hasher};
 
@@ -112,6 +113,15 @@ impl Mesh {
         material: M,
     ) {
         let msg = Operation::SetMaterial(material.into());
+        let _ = self.object.tx.send((self.object.node.downgrade(), msg));
+    }
+
+    /// Bind a skeleton to the mesh.
+    pub fn set_skeleton(
+        &mut self,
+        skeleton: Skeleton,
+    ) {
+        let msg = Operation::SetSkeleton(skeleton);
         let _ = self.object.tx.send((self.object.node.downgrade(), msg));
     }
 }

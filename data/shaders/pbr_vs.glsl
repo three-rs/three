@@ -1,4 +1,3 @@
-
 // Original source from https://github.com/KhronosGroup/glTF-WebGL-PBR.
 //
 // Copyright (c) 2016-2017 Mohamad Moneimne and Contributors
@@ -57,5 +56,11 @@ void main()
     v_Position = vec3(position.xyz) / position.w;
     v_TexCoord = a_TexCoord;
 
-    gl_Position = u_Mvp * a_Position;
+    mat4 skin_transform =
+	a_Weight.x * u_JointMatrix[int(a_Joint.x)] +
+	a_Weight.y * u_JointMatrix[int(a_Joint.y)] +
+	a_Weight.z * u_JointMatrix[int(a_Joint.z)] +
+	a_Weight.w * u_JointMatrix[int(a_Joint.w)];
+
+    gl_Position = u_Mvp * skin_transform * a_Position;
 }

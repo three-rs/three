@@ -12,7 +12,6 @@ use gfx_device_gl as back;
 use gfx_window_glutin;
 #[cfg(feature = "opengl")]
 use glutin;
-use hub;
 use mint;
 
 pub mod source;
@@ -97,6 +96,8 @@ gfx_defines! {
         uv: [f32; 2] = "a_TexCoord",
         normal: [gfx::format::I8Norm; 4] = "a_Normal",
         tangent: [gfx::format::I8Norm; 4] = "a_Tangent",
+        joints: [f32; 4] = "a_Joint",
+        weights: [f32; 4] = "a_Weight",
     }
 
     vertex Instance {
@@ -602,7 +603,7 @@ impl Renderer {
                 continue;
             }
             match node.sub_node {
-                SubNode::Visual(_, ref mut gpu_data) => {
+                SubNode::Visual(_, ref mut gpu_data, _) => {
                     if let Some(dynamic) = gpu_data.pending.take() {
                         self.encoder
                             .copy_buffer(
@@ -730,7 +731,7 @@ impl Renderer {
 
             for w in hub.walk(&scene.first_child) {
                 let gpu_data = match w.node.sub_node {
-                    SubNode::Visual(_, ref data) => data,
+                    SubNode::Visual(_, ref data, _) => data,
                     _ => continue,
                 };
                 let mx_world: mint::ColumnMatrix4<_> = Matrix4::from(w.world_transform).into();
@@ -790,8 +791,8 @@ impl Renderer {
         }
 
         for w in hub.walk(&scene.first_child) {
-            let (material, gpu_data, skeleton) = match w.node.sub_node {
-                SubNode::Visual(ref mat, ref data, ref skeleton) => (mat, data, skeleton),
+            let (material, gpu_data) = match w.node.sub_node {
+                SubNode::Visual(ref mat, ref data, _) => (mat, data),
                 _ => continue,
             };
 
@@ -823,30 +824,15 @@ impl Renderer {
                     .push(Instance::basic(mx_world.into(), color, uv_range, mat_param));
                 continue;
             }
+
             let instance = match pso_data {
                 PsoData::Basic { color, map, param0 } => {
                     let uv_range = match map {
                         Some(ref map) => map.uv_range(),
                         None => [0.0; 4],
                     };
-                    let mut joint_matrices = [Matrix4::identity(); 4];
-                    if let &Some(ref object) = skeleton {
-                        let data = match hub.get(object).sub_node {
-                            hub::SubNode::Skeleton(ref data) => data,
-                            _ => unreachable!(),
-                        };
-                        let (bones, ibms) = (&data.bones, &data.inverses);
-                        for i in 0..4 {
-                            let bone = &bones[i];
-                            let bone_transform = Matrix4::from(hub.get(bone).world_transform);
-                            let inverse_world_transform = Matrix4::from(node.world_transform).invert().unwrap();
-                            let ibm = ibms[i];
-                            let jm = inverse_world_transform * bone_transform * Matrix4::from(ibm);
-
-                            joint_matrices[i] = jm;
-                        }
-                        Instance::basic(...)
-                   }
+                    Instance::basic(mx_world.into(), color, uv_range, param0)
+                }
                 PsoData::Pbr { .. } => Instance::pbr(mx_world.into()),
             };
 

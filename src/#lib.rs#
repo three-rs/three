@@ -70,8 +70,9 @@
 //! #      color: 0xFFFF00,
 //! #      .. Default::default()
 //! # };
-//! # let mesh = window.factory.mesh(geometry, material);
-//! window.scene.add(&mesh);
+//! # let mut mesh = window.factory.mesh(geometry, material);
+//! use three::Object;
+//! mesh.set_parent(&window.scene);
 //! # }
 //! ```
 //!
@@ -109,7 +110,8 @@
 //! #         .. Default::default()
 //! #     };
 //! #     let mut mesh = window.factory.mesh(geometry, material);
-//! #     window.scene.add(&mesh);
+//! #     use three::Object;
+//! #     mesh.set_parent(&window.scene);
 //! let center = [0.0, 0.0];
 //! let yextent = 1.0;
 //! let zrange = -1.0 .. 1.0;
@@ -144,8 +146,8 @@
 //!         color: 0xFFFF00,
 //!         .. Default::default()
 //!     };
-//!     let mesh = window.factory.mesh(geometry, material);
-//!     window.scene.add(&mesh);
+//!     let mut mesh = window.factory.mesh(geometry, material);
+//!     mesh.set_parent(&window.scene);
 //!
 //!     let center = [0.0, 0.0];
 //!     let yextent = 1.0;
@@ -200,8 +202,8 @@
 //! fn main() {
 //! #    let mut window = three::Window::new("");
 //!     // Initialization code omitted.
-//!     let my_object = MyObject { group: window.factory.group() };
-//!     window.scene.add(&my_object);
+//!     let mut my_object = MyObject { group: window.factory.group() };
+//!     my_object.set_parent(&window.scene);
 //! }
 //! ```
 //!
@@ -254,18 +256,13 @@
 #[macro_use]
 extern crate bitflags;
 extern crate cgmath;
-#[macro_use]
-extern crate derivative;
 extern crate froggy;
 extern crate genmesh;
 #[macro_use]
 extern crate gfx;
 extern crate gfx_glyph;
-#[cfg(feature = "gltf-loader")]
 extern crate gltf;
-#[cfg(feature = "gltf-loader")]
 extern crate gltf_importer;
-#[cfg(feature = "gltf-loader")]
 extern crate gltf_utils;
 extern crate image;
 extern crate includedir;
@@ -280,6 +277,7 @@ extern crate phf;
 extern crate quick_error;
 extern crate rodio;
 extern crate vec_map;
+// OpenGL
 
 #[cfg(feature = "opengl")]
 extern crate gfx_device_gl;
@@ -324,14 +322,10 @@ pub use color::Color;
 pub use controls::{AXIS_DOWN_UP, AXIS_LEFT_RIGHT, KEY_ESCAPE, KEY_SPACE, MOUSE_LEFT, MOUSE_RIGHT};
 
 #[doc(inline)]
-pub use controls::{Button, MouseButton, Input, Timer};
+pub use controls::{Button, Input, Timer};
 
 #[doc(inline)]
-pub use factory::Factory;
-
-#[cfg(feature = "gltf-loader")]
-#[doc(inline)]
-pub use factory::Gltf;
+pub use factory::{Factory, Gltf};
 
 #[doc(inline)]
 pub use geometry::Geometry;
@@ -347,7 +341,7 @@ pub use material::Material;
 pub use mesh::{DynamicMesh, Mesh};
 
 #[doc(inline)]
-pub use node::{Node, Transform, Local, World};
+pub use node::{Node, Transform};
 
 #[doc(inline)]
 pub use object::{Group, Object};
@@ -369,4 +363,4 @@ pub use texture::{CubeMap, CubeMapPath, FilterMethod, Sampler, Texture, WrapMode
 
 #[cfg(feature = "opengl")]
 #[doc(inline)]
-pub use window::{CursorState, Window};
+pub use window::Window;

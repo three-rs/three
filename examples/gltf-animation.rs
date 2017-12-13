@@ -21,8 +21,15 @@ fn main() {
 
     let camera = window.factory.perspective_camera(60.0, 0.1 .. 10.0);
     camera.set_position([0.0, 1.0, 5.0]);
+
+    let mut controls = three::controls::Orbit::builder(&camera)
+        .position([0.0, 1.0, 9.5])
+        .target([0.0, 0.0, 0.0])
+        .build();
+    
     while window.update() && !window.input.hit(three::KEY_ESCAPE) {
         mixer.update(window.input.delta_time());
+        controls.update(&window.input);
         window.render(&camera);
     }
 }

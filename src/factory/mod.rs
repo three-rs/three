@@ -17,9 +17,11 @@ use image;
 use itertools::Either;
 use mint;
 use obj;
+#[cfg(feature = "gltf-loader")]
 use vec_map::VecMap;
 
-use animation;
+#[cfg(feature = "gltf-loader")]
+use animation::Clip;
 use audio;
 use camera::{Camera, Projection, ZRange};
 use color::{BLACK, Color};
@@ -28,7 +30,7 @@ use hub::{Hub, HubPtr, LightData, SubLight, SubNode};
 use light::{Ambient, Directional, Hemisphere, Point, ShadowMap};
 use material::{self, Material};
 use mesh::{DynamicMesh, Mesh};
-use object::Group;
+use object;
 use render::{basic_pipe,
     BackendFactory, BackendResources, BasicPipelineState, DynamicData, GpuData,
     Instance, InstanceCacheKey, PipelineCreationError, ShadowFormat, Source, Vertex,
@@ -49,24 +51,32 @@ const QUAD: [Vertex; 4] = [
         uv: [0.0, 0.0],
         normal: NORMAL_Z,
         tangent: TANGENT_X,
+        joints: [0.0, 0.0, 0.0, 0.0],
+        weights: [0.0, 0.0, 0.0, 0.0],
     },
     Vertex {
         pos: [1.0, -1.0, 0.0, 1.0],
         uv: [1.0, 0.0],
         normal: NORMAL_Z,
         tangent: TANGENT_X,
+        joints: [0.0, 0.0, 0.0, 0.0],
+        weights: [0.0, 0.0, 0.0, 0.0],
     },
     Vertex {
         pos: [-1.0, 1.0, 0.0, 1.0],
         uv: [0.0, 1.0],
         normal: NORMAL_Z,
         tangent: TANGENT_X,
+        joints: [0.0, 0.0, 0.0, 0.0],
+        weights: [0.0, 0.0, 0.0, 0.0],
     },
     Vertex {
         pos: [1.0, 1.0, 0.0, 1.0],
         uv: [1.0, 1.0],
         normal: NORMAL_Z,
         tangent: TANGENT_X,
+        joints: [0.0, 0.0, 0.0, 0.0],
+        weights: [0.0, 0.0, 0.0, 0.0],
     },
 ];
 
@@ -92,19 +102,56 @@ pub struct Gltf {
     pub cameras: Vec<Camera>,
 
     /// Imported animation clips.
-    pub clips: Vec<animation::Clip>,
+    pub clips: Vec<Clip>,
 
-    /// Imported meshes.
+    /// The node heirarchy of the default scene.
     ///
-    /// Must be kept alive in order to be displayed.
+    /// If the `glTF` contained no default scene then this
+    /// container will be empty.
+    pub heirarchy: VecMap<object::Group>,
+
+    /// Imported mesh instances.
+    ///
+    /// ### Notes
+    ///
+    /// * Must be kept alive in order to be displayed.
+    pub instances: Vec<Mesh>,
+
+    /// Imported mesh materials.
+    pub materials: Vec<Material>,
+
+    /// Imported mesh templates.
     pub meshes: VecMap<Vec<Mesh>>,
 
-    /// The root nodes of the default scene.
+    /// The root node of the default scene.
     ///
-    /// If the glTF contained no default scene then this group will have no
-    /// children.
-    pub group: Group,
+    /// If the `glTF` contained no default scene then this group
+    /// will have no children.
+    pub root: object::Group,
+
+    /// Imported skeletons.
+    pub skeletons: Vec<Skeleton>,
+
+    /// Imported textures.
+    pub textures: Vec<Texture<[f32; 4]>>,
 }
+
+#[cfg(feature = "gltf-loader")]
+impl AsRef<object::Base> for Gltf {
+    fn as_ref(&self) -> &object::Base {
+        self.root.as_ref()
+    }
+}
+
+#[cfg(feature = "gltf-loader")]
+impl AsMut<object::Base> for Gltf {
+    fn as_mut(&mut self) -> &mut object::Base {
+        self.root.as_mut()
+    }
+}
+
+#[cfg(feature = "gltf-loader")]
+impl Object for Gltf {}
 
 fn f2i(x: f32) -> I8Norm {
     I8Norm(cmp::min(cmp::max((x * 127.0) as isize, -128), 127) as i8)
@@ -150,8 +197,8 @@ impl Factory {
     ///
     /// [`Bone`]: ../skeleton/struct.Bone.html
     /// [`Skeleton`]: ../skeleton/struct.Skeleton.html
-    pub fn bone<M: Into<mint::ColumnMatrix4<f32>>>(&mut self) -> Bone {
-        let object = self.hub.lock().unwrap().spawn_empty();
+    pub fn bone(&mut self) -> Bone {
+        let object = self.hub.lock().unwrap().spawn(SubNode::Empty);
         Bone { object }
     }
 
@@ -159,6 +206,8 @@ impl Factory {
     ///
     /// * `bones` is the array of bones that form the skeleton.
     /// * `inverses` is an optional array of inverse bind matrices for each bone.
+    /// [`Skeleton`]: ../skeleton/struct.Skeleton.html
+    /// [`Bone`]: ../skeleton/struct.Bone.html
     pub fn skeleton(
         &mut self,
         bones: Vec<Bone>,
@@ -220,8 +269,8 @@ impl Factory {
     }
 
     /// Create empty [`Group`](struct.Group.html).
-    pub fn group(&mut self) -> Group {
-        Group::new(&mut *self.hub.lock().unwrap())
+    pub fn group(&mut self) -> object::Group {
+        object::Group::new(&mut *self.hub.lock().unwrap())
     }
 
     fn mesh_vertices(shape: &Shape) -> Vec<Vertex> {
@@ -254,12 +303,33 @@ impl Factory {
                     .map(|t| [f2i(t.x), f2i(t.y), f2i(t.z), f2i(t.w)]),
             )
         };
-        izip!(position_iter, normal_iter, tangent_iter, uv_iter)
-            .map(|(position, normal, tangent, tex_coord)| Vertex {
-                pos: [position.x, position.y, position.z, 1.0],
-                normal: normal,
-                uv: tex_coord,
-                tangent: tangent,
+        let joints_iter = if shape.joints.is_empty() {
+            Either::Left(iter::repeat([0.0, 0.0, 0.0, 0.0]))
+        } else {
+            Either::Right(shape.joints.iter().cloned())
+        };
+        let weights_iter = if shape.weights.is_empty() {
+            Either::Left(iter::repeat([1.0, 0.0, 0.0, 0.0]))
+        } else {
+            Either::Right(shape.weights.iter().cloned())
+        };
+        izip!(
+            position_iter,
+            normal_iter,
+            tangent_iter,
+            uv_iter,
+            joints_iter,
+            weights_iter
+        )
+            .map(|(pos, normal, tangent, uv, joints, weights)| {
+                Vertex {
+                    pos: [pos.x, pos.y, pos.z, 1.0],
+                    normal,
+                    uv,
+                    tangent,
+                    joints,
+                    weights,
+                }
             })
             .collect()
     }
@@ -582,8 +652,6 @@ impl Factory {
         mesh: &DynamicMesh,
         shapes: &[(&str, f32)],
     ) {
-        let f2i = |x: f32| I8Norm(cmp::min(cmp::max((x * 127.) as isize, -128), 127) as i8);
-
         self.hub.lock().unwrap().update_mesh(mesh);
         let shapes: Vec<_> = shapes
             .iter()
@@ -603,17 +671,9 @@ impl Factory {
                 let p: [f32; 3] = mesh.geometry.base_shape.vertices[i].into();
                 pos += (1.0 - ksum) * Vector3::from(p);
             }
-            let normal = if mesh.geometry.base_shape.normals.is_empty() {
-                NORMAL_Z
-            } else {
-                let n = mesh.geometry.base_shape.normals[i];
-                [f2i(n.x), f2i(n.y), f2i(n.z), I8Norm(0)]
-            };
             mapping[i] = Vertex {
                 pos: [pos.x, pos.y, pos.z, 1.0],
-                uv: [0.0, 0.0], //TODO
-                normal,
-                tangent: TANGENT_X, // @alteous: TODO: Provide tangent.
+                .. mapping[i]
             };
         }
     }
@@ -838,7 +898,7 @@ impl Factory {
     pub fn load_obj(
         &mut self,
         path_str: &str,
-    ) -> (HashMap<String, Group>, Vec<Mesh>) {
+    ) -> (HashMap<String, object::Group>, Vec<Mesh>) {
         use genmesh::{Indexer, LruIndexer, Polygon, Triangulate, Vertices};
 
         info!("Loading {}", path_str);
@@ -855,7 +915,7 @@ impl Factory {
         let mut indices = Vec::new();
 
         for object in &obj.objects {
-            let group = Group::new(&mut *hub);
+            let group = object::Group::new(&mut *hub);
             for gr in &object.groups {
                 let (mut num_normals, mut num_uvs) = (0, 0);
                 {
@@ -882,6 +942,8 @@ impl Factory {
                                 None => [I8Norm(0), I8Norm(0), I8Norm(0x7f), I8Norm(0)],
                             },
                             tangent: TANGENT_X, // TODO
+                            joints: [0.0; 4],
+                            weights: [0.0; 4],
                         });
                     });
 

@@ -67,6 +67,7 @@ pub(crate) enum SubNode {
 }
 
 pub(crate) type Message = (froggy::WeakPointer<NodeInternal>, Operation);
+
 #[derive(Debug)]
 pub(crate) enum Operation {
     AddChild(NodePointer),
@@ -81,6 +82,7 @@ pub(crate) enum Operation {
     ),
     SetMaterial(Material),
     SetTexelRange(mint::Point2<i16>, mint::Vector2<u16>),
+    SetSkeleton(Skeleton),
     SetShadow(ShadowMap, ShadowProjection),
 }
 
@@ -242,7 +244,7 @@ impl Hub {
                 }
                 Operation::SetMaterial(material) => {
                     match self.nodes[&ptr].sub_node {
-                        SubNode::Visual(ref mut mat, _) => {
+                        SubNode::Visual(ref mut mat, _, _) => {
                             *mat = material;
                         }
                         _ => unreachable!()
@@ -250,8 +252,16 @@ impl Hub {
                 }
                 Operation::SetTexelRange(base, size) => {
                     match self.nodes[&ptr].sub_node {
-                        SubNode::Visual(Material::Sprite(ref mut params), _) => {
+                        SubNode::Visual(Material::Sprite(ref mut params), _, _) => {
                             params.map.set_texel_range(base, size);
+                        }
+                        _ => unreachable!()
+                    }
+                }
+                Operation::SetSkeleton(sleketon) => {
+                    match self.nodes[&ptr].sub_node {
+                        SubNode::Visual(_, _, ref mut skel) => {
+                            *skel = Some(sleketon);
                         }
                         _ => unreachable!()
                     }
@@ -300,7 +310,7 @@ impl Hub {
         &mut self,
         mesh: &DynamicMesh,
     ) {
-        match self.get_mut(&mesh).sub_node {
+        match self[mesh].sub_node {
             SubNode::Visual(_, ref mut gpu_data, _) => gpu_data.pending = Some(mesh.dynamic.clone()),
             _ => unreachable!(),
         }
