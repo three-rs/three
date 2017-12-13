@@ -32,6 +32,9 @@ gfx_glyph = "0.7"
 gltf = { features = ["names"], version = "0.9.2" }
 gltf-importer = { features = ["names"], version = "0.9.2" }
 gltf-utils = { features = ["names"], version = "0.9.2" }
+gltf = { features = ["names"], version = "0.10.0", path = "../gltf" }
+gltf-importer = { features = ["names"], version = "0.10.0", path = "../gltf/gltf-importer" }
+gltf-utils = { features = ["names"], version = "0.10.0", path = "../gltf/gltf-utils" }
 image = "0.13"
 includedir = "0.2.0"
 itertools = "0.6"

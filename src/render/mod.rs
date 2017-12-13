@@ -93,6 +93,8 @@ gfx_defines! {
         uv: [f32; 2] = "a_TexCoord",
         normal: [gfx::format::I8Norm; 4] = "a_Normal",
         tangent: [gfx::format::I8Norm; 4] = "a_Tangent",
+        joints: [f32; 4] = "a_Joint",
+        weights: [f32; 4] = "a_Weight",
     }
 
     constant Locals {
@@ -104,6 +106,22 @@ gfx_defines! {
         joint_matrix_1: [[f32; 4]; 4] = "u_JointMatrix[1]",
         joint_matrix_2: [[f32; 4]; 4] = "u_JointMatrix[2]",
         joint_matrix_3: [[f32; 4]; 4] = "u_JointMatrix[3]",
+        joint_matrix_4: [[f32; 4]; 4] = "u_JointMatrix[4]",
+        joint_matrix_5: [[f32; 4]; 4] = "u_JointMatrix[5]",
+        joint_matrix_6: [[f32; 4]; 4] = "u_JointMatrix[6]",
+        joint_matrix_7: [[f32; 4]; 4] = "u_JointMatrix[7]",
+        joint_matrix_8: [[f32; 4]; 4] = "u_JointMatrix[8]",
+        joint_matrix_9: [[f32; 4]; 4] = "u_JointMatrix[9]",
+        joint_matrix_10: [[f32; 4]; 4] = "u_JointMatrix[10]",
+        joint_matrix_11: [[f32; 4]; 4] = "u_JointMatrix[11]",
+        joint_matrix_12: [[f32; 4]; 4] = "u_JointMatrix[12]",
+        joint_matrix_13: [[f32; 4]; 4] = "u_JointMatrix[13]",
+        joint_matrix_14: [[f32; 4]; 4] = "u_JointMatrix[14]",
+        joint_matrix_15: [[f32; 4]; 4] = "u_JointMatrix[15]",
+        joint_matrix_16: [[f32; 4]; 4] = "u_JointMatrix[16]",
+        joint_matrix_17: [[f32; 4]; 4] = "u_JointMatrix[17]",
+        joint_matrix_18: [[f32; 4]; 4] = "u_JointMatrix[18]",
+        joint_matrix_19: [[f32; 4]; 4] = "u_JointMatrix[19]",
     }
 
     constant LightParam {
@@ -647,6 +665,22 @@ impl Renderer {
                         joint_matrix_1: Matrix4::identity().into(),
                         joint_matrix_2: Matrix4::identity().into(),
                         joint_matrix_3: Matrix4::identity().into(),
+                        joint_matrix_4: Matrix4::identity().into(),
+                        joint_matrix_5: Matrix4::identity().into(),
+                        joint_matrix_6: Matrix4::identity().into(),
+                        joint_matrix_7: Matrix4::identity().into(),
+                        joint_matrix_8: Matrix4::identity().into(),
+                        joint_matrix_9: Matrix4::identity().into(),
+                        joint_matrix_10: Matrix4::identity().into(),
+                        joint_matrix_11: Matrix4::identity().into(),
+                        joint_matrix_12: Matrix4::identity().into(),
+                        joint_matrix_13: Matrix4::identity().into(),
+                        joint_matrix_14: Matrix4::identity().into(),
+                        joint_matrix_15: Matrix4::identity().into(),
+                        joint_matrix_16: Matrix4::identity().into(),
+                        joint_matrix_17: Matrix4::identity().into(),
+                        joint_matrix_18: Matrix4::identity().into(),
+                        joint_matrix_19: Matrix4::identity().into(),
                     },
                 );
                 //TODO: avoid excessive cloning
@@ -715,6 +749,25 @@ impl Renderer {
                 _ => continue,
             };
 
+            let mut joint_matrices = [Matrix4::identity(); 20];
+            if let &Some(ref object) = skeleton {
+                let data = match hub.get(object).sub_node {
+                    hub::SubNode::Skeleton(ref data) => data,
+                    _ => unreachable!(),
+                };
+                let (bones, ibms) = (&data.bones, &data.inverses);
+                if bones.len() > 20 {
+                    eprintln!("Joint limit exceeded ({}/20)", bones.len());
+                    ::std::process::exit(1);
+                }
+                for (i, (bone, ibm)) in izip!(bones.iter(), ibms.iter()).enumerate() {
+                    let bone_transform = Matrix4::from(hub.get(bone).world_transform);
+                    let inverse_world_transform = Matrix4::from(node.world_transform).invert().unwrap();
+                    let jm = inverse_world_transform * bone_transform * Matrix4::from(ibm.clone());
+                    joint_matrices[i] = jm;
+                }
+            }
+
             //TODO: batch per PSO
             match *material {
                 Material::Pbr(ref params) => {
@@ -722,6 +775,26 @@ impl Renderer {
                         &gpu_data.constants,
                         &Locals {
                             mx_world: Matrix4::from(node.world_transform).into(),
+                            joint_matrix_0: joint_matrices[0].into(),
+                            joint_matrix_1: joint_matrices[1].into(),
+                            joint_matrix_2: joint_matrices[2].into(),
+                            joint_matrix_3: joint_matrices[3].into(),
+                            joint_matrix_4: joint_matrices[4].into(),
+                            joint_matrix_5: joint_matrices[5].into(),
+                            joint_matrix_6: joint_matrices[6].into(),
+                            joint_matrix_7: joint_matrices[7].into(),
+                            joint_matrix_8: joint_matrices[8].into(),
+                            joint_matrix_9: joint_matrices[9].into(),
+                            joint_matrix_10: joint_matrices[10].into(),
+                            joint_matrix_11: joint_matrices[11].into(),
+                            joint_matrix_12: joint_matrices[12].into(),
+                            joint_matrix_13: joint_matrices[13].into(),
+                            joint_matrix_14: joint_matrices[14].into(),
+                            joint_matrix_15: joint_matrices[15].into(),
+                            joint_matrix_16: joint_matrices[16].into(),
+                            joint_matrix_17: joint_matrices[17].into(),
+                            joint_matrix_18: joint_matrices[18].into(),
+                            joint_matrix_19: joint_matrices[19].into(),
                             ..unsafe { mem::zeroed() }
                         },
                     );
@@ -828,26 +901,6 @@ impl Renderer {
                         Some(ref map) => map.uv_range(),
                         None => [0.0; 4],
                     };
-
-
-                    let mut joint_matrices = [Matrix4::identity(); 4];
-                    if let &Some(ref object) = skeleton {
-                        let data = match hub.get(object).sub_node {
-                            hub::SubNode::Skeleton(ref data) => data,
-                            _ => unreachable!(),
-                        };
-                        let (bones, ibms) = (&data.bones, &data.inverses);
-                        for i in 0..4 {
-                            let bone = &bones[i];
-                            let bone_transform = Matrix4::from(hub.get(bone).world_transform);
-                            let inverse_world_transform = Matrix4::from(node.world_transform).invert().unwrap();
-                            let ibm = ibms[i];
-                            let jm = inverse_world_transform * bone_transform * Matrix4::from(ibm);
-
-                            joint_matrices[i] = jm;
-                        }
-                    }
-                    
                     self.encoder.update_constant_buffer(
                         &gpu_data.constants,
                         &Locals {
@@ -862,6 +915,22 @@ impl Renderer {
                             joint_matrix_1: joint_matrices[1].into(),
                             joint_matrix_2: joint_matrices[2].into(),
                             joint_matrix_3: joint_matrices[3].into(),
+                            joint_matrix_4: joint_matrices[4].into(),
+                            joint_matrix_5: joint_matrices[5].into(),
+                            joint_matrix_6: joint_matrices[6].into(),
+                            joint_matrix_7: joint_matrices[7].into(),
+                            joint_matrix_8: joint_matrices[8].into(),
+                            joint_matrix_9: joint_matrices[9].into(),
+                            joint_matrix_10: joint_matrices[10].into(),
+                            joint_matrix_11: joint_matrices[11].into(),
+                            joint_matrix_12: joint_matrices[12].into(),
+                            joint_matrix_13: joint_matrices[13].into(),
+                            joint_matrix_14: joint_matrices[14].into(),
+                            joint_matrix_15: joint_matrices[15].into(),
+                            joint_matrix_16: joint_matrices[16].into(),
+                            joint_matrix_17: joint_matrices[17].into(),
+                            joint_matrix_18: joint_matrices[18].into(),
+                            joint_matrix_19: joint_matrices[19].into(),
                         },
                     );
                     //TODO: avoid excessive cloning

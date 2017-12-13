@@ -277,6 +277,7 @@ extern crate phf;
 extern crate quick_error;
 extern crate rodio;
 extern crate vec_map;
+// OpenGL
 
 #[cfg(feature = "opengl")]
 extern crate gfx_device_gl;

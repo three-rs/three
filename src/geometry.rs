@@ -16,6 +16,10 @@ pub struct Shape {
     pub tangents: Vec<mint::Vector4<f32>>,
     /// Texture co-ordinates.
     pub tex_coords: Vec<mint::Point2<f32>>,
+    /// Joint indices, encoded as floats.
+    pub joints: Vec<[f32; 4]>,
+    /// Joint weights.
+    pub weights: Vec<[f32; 4]>,
 }
 
 impl Shape {

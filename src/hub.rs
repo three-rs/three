@@ -77,6 +77,7 @@ pub(crate) enum Operation {
     ),
     SetMaterial(Material),
     SetTexelRange(mint::Point2<i16>, mint::Vector2<u16>),
+    SetSkeleton(Skeleton),
     SetShadow(ShadowMap, ShadowProjection),
 }
 
@@ -221,6 +222,9 @@ impl Hub {
                 },
                 Operation::SetText(operation) => if let SubNode::UiText(ref mut data) = node.sub_node {
                     Hub::process_text(operation, data);
+                },
+                Operation::SetSkeleton(skeleton) => if let SubNode::Visual(_, _, ref mut s) = node.sub_node {
+                    *s = Some(skeleton);
                 },
                 Operation::SetShadow(map, proj) => if let SubNode::Light(ref mut data) = node.sub_node {
                     data.shadow = Some((map, proj));
