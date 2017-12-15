@@ -48,9 +48,6 @@ pub type BasicPipelineState = gfx::PipelineState<back::Resources, basic_pipe::Me
 
 const MAX_LIGHTS: usize = 4;
 
-// TODO: Allow to adjust
-const INSTANCE_COUNT: usize = 64;
-
 const STENCIL_SIDE: gfx::state::StencilSide = gfx::state::StencilSide {
     fun: gfx::state::Comparison::Always,
     mask_read: 0,
@@ -251,8 +248,7 @@ pub(crate) struct GpuData {
     pub vertices: h::Buffer<back::Resources, Vertex>,
     pub instances: h::Buffer<back::Resources, Instance>,
     pub pending: Option<DynamicData>,
-    pub use_instancing: bool,
-    pub instance_cache_key: InstanceCacheKey,
+    pub instance_cache_key: Option<InstanceCacheKey>,
 }
 
 #[derive(Clone, Debug)]
@@ -792,9 +788,8 @@ impl Renderer {
             let mx_world: [[f32; 4]; 4] = Matrix4::from(node.world_transform).into();
             let pso_data = material.mat_type.to_pso_data();
 
-            if gpu_data.use_instancing {
+            if let Some(ref key) = gpu_data.instance_cache_key {
                 let uv_range = [0.0; 4];
-                let key = gpu_data.instance_cache_key.clone();
                 let color = match pso_data {
                     PsoData::Basic { color, .. } => color,
                     PsoData::Pbr { .. } => !0,
@@ -803,7 +798,7 @@ impl Renderer {
                     PsoData::Basic { param0, .. } => param0,
                     PsoData::Pbr { .. } => 0.0,
                 };
-                let vec = self.instance_cache.entry(key).or_insert((
+                let vec = self.instance_cache.entry(key.clone()).or_insert((
                     InstanceData {
                         slice: gpu_data.slice.clone(),
                         vertices: gpu_data.vertices.clone(),
@@ -848,6 +843,7 @@ impl Renderer {
         }
 
         // render instanced meshes
+        println!("{}", self.instance_cache.len());
         for &(ref mesh_data, ref all_instances) in self.instance_cache.values() {
             if all_instances.len() > self.inst_buf.len() {
                 self.inst_buf = self.factory
@@ -860,26 +856,24 @@ impl Renderer {
                     // TODO: Better error handling
                     .unwrap();
             }
-            for instances in all_instances.chunks(INSTANCE_COUNT) {
-                Self::render_mesh(
-                    &mut self.encoder,
-                    self.const_buf.clone(),
-                    self.inst_buf.clone(),
-                    self.light_buf.clone(),
-                    self.pbr_buf.clone(),
-                    self.out_color.clone(),
-                    self.out_depth.clone(),
-                    &self.pso,
-                    &self.map_default,
-                    instances,
-                    mesh_data.vertices.clone(),
-                    mesh_data.slice.clone(),
-                    &mesh_data.mat_type,
-                    &shadow_sampler,
-                    &shadow0,
-                    &shadow1,
-                );
-            }
+            Self::render_mesh(
+                &mut self.encoder,
+                self.const_buf.clone(),
+                self.inst_buf.clone(),
+                self.light_buf.clone(),
+                self.pbr_buf.clone(),
+                self.out_color.clone(),
+                self.out_depth.clone(),
+                &self.pso,
+                &self.map_default,
+                all_instances,
+                mesh_data.vertices.clone(),
+                mesh_data.slice.clone(),
+                &mesh_data.mat_type,
+                &shadow_sampler,
+                &shadow0,
+                &shadow1,
+            );
         }
 
         let quad_slice = gfx::Slice {
@@ -1010,9 +1004,10 @@ impl Renderer {
         encoder.update_buffer(&inst_buf, instances, 0).unwrap();
 
         let slice = if instances.len() > 1 {
-            let mut slice = slice;
-            slice.instances = Some((instances.len() as u32, 0));
-            slice
+            gfx::Slice {
+                instances: Some((instances.len() as u32, 0)),
+                ..slice
+            }
         } else {
             slice
         };

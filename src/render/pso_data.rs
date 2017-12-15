@@ -5,6 +5,11 @@ use render::{BackendResources, PbrParams};
 use std::mem;
 use texture::Texture;
 
+type MapParam = (
+    h::ShaderResourceView<BackendResources, [f32; 4]>,
+    h::Sampler<BackendResources>,
+);
+
 bitflags! {
     struct PbrFlags: i32 {
         const BASE_COLOR_MAP         = 1 << 0;
@@ -26,26 +31,11 @@ pub(crate) struct PbrMaps {
 
 #[derive(Clone, Debug)]
 pub(crate) struct PbrMapParams {
-    pub(crate) base_color: (
-        h::ShaderResourceView<BackendResources, [f32; 4]>,
-        h::Sampler<BackendResources>,
-    ),
-    pub(crate) normal: (
-        h::ShaderResourceView<BackendResources, [f32; 4]>,
-        h::Sampler<BackendResources>,
-    ),
-    pub(crate) emissive: (
-        h::ShaderResourceView<BackendResources, [f32; 4]>,
-        h::Sampler<BackendResources>,
-    ),
-    pub(crate) metallic_roughness: (
-        h::ShaderResourceView<BackendResources, [f32; 4]>,
-        h::Sampler<BackendResources>,
-    ),
-    pub(crate) occlusion: (
-        h::ShaderResourceView<BackendResources, [f32; 4]>,
-        h::Sampler<BackendResources>,
-    ),
+    pub(crate) base_color: MapParam,
+    pub(crate) normal: MapParam,
+    pub(crate) emissive: MapParam,
+    pub(crate) metallic_roughness: MapParam,
+    pub(crate) occlusion: MapParam,
 }
 
 impl PbrMaps {
