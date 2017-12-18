@@ -2,13 +2,14 @@ use audio::{AudioData, Operation as AudioOperation};
 use color::{self, Color};
 use light::{ShadowMap, ShadowProjection};
 use material::{self, Material};
-use mesh::DynamicMesh;
+use mesh::{DynamicMesh, MAX_TARGETS, Target, Weight};
 use node::{NodeInternal, NodePointer};
 use object;
 use render::GpuData;
 use skeleton::{Bone, Skeleton};
 use text::{Operation as TextOperation, TextData};
 
+use arrayvec::ArrayVec;
 use cgmath::Transform;
 use froggy;
 use mint;
@@ -45,7 +46,6 @@ pub(crate) struct VisualData {
     pub skeleton: Option<Skeleton>,
 }
 
-/// A sub-node specifies and contains the context-specific data owned by a `Node`.
 #[derive(Debug)]
 pub(crate) enum SubNode {
     /// No extra data, such as in the case of `Group`.
@@ -76,9 +76,11 @@ pub(crate) enum Operation {
         Option<f32>,
     ),
     SetMaterial(Material),
-    SetTexelRange(mint::Point2<i16>, mint::Vector2<u16>),
     SetSkeleton(Skeleton),
     SetShadow(ShadowMap, ShadowProjection),
+    SetTargets(ArrayVec<[Target; MAX_TARGETS]>),
+    SetTexelRange(mint::Point2<i16>, mint::Vector2<u16>),
+    SetWeights(ArrayVec<[Weight; MAX_TARGETS]>),
 }
 
 pub(crate) type HubPtr = Arc<Mutex<Hub>>;
@@ -229,6 +231,8 @@ impl Hub {
                 Operation::SetShadow(map, proj) => if let SubNode::Light(ref mut data) = node.sub_node {
                     data.shadow = Some((map, proj));
                 },
+                Operation::SetTargets(targets) => unimplemented!(),
+                Operation::SetWeights(weights) => unimplemented!(),
             }
         }
         self.nodes.sync_pending();

@@ -322,7 +322,7 @@ fn load_skeletons(
     skeletons
 }
 
-fn load_animations(
+fn load_clips(
     gltf: &Gltf,
     heirarchy: &VecMap<Group>,
     buffers: &gltf_importer::Buffers,
@@ -375,7 +375,12 @@ fn load_animations(
                     assert_eq!(values.len(), times.len());
                     (Binding::Scale, Values::Scalar(values))
                 }
-                gltf::animation::TrsProperty::Weights => unimplemented!(),
+                gltf::animation::TrsProperty::Weights => {
+                    let values = AccessorIter::<f32>::new(output, buffers)
+                        .collect::<Vec<_>>();
+                    assert_eq!(values.len(), times.len());
+                    (Binding::Weight(unimplemented!()), Values::Scalar(values))
+                }
             };
             tracks.push((
                 Track {
@@ -454,7 +459,7 @@ impl super::Factory {
             materials = load_materials(&gltf, &textures);
             meshes = load_meshes(self, &gltf, &materials, &buffers);
             skeletons = load_skeletons(self, &gltf, &heirarchy, &buffers);
-            clips = load_animations(&gltf, &heirarchy, &buffers);
+            clips = load_clips(&gltf, &heirarchy, &buffers);
             instances = bind_objects(self, &gltf, &heirarchy, &meshes, &skeletons);
         }
 

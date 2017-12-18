@@ -23,6 +23,7 @@ default = ["opengl"]
 includedir_codegen = "0.2.0"
 
 [dependencies]
+arrayvec = "0.4"
 bitflags = "0.9"
 cgmath = { version = "0.15", features = ["mint"] }
 froggy = "0.4.4"
