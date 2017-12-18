@@ -251,6 +251,7 @@
 //! [`Scene`]: scene/struct.Scene.html
 //! [`Window`]: window/struct.Window.html
 
+extern crate arrayvec;
 #[macro_use]
 extern crate bitflags;
 extern crate cgmath;
@@ -300,6 +301,7 @@ pub mod custom;
 mod data;
 mod factory;
 pub mod geometry;
+mod group;
 mod hub;
 mod input;
 pub mod light;
@@ -339,6 +341,9 @@ pub use geometry::Geometry;
 #[cfg(feature = "opengl")]
 #[doc(inline)]
 pub use glutin::VirtualKeyCode as Key;
+
+//#[doc(inline)]
+//pub use group::Group;
 
 #[doc(inline)]
 pub use material::Material;

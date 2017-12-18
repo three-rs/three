@@ -1,14 +1,15 @@
 use audio::{AudioData, Operation as AudioOperation};
 use color::{self, Color};
 use light::{ShadowMap, ShadowProjection};
-use material::Material;
-use mesh::DynamicMesh;
+use material::{Material};
+use mesh::{DynamicMesh, MAX_TARGETS, Target, Weight};
 use node::{NodeInternal, NodePointer, TransformInternal};
-use object::Base;
+use object::{Base};
 use render::GpuData;
 use skeleton::{Bone, Skeleton};
 use text::{Operation as TextOperation, TextData};
 
+use arrayvec::ArrayVec;
 use cgmath::Transform;
 use froggy;
 use mint;
@@ -47,7 +48,6 @@ pub(crate) struct VisualData {
     pub skeleton: Option<Skeleton>,
 }
 
-/// A sub-node specifies and contains the context-specific data owned by a `Node`.
 #[derive(Debug)]
 pub(crate) enum SubNode {
     /// No extra data.
@@ -81,9 +81,11 @@ pub(crate) enum Operation {
         Option<f32>,
     ),
     SetMaterial(Material),
-    SetTexelRange(mint::Point2<i16>, mint::Vector2<u16>),
     SetSkeleton(Skeleton),
     SetShadow(ShadowMap, ShadowProjection),
+    SetTargets(ArrayVec<[Target; MAX_TARGETS]>),
+    SetTexelRange(mint::Point2<i16>, mint::Vector2<u16>),
+    SetWeights(ArrayVec<[Weight; MAX_TARGETS]>),
 }
 
 pub(crate) type HubPtr = Arc<Mutex<Hub>>;
@@ -234,6 +236,14 @@ impl Hub {
                         _ => unreachable!()
                     }
                 }
+                Operation::SetSkeleton(sleketon) => {
+                    match self.nodes[&ptr].sub_node {
+                        SubNode::Visual(_, _, ref mut skel) => {
+                            *skel = Some(sleketon);
+                        }
+                        _ => unreachable!()
+                    }
+                }
                 Operation::SetShadow(map, proj) => {
                     match self.nodes[&ptr].sub_node {
                         SubNode::Light(ref mut data) => {
@@ -242,6 +252,8 @@ impl Hub {
                         _ => unreachable!()
                     }
                 }
+                Operation::SetTargets(targets) => unimplemented!(),
+                Operation::SetWeights(weights) => unimplemented!(),
                 Operation::SetMaterial(material) => {
                     match self.nodes[&ptr].sub_node {
                         SubNode::Visual(ref mut mat, _, _) => {
@@ -258,14 +270,7 @@ impl Hub {
                         _ => unreachable!()
                     }
                 }
-                Operation::SetSkeleton(sleketon) => {
-                    match self.nodes[&ptr].sub_node {
-                        SubNode::Visual(_, _, ref mut skel) => {
-                            *skel = Some(sleketon);
-                        }
-                        _ => unreachable!()
-                    }
-                }
+
             };
         }
 

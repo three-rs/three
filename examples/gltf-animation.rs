@@ -12,7 +12,7 @@ fn main() {
     let default = concat!(env!("CARGO_MANIFEST_DIR"), "/test_data/BoxAnimated.gltf");
     let path = std::env::args().nth(1).unwrap_or(default.into());
     let gltf = window.factory.load_gltf(&path);
-    window.scene.add(&gltf.group);
+    window.scene.add(&gltf);
 
     let mut mixer = three::animation::Mixer::new();
     for clip in gltf.clips {
@@ -26,7 +26,7 @@ fn main() {
         .position([0.0, 1.0, 9.5])
         .target([0.0, 0.0, 0.0])
         .build();
-    
+
     while window.update() && !window.input.hit(three::KEY_ESCAPE) {
         mixer.update(window.input.delta_time());
         controls.update(&window.input);

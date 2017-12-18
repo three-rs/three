@@ -9,7 +9,6 @@ use mint;
 use hub::{Hub, Message, Operation, SubNode};
 use node::NodePointer;
 
-
 //Note: no local state should be here, only remote links
 /// `Base` represents a concrete entity that can be added to the scene.
 ///

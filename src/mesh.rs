@@ -1,5 +1,6 @@
 use object;
 
+use arrayvec::ArrayVec;
 use geometry::Geometry;
 use hub::Operation;
 use material::Material;
@@ -7,6 +8,28 @@ use render::DynamicData;
 use skeleton::Skeleton;
 
 use std::hash::{Hash, Hasher};
+
+pub const MAX_TARGETS: usize = 9;
+
+/// Defines a weight target.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum Target {
+    /// Position displacements.
+    Position,
+
+    /// Normal displacements.
+    Normal,
+
+    /// Tangent displacements.
+    Tangent,
+}
+
+#[derive(Debug)]
+pub enum Weight {
+    Position(f32),
+    Normal(f32),
+    Tangent(f32),
+}
 
 /// [`Geometry`](struct.Geometry.html) with some [`Material`](struct.Material.html).
 ///
@@ -122,6 +145,15 @@ impl Mesh {
         skeleton: Skeleton,
     ) {
         let msg = Operation::SetSkeleton(skeleton);
+        let _ = self.object.tx.send((self.object.node.downgrade(), msg));
+    }
+
+    /// Bind a set of morph targets to the mesh.
+    pub fn set_targets(
+        &mut self,
+        targets: ArrayVec<[Target; MAX_TARGETS]>,
+    ) {
+        let msg = Operation::SetTargets(targets);
         let _ = self.object.tx.send((self.object.node.downgrade(), msg));
     }
 }

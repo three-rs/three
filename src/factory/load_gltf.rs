@@ -41,20 +41,20 @@ fn build_scene_hierarchy(
     fn clone_child_node<'a>(gltf: &'a gltf::Gltf, node: &gltf::Node) -> gltf::Node<'a> {
         gltf.nodes().nth(node.index()).unwrap()
     }
-    
+
     let nr_nodes = gltf.nodes().len();
     let mut stack = Vec::with_capacity(nr_nodes);
 
     for node in scene.nodes() {
-        let mut group = factory.group();
-        group.set_parent(root);
+        let group = factory.group();
+        root.add(&group);
         stack.push(Item { group, node });
     }
 
     while let Some(Item { group, node }) = stack.pop() {
         for child_node in node.children() {
-            let mut child_group = factory.group();
-            child_group.set_parent(&group);
+            let child_group = factory.group();
+            group.add(&child_group);
             stack.push(Item { group: child_group, node: clone_child_node(gltf, &child_node) });
         }
         heirarchy.insert(node.index(), group);
@@ -316,8 +316,8 @@ fn load_skeletons(
             }
         }
         for joint in skin.joints() {
-            let mut bone = factory.bone();
-            bone.set_parent(&heirarchy[&joint.index()]);
+            let bone = factory.bone();
+            heirarchy[&joint.index()].add(&bone);
             bones.push(bone);
         }
         let skeleton = factory.skeleton(bones, ibms);
@@ -326,7 +326,7 @@ fn load_skeletons(
     skeletons
 }
 
-fn load_animations(
+fn load_clips(
     gltf: &Gltf,
     heirarchy: &VecMap<Group>,
     buffers: &gltf_importer::Buffers,
@@ -379,7 +379,12 @@ fn load_animations(
                     assert_eq!(values.len(), times.len());
                     (Binding::Scale, Values::Scalar(values))
                 }
-                gltf::animation::TrsProperty::Weights => unimplemented!(),
+                gltf::animation::TrsProperty::Weights => {
+                    let values = AccessorIter::<f32>::new(output, buffers)
+                        .collect::<Vec<_>>();
+                    assert_eq!(values.len(), times.len());
+                    (Binding::Weight(unimplemented!()), Values::Scalar(values))
+                }
             };
             tracks.push((
                 Track {
@@ -411,12 +416,12 @@ fn bind_objects(
                     .iter()
                     .map(|template| factory.mesh_instance(template))
                     .collect::<Vec<Mesh>>();
-                for primitive in &mut primitives {
-                    primitive.set_parent(group);
+                for primitive in &primitives {
+                    group.add(primitive);
                 }
                 if let Some(skin) = node.skin() {
-                    let mut skeleton = skeletons[skin.index()].clone();
-                    skeleton.set_parent(group);
+                    let skeleton = &skeletons[skin.index()];
+                    group.add(skeleton);
                     for primitive in &mut primitives {
                         primitive.set_skeleton(skeleton.clone());
                     }
@@ -450,7 +455,7 @@ impl super::Factory {
         let root = self.group();
         let mut skeletons = Vec::new();
         let mut textures = Vec::new();
-        
+
         if let Some(scene) = gltf.default_scene() {
             build_scene_hierarchy(self, &gltf, &scene, &root, &mut heirarchy);
             cameras = load_cameras(self, &gltf);
@@ -458,7 +463,7 @@ impl super::Factory {
             materials = load_materials(&gltf, &textures);
             meshes = load_meshes(self, &gltf, &materials, &buffers);
             skeletons = load_skeletons(self, &gltf, &heirarchy, &buffers);
-            clips = load_animations(&gltf, &heirarchy, &buffers);
+            clips = load_clips(&gltf, &heirarchy, &buffers);
             instances = bind_objects(self, &gltf, &heirarchy, &meshes, &skeletons);
         }
 

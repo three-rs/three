@@ -24,6 +24,7 @@ opengl = ["gfx_device_gl", "gfx_window_glutin", "glutin"]
 includedir_codegen = "0.2.0"
 
 [dependencies]
+arrayvec = "0.4"
 bitflags = "1"
 cgmath = { version = "0.15", features = ["mint"] }
 derivative = "1.0"
@@ -44,6 +45,7 @@ quick-error = "1.2"
 rodio = "0.5"
 mint = "0.5"
 vec_map = "0.8"
+
 # OpenGL
 gfx_device_gl = { version = "0.15", optional = true }
 gfx_window_glutin = { version = "0.20", optional = true }

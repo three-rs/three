@@ -105,6 +105,7 @@
 
 use cgmath;
 use froggy;
+use mesh;
 use mint;
 use object;
 use std::hash::{Hash, Hasher};
@@ -180,9 +181,22 @@ pub enum Binding {
     ///
     /// The corresponding keyframe values must be [`Scalar`].
     ///
+    /// ## Note
+    ///
+    /// Only uniform scaling is supported, hence the glTF importer takes the
+    /// Y axis as the scaling direction, ignoring any scaling in the X and Z axes.
+    ///
     /// [`Object`]: ../object/trait.Object.html
     /// [`Scalar`]: enum.Values.html#variant.Scalar
     Scale,
+
+    /// Targets the weight property of an [`Object`].
+    ///
+    /// The corresponding keyframe values must be [`Scalar`].
+    ///
+    /// [`Object`]: ../object/trait.Object.html
+    /// [`Scalar`]: enum.Values.html#variant.Scalar
+    Weight(mesh::Target),
 }
 
 /// An index into the frames of a track.
@@ -209,11 +223,6 @@ pub enum Values {
     Quaternion(Vec<mint::Quaternion<f32>>),
 
     /// Scalar keyframes.
-    ///
-    /// ## Note
-    ///
-    /// Only uniform scaling is supported, hence the glTF importer takes the
-    /// Y axis as the scaling direction, ignoring any scaling in the X and Z axes.
     Scalar(Vec<f32>),
 
     /// 3D vector keyframes.

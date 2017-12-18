@@ -151,7 +151,7 @@ impl AsMut<object::Base> for Gltf {
 }
 
 #[cfg(feature = "gltf-loader")]
-impl Object for Gltf {}
+impl object::Object for Gltf {}
 
 fn f2i(x: f32) -> I8Norm {
     I8Norm(cmp::min(cmp::max((x * 127.0) as isize, -128), 127) as i8)
