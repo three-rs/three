@@ -1,6 +1,6 @@
 use color;
 use gfx::handle as h;
-use material::MaterialType;
+use material::Material;
 use render::{BackendResources, PbrParams};
 use std::mem;
 use texture::Texture;
@@ -39,7 +39,7 @@ pub(crate) struct PbrMapParams {
 }
 
 impl PbrMaps {
-    pub(crate) fn to_params(
+    pub(crate) fn into_params(
         self,
         map_default: &Texture<[f32; 4]>,
     ) -> PbrMapParams {
@@ -69,10 +69,10 @@ pub(crate) enum PsoData {
     },
 }
 
-impl MaterialType {
+impl Material {
     pub(crate) fn to_pso_data(&self) -> PsoData {
         match *self {
-            MaterialType::Pbr(ref material) => {
+            Material::Pbr(ref material) => {
                 let mut pbr_flags = PbrFlags::empty();
                 if material.base_color_map.is_some() {
                     pbr_flags.insert(BASE_COLOR_MAP);
@@ -113,37 +113,37 @@ impl MaterialType {
                     params: pbr_params,
                 }
             }
-            MaterialType::Basic(ref params) => PsoData::Basic {
+            Material::Basic(ref params) => PsoData::Basic {
                 color: params.color,
                 map: params.map.clone(),
                 param0: 0.0,
             },
-            MaterialType::CustomBasic(ref params) => PsoData::Basic {
+            Material::CustomBasic(ref params) => PsoData::Basic {
                 color: params.color,
                 map: params.map.clone(),
                 param0: 0.0,
             },
-            MaterialType::Line(ref params) => PsoData::Basic {
+            Material::Line(ref params) => PsoData::Basic {
                 color: params.color,
                 map: None,
                 param0: 0.0,
             },
-            MaterialType::Wireframe(ref params) => PsoData::Basic {
+            Material::Wireframe(ref params) => PsoData::Basic {
                 color: params.color,
                 map: None,
                 param0: 0.0,
             },
-            MaterialType::Lambert(ref params) => PsoData::Basic {
+            Material::Lambert(ref params) => PsoData::Basic {
                 color: params.color,
                 map: None,
                 param0: if params.flat { 0.0 } else { 1.0 },
             },
-            MaterialType::Phong(ref params) => PsoData::Basic {
+            Material::Phong(ref params) => PsoData::Basic {
                 color: params.color,
                 map: None,
                 param0: params.glossiness,
             },
-            MaterialType::Sprite(ref params) => PsoData::Basic {
+            Material::Sprite(ref params) => PsoData::Basic {
                 color: !0,
                 map: Some(params.map.clone()),
                 param0: 0.0,

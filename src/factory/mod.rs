@@ -119,7 +119,6 @@ impl Factory {
             .unwrap()
     }
 
-
     pub(crate) fn new(mut backend: BackendFactory) -> Self {
         let quad_buf = backend.create_vertex_buffer(&QUAD);
         let default_sampler = backend.create_sampler_linear();
@@ -230,13 +229,11 @@ impl Factory {
             )
         };
         izip!(position_iter, normal_iter, tangent_iter, uv_iter)
-            .map(|(position, normal, tangent, tex_coord)| {
-                Vertex {
-                    pos: [position.x, position.y, position.z, 1.0],
-                    normal: normal,
-                    uv: tex_coord,
-                    tangent: tangent,
-                }
+            .map(|(position, normal, tangent, tex_coord)| Vertex {
+                pos: [position.x, position.y, position.z, 1.0],
+                normal: normal,
+                uv: tex_coord,
+                tangent: tangent,
             })
             .collect()
     }
@@ -342,8 +339,8 @@ impl Factory {
             SubNode::Visual(_, ref gpu) => GpuData {
                 instances,
                 instance_cache_key: Some(InstanceCacheKey {
-                    material_id: material.id,
-                    geometry_id: gpu.vertices.clone(),
+                    material: material.clone(),
+                    geometry: gpu.vertices.clone(),
                 }),
                 ..gpu.clone()
             },
@@ -368,8 +365,8 @@ impl Factory {
             SubNode::Visual(_, ref gpu) => GpuData {
                 instances,
                 instance_cache_key: Some(InstanceCacheKey {
-                    material_id: material.id,
-                    geometry_id: gpu.vertices.clone(),
+                    material: material.clone(),
+                    geometry: gpu.vertices.clone(),
                 }),
                 ..gpu.clone()
             },
@@ -677,23 +674,14 @@ impl Factory {
             .iter()
             .map(|path| {
                 let format = Factory::parse_texture_format(path.as_ref());
-                let file = fs::File::open(path).unwrap_or_else(|e| {
-                    panic!("Unable to open {}: {:?}", path.as_ref().display(), e)
-                });
+                let file = fs::File::open(path).unwrap_or_else(|e| panic!("Unable to open {}: {:?}", path.as_ref().display(), e));
                 image::load(io::BufReader::new(file), format)
-                    .unwrap_or_else(|e| {
-                        panic!("Unable to decode {}: {:?}", path.as_ref().display(), e)
-                    })
+                    .unwrap_or_else(|e| panic!("Unable to decode {}: {:?}", path.as_ref().display(), e))
                     .to_rgba()
             })
             .collect::<Vec<_>>();
         let data: [&[u8]; 6] = [
-            &images[0],
-            &images[1],
-            &images[2],
-            &images[3],
-            &images[4],
-            &images[5],
+            &images[0], &images[1], &images[2], &images[3], &images[4], &images[5]
         ];
         let size = images[0].dimensions().0;
         let kind = t::Kind::Cube(size as t::Size);
@@ -871,9 +859,7 @@ impl Factory {
 
                 info!(
                     "\tmaterial {} with {} normals and {} uvs",
-                    gr.name,
-                    num_normals,
-                    num_uvs
+                    gr.name, num_normals, num_uvs
                 );
                 let material = match gr.material {
                     Some(ref rc_mat) => self.load_obj_material(&*rc_mat, num_normals != 0, num_uvs != 0, path_parent),

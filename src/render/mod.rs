@@ -32,7 +32,7 @@ use camera::Camera;
 use factory::Factory;
 use hub::{SubLight, SubNode};
 use light::{ShadowMap, ShadowProjection};
-use material::MaterialType;
+use material::Material;
 use scene::{Background, Scene};
 use text::Font;
 use texture::Texture;
@@ -201,8 +201,8 @@ gfx_defines! {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct InstanceCacheKey {
-    pub(crate) material_id: usize,
-    pub(crate) geometry_id: h::Buffer<back::Resources, Vertex>,
+    pub(crate) material: Material,
+    pub(crate) geometry: h::Buffer<back::Resources, Vertex>,
 }
 
 impl Instance {
@@ -256,7 +256,7 @@ struct InstanceData {
     pub slice: gfx::Slice<back::Resources>,
     pub vertices: h::Buffer<back::Resources, Vertex>,
     pub pso_data: PsoData,
-    pub mat_type: MaterialType,
+    pub material: Material,
 }
 
 #[derive(Clone, Debug)]
@@ -428,15 +428,15 @@ impl PipelineStates {
 
     pub(crate) fn pso_by_material(
         &self,
-        material: &MaterialType,
+        material: &Material,
     ) -> &BasicPipelineState {
         match *material {
-            MaterialType::Basic(_) => &self.mesh_basic_fill,
-            MaterialType::Line(_) => &self.line_basic,
-            MaterialType::Wireframe(_) => &self.mesh_basic_wireframe,
-            MaterialType::Lambert(_) => &self.mesh_gouraud,
-            MaterialType::Phong(_) => &self.mesh_phong,
-            MaterialType::Sprite(_) => &self.sprite,
+            Material::Basic(_) => &self.mesh_basic_fill,
+            Material::Line(_) => &self.line_basic,
+            Material::Wireframe(_) => &self.mesh_basic_wireframe,
+            Material::Lambert(_) => &self.mesh_gouraud,
+            Material::Phong(_) => &self.mesh_phong,
+            Material::Sprite(_) => &self.sprite,
             _ => unreachable!(),
         }
     }
@@ -786,7 +786,8 @@ impl Renderer {
             };
 
             let mx_world: [[f32; 4]; 4] = Matrix4::from(node.world_transform).into();
-            let pso_data = material.mat_type.to_pso_data();
+            println!("{:?}", mx_world);
+            let pso_data = material.to_pso_data();
 
             if let Some(ref key) = gpu_data.instance_cache_key {
                 let uv_range = [0.0; 4];
@@ -803,7 +804,7 @@ impl Renderer {
                         slice: gpu_data.slice.clone(),
                         vertices: gpu_data.vertices.clone(),
                         pso_data: pso_data.clone(),
-                        mat_type: material.mat_type.clone(),
+                        material: material.clone(),
                     },
                     Vec::new(),
                 ));
@@ -835,7 +836,7 @@ impl Renderer {
                 &[instance],
                 gpu_data.vertices.clone(),
                 gpu_data.slice.clone(),
-                &material.mat_type,
+                &material,
                 &shadow_sampler,
                 &shadow0,
                 &shadow1,
@@ -843,7 +844,6 @@ impl Renderer {
         }
 
         // render instanced meshes
-        println!("{}", self.instance_cache.len());
         for &(ref mesh_data, ref all_instances) in self.instance_cache.values() {
             if all_instances.len() > self.inst_buf.len() {
                 self.inst_buf = self.factory
@@ -869,7 +869,7 @@ impl Renderer {
                 all_instances,
                 mesh_data.vertices.clone(),
                 mesh_data.slice.clone(),
-                &mesh_data.mat_type,
+                &mesh_data.material,
                 &shadow_sampler,
                 &shadow0,
                 &shadow1,
@@ -996,7 +996,7 @@ impl Renderer {
         instances: &[Instance],
         vertex_buf: h::Buffer<back::Resources, Vertex>,
         slice: gfx::Slice<back::Resources>,
-        mat_type: &MaterialType,
+        material: &Material,
         shadow_sampler: &h::Sampler<back::Resources>,
         shadow0: &h::ShaderResourceView<back::Resources, f32>,
         shadow1: &h::ShaderResourceView<back::Resources, f32>,
@@ -1013,10 +1013,10 @@ impl Renderer {
         };
 
         //TODO: batch per PSO
-        match mat_type.to_pso_data() {
+        match material.to_pso_data() {
             PsoData::Pbr { maps, params } => {
                 encoder.update_constant_buffer(&pbr_buf, &params);
-                let map_params = maps.to_params(map_default);
+                let map_params = maps.into_params(map_default);
                 let data = pbr_pipe::Data {
                     vbuf: vertex_buf,
                     inst_buf: inst_buf,
@@ -1046,7 +1046,7 @@ impl Renderer {
                     out_color: out_color.clone(),
                     out_depth: (out_depth.clone(), (0, 0)),
                 };
-                encoder.draw(&slice, pso.pso_by_material(&mat_type), &data);
+                encoder.draw(&slice, pso.pso_by_material(&material), &data);
             }
         }
     }

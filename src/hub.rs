@@ -190,8 +190,8 @@ impl Hub {
                     *mat = material;
                 },
                 Operation::SetTexelRange(base, size) => if let SubNode::Visual(ref mut material, _) = node.sub_node {
-                    match material.mat_type {
-                        material::MaterialType::Sprite(ref mut params) => params.map.set_texel_range(base, size),
+                    match *material {
+                        material::Material::Sprite(ref mut params) => params.map.set_texel_range(base, size),
                         _ => panic!("Unsupported material for texel range request"),
                     }
                 },
