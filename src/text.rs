@@ -4,14 +4,14 @@ use std::path::PathBuf;
 use std::rc::Rc;
 
 use gfx::Encoder;
-use gfx::handle::RenderTargetView;
+use gfx::handle::{DepthStencilView, RenderTargetView};
 use gfx_glyph as g;
 use mint;
 use object;
 
 use color::Color;
 use hub::Operation as HubOperation;
-use render::{BackendCommandBuffer, BackendFactory, BackendResources, ColorFormat};
+use render::{BackendCommandBuffer, BackendFactory, BackendResources, ColorFormat, DepthFormat};
 
 pub(crate) enum Operation {
     Text(String),
@@ -66,11 +66,19 @@ impl From<Align> for g::HorizontalAlign {
     }
 }
 
-impl From<Layout> for g::Layout<g::StandardLineBreaker> {
-    fn from(layout: Layout) -> g::Layout<g::StandardLineBreaker> {
+impl From<Layout> for g::Layout<g::BuiltInLineBreaker> {
+    fn from(layout: Layout) -> g::Layout<g::BuiltInLineBreaker> {
         match layout {
-            Layout::Wrap(a) => g::Layout::Wrap(g::StandardLineBreaker, a.into()),
-            Layout::SingleLine(a) => g::Layout::SingleLine(g::StandardLineBreaker, a.into()),
+            Layout::Wrap(a) => g::Layout::Wrap {
+                line_breaker: g::BuiltInLineBreaker::UnicodeLineBreaker,
+                h_align: a.into(),
+                v_align: g::VerticalAlign::Top,
+            },
+            Layout::SingleLine(a) => g::Layout::SingleLine {
+                line_breaker: g::BuiltInLineBreaker::UnicodeLineBreaker,
+                h_align: a.into(),
+                v_align: g::VerticalAlign::Top,
+            },
         }
     }
 }
@@ -90,7 +98,7 @@ impl Font {
     ) -> Font {
         Font {
             brush: Rc::new(RefCell::new(
-                g::GlyphBrushBuilder::using_font(buf).build(factory),
+                g::GlyphBrushBuilder::using_font(g::font(buf).unwrap()).build(factory),
             )),
             path: path,
         }
@@ -98,22 +106,21 @@ impl Font {
 
     pub(crate) fn queue(
         &self,
-        section: &g::OwnedSection,
-        layout: Layout,
+        section: &g::OwnedVariedSection,
     ) {
         let mut brush = self.brush.borrow_mut();
-        let layout: g::Layout<g::StandardLineBreaker> = layout.into();
-        brush.queue(section, &layout);
+        brush.queue(section);
     }
 
     pub(crate) fn draw(
         &self,
         encoder: &mut Encoder<BackendResources, BackendCommandBuffer>,
         out: &RenderTargetView<BackendResources, ColorFormat>,
+        depth: &DepthStencilView<BackendResources, DepthFormat>,
     ) {
         let mut brush = self.brush.borrow_mut();
         brush
-            .draw_queued(encoder, out)
+            .draw_queued(encoder, out, depth)
             .expect("Error while drawing text");
     }
 }
@@ -129,7 +136,7 @@ impl fmt::Debug for Font {
 
 #[derive(Debug, Clone)]
 pub(crate) struct TextData {
-    pub(crate) section: g::OwnedSection,
+    pub(crate) section: g::OwnedVariedSection,
     pub(crate) layout: Layout,
     pub(crate) font: Font,
 }
@@ -140,12 +147,17 @@ impl TextData {
         text: S,
     ) -> Self {
         TextData {
-            section: g::OwnedSection {
-                text: text.into(),
-                color: [1.0, 1.0, 1.0, 1.0],
-                ..g::OwnedSection::default()
+            section: g::OwnedVariedSection {
+                text: vec![
+                    g::OwnedSectionText {
+                        color: [1.0, 1.0, 1.0, 1.0],
+                        text: text.into(),
+                        ..g::OwnedSectionText::default()
+                    },
+                ],
+                ..Default::default()
             },
-            layout: Layout::default(),
+            layout: Default::default(),
             font: font.clone(),
         }
     }
