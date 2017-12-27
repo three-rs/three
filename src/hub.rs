@@ -227,16 +227,16 @@ impl Hub {
         match operation {
             TextOperation::Color(color) => {
                 let rgb = color::to_linear_rgb(color);
-                data.section.color = [rgb[0], rgb[1], rgb[2], 0.0];
+                data.section.text[0].color = [rgb[0], rgb[1], rgb[2], 0.0];
             }
             TextOperation::Font(font) => data.font = font,
             TextOperation::Layout(layout) => data.layout = layout,
-            TextOperation::Opacity(opacity) => data.section.color[3] = opacity,
+            TextOperation::Opacity(opacity) => data.section.text[0].color[3] = opacity,
             TextOperation::Pos(point) => data.section.screen_position = (point.x, point.y),
             // TODO: somehow grab window::hdpi_factor and multiply size
-            TextOperation::Scale(scale) => data.section.scale = Scale::uniform(scale),
+            TextOperation::Scale(scale) => data.section.text[0].scale = Scale::uniform(scale),
             TextOperation::Size(size) => data.section.bounds = (size.x, size.y),
-            TextOperation::Text(text) => data.section.text = text,
+            TextOperation::Text(text) => data.section.text[0].text = text,
         }
     }
 

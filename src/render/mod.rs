@@ -901,7 +901,7 @@ impl Renderer {
         // draw ui text
         for node in hub.nodes.iter() {
             if let SubNode::UiText(ref text) = node.sub_node {
-                text.font.queue(&text.section, text.layout);
+                text.font.queue(&text.section);
                 if !self.font_cache.contains_key(&text.font.path) {
                     self.font_cache
                         .insert(text.font.path.clone(), text.font.clone());
@@ -909,7 +909,7 @@ impl Renderer {
             }
         }
         for (_, font) in &self.font_cache {
-            font.draw(&mut self.encoder, &self.out_color);
+            font.draw(&mut self.encoder, &self.out_color, &self.out_depth);
         }
 
         // draw debug quads
