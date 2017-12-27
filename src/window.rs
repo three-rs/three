@@ -94,10 +94,10 @@ impl Builder {
 
     /// Create new `Window` with desired parameters.
     pub fn build(&mut self) -> Window {
-        use glutin::get_primary_monitor;
-
+        let event_loop = glutin::EventsLoop::new();
         let builder = if self.fullscreen {
-            glutin::WindowBuilder::new().with_fullscreen(get_primary_monitor())
+            let monitor_id = event_loop.get_primary_monitor();
+            glutin::WindowBuilder::new().with_fullscreen(Some(monitor_id))
         } else {
             glutin::WindowBuilder::new()
         };
@@ -143,7 +143,6 @@ impl Builder {
             try_override!(basic, gouraud, pbr, phong, quad, shadow, skybox, sprite,);
         }
 
-        let event_loop = glutin::EventsLoop::new();
         let (renderer, window, mut factory) = Renderer::new(builder, context, &event_loop, &source_set);
         let scene = factory.scene();
         Window {
@@ -189,7 +188,7 @@ impl Window {
         let window = &self.window;
 
         self.event_loop.poll_events(|event| {
-            use glutin::WindowEvent::{Closed, Focused, KeyboardInput, MouseInput, MouseMoved, MouseWheel, Resized};
+            use glutin::WindowEvent::{Closed, Focused, KeyboardInput, MouseInput, CursorMoved, MouseWheel, Resized};
             match event {
                 glutin::Event::WindowEvent { event, .. } => match event {
                     Resized(..) => renderer.resize(window),
@@ -204,7 +203,7 @@ impl Window {
                         ..
                     } => input.keyboard_input(state, keycode),
                     MouseInput { state, button, .. } => input.mouse_input(state, button),
-                    MouseMoved {
+                    CursorMoved {
                         position: (x, y), ..
                     } => input.mouse_moved(
                         [x as f32, y as f32].into(),

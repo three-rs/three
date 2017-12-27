@@ -704,8 +704,9 @@ impl Factory {
             .to_rgba();
         let (width, height) = img.dimensions();
         let kind = t::Kind::D2(width as t::Size, height as t::Size, t::AaMode::Single);
+        let mipmap = gfx::texture::Mipmap::Allocated;
         let (_, view) = factory
-            .create_texture_immutable_u8::<gfx::format::Srgba8>(kind, &[&img])
+            .create_texture_immutable_u8::<gfx::format::Srgba8>(kind, mipmap, &[&img])
             .unwrap_or_else(|e| {
                 panic!(
                     "Unable to create GPU texture for {}: {:?}",
@@ -748,7 +749,7 @@ impl Factory {
         let size = images[0].dimensions().0;
         let kind = t::Kind::Cube(size as t::Size);
         let (_, view) = factory
-            .create_texture_immutable_u8::<gfx::format::Srgba8>(kind, &data)
+            .create_texture_immutable_u8::<gfx::format::Srgba8>(kind, gfx::texture::Mipmap::Allocated, &data)
             .unwrap_or_else(|e| {
                 panic!("Unable to create GPU texture for cubemap: {:?}", e);
             });
@@ -831,7 +832,7 @@ impl Factory {
         use gfx::texture as t;
         let kind = t::Kind::D2(width, height, t::AaMode::Single);
         let (_, view) = self.backend
-            .create_texture_immutable_u8::<gfx::format::Srgba8>(kind, &[pixels])
+            .create_texture_immutable_u8::<gfx::format::Srgba8>(kind, gfx::texture::Mipmap::Allocated, &[pixels])
             .unwrap_or_else(|e| {
                 panic!("Unable to create GPU texture from memory: {:?}", e);
             });
