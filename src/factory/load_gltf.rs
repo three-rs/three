@@ -347,7 +347,7 @@ fn load_clips(
                 Linear => animation::Interpolation::Linear,
                 Step => animation::Interpolation::Discrete,
                 CubicSpline => animation::Interpolation::Cubic,
-                CatmullRomSpline => animation::Interpolation::CatmullRom,
+                CatmullRomSpline => animation::Interpolation::Cubic,
             };
             use animation::{Binding, Track, Values};
             let times: Vec<f32> = AccessorIter::new(input, buffers).collect();
