@@ -22,13 +22,14 @@
 #version 150 core
 #include <locals>
 #include <globals>
+#include <morph_targets>
 
 in vec4 a_Position;
 in vec2 a_TexCoord;
 in vec4 a_Normal;
 in vec4 a_Tangent;
-in vec4 a_Joint;
-in vec4 a_Weight;
+in vec4 a_JointIndices;
+in vec4 a_JointWeights;
 
 out vec3 v_Position;
 out vec2 v_TexCoord;
@@ -50,10 +51,46 @@ mat4 fetch_joint_transform(int i)
 mat4 compute_skin_transform()
 {
     return
-	a_Weight.x * fetch_joint_transform(int(a_Joint.x)) +
-	a_Weight.y * fetch_joint_transform(int(a_Joint.y)) +
-	a_Weight.z * fetch_joint_transform(int(a_Joint.z)) +
-	a_Weight.w * fetch_joint_transform(int(a_Joint.w));
+	a_JointWeights.x * fetch_joint_transform(int(a_JointIndices.x)) +
+	a_JointWeights.y * fetch_joint_transform(int(a_JointIndices.y)) +
+	a_JointWeights.z * fetch_joint_transform(int(a_JointIndices.z)) +
+	a_JointWeights.w * fetch_joint_transform(int(a_JointIndices.w));
+}
+
+vec4 compute_local_position()
+{
+    vec4 position = a_Position;
+
+    for (uint i = 0U; i < MAX_MORPH_TARGETS; ++i) {
+	position.xyz += u_MorphTargets[i].position_displacement
+	    * u_MorphTargets[i].weight;
+    }
+
+    return position;
+}
+
+vec3 compute_world_normal()
+{
+    vec3 normal = a_Normal.xyz;
+
+    for (uint i = 0U; i < MAX_MORPH_TARGETS; ++i) {
+	normal += u_MorphTargets[i].normal_displacement
+	    * u_MorphTargets[i].weight;
+    }
+
+    return normalize(vec3(u_World * vec4(normal, 0.0)));
+}
+
+vec3 compute_world_tangent()
+{
+    vec3 tangent = a_Tangent.xyz;
+
+    for (uint i = 0U; i < MAX_MORPH_TARGETS; ++i) {
+	tangent += u_MorphTargets[i].tangent_displacement
+	    * u_MorphTargets[i].weight;
+    }
+
+    return normalize(vec3(u_World * vec4(tangent, 0.0)));
 }
 
 void main()
@@ -61,14 +98,15 @@ void main()
     mat4 mx_mvp = u_ViewProj * u_World;
     mat4 mx_skin = compute_skin_transform();
 
-    vec4 position = u_World * a_Position;
-    vec3 normal = normalize(vec3(u_World * vec4(a_Normal.xyz, 0.0)));
-    vec3 tangent = normalize(vec3(u_World * vec4(a_Tangent.xyz, 0.0)));
-    vec3 bitangent = cross(normal, tangent) * a_Tangent.w;
+    vec4 local_position = compute_local_position();
+    vec4 world_position = u_World * local_position;
+    vec3 world_normal = compute_world_normal();
+    vec3 world_tangent = compute_world_tangent();
+    vec3 world_bitangent = cross(world_normal, world_tangent) * a_Tangent.w;
 
-    v_Tbn = mat3(tangent, bitangent, normal);
-    v_Position = vec3(position.xyz) / position.w;
+    v_Tbn = mat3(world_tangent, world_bitangent, world_normal);
+    v_Position = world_position.xyz / world_position.w;
     v_TexCoord = a_TexCoord;
 
-    gl_Position = mx_mvp * mx_skin * a_Position;
+    gl_Position = mx_mvp * mx_skin * local_position;
 }

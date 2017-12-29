@@ -9,6 +9,10 @@ use skeleton::Skeleton;
 
 use std::hash::{Hash, Hasher};
 
+/// The maximum number of [`Target`]s able to influence a [`Mesh`].
+///
+/// [`Target`]: enum.Target.html
+/// [`Mesh`]: struct.Mesh.html
 pub const MAX_TARGETS: usize = 9;
 
 /// Defines a weight target.
@@ -148,11 +152,11 @@ impl Mesh {
     }
 
     /// Bind a set of morph targets to the mesh.
-    pub fn set_targets(
+    pub fn set_targets<T: Into<ArrayVec<[Target; MAX_TARGETS]>>>(
         &mut self,
-        targets: ArrayVec<[Target; MAX_TARGETS]>,
+        targets: T,
     ) {
-        let msg = Operation::SetTargets(targets);
+        let msg = Operation::SetTargets(targets.into());
         let _ = self.object.tx.send((self.object.node.downgrade(), msg));
     }
 }

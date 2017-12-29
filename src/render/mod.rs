@@ -31,6 +31,7 @@ use factory::Factory;
 use hub::{SubLight, SubNode};
 use light::{ShadowMap, ShadowProjection};
 use material::Material;
+use mesh::MAX_TARGETS;
 use scene::{Background, Scene};
 use text::Font;
 use texture::Texture;
@@ -93,8 +94,8 @@ gfx_defines! {
         uv: [f32; 2] = "a_TexCoord",
         normal: [gfx::format::I8Norm; 4] = "a_Normal",
         tangent: [gfx::format::I8Norm; 4] = "a_Tangent",
-        joints: [f32; 4] = "a_Joint",
-        weights: [f32; 4] = "a_Weight",
+        joints: [f32; 4] = "a_JointIndices",
+        weights: [f32; 4] = "a_JointWeights",
     }
 
     constant Locals {
@@ -172,7 +173,15 @@ gfx_defines! {
         occlusion_strength: f32 = "u_OcclusionStrength",
         pbr_flags: i32 = "u_PbrFlags",
     }
-    
+
+    constant MorphTargetEntry {
+        weight: f32 = "weight",
+        _padding: [f32; 3] = "_padding",
+        position_displacement: [f32; 4] = "position_displacement",
+        normal_displacement: [f32; 4] = "normal_displacement",
+        tangents_displacement: [f32; 4] = "tangent_displacement",
+    }
+
     pipeline pbr_pipe {
         vbuf: gfx::VertexBuffer<Vertex> = (),
 
@@ -180,6 +189,7 @@ gfx_defines! {
         globals: gfx::ConstantBuffer<Globals> = "b_Globals",
         params: gfx::ConstantBuffer<PbrParams> = "b_PbrParams",
         lights: gfx::ConstantBuffer<LightParam> = "b_Lights",
+        morph_targets: gfx::ConstantBuffer<MorphTargetEntry> = "b_MorphTargets",
         joint_transforms: gfx::ShaderResource<[f32; 4]> = "b_JointTransforms",
 
         base_color_map: gfx::TextureSampler<[f32; 4]> = "u_BaseColorSampler",
@@ -399,6 +409,7 @@ pub struct Renderer {
     quad_buf: gfx::handle::Buffer<back::Resources, QuadParams>,
     light_buf: gfx::handle::Buffer<back::Resources, LightParam>,
     pbr_buf: gfx::handle::Buffer<back::Resources, PbrParams>,
+    morph_targets_buf: gfx::handle::Buffer<back::Resources, MorphTargetEntry>,
     out_color: gfx::handle::RenderTargetView<back::Resources, ColorFormat>,
     out_depth: gfx::handle::DepthStencilView<back::Resources, DepthFormat>,
     default_joint_buffer_view: gfx::handle::ShaderResourceView<back::Resources, [f32; 4]>,
@@ -454,6 +465,7 @@ impl Renderer {
         let quad_buf = gl_factory.create_constant_buffer(1);
         let light_buf = gl_factory.create_constant_buffer(MAX_LIGHTS);
         let pbr_buf = gl_factory.create_constant_buffer(1);
+        let morph_targets_buf = gl_factory.create_constant_buffer(MAX_TARGETS);
         let pso = PipelineStates::init(source, &mut gl_factory).unwrap();
         let renderer = Renderer {
             device,
@@ -462,6 +474,7 @@ impl Renderer {
             quad_buf,
             light_buf,
             pbr_buf,
+            morph_targets_buf,
             out_color,
             out_depth,
             pso,
@@ -850,6 +863,7 @@ impl Renderer {
                                 .unwrap_or(&self.map_default)
                                 .to_param()
                         },
+                        morph_targets: self.morph_targets_buf.clone(),
                         joint_transforms: joint_buffer_view,
                         color_target: self.out_color.clone(),
                         depth_target: self.out_depth.clone(),
