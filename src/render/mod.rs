@@ -19,7 +19,7 @@ mod pso_data;
 
 use color;
 
-use std::{io, str};
+use std::{io, mem, str};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -28,12 +28,13 @@ pub use self::back::Factory as BackendFactory;
 pub use self::back::Resources as BackendResources;
 pub use self::source::Source;
 
-use self::pso_data::PsoData;
+use self::pso_data::{PbrFlags, PsoData};
 use camera::Camera;
 use factory::Factory;
 use hub::{SubLight, SubNode};
 use light::{ShadowMap, ShadowProjection};
 use material::Material;
+use mesh::MAX_TARGETS;
 use scene::{Background, Scene};
 use text::Font;
 use texture::Texture;
@@ -96,8 +97,8 @@ gfx_defines! {
         uv: [f32; 2] = "a_TexCoord",
         normal: [gfx::format::I8Norm; 4] = "a_Normal",
         tangent: [gfx::format::I8Norm; 4] = "a_Tangent",
-        joints: [f32; 4] = "a_Joint",
-        weights: [f32; 4] = "a_Weight",
+        joints: [f32; 4] = "a_JointIndices",
+        weights: [f32; 4] = "a_JointWeights",
     }
 
     vertex Instance {
@@ -178,6 +179,14 @@ gfx_defines! {
         pbr_flags: i32 = "u_PbrFlags",
     }
 
+    constant MorphTargetEntry {
+        weight: f32 = "weight",
+        _padding: [f32; 3] = "_padding",
+        position_displacement: [f32; 4] = "position_displacement",
+        normal_displacement: [f32; 4] = "normal_displacement",
+        tangents_displacement: [f32; 4] = "tangent_displacement",
+    }
+
     pipeline pbr_pipe {
         vbuf: gfx::VertexBuffer<Vertex> = (),
         inst_buf: gfx::InstanceBuffer<Instance> = (),
@@ -185,6 +194,7 @@ gfx_defines! {
         globals: gfx::ConstantBuffer<Globals> = "b_Globals",
         params: gfx::ConstantBuffer<PbrParams> = "b_PbrParams",
         lights: gfx::ConstantBuffer<LightParam> = "b_Lights",
+        morph_targets: gfx::ConstantBuffer<MorphTargetEntry> = "b_MorphTargets",
         joint_transforms: gfx::ShaderResource<[f32; 4]> = "b_JointTransforms",
 
         base_color_map: gfx::TextureSampler<[f32; 4]> = "u_BaseColorSampler",
@@ -469,6 +479,7 @@ pub struct Renderer {
     out_depth: h::DepthStencilView<back::Resources, DepthFormat>,
     default_joint_buffer: gfx::handle::Buffer<back::Resources, [f32; 4]>,
     default_joint_buffer_view: gfx::handle::ShaderResourceView<back::Resources, [f32; 4]>,
+    morph_targets_buf: gfx::handle::Buffer<back::Resources, MorphTargetEntry>,
     pso: PipelineStates,
     map_default: Texture<[f32; 4]>,
     shadow_default: Texture<f32>,
@@ -489,6 +500,7 @@ impl Renderer {
         source: &source::Set,
     ) -> (Self, glutin::GlWindow, Factory) {
         use gfx::texture as t;
+
         let (window, device, mut gl_factory, out_color, out_depth) = gfx_window_glutin::init(builder, context, event_loop);
         let (_, srv_white) = gl_factory
             .create_texture_immutable::<gfx::format::Rgba8>(
@@ -536,7 +548,9 @@ impl Renderer {
                 gfx::memory::Bind::TRANSFER_DST,
             )
             .unwrap();
+        let morph_targets_buf = gl_factory.create_constant_buffer(MAX_TARGETS);
         let pso = PipelineStates::init(source, &mut gl_factory).unwrap();
+
         let renderer = Renderer {
             device,
             factory: gl_factory.clone(),
@@ -546,6 +560,7 @@ impl Renderer {
             light_buf,
             inst_buf,
             pbr_buf,
+            morph_targets_buf,
             out_color,
             out_depth,
             pso,
@@ -886,57 +901,148 @@ impl Renderer {
                 PsoData::Pbr { .. } => Instance::pbr(mx_world.into()),
             };
 
-            Self::render_mesh(
-                &mut self.encoder,
-                self.const_buf.clone(),
-                gpu_data.instances.clone(),
-                self.light_buf.clone(),
-                self.pbr_buf.clone(),
-                self.out_color.clone(),
-                self.out_depth.clone(),
-                &self.pso,
-                &self.map_default,
-                &[instance],
-                gpu_data.vertices.clone(),
-                gpu_data.slice.clone(),
-                &material,
-                &shadow_sampler,
-                &shadow0,
-                &shadow1,
-            );
-        }
-
-        // render instanced meshes
-        for &(ref mesh_data, ref all_instances) in self.instance_cache.values() {
-            if all_instances.len() > self.inst_buf.len() {
-                self.inst_buf = self.factory
-                    .create_buffer(
-                        all_instances.len(),
-                        gfx::buffer::Role::Vertex,
-                        gfx::memory::Usage::Dynamic,
-                        gfx::memory::Bind::TRANSFER_DST,
-                    )
-                    // TODO: Better error handling
-                    .unwrap();
-            }
-            Self::render_mesh(
-                &mut self.encoder,
-                self.const_buf.clone(),
-                self.inst_buf.clone(),
-                self.light_buf.clone(),
-                self.pbr_buf.clone(),
-                self.out_color.clone(),
-                self.out_depth.clone(),
-                &self.pso,
-                &self.map_default,
-                all_instances,
-                mesh_data.vertices.clone(),
-                mesh_data.slice.clone(),
-                &mesh_data.material,
-                &shadow_sampler,
-                &shadow0,
-                &shadow1,
-            );
+            //TODO: batch per PSO
+            match *material {
+                Material::Pbr(ref params) => {
+                    self.encoder.update_constant_buffer(
+                        &gpu_data.constants,
+                        &Instance {
+                            mx_world: Matrix4::from(node.world_transform).into(),
+                            ..unsafe { mem::zeroed() }
+                        },
+                    );
+                    let mut pbr_flags = PbrFlags::empty();
+                    if params.base_color_map.is_some() {
+                        pbr_flags.insert(PbrFlags::BASE_COLOR_MAP);
+                    }
+                    if params.normal_map.is_some() {
+                        pbr_flags.insert(PbrFlags::NORMAL_MAP);
+                    }
+                    if params.metallic_roughness_map.is_some() {
+                        pbr_flags.insert(PbrFlags::METALLIC_ROUGHNESS_MAP);
+                    }
+                    if params.emissive_map.is_some() {
+                        pbr_flags.insert(PbrFlags::EMISSIVE_MAP);
+                    }
+                    if params.occlusion_map.is_some() {
+                        pbr_flags.insert(PbrFlags::OCCLUSION_MAP);
+                    }
+                    let bcf = color::to_linear_rgb(params.base_color_factor);
+                    let emf = color::to_linear_rgb(params.emissive_factor);
+                    self.encoder.update_constant_buffer(
+                        &self.pbr_buf,
+                        &PbrParams {
+                            base_color_factor: [bcf[0], bcf[1], bcf[2], params.base_color_alpha],
+                            camera: [0.0, 0.0, 1.0],
+                            emissive_factor: [emf[0], emf[1], emf[2]],
+                            metallic_roughness: [params.metallic_factor, params.roughness_factor],
+                            normal_scale: params.normal_scale,
+                            occlusion_strength: params.occlusion_strength,
+                            pbr_flags: pbr_flags.bits(),
+                            _padding0: unsafe { mem::uninitialized() },
+                            _padding1: unsafe { mem::uninitialized() },
+                        },
+                    );
+                    let data = pbr_pipe::Data {
+                        vbuf: gpu_data.vertices.clone(),
+                        locals: gpu_data.constants.clone(),
+                        globals: self.const_buf.clone(),
+                        lights: self.light_buf.clone(),
+                        params: self.pbr_buf.clone(),
+                        base_color_map: {
+                            params
+                                .base_color_map
+                                .as_ref()
+                                .unwrap_or(&self.map_default)
+                                .to_param()
+                        },
+                        normal_map: {
+                            params
+                                .normal_map
+                                .as_ref()
+                                .unwrap_or(&self.map_default)
+                                .to_param()
+                        },
+                        emissive_map: {
+                            params
+                                .emissive_map
+                                .as_ref()
+                                .unwrap_or(&self.map_default)
+                                .to_param()
+                        },
+                        metallic_roughness_map: {
+                            params
+                                .metallic_roughness_map
+                                .as_ref()
+                                .unwrap_or(&self.map_default)
+                                .to_param()
+                        },
+                        occlusion_map: {
+                            params
+                                .occlusion_map
+                                .as_ref()
+                                .unwrap_or(&self.map_default)
+                                .to_param()
+                        },
+                        morph_targets: self.morph_targets_buf.clone(),
+                        joint_transforms: joint_buffer_view,
+                        color_target: self.out_color.clone(),
+                        depth_target: self.out_depth.clone(),
+                    };
+                    self.encoder.draw(&gpu_data.slice, &self.pso.pbr, &data);
+                }
+                ref other => {
+                    let (pso, color, param0, map) = match *other {
+                        Material::Pbr(_) => unreachable!(),
+                        Material::Basic(ref params) => (
+                            &self.pso.mesh_basic_fill,
+                            params.color,
+                            0.0,
+                            params.map.as_ref(),
+                        ),
+                        Material::CustomBasic(ref params) => (&params.pipeline, params.color, 0.0, params.map.as_ref()),
+                        Material::Lambert(ref params) => (
+                            &self.pso.mesh_gouraud,
+                            params.color,
+                            if params.flat { 0.0 } else { 1.0 },
+                            None,
+                        ),
+                        Material::Line(ref params) => (&self.pso.line_basic, params.color, 0.0, None),
+                        Material::Phong(ref params) => (&self.pso.mesh_phong, params.color, params.glossiness, None),
+                        Material::Sprite(ref params) => (&self.pso.sprite, !0, 0.0, Some(&params.map)),
+                        Material::Wireframe(ref params) => (&self.pso.mesh_basic_wireframe, params.color, 0.0, None),
+                    };
+                    let uv_range = match map {
+                        Some(ref map) => map.uv_range(),
+                        None => [0.0; 4],
+                    };
+                    self.encoder.update_constant_buffer(
+                        &gpu_data.constants,
+                        &Locals {
+                            mx_world: Matrix4::from(node.world_transform).into(),
+                            color: {
+                                let rgb = color::to_linear_rgb(color);
+                                [rgb[0], rgb[1], rgb[2], 0.0]
+                            },
+                            mat_params: [param0, 0.0, 0.0, 0.0],
+                            uv_range,
+                        },
+                    );
+                    //TODO: avoid excessive cloning
+                    let data = basic_pipe::Data {
+                        vbuf: gpu_data.vertices.clone(),
+                        cb_locals: gpu_data.constants.clone(),
+                        cb_lights: self.light_buf.clone(),
+                        cb_globals: self.const_buf.clone(),
+                        tex_map: map.unwrap_or(&self.map_default).to_param(),
+                        shadow_map0: (shadow0.clone(), shadow_sampler.clone()),
+                        shadow_map1: (shadow1.clone(), shadow_sampler.clone()),
+                        out_color: self.out_color.clone(),
+                        out_depth: (self.out_depth.clone(), (0, 0)),
+                    };
+                    self.encoder.draw(&gpu_data.slice, pso, &data);
+                }
+            };
         }
 
         let quad_slice = gfx::Slice {

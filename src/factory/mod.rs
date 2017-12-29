@@ -7,7 +7,7 @@ use std::collections::hash_map::{Entry, HashMap};
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
-use cgmath::{SquareMatrix, Vector3};
+use cgmath::{Vector3};
 use gfx;
 use gfx::format::I8Norm;
 use gfx::traits::{Factory as Factory_, FactoryExt};
