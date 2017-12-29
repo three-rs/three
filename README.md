@@ -11,7 +11,7 @@ If you a looking for something simple to prototype 3D graphics with, you found i
 ## Screenshots
 
 ![Aviator](examples/aviator/shot.png)
-![CarObj](test_data/obj-car.png)
+![CarObj](https://raw.githubusercontent.com/three-rs/example-data/5d821bc9647a8db26888f8dd286f318eaabd2a52/obj-car.png)
 
 ## Motivation and Goals
 
