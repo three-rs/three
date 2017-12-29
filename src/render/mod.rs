@@ -185,6 +185,7 @@ gfx_defines! {
         globals: gfx::ConstantBuffer<Globals> = "b_Globals",
         params: gfx::ConstantBuffer<PbrParams> = "b_PbrParams",
         lights: gfx::ConstantBuffer<LightParam> = "b_Lights",
+        joint_transforms: gfx::ShaderResource<[f32; 4]> = "b_JointTransforms",
 
         base_color_map: gfx::TextureSampler<[f32; 4]> = "u_BaseColorSampler",
 
@@ -466,6 +467,8 @@ pub struct Renderer {
     pbr_buf: h::Buffer<back::Resources, PbrParams>,
     out_color: h::RenderTargetView<back::Resources, ColorFormat>,
     out_depth: h::DepthStencilView<back::Resources, DepthFormat>,
+    default_joint_buffer: gfx::handle::Buffer<back::Resources, [f32; 4]>,
+    default_joint_buffer_view: gfx::handle::ShaderResourceView<back::Resources, [f32; 4]>,
     pso: PipelineStates,
     map_default: Texture<[f32; 4]>,
     shadow_default: Texture<f32>,
@@ -488,17 +491,38 @@ impl Renderer {
         use gfx::texture as t;
         let (window, device, mut gl_factory, out_color, out_depth) = gfx_window_glutin::init(builder, context, event_loop);
         let (_, srv_white) = gl_factory
-            .create_texture_immutable::<gfx::format::Rgba8>(t::Kind::D2(1, 1, t::AaMode::Single), t::Mipmap::Provided, &[&[[0xFF; 4]]])
-            .unwrap();
+            .create_texture_immutable::<gfx::format::Rgba8>(
+                t::Kind::D2(1, 1, t::AaMode::Single),
+                t::Mipmap::Provided,
+                &[&[[0xFF; 4]]]
+            ).unwrap();
         let (_, srv_shadow) = gl_factory
-            .create_texture_immutable::<(gfx::format::R32, gfx::format::Float)>(t::Kind::D2(1, 1, t::AaMode::Single), t::Mipmap::Provided, &[&[0x3F800000]])
-            .unwrap();
+            .create_texture_immutable::<(gfx::format::R32, gfx::format::Float)>(
+                t::Kind::D2(1, 1, t::AaMode::Single),
+                t::Mipmap::Provided,
+                &[&[0x3F800000]],
+            ).unwrap();
         let sampler = gl_factory.create_sampler_linear();
         let sampler_shadow = gl_factory.create_sampler(t::SamplerInfo {
             comparison: Some(gfx::state::Comparison::Less),
             border: t::PackedColor(!0), // clamp to 1.0
             ..t::SamplerInfo::new(t::FilterMethod::Bilinear, t::WrapMode::Border)
         });
+        let default_joint_buffer = gl_factory
+            .create_buffer_immutable(
+                &[
+                    [1.0, 0.0, 0.0, 0.0],
+                    [0.0, 1.0, 0.0, 0.0],
+                    [0.0, 0.0, 1.0, 0.0],
+                    [0.0, 0.0, 0.0, 1.0],
+                ],
+                gfx::buffer::Role::Constant,
+                gfx::memory::Bind::SHADER_RESOURCE,
+            )
+            .unwrap();
+        let default_joint_buffer_view = gl_factory
+            .view_buffer_as_shader_resource(&default_joint_buffer)
+            .unwrap();
         let encoder = gl_factory.create_command_buffer().into();
         let const_buf = gl_factory.create_constant_buffer(1);
         let quad_buf = gl_factory.create_constant_buffer(1);
@@ -525,6 +549,8 @@ impl Renderer {
             out_color,
             out_depth,
             pso,
+            default_joint_buffer,
+            default_joint_buffer_view,
             map_default: Texture::new(srv_white, sampler, [1, 1]),
             shadow_default: Texture::new(srv_shadow, sampler_shadow, [1, 1]),
             instance_cache: HashMap::new(),
@@ -588,7 +614,37 @@ impl Renderer {
     ) {
         let mut hub = scene.hub.lock().unwrap();
         hub.process_messages();
-        self.device.cleanup();
+
+        /*{
+            // Update joint transforms of skeletons
+            let mut cursor = hub.nodes.cursor();
+            while let Some((left, mut item, right)) = cursor.next() {
+                let world_transform = item.world_transform.clone();
+                match &mut item.sub_node {
+                    &mut SubNode::Skeleton(ref mut skeleton) => {
+                        skeleton.cpu_buffer.clear();
+                        for (bone, ibm) in skeleton.bones.iter().zip(skeleton.inverse_bind_matrices.iter()) {
+                            let bone_transform = Matrix4::from(left.get(&bone.object.node).or_else(|| right.get(&bone.object.node)).unwrap().world_transform);
+                            let inverse_world_transform = Matrix4::from(world_transform).invert().unwrap();
+                            let mx = inverse_world_transform * bone_transform * Matrix4::from(ibm.clone());
+                            skeleton.cpu_buffer.push(mx.x.into());
+                            skeleton.cpu_buffer.push(mx.y.into());
+                            skeleton.cpu_buffer.push(mx.z.into());
+                            skeleton.cpu_buffer.push(mx.w.into());
+                        }
+
+                        self.encoder
+                            .update_buffer(
+                                &skeleton.gpu_buffer,
+                                &skeleton.cpu_buffer[..],
+                                0,
+                            )
+                            .expect("upload to GPU target buffer");
+                    }
+                    _ => {}
+                }
+            }
+        }*/
 
         // update dynamic meshes
         // Note: mutable node access here
@@ -1027,6 +1083,7 @@ impl Renderer {
                     occlusion_map: map_params.occlusion,
                     color_target: out_color.clone(),
                     depth_target: out_depth.clone(),
+                    joint_transforms: unimplemented!(),
                 };
                 encoder.draw(&slice, &pso.pbr, &data);
             }

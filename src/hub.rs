@@ -5,13 +5,14 @@ use material::{Material};
 use mesh::{DynamicMesh, MAX_TARGETS, Target, Weight};
 use node::{NodeInternal, NodePointer, TransformInternal};
 use object::{Base};
-use render::GpuData;
+use render::{BackendResources, GpuData};
 use skeleton::{Bone, Skeleton};
 use text::{Operation as TextOperation, TextData};
 
 use arrayvec::ArrayVec;
 use cgmath::Transform;
 use froggy;
+use gfx;
 use mint;
 
 use std::{mem, ops};
@@ -38,7 +39,11 @@ pub(crate) struct LightData {
 #[derive(Clone, Debug)]
 pub(crate) struct SkeletonData {
     pub bones: Vec<Bone>,
-    pub inverses: Vec<mint::ColumnMatrix4<f32>>,
+    pub inverse_bind_matrices: Vec<mint::ColumnMatrix4<f32>>,
+
+    pub gpu_buffer_view: gfx::handle::ShaderResourceView<BackendResources, [f32; 4]>,
+    pub gpu_buffer: gfx::handle::Buffer<BackendResources, [f32; 4]>,
+    pub cpu_buffer: Vec<[f32; 4]>,
 }
 
 #[derive(Clone, Debug)]
@@ -236,6 +241,14 @@ impl Hub {
                         _ => unreachable!()
                     }
                 }
+                Operation::SetMaterial(material) => {
+                    match self.nodes[&ptr].sub_node {
+                        SubNode::Visual(ref mut mat, _, _) => {
+                            *mat = material;
+                        }
+                        _ => unreachable!()
+                    }
+                }
                 Operation::SetSkeleton(sleketon) => {
                     match self.nodes[&ptr].sub_node {
                         SubNode::Visual(_, _, ref mut skel) => {
@@ -248,18 +261,8 @@ impl Hub {
                     match self.nodes[&ptr].sub_node {
                         SubNode::Light(ref mut data) => {
                             data.shadow = Some((map, proj));
-                        }
-                        _ => unreachable!()
-                    }
-                }
-                Operation::SetTargets(targets) => unimplemented!(),
-                Operation::SetWeights(weights) => unimplemented!(),
-                Operation::SetMaterial(material) => {
-                    match self.nodes[&ptr].sub_node {
-                        SubNode::Visual(ref mut mat, _, _) => {
-                            *mat = material;
-                        }
-                        _ => unreachable!()
+                        },
+                    _ => unreachable!()
                     }
                 }
                 Operation::SetTexelRange(base, size) => {
@@ -270,8 +273,9 @@ impl Hub {
                         _ => unreachable!()
                     }
                 }
-
-            };
+                Operation::SetTargets(targets) => unimplemented!(),
+                Operation::SetWeights(weights) => unimplemented!(),
+            }
         }
 
         self.nodes.sync_pending();

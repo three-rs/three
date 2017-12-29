@@ -7,8 +7,7 @@ use std::collections::hash_map::{Entry, HashMap};
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
-
-use cgmath::Vector3;
+use cgmath::{SquareMatrix, Vector3};
 use gfx;
 use gfx::format::I8Norm;
 use gfx::traits::{Factory as Factory_, FactoryExt};
@@ -211,9 +210,27 @@ impl Factory {
     pub fn skeleton(
         &mut self,
         bones: Vec<Bone>,
-        inverses: Vec<mint::ColumnMatrix4<f32>>,
+        inverse_bind_matrices: Vec<mint::ColumnMatrix4<f32>>,
     ) -> Skeleton {
-        let data = hub::SkeletonData { bones, inverses };
+        let gpu_buffer = self.backend
+            .create_buffer(
+                4 * bones.len(),
+                gfx::buffer::Role::Constant,
+                gfx::memory::Usage::Dynamic,
+                gfx::memory::Bind::SHADER_RESOURCE,
+            )
+            .expect("create GPU target buffer");
+        let gpu_buffer_view = self.backend
+            .view_buffer_as_shader_resource(&gpu_buffer)
+            .expect("create shader resource view for GPU target buffer");
+        let mut cpu_buffer = Vec::with_capacity(bones.len());
+        for mx in &inverse_bind_matrices {
+            cpu_buffer.push(mx.x.into());
+            cpu_buffer.push(mx.y.into());
+            cpu_buffer.push(mx.z.into());
+            cpu_buffer.push(mx.w.into());
+        }
+        let data = hub::SkeletonData { bones, gpu_buffer, inverse_bind_matrices, gpu_buffer_view, cpu_buffer };
         let object = self.hub.lock().unwrap().spawn_skeleton(data);
         Skeleton { object }
     }
