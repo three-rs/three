@@ -401,7 +401,6 @@ pub struct Renderer {
     pbr_buf: gfx::handle::Buffer<back::Resources, PbrParams>,
     out_color: gfx::handle::RenderTargetView<back::Resources, ColorFormat>,
     out_depth: gfx::handle::DepthStencilView<back::Resources, DepthFormat>,
-    default_joint_buffer: gfx::handle::Buffer<back::Resources, [f32; 4]>,
     default_joint_buffer_view: gfx::handle::ShaderResourceView<back::Resources, [f32; 4]>,
     pso: PipelineStates,
     map_default: Texture<[f32; 4]>,
@@ -466,14 +465,13 @@ impl Renderer {
             out_color,
             out_depth,
             pso,
-            default_joint_buffer,
             default_joint_buffer_view,
             map_default: Texture::new(srv_white, sampler, [1, 1]),
             shadow_default: Texture::new(srv_shadow, sampler_shadow, [1, 1]),
             shadow: ShadowType::Basic,
             debug_quads: froggy::Storage::new(),
             font_cache: HashMap::new(),
-            size: window.get_inner_size_pixels().unwrap(),
+            size: window.get_inner_size().unwrap(),
         };
         let factory = Factory::new(gl_factory);
         (renderer, window, factory)
@@ -491,7 +489,7 @@ impl Renderer {
         &mut self,
         window: &glutin::GlWindow,
     ) {
-        let size = window.get_inner_size_pixels().unwrap();
+        let size = window.get_inner_size().unwrap();
 
         // skip updating view and self size if some
         // of the sides equals to zero (fixes crash on minimize on Windows machines)

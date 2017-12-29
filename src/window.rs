@@ -236,7 +236,7 @@ impl Window {
     /// Get current window size in pixels.
     pub fn size(&self) -> mint::Vector2<f32> {
         let size = self.window
-            .get_inner_size_pixels()
+            .get_inner_size()
             .expect("Can't get window size");
         [size.0 as f32, size.1 as f32].into()
     }

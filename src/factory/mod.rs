@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 
 use animation;
 use camera;
-use cgmath::{SquareMatrix, Matrix4, Vector3};
+use cgmath::Vector3;
 use color;
 use genmesh::{Polygon, Triangulate};
 use gfx;
@@ -311,7 +311,7 @@ impl Factory {
             Either::Right(shape.joints.iter().cloned())
         };
         let weights_iter = if shape.weights.is_empty() {
-            Either::Left(iter::repeat([1.0, 0.0, 0.0, 0.0]))
+            Either::Left(iter::repeat([1.0, 1.0, 1.0, 1.0]))
         } else {
             Either::Right(shape.weights.iter().cloned())
         };
