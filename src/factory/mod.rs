@@ -326,7 +326,7 @@ impl Factory {
             Either::Right(shape.joints.iter().cloned())
         };
         let weights_iter = if shape.weights.is_empty() {
-            Either::Left(iter::repeat([1.0, 0.0, 0.0, 0.0]))
+            Either::Left(iter::repeat([1.0, 1.0, 1.0, 1.0]))
         } else {
             Either::Right(shape.weights.iter().cloned())
         };
