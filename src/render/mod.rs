@@ -102,26 +102,6 @@ gfx_defines! {
         mat_params: [f32; 4] = "u_MatParams",
         uv_range: [f32; 4] = "u_UvRange",
         mx_world: [[f32; 4]; 4] = "u_World",
-        joint_matrix_0: [[f32; 4]; 4] = "u_JointMatrix[0]",
-        joint_matrix_1: [[f32; 4]; 4] = "u_JointMatrix[1]",
-        joint_matrix_2: [[f32; 4]; 4] = "u_JointMatrix[2]",
-        joint_matrix_3: [[f32; 4]; 4] = "u_JointMatrix[3]",
-        joint_matrix_4: [[f32; 4]; 4] = "u_JointMatrix[4]",
-        joint_matrix_5: [[f32; 4]; 4] = "u_JointMatrix[5]",
-        joint_matrix_6: [[f32; 4]; 4] = "u_JointMatrix[6]",
-        joint_matrix_7: [[f32; 4]; 4] = "u_JointMatrix[7]",
-        joint_matrix_8: [[f32; 4]; 4] = "u_JointMatrix[8]",
-        joint_matrix_9: [[f32; 4]; 4] = "u_JointMatrix[9]",
-        joint_matrix_10: [[f32; 4]; 4] = "u_JointMatrix[10]",
-        joint_matrix_11: [[f32; 4]; 4] = "u_JointMatrix[11]",
-        joint_matrix_12: [[f32; 4]; 4] = "u_JointMatrix[12]",
-        joint_matrix_13: [[f32; 4]; 4] = "u_JointMatrix[13]",
-        joint_matrix_14: [[f32; 4]; 4] = "u_JointMatrix[14]",
-        joint_matrix_15: [[f32; 4]; 4] = "u_JointMatrix[15]",
-        joint_matrix_16: [[f32; 4]; 4] = "u_JointMatrix[16]",
-        joint_matrix_17: [[f32; 4]; 4] = "u_JointMatrix[17]",
-        joint_matrix_18: [[f32; 4]; 4] = "u_JointMatrix[18]",
-        joint_matrix_19: [[f32; 4]; 4] = "u_JointMatrix[19]",
     }
 
     constant LightParam {
@@ -192,7 +172,7 @@ gfx_defines! {
         occlusion_strength: f32 = "u_OcclusionStrength",
         pbr_flags: i32 = "u_PbrFlags",
     }
-
+    
     pipeline pbr_pipe {
         vbuf: gfx::VertexBuffer<Vertex> = (),
 
@@ -200,6 +180,7 @@ gfx_defines! {
         globals: gfx::ConstantBuffer<Globals> = "b_Globals",
         params: gfx::ConstantBuffer<PbrParams> = "b_PbrParams",
         lights: gfx::ConstantBuffer<LightParam> = "b_Lights",
+        joint_transforms: gfx::ShaderResource<[f32; 4]> = "b_JointTransforms",
 
         base_color_map: gfx::TextureSampler<[f32; 4]> = "u_BaseColorSampler",
 
@@ -420,6 +401,8 @@ pub struct Renderer {
     pbr_buf: gfx::handle::Buffer<back::Resources, PbrParams>,
     out_color: gfx::handle::RenderTargetView<back::Resources, ColorFormat>,
     out_depth: gfx::handle::DepthStencilView<back::Resources, DepthFormat>,
+    default_joint_buffer: gfx::handle::Buffer<back::Resources, [f32; 4]>,
+    default_joint_buffer_view: gfx::handle::ShaderResourceView<back::Resources, [f32; 4]>,
     pso: PipelineStates,
     map_default: Texture<[f32; 4]>,
     shadow_default: Texture<f32>,
@@ -452,6 +435,21 @@ impl Renderer {
             border: t::PackedColor(!0), // clamp to 1.0
             ..t::SamplerInfo::new(t::FilterMethod::Bilinear, t::WrapMode::Border)
         });
+        let default_joint_buffer = gl_factory
+            .create_buffer_immutable(
+                &[
+                    [1.0, 0.0, 0.0, 0.0],
+                    [0.0, 1.0, 0.0, 0.0],
+                    [0.0, 0.0, 1.0, 0.0],
+                    [0.0, 0.0, 0.0, 1.0],
+                ],
+                gfx::buffer::Role::Constant,
+                gfx::SHADER_RESOURCE,
+            )
+            .unwrap();
+        let default_joint_buffer_view = gl_factory
+            .view_buffer_as_shader_resource(&default_joint_buffer)
+            .unwrap();
         let encoder = gl_factory.create_command_buffer().into();
         let const_buf = gl_factory.create_constant_buffer(1);
         let quad_buf = gl_factory.create_constant_buffer(1);
@@ -468,6 +466,8 @@ impl Renderer {
             out_color,
             out_depth,
             pso,
+            default_joint_buffer,
+            default_joint_buffer_view,
             map_default: Texture::new(srv_white, sampler, [1, 1]),
             shadow_default: Texture::new(srv_shadow, sampler_shadow, [1, 1]),
             shadow: ShadowType::Basic,
@@ -529,12 +529,42 @@ impl Renderer {
         camera: &Camera,
     ) {
         self.device.cleanup();
-        let mut hub = scene.hub.lock().unwrap();
+
+        let mut hub = scene.hub.lock().expect("acquire hub lock");
         let scene_id = hub.nodes[&scene.object.node].scene_id;
 
         hub.process_messages();
         hub.update_graph();
+        {
+            // Update joint transforms of skeletons
+            let mut cursor = hub.nodes.cursor();
+            while let Some((left, mut item, right)) = cursor.next() {
+                let world_transform = item.world_transform.clone();
+                match &mut item.sub_node {
+                    &mut SubNode::Skeleton(ref mut skeleton) => {
+                        skeleton.cpu_buffer.clear();
+                        for (bone, ibm) in skeleton.bones.iter().zip(skeleton.inverse_bind_matrices.iter()) {
+                            let bone_transform = Matrix4::from(left.get(&bone.object.node).or_else(|| right.get(&bone.object.node)).unwrap().world_transform);
+                            let inverse_world_transform = Matrix4::from(world_transform).invert().unwrap();
+                            let mx = inverse_world_transform * bone_transform * Matrix4::from(ibm.clone());
+                            skeleton.cpu_buffer.push(mx.x.into());
+                            skeleton.cpu_buffer.push(mx.y.into());
+                            skeleton.cpu_buffer.push(mx.z.into());
+                            skeleton.cpu_buffer.push(mx.w.into());
+                        }
 
+                        self.encoder
+                            .update_buffer(
+                                &skeleton.gpu_buffer,
+                                &skeleton.cpu_buffer[..],
+                                0,
+                            )
+                            .expect("upload to GPU target buffer");
+                    }
+                    _ => {}
+                }
+            }
+        }
         // update dynamic meshes
         for node in hub.nodes.iter_mut() {
             if !node.visible || node.scene_id != scene_id {
@@ -661,26 +691,6 @@ impl Renderer {
                         color: [0.0; 4],
                         mat_params: [0.0; 4],
                         uv_range: [0.0; 4],
-                        joint_matrix_0: Matrix4::identity().into(),
-                        joint_matrix_1: Matrix4::identity().into(),
-                        joint_matrix_2: Matrix4::identity().into(),
-                        joint_matrix_3: Matrix4::identity().into(),
-                        joint_matrix_4: Matrix4::identity().into(),
-                        joint_matrix_5: Matrix4::identity().into(),
-                        joint_matrix_6: Matrix4::identity().into(),
-                        joint_matrix_7: Matrix4::identity().into(),
-                        joint_matrix_8: Matrix4::identity().into(),
-                        joint_matrix_9: Matrix4::identity().into(),
-                        joint_matrix_10: Matrix4::identity().into(),
-                        joint_matrix_11: Matrix4::identity().into(),
-                        joint_matrix_12: Matrix4::identity().into(),
-                        joint_matrix_13: Matrix4::identity().into(),
-                        joint_matrix_14: Matrix4::identity().into(),
-                        joint_matrix_15: Matrix4::identity().into(),
-                        joint_matrix_16: Matrix4::identity().into(),
-                        joint_matrix_17: Matrix4::identity().into(),
-                        joint_matrix_18: Matrix4::identity().into(),
-                        joint_matrix_19: Matrix4::identity().into(),
                     },
                 );
                 //TODO: avoid excessive cloning
@@ -749,24 +759,15 @@ impl Renderer {
                 _ => continue,
             };
 
-            let mut joint_matrices = [Matrix4::identity(); 20];
-            if let &Some(ref object) = skeleton {
+            let joint_buffer_view = if let &Some(ref object) = skeleton {
                 let data = match hub.get(object).sub_node {
                     hub::SubNode::Skeleton(ref data) => data,
                     _ => unreachable!(),
                 };
-                let (bones, ibms) = (&data.bones, &data.inverses);
-                if bones.len() > 20 {
-                    eprintln!("Joint limit exceeded ({}/20)", bones.len());
-                    ::std::process::exit(1);
-                }
-                for (i, (bone, ibm)) in izip!(bones.iter(), ibms.iter()).enumerate() {
-                    let bone_transform = Matrix4::from(hub.get(bone).world_transform);
-                    let inverse_world_transform = Matrix4::from(node.world_transform).invert().unwrap();
-                    let jm = inverse_world_transform * bone_transform * Matrix4::from(ibm.clone());
-                    joint_matrices[i] = jm;
-                }
-            }
+                data.gpu_buffer_view.clone()
+            } else {
+                self.default_joint_buffer_view.clone()
+            };
 
             //TODO: batch per PSO
             match *material {
@@ -775,26 +776,6 @@ impl Renderer {
                         &gpu_data.constants,
                         &Locals {
                             mx_world: Matrix4::from(node.world_transform).into(),
-                            joint_matrix_0: joint_matrices[0].into(),
-                            joint_matrix_1: joint_matrices[1].into(),
-                            joint_matrix_2: joint_matrices[2].into(),
-                            joint_matrix_3: joint_matrices[3].into(),
-                            joint_matrix_4: joint_matrices[4].into(),
-                            joint_matrix_5: joint_matrices[5].into(),
-                            joint_matrix_6: joint_matrices[6].into(),
-                            joint_matrix_7: joint_matrices[7].into(),
-                            joint_matrix_8: joint_matrices[8].into(),
-                            joint_matrix_9: joint_matrices[9].into(),
-                            joint_matrix_10: joint_matrices[10].into(),
-                            joint_matrix_11: joint_matrices[11].into(),
-                            joint_matrix_12: joint_matrices[12].into(),
-                            joint_matrix_13: joint_matrices[13].into(),
-                            joint_matrix_14: joint_matrices[14].into(),
-                            joint_matrix_15: joint_matrices[15].into(),
-                            joint_matrix_16: joint_matrices[16].into(),
-                            joint_matrix_17: joint_matrices[17].into(),
-                            joint_matrix_18: joint_matrices[18].into(),
-                            joint_matrix_19: joint_matrices[19].into(),
                             ..unsafe { mem::zeroed() }
                         },
                     );
@@ -871,6 +852,7 @@ impl Renderer {
                                 .unwrap_or(&self.map_default)
                                 .to_param()
                         },
+                        joint_transforms: joint_buffer_view,
                         color_target: self.out_color.clone(),
                         depth_target: self.out_depth.clone(),
                     };
@@ -911,26 +893,6 @@ impl Renderer {
                             },
                             mat_params: [param0, 0.0, 0.0, 0.0],
                             uv_range,
-                            joint_matrix_0: joint_matrices[0].into(),
-                            joint_matrix_1: joint_matrices[1].into(),
-                            joint_matrix_2: joint_matrices[2].into(),
-                            joint_matrix_3: joint_matrices[3].into(),
-                            joint_matrix_4: joint_matrices[4].into(),
-                            joint_matrix_5: joint_matrices[5].into(),
-                            joint_matrix_6: joint_matrices[6].into(),
-                            joint_matrix_7: joint_matrices[7].into(),
-                            joint_matrix_8: joint_matrices[8].into(),
-                            joint_matrix_9: joint_matrices[9].into(),
-                            joint_matrix_10: joint_matrices[10].into(),
-                            joint_matrix_11: joint_matrices[11].into(),
-                            joint_matrix_12: joint_matrices[12].into(),
-                            joint_matrix_13: joint_matrices[13].into(),
-                            joint_matrix_14: joint_matrices[14].into(),
-                            joint_matrix_15: joint_matrices[15].into(),
-                            joint_matrix_16: joint_matrices[16].into(),
-                            joint_matrix_17: joint_matrices[17].into(),
-                            joint_matrix_18: joint_matrices[18].into(),
-                            joint_matrix_19: joint_matrices[19].into(),
                         },
                     );
                     //TODO: avoid excessive cloning

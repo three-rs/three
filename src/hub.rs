@@ -5,13 +5,14 @@ use material::{self, Material};
 use mesh::{DynamicMesh, MAX_TARGETS, Target, Weight};
 use node::{NodeInternal, NodePointer};
 use object;
-use render::GpuData;
+use render::{BackendResources, GpuData};
 use skeleton::{Bone, Skeleton};
 use text::{Operation as TextOperation, TextData};
 
 use arrayvec::ArrayVec;
 use cgmath::Transform;
 use froggy;
+use gfx;
 use mint;
 
 use std::sync::{Arc, Mutex};
@@ -36,7 +37,11 @@ pub(crate) struct LightData {
 #[derive(Clone, Debug)]
 pub(crate) struct SkeletonData {
     pub bones: Vec<Bone>,
-    pub inverses: Vec<mint::ColumnMatrix4<f32>>,
+    pub inverse_bind_matrices: Vec<mint::ColumnMatrix4<f32>>,
+
+    pub gpu_buffer_view: gfx::handle::ShaderResourceView<BackendResources, [f32; 4]>,
+    pub gpu_buffer: gfx::handle::Buffer<BackendResources, [f32; 4]>,
+    pub cpu_buffer: Vec<[f32; 4]>,
 }
 
 #[derive(Clone, Debug)]

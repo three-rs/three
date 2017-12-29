@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 
 use animation;
 use camera;
-use cgmath::Vector3;
+use cgmath::{SquareMatrix, Matrix4, Vector3};
 use color;
 use genmesh::{Polygon, Triangulate};
 use gfx;
@@ -120,7 +120,7 @@ pub struct Gltf {
 
     /// Imported mesh templates.
     pub meshes: VecMap<Vec<Mesh>>,
-    
+
     /// The root node of the default scene.
     ///
     /// If the `glTF` contained no default scene then this group
@@ -195,9 +195,27 @@ impl Factory {
     pub fn skeleton(
         &mut self,
         bones: Vec<Bone>,
-        inverses: Vec<mint::ColumnMatrix4<f32>>,
+        inverse_bind_matrices: Vec<mint::ColumnMatrix4<f32>>,
     ) -> Skeleton {
-        let data = hub::SkeletonData { bones, inverses };
+        let gpu_buffer = self.backend
+            .create_buffer(
+                4 * bones.len(),
+                gfx::buffer::Role::Constant,
+                gfx::memory::Usage::Dynamic,
+                gfx::SHADER_RESOURCE,
+            )
+            .expect("create GPU target buffer");
+        let gpu_buffer_view = self.backend
+            .view_buffer_as_shader_resource(&gpu_buffer)
+            .expect("create shader resource view for GPU target buffer");
+        let mut cpu_buffer = Vec::with_capacity(bones.len());
+        for mx in &inverse_bind_matrices {
+            cpu_buffer.push(mx.x.into());
+            cpu_buffer.push(mx.y.into());
+            cpu_buffer.push(mx.z.into());
+            cpu_buffer.push(mx.w.into());
+        }
+        let data = hub::SkeletonData { bones, gpu_buffer, inverse_bind_matrices, gpu_buffer_view, cpu_buffer };
         let object = self.hub.lock().unwrap().spawn_skeleton(data);
         Skeleton { object }
     }
