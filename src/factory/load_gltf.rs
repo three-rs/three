@@ -273,13 +273,13 @@ fn load_meshes(
                 Vec::new()
             };
             let geometry = Geometry {
-                base_shape: geometry::Shape {
-                    vertices,
-                    normals,
-                    tangents,
-                    tex_coords,
-                    joints,
-                    weights,
+                vertices,
+                normals,
+                tangents,
+                tex_coords,
+                joints: geometry::Joints {
+                    indices: joint_indices,
+                    weights: joint_weights,
                 },
                 faces,
                 ..Geometry::empty()

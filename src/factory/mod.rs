@@ -320,15 +320,15 @@ impl Factory {
                     .map(|t| [f2i(t.x), f2i(t.y), f2i(t.z), f2i(t.w)]),
             )
         };
-        let joints_iter = if shape.joints.is_empty() {
+        let joint_indices_iter = if geometry.joints.indices.is_empty() {
             Either::Left(iter::repeat([0.0, 0.0, 0.0, 0.0]))
         } else {
-            Either::Right(shape.joints.iter().cloned())
+            Either::Right(geometry.joints.indices.iter().cloned())
         };
-        let weights_iter = if shape.weights.is_empty() {
+        let joint_weights_iter = if geometry.joints.weights.is_empty() {
             Either::Left(iter::repeat([1.0, 1.0, 1.0, 1.0]))
         } else {
-            Either::Right(shape.weights.iter().cloned())
+            Either::Right(geometry.joints.weights.iter().cloned())
         };
         izip!(
             position_iter,
@@ -672,15 +672,20 @@ impl Factory {
         self.hub.lock().unwrap().update_mesh(mesh);
         let shapes: Vec<_> = shapes
             .iter()
-            .map(|&(name, k)| (&mesh.geometry.shapes[name], k))
+            .filter_map(|&(name, k)| {
+                mesh.geometry.morph_targets.names
+                    .iter()
+                    .find(|&(_, entry)| entry == name)
+                    .map(|(idx, _)| (idx, k))
+            })
             .collect();
         let mut mapping = self.backend.write_mapping(&mesh.dynamic.buffer).unwrap();
 
         for i in 0 .. mesh.geometry.base_shape.vertices.len() {
             let (mut pos, ksum) = shapes.iter().fold(
                 (Vector3::new(0.0, 0.0, 0.0), 0.0),
-                |(pos, ksum), &(ref shape, k)| {
-                    let p: [f32; 3] = shape.vertices[i].into();
+                |(pos, ksum), &(idx, k)| {
+                    let p: [f32; 3] = mesh.geometry.morph_targets.vertices[idx * n + i].into();
                     (pos + k * Vector3::from(p), ksum + k)
                 },
             );

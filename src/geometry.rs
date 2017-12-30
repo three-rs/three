@@ -68,12 +68,46 @@ impl Shape {
 /// ```
 #[derive(Clone, Debug, Default)]
 pub struct Geometry {
-    /// The original shape of geometry.
-    pub base_shape: Shape,
-    /// A map containing blend shapes and their names.
-    pub shapes: HashMap<String, Shape>,
-    /// Faces.
+    /// Vertex positions.
+    pub vertices: Vec<mint::Point3<f32>>,
+    /// Vertex normals.
+    pub normals: Vec<mint::Vector3<f32>>,
+    /// Vertex tangents.
+    pub tangents: Vec<mint::Vector4<f32>>,
+    /// Vertex texture co-ordinates.
+    pub tex_coords: Vec<mint::Point2<f32>>,
+    /// Face indices.
+    ///
+    /// When omitted, the vertex order `[[0, 1, 2], [3, 4, 5], ...]` is
+    /// assumed.
     pub faces: Vec<[u32; 3]>,
+    /// Properties for vertex skinning.
+    pub joints: Joints,
+    /// Properties for morph target animation.
+    pub morph_targets: MorphTargets,
+}
+
+/// Properties for vertex skinning.
+#[derive(Clone, Debug, Default)]
+pub struct Joints {
+    /// Joint indices, encoded as floats.
+    pub indices: Vec<[f32; 4]>,
+    /// Joint weights.
+    pub weights: Vec<[f32; 4]>,
+}
+
+/// Properties for morph target animation
+#[derive(Clone, Debug, Default)]
+pub struct MorphTargets {
+    /// Morph target names, one per morph target index.
+    pub names: VecMap<String>,
+    ///Contiguous sets of vertex displacements.
+    pub vertices: Vec<mint::Point3<f32>>,
+    ///Contiguous sets of normal displacements.
+    pub normals: Vec<mint::Vector3<f32>>,
+    /// Contiguous sets of tangent displacements.
+    pub tangents: Vec<mint::Vector4<f32>>,
+>>>>>>> Split joints and morph targets from base geometry
 }
 
 impl Geometry {
