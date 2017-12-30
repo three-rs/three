@@ -309,15 +309,15 @@ impl Factory {
                     .map(|t| [f2i(t.x), f2i(t.y), f2i(t.z), f2i(t.w)]),
             )
         };
-        let joint_indices_iter = if geometry.joint_indices.is_empty() {
+        let joint_indices_iter = if geometry.joints.indices.is_empty() {
             Either::Left(iter::repeat([0.0, 0.0, 0.0, 0.0]))
         } else {
-            Either::Right(geometry.joint_indices.iter().cloned())
+            Either::Right(geometry.joints.indices.iter().cloned())
         };
-        let joint_weights_iter = if geometry.joint_weights.is_empty() {
+        let joint_weights_iter = if geometry.joints.weights.is_empty() {
             Either::Left(iter::repeat([1.0, 1.0, 1.0, 1.0]))
         } else {
-            Either::Right(geometry.joint_weights.iter().cloned())
+            Either::Right(geometry.joints.weights.iter().cloned())
         };
         izip!(
             position_iter,
@@ -650,7 +650,7 @@ impl Factory {
         let targets: Vec<(usize, f32)> = shapes
             .iter()
             .filter_map(|&(name, k)| {
-                mesh.geometry.morph_target_names
+                mesh.geometry.morph_targets.names
                     .iter()
                     .find(|&(_, entry)| entry == name)
                     .map(|(idx, _)| (idx, k))
@@ -663,7 +663,7 @@ impl Factory {
             let (mut pos, ksum) = targets.iter().fold(
                 (Vector3::new(0.0, 0.0, 0.0), 0.0),
                 |(pos, ksum), &(idx, k)| {
-                    let p: [f32; 3] = mesh.geometry.morph_vertices[idx * n + i].into();
+                    let p: [f32; 3] = mesh.geometry.morph_targets.vertices[idx * n + i].into();
                     (pos + k * Vector3::from(p), ksum + k)
                 },
             );

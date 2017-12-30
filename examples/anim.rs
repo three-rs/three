@@ -106,8 +106,8 @@ fn main() {
 
     let mut geom = make_geometry();
     for (i, &data) in V_FLY.iter().enumerate() {
-        geom.morph_vertices.extend(make_vertices(data));
-        geom.morph_target_names.insert(i, format!("fly{:02}", i));
+        geom.morph_targets.vertices.extend(make_vertices(data));
+        geom.morph_targets.names.insert(i, format!("fly{:02}", i));
     }
 
     let mut mesh = win.factory

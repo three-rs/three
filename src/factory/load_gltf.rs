@@ -7,6 +7,7 @@
 
 use animation;
 use color;
+use geometry;
 use gltf;
 use gltf_importer;
 use image;
@@ -273,8 +274,10 @@ fn load_meshes(
                 normals,
                 tangents,
                 tex_coords,
-                joint_indices,
-                joint_weights,
+                joints: geometry::Joints {
+                    indices: joint_indices,
+                    weights: joint_weights,
+                },
                 faces,
                 ..Geometry::empty()
             };

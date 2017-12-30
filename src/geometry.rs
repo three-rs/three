@@ -41,39 +41,45 @@ use vec_map::VecMap;
 /// ```
 #[derive(Clone, Debug, Default)]
 pub struct Geometry {
-    /// Basic geometric properties
-
-    /// _Mandatory_: Vertex positions.
+    /// Vertex positions.
     pub vertices: Vec<mint::Point3<f32>>,
-    /// _Optional_: Vertex normals.
+    /// Vertex normals.
     pub normals: Vec<mint::Vector3<f32>>,
-    ///_Optional_: Vertex tangents.
+    /// Vertex tangents.
     pub tangents: Vec<mint::Vector4<f32>>,
-    ///_Optional_: Vertex texture co-ordinates.
+    /// Vertex texture co-ordinates.
     pub tex_coords: Vec<mint::Point2<f32>>,
-    ///_Optional_: Face indices.
+    /// Face indices.
     ///
     /// When omitted, the vertex order `[[0, 1, 2], [3, 4, 5], ...]` is
     /// assumed.
     pub faces: Vec<[u32; 3]>,
+    /// Properties for vertex skinning.
+    pub joints: Joints,
+    /// Properties for morph target animation.
+    pub morph_targets: MorphTargets,
+}
 
-    /// Properties for vertex skinning
+/// Properties for vertex skinning.
+#[derive(Clone, Debug, Default)]
+pub struct Joints {
+    /// Joint indices, encoded as floats.
+    pub indices: Vec<[f32; 4]>,
+    /// Joint weights.
+    pub weights: Vec<[f32; 4]>,
+}
 
-    ///_Optional_: Joint indices, encoded as floats.
-    pub joint_indices: Vec<[f32; 4]>,
-    ///_Optional_: Joint weights.
-    pub joint_weights: Vec<[f32; 4]>,
-
-    /// Properties for morph target animation
-    
-    ///_Optional_: Morph target names, one per morph target index.
-    pub morph_target_names: VecMap<String>,
-    ///_Optional_: Contiguous sets of vertex displacements.
-    pub morph_vertices: Vec<mint::Point3<f32>>,
-    ///_Optional_: Contiguous sets of normal displacements.
-    pub morph_normals: Vec<mint::Vector3<f32>>,
-    ///_Optional_: Contiguous sets of tangent displacements.
-    pub morph_tangents: Vec<mint::Vector4<f32>>,
+/// Properties for morph target animation
+#[derive(Clone, Debug, Default)]
+pub struct MorphTargets {
+    /// Morph target names, one per morph target index.
+    pub names: VecMap<String>,
+    ///Contiguous sets of vertex displacements.
+    pub vertices: Vec<mint::Point3<f32>>,
+    ///Contiguous sets of normal displacements.
+    pub normals: Vec<mint::Vector3<f32>>,
+    /// Contiguous sets of tangent displacements.
+    pub tangents: Vec<mint::Vector4<f32>>,
 }
 
 impl Geometry {
