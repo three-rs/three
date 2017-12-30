@@ -4,6 +4,7 @@ use cgmath::{Matrix4, SquareMatrix, Transform as Transform_, Vector3};
 use color;
 use froggy;
 use gfx;
+use gfx::format::I8Norm;
 use gfx::memory::Typed;
 use gfx::traits::{Device, Factory as Factory_, FactoryExt};
 #[cfg(feature = "opengl")]
@@ -87,6 +88,44 @@ quick_error! {
     }
 }
 
+/// Default values for type `Vertex`.
+pub const DEFAULT_VERTEX: Vertex = Vertex {
+    pos: [0.0, 0.0, 0.0, 1.0],
+    uv: [0.0, 0.0],
+    normal: [I8Norm(0), I8Norm(127), I8Norm(0), I8Norm(0)],
+    tangent: [I8Norm(127), I8Norm(0), I8Norm(0), I8Norm(0)],
+    joint_indices: [0.0, 0.0, 0.0, 0.0],
+    joint_weights: [1.0, 1.0, 1.0, 1.0],
+
+    displacement0: [0.0, 0.0, 0.0, 0.0],
+    displacement1: [0.0, 0.0, 0.0, 0.0],
+    displacement2: [0.0, 0.0, 0.0, 0.0],
+    displacement3: [0.0, 0.0, 0.0, 0.0],
+    displacement4: [0.0, 0.0, 0.0, 0.0],
+    displacement5: [0.0, 0.0, 0.0, 0.0],
+    displacement6: [0.0, 0.0, 0.0, 0.0],
+    displacement7: [0.0, 0.0, 0.0, 0.0],
+};
+
+impl Default for Vertex {
+    fn default() -> Self {
+        DEFAULT_VERTEX
+    }
+}
+
+/// Set of zero valued displacement weights which cause vertex attributes
+/// to be unchanged by morph targets.
+pub const ZEROED_DISPLACEMENT_WEIGHTS: [DisplacementWeights; MAX_TARGETS] = [
+    DisplacementWeights { weights: [0.0; 4] },
+    DisplacementWeights { weights: [0.0; 4] },
+    DisplacementWeights { weights: [0.0; 4] },
+    DisplacementWeights { weights: [0.0; 4] },
+    DisplacementWeights { weights: [0.0; 4] },
+    DisplacementWeights { weights: [0.0; 4] },
+    DisplacementWeights { weights: [0.0; 4] },
+    DisplacementWeights { weights: [0.0; 4] },
+];
+
 #[cfg_attr(rustfmt, rustfmt_skip)]
 gfx_defines! {
     vertex Vertex {
@@ -94,8 +133,17 @@ gfx_defines! {
         uv: [f32; 2] = "a_TexCoord",
         normal: [gfx::format::I8Norm; 4] = "a_Normal",
         tangent: [gfx::format::I8Norm; 4] = "a_Tangent",
-        joints: [f32; 4] = "a_JointIndices",
-        weights: [f32; 4] = "a_JointWeights",
+        joint_indices: [f32; 4] = "a_JointIndices",
+        joint_weights: [f32; 4] = "a_JointWeights",
+
+        displacement0: [f32; 4] = "a_Displacement0",
+        displacement1: [f32; 4] = "a_Displacement1",
+        displacement2: [f32; 4] = "a_Displacement2",
+        displacement3: [f32; 4] = "a_Displacement3",
+        displacement4: [f32; 4] = "a_Displacement4",
+        displacement5: [f32; 4] = "a_Displacement5",
+        displacement6: [f32; 4] = "a_Displacement6",
+        displacement7: [f32; 4] = "a_Displacement7",
     }
 
     constant Locals {
@@ -174,12 +222,8 @@ gfx_defines! {
         pbr_flags: i32 = "u_PbrFlags",
     }
 
-    constant MorphTargetEntry {
-        weight: f32 = "weight",
-        _padding: [f32; 3] = "_padding",
-        position_displacement: [f32; 4] = "position_displacement",
-        normal_displacement: [f32; 4] = "normal_displacement",
-        tangents_displacement: [f32; 4] = "tangent_displacement",
+    constant DisplacementWeights {
+        weights: [f32; 4] = "weights",
     }
 
     pipeline pbr_pipe {
@@ -189,7 +233,7 @@ gfx_defines! {
         globals: gfx::ConstantBuffer<Globals> = "b_Globals",
         params: gfx::ConstantBuffer<PbrParams> = "b_PbrParams",
         lights: gfx::ConstantBuffer<LightParam> = "b_Lights",
-        morph_targets: gfx::ConstantBuffer<MorphTargetEntry> = "b_MorphTargets",
+        displacement_weights: gfx::ConstantBuffer<DisplacementWeights> = "b_DisplacementWeights",
         joint_transforms: gfx::ShaderResource<[f32; 4]> = "b_JointTransforms",
 
         base_color_map: gfx::TextureSampler<[f32; 4]> = "u_BaseColorSampler",
@@ -207,6 +251,12 @@ gfx_defines! {
     }
 }
 
+impl Default for DisplacementWeights {
+    fn default() -> Self {
+        Self { weights: [0.0; 4] }
+    }
+}
+
 //TODO: private fields?
 #[derive(Clone, Debug)]
 pub(crate) struct GpuData {
@@ -214,6 +264,7 @@ pub(crate) struct GpuData {
     pub vertices: gfx::handle::Buffer<back::Resources, Vertex>,
     pub constants: gfx::handle::Buffer<back::Resources, Locals>,
     pub pending: Option<DynamicData>,
+    pub displacement_weights: [DisplacementWeights; MAX_TARGETS],
 }
 
 #[derive(Clone, Debug)]
@@ -409,7 +460,7 @@ pub struct Renderer {
     quad_buf: gfx::handle::Buffer<back::Resources, QuadParams>,
     light_buf: gfx::handle::Buffer<back::Resources, LightParam>,
     pbr_buf: gfx::handle::Buffer<back::Resources, PbrParams>,
-    morph_targets_buf: gfx::handle::Buffer<back::Resources, MorphTargetEntry>,
+    displacement_weights_buf: gfx::handle::Buffer<back::Resources, DisplacementWeights>,
     out_color: gfx::handle::RenderTargetView<back::Resources, ColorFormat>,
     out_depth: gfx::handle::DepthStencilView<back::Resources, DepthFormat>,
     default_joint_buffer_view: gfx::handle::ShaderResourceView<back::Resources, [f32; 4]>,
@@ -465,7 +516,7 @@ impl Renderer {
         let quad_buf = gl_factory.create_constant_buffer(1);
         let light_buf = gl_factory.create_constant_buffer(MAX_LIGHTS);
         let pbr_buf = gl_factory.create_constant_buffer(1);
-        let morph_targets_buf = gl_factory.create_constant_buffer(MAX_TARGETS);
+        let displacement_weights_buf = gl_factory.create_constant_buffer(MAX_TARGETS);
         let pso = PipelineStates::init(source, &mut gl_factory).unwrap();
         let renderer = Renderer {
             device,
@@ -474,7 +525,7 @@ impl Renderer {
             quad_buf,
             light_buf,
             pbr_buf,
-            morph_targets_buf,
+            displacement_weights_buf,
             out_color,
             out_depth,
             pso,
@@ -822,6 +873,11 @@ impl Renderer {
                             _padding1: unsafe { mem::uninitialized() },
                         },
                     );
+                    self.encoder.update_buffer(
+                        &self.displacement_weights_buf,
+                        &gpu_data.displacement_weights,
+                        0,
+                    ).expect("update displacement weights buffer");
                     let data = pbr_pipe::Data {
                         vbuf: gpu_data.vertices.clone(),
                         locals: gpu_data.constants.clone(),
@@ -863,7 +919,7 @@ impl Renderer {
                                 .unwrap_or(&self.map_default)
                                 .to_param()
                         },
-                        morph_targets: self.morph_targets_buf.clone(),
+                        displacement_weights: self.displacement_weights_buf.clone(),
                         joint_transforms: joint_buffer_view,
                         color_target: self.out_color.clone(),
                         depth_target: self.out_depth.clone(),

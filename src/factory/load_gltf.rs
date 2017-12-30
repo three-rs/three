@@ -7,7 +7,6 @@
 
 use animation;
 use color;
-use geometry;
 use gltf;
 use gltf_importer;
 use image;
@@ -18,6 +17,7 @@ use std::{fs, io};
 use camera::Camera;
 use gltf::Gltf;
 use gltf_utils::AccessorIter;
+use mesh::MAX_TARGETS;
 use object::Object;
 use skeleton::Skeleton;
 use std::path::{Path, PathBuf};
@@ -258,25 +258,23 @@ fn load_meshes(
             } else {
                 Vec::new()
             };
-            let joints = if let Some(iter) = primitive.joints_u16(0, buffers) {
+            let joint_indices = if let Some(iter) = primitive.joints_u16(0, buffers) {
                 iter.map(|x| [x[0] as f32, x[1] as f32, x[2] as f32, x[3] as f32]).collect()
             } else {
                 Vec::new()
             };
-            let weights = if let Some(iter) = primitive.weights_f32(0, buffers) {
+            let joint_weights = if let Some(iter) = primitive.weights_f32(0, buffers) {
                 iter.collect()
             } else {
                 Vec::new()
             };
             let geometry = Geometry {
-                base_shape: geometry::Shape {
-                    vertices,
-                    normals,
-                    tangents,
-                    tex_coords,
-                    joints,
-                    weights,
-                },
+                vertices,
+                normals,
+                tangents,
+                tex_coords,
+                joint_indices,
+                joint_weights,
                 faces,
                 ..Geometry::empty()
             };
@@ -376,10 +374,19 @@ fn load_clips(
                     (Binding::Scale, Values::Scalar(values))
                 }
                 gltf::animation::TrsProperty::Weights => {
-                    let values = AccessorIter::<f32>::new(output, buffers)
-                        .collect::<Vec<_>>();
-                    assert_eq!(values.len(), times.len());
-                    (Binding::Weight(unimplemented!()), Values::Scalar(values))
+                    let mut values = Vec::with_capacity(times.len() * MAX_TARGETS);
+                    let mut iter = AccessorIter::<f32>::new(output, buffers);
+                    let nr_morph_targets = iter.len() / times.len();
+                    for _ in 0 .. times.len() {
+                        for _ in 0 .. nr_morph_targets {
+                            values.push(iter.next().unwrap())
+                        }
+                        for _ in nr_morph_targets .. MAX_TARGETS {
+                            values.push(0.0);
+                        }   
+                    }
+                    assert_eq!(values.len(), MAX_TARGETS * times.len());
+                    (Binding::Weights, Values::Scalar(values))
                 }
             };
             tracks.push((

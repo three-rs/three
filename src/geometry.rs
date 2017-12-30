@@ -3,31 +3,7 @@
 use genmesh::{EmitTriangles, Triangulate, Vertex as GenVertex};
 use genmesh::generators::{self, IndexedPolygon, SharedVertex};
 use mint;
-use std::collections::HashMap;
-
-/// A shape of geometry that is used for mesh blending.
-#[derive(Clone, Debug, Default)]
-pub struct Shape {
-    /// Vertices.
-    pub vertices: Vec<mint::Point3<f32>>,
-    /// Normals.
-    pub normals: Vec<mint::Vector3<f32>>,
-    /// Tangents.
-    pub tangents: Vec<mint::Vector4<f32>>,
-    /// Texture co-ordinates.
-    pub tex_coords: Vec<mint::Point2<f32>>,
-    /// Joint indices, encoded as floats.
-    pub joints: Vec<[f32; 4]>,
-    /// Joint weights.
-    pub weights: Vec<[f32; 4]>,
-}
-
-impl Shape {
-    /// Creates an empty shape.
-    pub fn empty() -> Self {
-        Default::default()
-    }
-}
+use vec_map::VecMap;
 
 /// A collection of vertices, their normals, and faces that defines the
 /// shape of a polyhedral object.
@@ -57,10 +33,7 @@ impl Shape {
 ///
 /// three::Geometry {
 ///     faces,
-///     base_shape: three::geometry::Shape {
-///         vertices,
-///         .. three::geometry::Shape::empty()
-///     },
+///     vertices,
 ///     .. three::Geometry::empty()
 /// }
 /// # }
@@ -68,12 +41,39 @@ impl Shape {
 /// ```
 #[derive(Clone, Debug, Default)]
 pub struct Geometry {
-    /// The original shape of geometry.
-    pub base_shape: Shape,
-    /// A map containing blend shapes and their names.
-    pub shapes: HashMap<String, Shape>,
-    /// Faces.
+    /// Basic geometric properties
+
+    /// _Mandatory_: Vertex positions.
+    pub vertices: Vec<mint::Point3<f32>>,
+    /// _Optional_: Vertex normals.
+    pub normals: Vec<mint::Vector3<f32>>,
+    ///_Optional_: Vertex tangents.
+    pub tangents: Vec<mint::Vector4<f32>>,
+    ///_Optional_: Vertex texture co-ordinates.
+    pub tex_coords: Vec<mint::Point2<f32>>,
+    ///_Optional_: Face indices.
+    ///
+    /// When omitted, the vertex order `[[0, 1, 2], [3, 4, 5], ...]` is
+    /// assumed.
     pub faces: Vec<[u32; 3]>,
+
+    /// Properties for vertex skinning
+
+    ///_Optional_: Joint indices, encoded as floats.
+    pub joint_indices: Vec<[f32; 4]>,
+    ///_Optional_: Joint weights.
+    pub joint_weights: Vec<[f32; 4]>,
+
+    /// Properties for morph target animation
+    
+    ///_Optional_: Morph target names, one per morph target index.
+    pub morph_target_names: VecMap<String>,
+    ///_Optional_: Contiguous sets of vertex displacements.
+    pub morph_vertices: Vec<mint::Point3<f32>>,
+    ///_Optional_: Contiguous sets of normal displacements.
+    pub morph_normals: Vec<mint::Vector3<f32>>,
+    ///_Optional_: Contiguous sets of tangent displacements.
+    pub morph_tangents: Vec<mint::Vector4<f32>>,
 }
 
 impl Geometry {
@@ -130,11 +130,8 @@ impl Geometry {
     /// ```
     pub fn with_vertices(vertices: Vec<mint::Point3<f32>>) -> Self {
         Geometry {
-            base_shape: Shape {
-                vertices,
-                normals: Vec::new(),
-                ..Shape::empty()
-            },
+            vertices,
+            normals: Vec::new(),
             ..Geometry::empty()
         }
     }
@@ -151,18 +148,15 @@ impl Geometry {
         Fnor: Fn(GenVertex) -> mint::Vector3<f32>,
     {
         Geometry {
-            base_shape: Shape {
-                vertices: gen.shared_vertex_iter().map(fpos).collect(),
-                normals: gen.shared_vertex_iter().map(fnor).collect(),
-                // @alteous: TODO: Add similar functions for tangents and texture
-                // co-ordinates
-                ..Shape::empty()
-            },
-            shapes: HashMap::new(),
+            vertices: gen.shared_vertex_iter().map(fpos).collect(),
+            normals: gen.shared_vertex_iter().map(fnor).collect(),
+            // @alteous: TODO: Add similar functions for tangents and texture
+            // co-ordinates
             faces: gen.indexed_polygon_iter()
                 .triangulate()
                 .map(|t| [t.x as u32, t.y as u32, t.z as u32])
                 .collect(),
+            .. Default::default()
         }
     }
 

@@ -105,12 +105,12 @@
 
 use cgmath;
 use froggy;
-use mesh;
 use mint;
 use object;
 use std::hash::{Hash, Hasher};
 use std::sync::mpsc;
 
+use mesh::MAX_TARGETS;
 use mint::IntraXYZ as IntraXyz;
 
 /// A target of an animation.
@@ -187,13 +187,13 @@ pub enum Binding {
     /// [`Scalar`]: enum.Values.html#variant.Scalar
     Scale,
 
-    /// Targets the weight property of an [`Object`].
+    /// Targets the weights property of an [`Object`].
     ///
     /// The corresponding keyframe values must be [`Scalar`].
     ///
     /// [`Object`]: ../object/trait.Object.html
     /// [`Scalar`]: enum.Values.html#variant.Scalar
-    Weight(mesh::Target),
+    Weights,
 }
 
 /// An index into the frames of a track.
@@ -510,9 +510,19 @@ impl ActionData {
                     let frame_start_value = values[frame_index];
                     let frame_end_value = values[frame_index + 1];
                     let update = frame_start_value * (1.0 - s) + frame_end_value * s;
-                    target.set_scale(update);
+                    target.set_scale(update); 
                 }
-                _ => panic!("Unsupported (binding, value) pair"),
+                (Binding::Weights, &Values::Scalar(ref values)) => {
+                    let mut update = [0.0; MAX_TARGETS];
+                    for i in 0..MAX_TARGETS {
+                        let frame_start_value = values[MAX_TARGETS * frame_index + i];
+                        let frame_end_value = values[MAX_TARGETS * (frame_index + 1) + i];
+                        let weight = frame_start_value * (1.0 - s) + frame_end_value * s;
+                        update[i] = weight;
+                    }
+                    target.set_weights(update);
+                }
+                _ => panic!("Unsupported (binding, value) pair {:?}", (track.binding, &track.values)),
             }
         }
 

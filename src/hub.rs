@@ -2,7 +2,7 @@ use audio::{AudioData, Operation as AudioOperation};
 use color::{self, Color};
 use light::{ShadowMap, ShadowProjection};
 use material::{self, Material};
-use mesh::{DynamicMesh, MAX_TARGETS, Target, Weight};
+use mesh::{DynamicMesh, MAX_TARGETS, Target};
 use node::{NodeInternal, NodePointer};
 use object;
 use render::{BackendResources, GpuData};
@@ -85,7 +85,7 @@ pub(crate) enum Operation {
     SetShadow(ShadowMap, ShadowProjection),
     SetTargets(ArrayVec<[Target; MAX_TARGETS]>),
     SetTexelRange(mint::Point2<i16>, mint::Vector2<u16>),
-    SetWeights(ArrayVec<[Weight; MAX_TARGETS]>),
+    SetWeights([f32; MAX_TARGETS]),
 }
 
 pub(crate) type HubPtr = Arc<Mutex<Hub>>;
@@ -236,8 +236,12 @@ impl Hub {
                 Operation::SetShadow(map, proj) => if let SubNode::Light(ref mut data) = node.sub_node {
                     data.shadow = Some((map, proj));
                 },
-                Operation::SetTargets(targets) => unimplemented!(),
-                Operation::SetWeights(weights) => unimplemented!(),
+                Operation::SetTargets(targets) => {
+                    println!("Not yet implemented!");
+                },
+                Operation::SetWeights(weights) => {
+                    println!("Not yet implemented!");
+                }
             }
         }
         self.nodes.sync_pending();

@@ -27,14 +27,14 @@ use scene;
 use audio::{AudioData, Clip, Source};
 use camera::Camera;
 use color::Color;
-use geometry::{Geometry, Shape};
+use geometry::Geometry;
 use group::Group;
 use hub::{Hub, HubPtr, LightData, SubLight, SubNode};
 use light::{Ambient, Directional, Hemisphere, Point, ShadowMap};
 use material::Material;
 use mesh::{DynamicMesh, Mesh};
 use object::Object;
-use render::{basic_pipe, BackendFactory, BackendResources, BasicPipelineState, DynamicData, GpuData, ShadowFormat, Vertex};
+use render::{basic_pipe, BackendFactory, BackendResources, BasicPipelineState, DynamicData, GpuData, ShadowFormat, Vertex, DEFAULT_VERTEX, ZEROED_DISPLACEMENT_WEIGHTS};
 use scene::Scene;
 use sprite::Sprite;
 use skeleton::{Bone, Skeleton};
@@ -51,32 +51,36 @@ const QUAD: [Vertex; 4] = [
         uv: [0.0, 0.0],
         normal: NORMAL_Z,
         tangent: TANGENT_X,
-        joints: [0.0, 0.0, 0.0, 0.0],
-        weights: [0.0, 0.0, 0.0, 0.0],
+        joint_indices: [0.0, 0.0, 0.0, 0.0],
+        joint_weights: [0.0, 0.0, 0.0, 0.0],
+        .. DEFAULT_VERTEX
     },
     Vertex {
         pos: [1.0, -1.0, 0.0, 1.0],
         uv: [1.0, 0.0],
         normal: NORMAL_Z,
         tangent: TANGENT_X,
-        joints: [0.0, 0.0, 0.0, 0.0],
-        weights: [0.0, 0.0, 0.0, 0.0],
+        joint_indices: [0.0, 0.0, 0.0, 0.0],
+        joint_weights: [0.0, 0.0, 0.0, 0.0],
+        .. DEFAULT_VERTEX
     },
     Vertex {
         pos: [-1.0, 1.0, 0.0, 1.0],
         uv: [0.0, 1.0],
         normal: NORMAL_Z,
         tangent: TANGENT_X,
-        joints: [0.0, 0.0, 0.0, 0.0],
-        weights: [0.0, 0.0, 0.0, 0.0],
+        joint_indices: [0.0, 0.0, 0.0, 0.0],
+        joint_weights: [0.0, 0.0, 0.0, 0.0],
+        .. DEFAULT_VERTEX
     },
     Vertex {
         pos: [1.0, 1.0, 0.0, 1.0],
         uv: [1.0, 1.0],
         normal: NORMAL_Z,
         tangent: TANGENT_X,
-        joints: [0.0, 0.0, 0.0, 0.0],
-        weights: [0.0, 0.0, 0.0, 0.0],
+        joint_indices: [0.0, 0.0, 0.0, 0.0],
+        joint_weights: [0.0, 0.0, 0.0, 0.0],
+        .. DEFAULT_VERTEX
     },
 ];
 
@@ -275,62 +279,63 @@ impl Factory {
         Group::new(self.hub.lock().unwrap().spawn_empty())
     }
 
-    fn mesh_vertices(shape: &Shape) -> Vec<Vertex> {
-        let position_iter = shape.vertices.iter();
-        let normal_iter = if shape.normals.is_empty() {
+    fn mesh_vertices(geometry: &Geometry) -> Vec<Vertex> {
+        let position_iter = geometry.vertices.iter();
+        let normal_iter = if geometry.normals.is_empty() {
             Either::Left(iter::repeat(NORMAL_Z))
         } else {
             Either::Right(
-                shape
+                geometry
                     .normals
                     .iter()
                     .map(|n| [f2i(n.x), f2i(n.y), f2i(n.z), I8Norm(0)]),
             )
         };
-        let uv_iter = if shape.tex_coords.is_empty() {
+        let uv_iter = if geometry.tex_coords.is_empty() {
             Either::Left(iter::repeat([0.0, 0.0]))
         } else {
-            Either::Right(shape.tex_coords.iter().map(|uv| [uv.x, uv.y]))
+            Either::Right(geometry.tex_coords.iter().map(|uv| [uv.x, uv.y]))
         };
-        let tangent_iter = if shape.tangents.is_empty() {
+        let tangent_iter = if geometry.tangents.is_empty() {
             // @alteous:
             // TODO: Generate tangents if texture co-ordinates are provided.
             // (Use mikktspace algorithm or otherwise.)
             Either::Left(iter::repeat(TANGENT_X))
         } else {
             Either::Right(
-                shape
+                geometry
                     .tangents
                     .iter()
                     .map(|t| [f2i(t.x), f2i(t.y), f2i(t.z), f2i(t.w)]),
             )
         };
-        let joints_iter = if shape.joints.is_empty() {
+        let joint_indices_iter = if geometry.joint_indices.is_empty() {
             Either::Left(iter::repeat([0.0, 0.0, 0.0, 0.0]))
         } else {
-            Either::Right(shape.joints.iter().cloned())
+            Either::Right(geometry.joint_indices.iter().cloned())
         };
-        let weights_iter = if shape.weights.is_empty() {
+        let joint_weights_iter = if geometry.joint_weights.is_empty() {
             Either::Left(iter::repeat([1.0, 1.0, 1.0, 1.0]))
         } else {
-            Either::Right(shape.weights.iter().cloned())
+            Either::Right(geometry.joint_weights.iter().cloned())
         };
         izip!(
             position_iter,
             normal_iter,
             tangent_iter,
             uv_iter,
-            joints_iter,
-            weights_iter
+            joint_indices_iter,
+            joint_weights_iter
         )
-            .map(|(pos, normal, tangent, uv, joints, weights)| {
+            .map(|(pos, normal, tangent, uv, joint_indices, joint_weights)| {
                 Vertex {
                     pos: [pos.x, pos.y, pos.z, 1.0],
                     normal,
                     uv,
                     tangent,
-                    joints,
-                    weights,
+                    joint_indices,
+                    joint_weights,
+                    .. DEFAULT_VERTEX
                 }
             })
             .collect()
@@ -342,7 +347,7 @@ impl Factory {
         geometry: Geometry,
         material: M,
     ) -> Mesh {
-        let vertices = Self::mesh_vertices(&geometry.base_shape);
+        let vertices = Self::mesh_vertices(&geometry);
         let cbuf = self.backend.create_constant_buffer(1);
         let (vbuf, slice) = if geometry.faces.is_empty() {
             self.backend.create_vertex_buffer_with_slice(&vertices, ())
@@ -359,6 +364,7 @@ impl Factory {
                     vertices: vbuf,
                     constants: cbuf,
                     pending: None,
+                    displacement_weights: ZEROED_DISPLACEMENT_WEIGHTS,
                 },
                 None,
             ),
@@ -382,7 +388,7 @@ impl Factory {
             }
         };
         let (num_vertices, vertices, upload_buf) = {
-            let data = Self::mesh_vertices(&geometry.base_shape);
+            let data = Self::mesh_vertices(&geometry);
             let dest_buf = self.backend
                 .create_buffer_immutable(&data, gfx::buffer::Role::Vertex, gfx::memory::TRANSFER_DST)
                 .unwrap();
@@ -407,6 +413,7 @@ impl Factory {
                     vertices,
                     constants,
                     pending: None,
+                    displacement_weights: ZEROED_DISPLACEMENT_WEIGHTS,
                 },
                 None,
             ),
@@ -474,6 +481,7 @@ impl Factory {
                 vertices: self.quad_buf.clone(),
                 constants: self.backend.create_constant_buffer(1),
                 pending: None,
+                displacement_weights: ZEROED_DISPLACEMENT_WEIGHTS,
             },
             None,
         ))
@@ -639,22 +647,28 @@ impl Factory {
         shapes: &[(&str, f32)],
     ) {
         self.hub.lock().unwrap().update_mesh(mesh);
-        let shapes: Vec<_> = shapes
+        let targets: Vec<(usize, f32)> = shapes
             .iter()
-            .map(|&(name, k)| (&mesh.geometry.shapes[name], k))
+            .filter_map(|&(name, k)| {
+                mesh.geometry.morph_target_names
+                    .iter()
+                    .find(|&(_, entry)| entry == name)
+                    .map(|(idx, _)| (idx, k))
+            })
             .collect();
         let mut mapping = self.backend.write_mapping(&mesh.dynamic.buffer).unwrap();
 
-        for i in 0 .. mesh.geometry.base_shape.vertices.len() {
-            let (mut pos, ksum) = shapes.iter().fold(
+        let n = mesh.geometry.vertices.len();
+        for i in 0 .. n {
+            let (mut pos, ksum) = targets.iter().fold(
                 (Vector3::new(0.0, 0.0, 0.0), 0.0),
-                |(pos, ksum), &(ref shape, k)| {
-                    let p: [f32; 3] = shape.vertices[i].into();
+                |(pos, ksum), &(idx, k)| {
+                    let p: [f32; 3] = mesh.geometry.morph_vertices[idx * n + i].into();
                     (pos + k * Vector3::from(p), ksum + k)
                 },
             );
             if ksum != 1.0 {
-                let p: [f32; 3] = mesh.geometry.base_shape.vertices[i].into();
+                let p: [f32; 3] = mesh.geometry.vertices[i].into();
                 pos += (1.0 - ksum) * Vector3::from(p);
             }
             mapping[i] = Vertex {
@@ -924,8 +938,9 @@ impl Factory {
                                 None => [I8Norm(0), I8Norm(0), I8Norm(0x7f), I8Norm(0)],
                             },
                             tangent: TANGENT_X, // TODO
-                            joints: [0.0; 4],
-                            weights: [0.0; 4],
+                            joint_indices: [0.0; 4],
+                            joint_weights: [0.0; 4],
+                            .. DEFAULT_VERTEX
                         });
                     });
 
@@ -966,6 +981,7 @@ impl Factory {
                             vertices: vbuf,
                             constants: cbuf,
                             pending: None,
+                            displacement_weights: ZEROED_DISPLACEMENT_WEIGHTS,
                         },
                         None,
                     ),

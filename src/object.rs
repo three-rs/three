@@ -7,6 +7,7 @@ use std::sync::mpsc;
 use mint;
 
 use hub::{Message, Operation};
+use mesh::MAX_TARGETS;
 use node::{Node, NodePointer};
 use scene::Scene;
 
@@ -244,6 +245,15 @@ impl Base {
         let _ = self.tx.send((self.node.downgrade(), msg));
     }
 
+    /// Set morph target weights.
+    pub fn set_weights(
+        &mut self,
+        weights: [f32; MAX_TARGETS]
+    ) {
+        let msg = Operation::SetWeights(weights);
+        let _ = self.tx.send((self.node.downgrade(), msg));
+    }
+    
     /// Get actual information about itself from the `scene`.
     /// # Panics
     /// Panics if `scene` doesn't have this `Base`.

@@ -13,25 +13,19 @@ use std::hash::{Hash, Hasher};
 ///
 /// [`Target`]: enum.Target.html
 /// [`Mesh`]: struct.Mesh.html
-pub const MAX_TARGETS: usize = 9;
+pub const MAX_TARGETS: usize = 8;
 
 /// Defines a weight target.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Target {
     /// Position displacements.
-    Position,
+    Position([f32; 3]),
 
     /// Normal displacements.
-    Normal,
+    Normal([f32; 3]),
 
     /// Tangent displacements.
-    Tangent,
-}
-
-pub enum Weight {
-    Position(f32),
-    Normal(f32),
-    Tangent(f32),
+    Tangent([f32; 3]),
 }
 
 /// [`Geometry`](struct.Geometry.html) with some [`Material`](struct.Material.html).
@@ -164,7 +158,7 @@ impl Mesh {
 impl DynamicMesh {
     /// Returns the number of vertices of the geometry base shape.
     pub fn vertex_count(&self) -> usize {
-        self.geometry.base_shape.vertices.len()
+        self.geometry.vertices.len()
     }
 
     /// Set mesh material.

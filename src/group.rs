@@ -1,6 +1,5 @@
-use arrayvec::ArrayVec;
 use hub::Operation;
-use mesh::{MAX_TARGETS, Weight};
+use mesh::MAX_TARGETS;
 use object::Base;
 
 /// Groups are used to combine several other objects or groups to work with
@@ -20,7 +19,7 @@ impl Group {
     /// group.
     pub fn set_weights(
         &mut self,
-        weights: ArrayVec<[Weight; MAX_TARGETS]>,
+        weights: [f32; MAX_TARGETS],
     ) {
         let msg = Operation::SetWeights(weights);
         let _ = self.object.tx.send((self.object.node.downgrade(), msg));

@@ -22,7 +22,6 @@
 #version 150 core
 #include <locals>
 #include <globals>
-#include <morph_targets>
 
 in vec4 a_Position;
 in vec2 a_TexCoord;
@@ -31,10 +30,31 @@ in vec4 a_Tangent;
 in vec4 a_JointIndices;
 in vec4 a_JointWeights;
 
+in vec4 a_Displacement0;
+in vec4 a_Displacement1;
+in vec4 a_Displacement2;
+in vec4 a_Displacement3;
+in vec4 a_Displacement4;
+in vec4 a_Displacement5;
+in vec4 a_Displacement6;
+in vec4 a_Displacement7;
+
 out vec3 v_Position;
 out vec2 v_TexCoord;
 out mat3 v_Tbn;
 out vec3 v_Normal;
+
+struct DisplacementWeights {
+    // weights.x => POSITION
+    // weights.y => NORMAL
+    // weights.z => TANGENT
+    // weights.w => 0.0
+    vec4 weights;
+};
+
+layout(std140) uniform b_DisplacementWeights {
+    DisplacementWeights u_DisplacementWeights[8];
+};
 
 uniform samplerBuffer b_JointTransforms;
 
@@ -61,10 +81,14 @@ vec4 compute_local_position()
 {
     vec4 position = a_Position;
 
-    for (uint i = 0U; i < MAX_MORPH_TARGETS; ++i) {
-	position.xyz += u_MorphTargets[i].position_displacement
-	    * u_MorphTargets[i].weight;
-    }
+    position.xyz += u_DisplacementWeights[0].weights.x * a_Displacement0.xyz;
+    position.xyz += u_DisplacementWeights[1].weights.x * a_Displacement1.xyz;
+    position.xyz += u_DisplacementWeights[2].weights.x * a_Displacement2.xyz;
+    position.xyz += u_DisplacementWeights[3].weights.x * a_Displacement3.xyz;
+    position.xyz += u_DisplacementWeights[4].weights.x * a_Displacement4.xyz;
+    position.xyz += u_DisplacementWeights[5].weights.x * a_Displacement5.xyz;
+    position.xyz += u_DisplacementWeights[6].weights.x * a_Displacement6.xyz;
+    position.xyz += u_DisplacementWeights[7].weights.x * a_Displacement7.xyz;
 
     return position;
 }
@@ -73,10 +97,14 @@ vec3 compute_world_normal()
 {
     vec3 normal = a_Normal.xyz;
 
-    for (uint i = 0U; i < MAX_MORPH_TARGETS; ++i) {
-	normal += u_MorphTargets[i].normal_displacement
-	    * u_MorphTargets[i].weight;
-    }
+    normal.xyz += u_DisplacementWeights[0].weights.y * a_Displacement0.xyz;
+    normal.xyz += u_DisplacementWeights[1].weights.y * a_Displacement1.xyz;
+    normal.xyz += u_DisplacementWeights[2].weights.y * a_Displacement2.xyz;
+    normal.xyz += u_DisplacementWeights[3].weights.y * a_Displacement3.xyz;
+    normal.xyz += u_DisplacementWeights[4].weights.y * a_Displacement4.xyz;
+    normal.xyz += u_DisplacementWeights[5].weights.y * a_Displacement5.xyz;
+    normal.xyz += u_DisplacementWeights[6].weights.y * a_Displacement6.xyz;
+    normal.xyz += u_DisplacementWeights[7].weights.y * a_Displacement7.xyz;
 
     return normalize(vec3(u_World * vec4(normal, 0.0)));
 }
@@ -85,10 +113,14 @@ vec3 compute_world_tangent()
 {
     vec3 tangent = a_Tangent.xyz;
 
-    for (uint i = 0U; i < MAX_MORPH_TARGETS; ++i) {
-	tangent += u_MorphTargets[i].tangent_displacement
-	    * u_MorphTargets[i].weight;
-    }
+    tangent.xyz += u_DisplacementWeights[0].weights.z * a_Displacement0.xyz;
+    tangent.xyz += u_DisplacementWeights[1].weights.z * a_Displacement1.xyz;
+    tangent.xyz += u_DisplacementWeights[2].weights.z * a_Displacement2.xyz;
+    tangent.xyz += u_DisplacementWeights[3].weights.z * a_Displacement3.xyz;
+    tangent.xyz += u_DisplacementWeights[4].weights.z * a_Displacement4.xyz;
+    tangent.xyz += u_DisplacementWeights[5].weights.z * a_Displacement5.xyz;
+    tangent.xyz += u_DisplacementWeights[6].weights.z * a_Displacement6.xyz;
+    tangent.xyz += u_DisplacementWeights[7].weights.z * a_Displacement7.xyz;
 
     return normalize(vec3(u_World * vec4(tangent, 0.0)));
 }
