@@ -23,7 +23,7 @@ fn main() {
     camera.set_position([0.0, 1.0, 5.0]);
 
     let mut controls = three::controls::Orbit::builder(&camera)
-        .position([0.0, 1.0, 9.5])
+        .position([0.0, 1.0, 0.2])
         .target([0.0, 0.0, 0.0])
         .build();
 

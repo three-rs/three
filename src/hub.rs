@@ -90,7 +90,7 @@ pub(crate) enum Operation {
     SetShadow(ShadowMap, ShadowProjection),
     SetTargets(ArrayVec<[Target; MAX_TARGETS]>),
     SetTexelRange(mint::Point2<i16>, mint::Vector2<u16>),
-    SetWeights(ArrayVec<[Weight; MAX_TARGETS]>),
+    SetWeights([DisplacementContribution; MAX_TARGETS]),
 }
 
 pub(crate) type HubPtr = Arc<Mutex<Hub>>;
@@ -161,18 +161,27 @@ impl Hub {
     }
 
     pub(crate) fn process_messages(&mut self) {
-        while let Ok((pnode, operation)) = self.message_rx.try_recv() {
-            let ptr = match pnode.upgrade() {
+        while let Ok((weak_ptr, operation)) = self.message_rx.try_recv() {
+            let ptr = match weak_ptr.upgrade() {
                 Ok(ptr) => ptr,
                 Err(_) => continue,
             };
             match operation {
+                Operation::SetAudio(operation) => {
+                    if let SubNode::Audio(ref mut data) = self.nodes[&ptr].sub_node {
+                        Hub::process_audio(operation, data);
+                    }
+                },
+                Operation::SetParent(parent) => {
+                    self.nodes[&ptr].parent = Some(parent);
+                }
                 Operation::SetVisible(visible) => {
                     self.nodes[&ptr].visible = visible;
                 }
                 Operation::SetTransform(pos, rot, scale) => {
                     let transform = &mut self.nodes[&ptr].transform;
                     if let Some(pos) = pos {
+
                         transform.disp = mint::Vector3::from(pos).into();
                     }
                     if let Some(rot) = rot {
@@ -231,6 +240,27 @@ impl Hub {
                             Hub::process_audio(operation, data);
                         }
                         _ => unreachable!()
+                    }
+                },
+                Operation::SetSkeleton(skeleton) => {
+                    if let SubNode::Visual(_, _, ref mut s) = self.nodes[&ptr].sub_node {
+                        *s = Some(skeleton);
+                    }
+                },
+                Operation::SetShadow(map, proj) => {
+                    if let SubNode::Light(ref mut data) = self.nodes[&ptr].sub_node {
+                        data.shadow = Some((map, proj));
+                    }
+                },
+                Operation::SetTargets(targets) => {
+                    println!("Not yet implemented!");
+                },
+                Operation::SetWeights(weights) => {
+                    match self.nodes[&ptr].sub_node {
+                        SubNode::Visual(_, ref mut gpu_data, _) => {
+                            gpu_data.displacement_contributions = weights;
+                        }
+                        _ => println!("Not yet implemented!"),
                     }
                 }
                 Operation::SetText(operation) => {

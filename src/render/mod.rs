@@ -90,6 +90,44 @@ quick_error! {
     }
 }
 
+/// Default values for type `Vertex`.
+pub const DEFAULT_VERTEX: Vertex = Vertex {
+    pos: [0.0, 0.0, 0.0, 1.0],
+    uv: [0.0, 0.0],
+    normal: [I8Norm(0), I8Norm(127), I8Norm(0), I8Norm(0)],
+    tangent: [I8Norm(127), I8Norm(0), I8Norm(0), I8Norm(0)],
+    joint_indices: [0.0, 0.0, 0.0, 0.0],
+    joint_weights: [1.0, 1.0, 1.0, 1.0],
+
+    displacement0: [0.0, 0.0, 0.0, 0.0],
+    displacement1: [0.0, 0.0, 0.0, 0.0],
+    displacement2: [0.0, 0.0, 0.0, 0.0],
+    displacement3: [0.0, 0.0, 0.0, 0.0],
+    displacement4: [0.0, 0.0, 0.0, 0.0],
+    displacement5: [0.0, 0.0, 0.0, 0.0],
+    displacement6: [0.0, 0.0, 0.0, 0.0],
+    displacement7: [0.0, 0.0, 0.0, 0.0],
+};
+
+impl Default for Vertex {
+    fn default() -> Self {
+        DEFAULT_VERTEX
+    }
+}
+
+/// Set of zero valued displacement contribution which cause vertex attributes
+/// to be unchanged by morph targets.
+pub const ZEROED_DISPLACEMENT_CONTRIBUTION: [DisplacementContribution; MAX_TARGETS] = [
+    DisplacementContribution { position: 0.0, normal: 0.0, tangent: 0.0, weight: 0.0 },
+    DisplacementContribution { position: 0.0, normal: 0.0, tangent: 0.0, weight: 0.0 },
+    DisplacementContribution { position: 0.0, normal: 0.0, tangent: 0.0, weight: 0.0 },
+    DisplacementContribution { position: 0.0, normal: 0.0, tangent: 0.0, weight: 0.0 },
+    DisplacementContribution { position: 0.0, normal: 0.0, tangent: 0.0, weight: 0.0 },
+    DisplacementContribution { position: 0.0, normal: 0.0, tangent: 0.0, weight: 0.0 },
+    DisplacementContribution { position: 0.0, normal: 0.0, tangent: 0.0, weight: 0.0 },
+    DisplacementContribution { position: 0.0, normal: 0.0, tangent: 0.0, weight: 0.0 },
+];
+
 #[cfg_attr(rustfmt, rustfmt_skip)]
 gfx_defines! {
     vertex Vertex {
@@ -179,12 +217,11 @@ gfx_defines! {
         pbr_flags: i32 = "u_PbrFlags",
     }
 
-    constant MorphTargetEntry {
+    constant DisplacementContribution {
+        position: f32 = "position",
+        normal: f32 = "normal",
+        tangent: f32 = "tangent",
         weight: f32 = "weight",
-        _padding: [f32; 3] = "_padding",
-        position_displacement: [f32; 4] = "position_displacement",
-        normal_displacement: [f32; 4] = "normal_displacement",
-        tangents_displacement: [f32; 4] = "tangent_displacement",
     }
 
     pipeline pbr_pipe {
@@ -194,7 +231,7 @@ gfx_defines! {
         globals: gfx::ConstantBuffer<Globals> = "b_Globals",
         params: gfx::ConstantBuffer<PbrParams> = "b_PbrParams",
         lights: gfx::ConstantBuffer<LightParam> = "b_Lights",
-        morph_targets: gfx::ConstantBuffer<MorphTargetEntry> = "b_MorphTargets",
+        displacement_contributions: gfx::ConstantBuffer<DisplacementContribution> = "b_DisplacementContributions",
         joint_transforms: gfx::ShaderResource<[f32; 4]> = "b_JointTransforms",
 
         base_color_map: gfx::TextureSampler<[f32; 4]> = "u_BaseColorSampler",
@@ -253,6 +290,12 @@ impl Instance {
     }
 }
 
+impl Default for DisplacementContribution {
+    fn default() -> Self {
+        Self { position: 0.0, normal: 0.0, tangent: 0.0, weight: 0.0 }
+    }
+}
+
 //TODO: private fields?
 #[derive(Clone, Debug)]
 pub(crate) struct GpuData {
@@ -269,6 +312,7 @@ struct InstanceData {
     pub vertices: h::Buffer<back::Resources, Vertex>,
     pub pso_data: PsoData,
     pub material: Material,
+    pub displacement_contributions: [DisplacementContribution; MAX_TARGETS],
 }
 
 #[derive(Clone, Debug)]
@@ -477,9 +521,8 @@ pub struct Renderer {
     pbr_buf: h::Buffer<back::Resources, PbrParams>,
     out_color: h::RenderTargetView<back::Resources, ColorFormat>,
     out_depth: h::DepthStencilView<back::Resources, DepthFormat>,
-    default_joint_buffer: gfx::handle::Buffer<back::Resources, [f32; 4]>,
+    displacement_contributions_buf: gfx::handle::Buffer<back::Resources, DisplacementContribution>,
     default_joint_buffer_view: gfx::handle::ShaderResourceView<back::Resources, [f32; 4]>,
-    morph_targets_buf: gfx::handle::Buffer<back::Resources, MorphTargetEntry>,
     pso: PipelineStates,
     map_default: Texture<[f32; 4]>,
     shadow_default: Texture<f32>,
@@ -548,7 +591,7 @@ impl Renderer {
                 gfx::memory::Bind::TRANSFER_DST,
             )
             .unwrap();
-        let morph_targets_buf = gl_factory.create_constant_buffer(MAX_TARGETS);
+        let displacement_contributions_buf = gl_factory.create_constant_buffer(MAX_TARGETS);
         let pso = PipelineStates::init(source, &mut gl_factory).unwrap();
 
         let renderer = Renderer {
@@ -560,7 +603,7 @@ impl Renderer {
             light_buf,
             inst_buf,
             pbr_buf,
-            morph_targets_buf,
+            displacement_contributions_buf,
             out_color,
             out_depth,
             pso,
@@ -901,148 +944,57 @@ impl Renderer {
                 PsoData::Pbr { .. } => Instance::pbr(mx_world.into()),
             };
 
-            //TODO: batch per PSO
-            match *material {
-                Material::Pbr(ref params) => {
-                    self.encoder.update_constant_buffer(
-                        &gpu_data.constants,
-                        &Instance {
-                            mx_world: Matrix4::from(node.world_transform).into(),
-                            ..unsafe { mem::zeroed() }
-                        },
-                    );
-                    let mut pbr_flags = PbrFlags::empty();
-                    if params.base_color_map.is_some() {
-                        pbr_flags.insert(PbrFlags::BASE_COLOR_MAP);
-                    }
-                    if params.normal_map.is_some() {
-                        pbr_flags.insert(PbrFlags::NORMAL_MAP);
-                    }
-                    if params.metallic_roughness_map.is_some() {
-                        pbr_flags.insert(PbrFlags::METALLIC_ROUGHNESS_MAP);
-                    }
-                    if params.emissive_map.is_some() {
-                        pbr_flags.insert(PbrFlags::EMISSIVE_MAP);
-                    }
-                    if params.occlusion_map.is_some() {
-                        pbr_flags.insert(PbrFlags::OCCLUSION_MAP);
-                    }
-                    let bcf = color::to_linear_rgb(params.base_color_factor);
-                    let emf = color::to_linear_rgb(params.emissive_factor);
-                    self.encoder.update_constant_buffer(
-                        &self.pbr_buf,
-                        &PbrParams {
-                            base_color_factor: [bcf[0], bcf[1], bcf[2], params.base_color_alpha],
-                            camera: [0.0, 0.0, 1.0],
-                            emissive_factor: [emf[0], emf[1], emf[2]],
-                            metallic_roughness: [params.metallic_factor, params.roughness_factor],
-                            normal_scale: params.normal_scale,
-                            occlusion_strength: params.occlusion_strength,
-                            pbr_flags: pbr_flags.bits(),
-                            _padding0: unsafe { mem::uninitialized() },
-                            _padding1: unsafe { mem::uninitialized() },
-                        },
-                    );
-                    let data = pbr_pipe::Data {
-                        vbuf: gpu_data.vertices.clone(),
-                        locals: gpu_data.constants.clone(),
-                        globals: self.const_buf.clone(),
-                        lights: self.light_buf.clone(),
-                        params: self.pbr_buf.clone(),
-                        base_color_map: {
-                            params
-                                .base_color_map
-                                .as_ref()
-                                .unwrap_or(&self.map_default)
-                                .to_param()
-                        },
-                        normal_map: {
-                            params
-                                .normal_map
-                                .as_ref()
-                                .unwrap_or(&self.map_default)
-                                .to_param()
-                        },
-                        emissive_map: {
-                            params
-                                .emissive_map
-                                .as_ref()
-                                .unwrap_or(&self.map_default)
-                                .to_param()
-                        },
-                        metallic_roughness_map: {
-                            params
-                                .metallic_roughness_map
-                                .as_ref()
-                                .unwrap_or(&self.map_default)
-                                .to_param()
-                        },
-                        occlusion_map: {
-                            params
-                                .occlusion_map
-                                .as_ref()
-                                .unwrap_or(&self.map_default)
-                                .to_param()
-                        },
-                        morph_targets: self.morph_targets_buf.clone(),
-                        joint_transforms: joint_buffer_view,
-                        color_target: self.out_color.clone(),
-                        depth_target: self.out_depth.clone(),
-                    };
-                    self.encoder.draw(&gpu_data.slice, &self.pso.pbr, &data);
-                }
-                ref other => {
-                    let (pso, color, param0, map) = match *other {
-                        Material::Pbr(_) => unreachable!(),
-                        Material::Basic(ref params) => (
-                            &self.pso.mesh_basic_fill,
-                            params.color,
-                            0.0,
-                            params.map.as_ref(),
-                        ),
-                        Material::CustomBasic(ref params) => (&params.pipeline, params.color, 0.0, params.map.as_ref()),
-                        Material::Lambert(ref params) => (
-                            &self.pso.mesh_gouraud,
-                            params.color,
-                            if params.flat { 0.0 } else { 1.0 },
-                            None,
-                        ),
-                        Material::Line(ref params) => (&self.pso.line_basic, params.color, 0.0, None),
-                        Material::Phong(ref params) => (&self.pso.mesh_phong, params.color, params.glossiness, None),
-                        Material::Sprite(ref params) => (&self.pso.sprite, !0, 0.0, Some(&params.map)),
-                        Material::Wireframe(ref params) => (&self.pso.mesh_basic_wireframe, params.color, 0.0, None),
-                    };
-                    let uv_range = match map {
-                        Some(ref map) => map.uv_range(),
-                        None => [0.0; 4],
-                    };
-                    self.encoder.update_constant_buffer(
-                        &gpu_data.constants,
-                        &Locals {
-                            mx_world: Matrix4::from(node.world_transform).into(),
-                            color: {
-                                let rgb = color::to_linear_rgb(color);
-                                [rgb[0], rgb[1], rgb[2], 0.0]
-                            },
-                            mat_params: [param0, 0.0, 0.0, 0.0],
-                            uv_range,
-                        },
-                    );
-                    //TODO: avoid excessive cloning
-                    let data = basic_pipe::Data {
-                        vbuf: gpu_data.vertices.clone(),
-                        cb_locals: gpu_data.constants.clone(),
-                        cb_lights: self.light_buf.clone(),
-                        cb_globals: self.const_buf.clone(),
-                        tex_map: map.unwrap_or(&self.map_default).to_param(),
-                        shadow_map0: (shadow0.clone(), shadow_sampler.clone()),
-                        shadow_map1: (shadow1.clone(), shadow_sampler.clone()),
-                        out_color: self.out_color.clone(),
-                        out_depth: (self.out_depth.clone(), (0, 0)),
-                    };
-                    self.encoder.draw(&gpu_data.slice, pso, &data);
-                }
-            };
+            Self::render_mesh(
+                &mut self.encoder,
+                self.const_buf.clone(),
+                gpu_data.instances.clone(),
+                self.light_buf.clone(),
+                self.pbr_buf.clone(),
+                self.out_color.clone(),
+                self.out_depth.clone(),
+                &self.pso,
+                &self.map_default,
+                &[instance],
+                gpu_data.vertices.clone(),
+                gpu_data.slice.clone(),
+                &material,
+                &shadow_sampler,
+                &shadow0,
+                &shadow1,
+            );
+        }
+
+        // render instanced meshes
+        for &(ref mesh_data, ref all_instances) in self.instance_cache.values() {
+            if all_instances.len() > self.inst_buf.len() {
+                self.inst_buf = self.factory
+                    .create_buffer(
+                        all_instances.len(),
+                        gfx::buffer::Role::Vertex,
+                        gfx::memory::Usage::Dynamic,
+                        gfx::memory::Bind::TRANSFER_DST,
+                    )
+                    // TODO: Better error handling
+                    .unwrap();
+            }
+            Self::render_mesh(
+                &mut self.encoder,
+                self.const_buf.clone(),
+                self.inst_buf.clone(),
+                self.light_buf.clone(),
+                self.pbr_buf.clone(),
+                self.out_color.clone(),
+                self.out_depth.clone(),
+                &self.pso,
+                &self.map_default,
+                all_instances,
+                mesh_data.vertices.clone(),
+                mesh_data.slice.clone(),
+                &mesh_data.material,
+                &shadow_sampler,
+                &shadow0,
+                &shadow1,
+            );
         }
 
         let quad_slice = gfx::Slice {

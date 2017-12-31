@@ -112,6 +112,7 @@ use std::hash::{Hash, Hasher};
 use std::sync::mpsc;
 
 use mint::IntraXYZ as IntraXyz;
+use render::DisplacementContribution;
 
 /// A target of an animation.
 pub type Target = object::Base;
@@ -509,7 +510,21 @@ impl ActionData {
                     let frame_start_value = values[frame_index];
                     let frame_end_value = values[frame_index + 1];
                     let update = frame_start_value * (1.0 - s) + frame_end_value * s;
-                    target.set_scale(update);
+                    target.set_scale(update); 
+                }
+                (Binding::Weights, &Values::Scalar(ref values)) => {
+                    let mut update = [DisplacementContribution::default(); MAX_TARGETS];
+                    for i in 0 .. MAX_TARGETS {
+                        let frame_start_value = values[MAX_TARGETS * frame_index + i];
+                        let frame_end_value = values[MAX_TARGETS * (frame_index + 1) + i];
+                        let weight = frame_start_value * (1.0 - s) + frame_end_value * s;
+                        // TODO
+                        update[i].position = 1.0;
+                        update[i].normal = 0.0;
+                        update[i].tangent = 0.0;
+                        update[i].weight = weight;
+                    }
+                    target.set_weights(update);
                 }
                 _ => panic!("Unsupported (binding, value) pair"),
             }

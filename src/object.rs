@@ -7,7 +7,10 @@ use std::sync::mpsc;
 use mint;
 
 use hub::{Hub, Message, Operation, SubNode};
-use node::NodePointer;
+use mesh::MAX_TARGETS;
+use node::{Node, NodePointer};
+use render::DisplacementContribution;
+use scene::Scene;
 
 //Note: no local state should be here, only remote links
 /// `Base` represents a concrete entity that can be added to the scene.
@@ -209,6 +212,30 @@ impl Base {
     ) {
         let msg = Operation::SetTransform(None, None, Some(scale));
         let _ = self.tx.send((self.node.downgrade(), msg));
+    }
+
+    pub fn set_weights(
+        &mut self,
+        weights: [DisplacementContribution; MAX_TARGETS]
+    ) {
+        let msg = Operation::SetWeights(weights);
+        let _ = self.tx.send((self.node.downgrade(), msg));
+    }
+    
+    /// Get actual information about itself from the `scene`.
+    /// # Panics
+    /// Panics if `scene` doesn't have this `Base`.
+    pub fn sync(
+        &mut self,
+        scene: &Scene,
+    ) -> Node {
+        let mut hub = scene.hub.lock().unwrap();
+        hub.process_messages();
+        hub.update_graph();
+        let node = &hub.nodes[&self.node];
+        let root = &hub.nodes[&scene.object.node];
+        assert_eq!(node.scene_id, root.scene_id);
+        node.to_node()
     }
 }
 

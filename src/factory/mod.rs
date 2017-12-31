@@ -29,12 +29,15 @@ use hub::{Hub, HubPtr, LightData, SubLight, SubNode};
 use light::{Ambient, Directional, Hemisphere, Point, ShadowMap};
 use material::{self, Material};
 use mesh::{DynamicMesh, Mesh};
-use object;
+use object::{Group, Object};
 use render::{basic_pipe,
     BackendFactory, BackendResources, BasicPipelineState, DynamicData, GpuData,
     Instance, InstanceCacheKey, PipelineCreationError, ShadowFormat, Source, Vertex,
 };
 use scene::{Background, Scene};
+use object::Object;
+use render::{basic_pipe, BackendFactory, BackendResources, BasicPipelineState, DynamicData, GpuData, ShadowFormat, Vertex, DEFAULT_VERTEX, ZEROED_DISPLACEMENT_CONTRIBUTION};
+use scene::Scene;
 use sprite::Sprite;
 use skeleton::{Bone, Skeleton};
 use text::{Font, Text, TextData};
@@ -376,6 +379,7 @@ impl Factory {
                     instances,
                     pending: None,
                     instance_cache_key: None,
+                    displacement_contributions: ZEROED_DISPLACEMENT_CONTRIBUTION,
                 },
                 None,
             ),
@@ -424,6 +428,7 @@ impl Factory {
                     instances,
                     pending: None,
                     instance_cache_key: None,
+                    displacement_contributions: ZEROED_DISPLACEMENT_CONTRIBUTION,
                 },
                 None,
             ),
@@ -505,6 +510,7 @@ impl Factory {
                 instances,
                 pending: None,
                 instance_cache_key: None,
+                displacement_contributions: ZEROED_DISPLACEMENT_CONTRIBUTION,
             },
             None,
         ))
@@ -1013,6 +1019,7 @@ impl Factory {
                             instances,
                             pending: None,
                             instance_cache_key: None,
+                            displacement_contributions: ZEROED_DISPLACEMENT_CONTRIBUTION,
                         },
                         None,
                     ),

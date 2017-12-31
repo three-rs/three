@@ -66,6 +66,17 @@ impl Shape {
 /// # }
 /// # fn main() { let _ = make_tetrahedron(); }
 /// ```
+/// # Notes
+///
+/// * If any vertex normals, tangents, or texture co-ordinates are provided,
+///   the number of entries in each array must match the number of entries
+///   in `vertices`.
+/// * If joints are provided, the number of entries in `joints.indices` must
+///   match the number of entries in `joints.weights`.
+/// * If morph targets are provided, the number of entries in all of
+///   `morph_targets.positions`, `morph_targets.normals`, and
+///   `morph_targets.tangents` must be an integer multiple (>= 0) of the
+///   number of entries in`vertices`.
 #[derive(Clone, Debug, Default)]
 pub struct Geometry {
     /// Vertex positions.
