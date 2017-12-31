@@ -3,9 +3,10 @@
 use cgmath::{Matrix4, SquareMatrix, Transform as Transform_, Vector3};
 use froggy;
 use gfx;
+use gfx::format::I8Norm;
 use gfx::handle as h;
 use gfx::memory::Typed;
-use gfx::traits::{Device, Factory as Factory_, FactoryExt};
+use gfx::traits::{Factory as Factory_, FactoryExt};
 #[cfg(feature = "opengl")]
 use gfx_device_gl as back;
 #[cfg(feature = "opengl")]
@@ -60,7 +61,7 @@ const STENCIL_SIDE: gfx::state::StencilSide = gfx::state::StencilSide {
 };
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
-quick_error! {
+quick_error! { 
     #[doc = "Error encountered when building pipelines."]
     #[derive(Debug)]
     pub enum PipelineCreationError {
@@ -96,17 +97,8 @@ pub const DEFAULT_VERTEX: Vertex = Vertex {
     uv: [0.0, 0.0],
     normal: [I8Norm(0), I8Norm(127), I8Norm(0), I8Norm(0)],
     tangent: [I8Norm(127), I8Norm(0), I8Norm(0), I8Norm(0)],
-    joint_indices: [0.0, 0.0, 0.0, 0.0],
+    joint_indices: [0, 0, 0, 0],
     joint_weights: [1.0, 1.0, 1.0, 1.0],
-
-    displacement0: [0.0, 0.0, 0.0, 0.0],
-    displacement1: [0.0, 0.0, 0.0, 0.0],
-    displacement2: [0.0, 0.0, 0.0, 0.0],
-    displacement3: [0.0, 0.0, 0.0, 0.0],
-    displacement4: [0.0, 0.0, 0.0, 0.0],
-    displacement5: [0.0, 0.0, 0.0, 0.0],
-    displacement6: [0.0, 0.0, 0.0, 0.0],
-    displacement7: [0.0, 0.0, 0.0, 0.0],
 };
 
 impl Default for Vertex {
@@ -135,8 +127,8 @@ gfx_defines! {
         uv: [f32; 2] = "a_TexCoord",
         normal: [gfx::format::I8Norm; 4] = "a_Normal",
         tangent: [gfx::format::I8Norm; 4] = "a_Tangent",
-        joints: [f32; 4] = "a_JointIndices",
-        weights: [f32; 4] = "a_JointWeights",
+        joint_indices: [i32; 4] = "a_JointIndices",
+        joint_weights: [f32; 4] = "a_JointWeights",
     }
 
     vertex Instance {
@@ -233,7 +225,7 @@ gfx_defines! {
         lights: gfx::ConstantBuffer<LightParam> = "b_Lights",
         displacement_contributions: gfx::ConstantBuffer<DisplacementContribution> = "b_DisplacementContributions",
         joint_transforms: gfx::ShaderResource<[f32; 4]> = "b_JointTransforms",
-
+        displacements: gfx::ShaderResource<[f32; 4]> = "b_Displacements",
         base_color_map: gfx::TextureSampler<[f32; 4]> = "u_BaseColorSampler",
 
         normal_map: gfx::TextureSampler<[f32; 4]> = "u_NormalSampler",
@@ -302,8 +294,10 @@ pub(crate) struct GpuData {
     pub slice: gfx::Slice<back::Resources>,
     pub vertices: h::Buffer<back::Resources, Vertex>,
     pub instances: h::Buffer<back::Resources, Instance>,
+    pub displacements: Option<(h::Buffer<back::Resources, [f32; 4]>, h::ShaderResourceView<back::Resources, [f32; 4]>)>,
     pub pending: Option<DynamicData>,
     pub instance_cache_key: Option<InstanceCacheKey>,
+    pub displacement_contributions: [DisplacementContribution; MAX_TARGETS],
 }
 
 #[derive(Clone, Debug)]
@@ -312,7 +306,6 @@ struct InstanceData {
     pub vertices: h::Buffer<back::Resources, Vertex>,
     pub pso_data: PsoData,
     pub material: Material,
-    pub displacement_contributions: [DisplacementContribution; MAX_TARGETS],
 }
 
 #[derive(Clone, Debug)]
@@ -523,6 +516,7 @@ pub struct Renderer {
     out_depth: h::DepthStencilView<back::Resources, DepthFormat>,
     displacement_contributions_buf: gfx::handle::Buffer<back::Resources, DisplacementContribution>,
     default_joint_buffer_view: gfx::handle::ShaderResourceView<back::Resources, [f32; 4]>,
+    default_displacement_buffer_view: gfx::handle::ShaderResourceView<back::Resources, [f32; 4]>,
     pso: PipelineStates,
     map_default: Texture<[f32; 4]>,
     shadow_default: Texture<f32>,
@@ -578,6 +572,25 @@ impl Renderer {
         let default_joint_buffer_view = gl_factory
             .view_buffer_as_shader_resource(&default_joint_buffer)
             .unwrap();
+        let default_displacement_buffer = gl_factory
+            .create_buffer_immutable(
+                &[
+                    [0.0, 0.0, 0.0, 0.0],
+                    [0.0, 0.0, 0.0, 0.0],
+                    [0.0, 0.0, 0.0, 0.0],
+                    [0.0, 0.0, 0.0, 0.0],
+                    [0.0, 0.0, 0.0, 0.0],
+                    [0.0, 0.0, 0.0, 0.0],
+                    [0.0, 0.0, 0.0, 0.0],
+                    [0.0, 0.0, 0.0, 0.0],
+                ],
+                gfx::buffer::Role::Constant,
+                gfx::memory::Bind::SHADER_RESOURCE,
+            )
+            .unwrap();
+        let default_displacement_buffer_view = gl_factory
+            .view_buffer_as_shader_resource(&default_displacement_buffer)
+            .unwrap();
         let encoder = gl_factory.create_command_buffer().into();
         let const_buf = gl_factory.create_constant_buffer(1);
         let quad_buf = gl_factory.create_constant_buffer(1);
@@ -609,6 +622,7 @@ impl Renderer {
             pso,
             default_joint_buffer,
             default_joint_buffer_view,
+            default_displacement_buffer_view,
             map_default: Texture::new(srv_white, sampler, [1, 1]),
             shadow_default: Texture::new(srv_shadow, sampler_shadow, [1, 1]),
             instance_cache: HashMap::new(),
@@ -672,8 +686,6 @@ impl Renderer {
     ) {
         let mut hub = scene.hub.lock().unwrap();
         hub.process_messages();
-
-        /*{
             // Update joint transforms of skeletons
             let mut cursor = hub.nodes.cursor();
             while let Some((left, mut item, right)) = cursor.next() {
@@ -899,8 +911,10 @@ impl Renderer {
         }
 
         for w in hub.walk(&scene.first_child) {
-            let (material, gpu_data) = match w.node.sub_node {
-                SubNode::Visual(ref mat, ref data, _) => (mat, data),
+            let (material, gpu_data, skeleton) = match w.node.sub_node {
+                SubNode::Visual(ref material, ref gpu_data, ref skeleton) => {
+                    (material, gpu_data, skeleton)
+                }
                 _ => continue,
             };
 
@@ -908,29 +922,24 @@ impl Renderer {
             let pso_data = material.to_pso_data();
 
             if let Some(ref key) = gpu_data.instance_cache_key {
-                let (color, mat_param, uv_range) = match pso_data {
-                    PsoData::Basic { color, param0, ref map } => {
-                        let uv_range = if let Some(ref texture) = *map {
-                            texture.uv_range()
-                        } else {
-                            [0.0; 4]
-                        };
-                        (color, param0, uv_range)
-                    },
-                    PsoData::Pbr { .. } => (!0, 0.0, [0.0; 4]),
+                let uv_range = [0.0; 4];
+                match pso_data {
+                    PsoData::Basic { color, param0, .. } => {
+                        let vec = self.instance_cache.entry(key.clone()).or_insert((
+                            InstanceData {
+                                slice: gpu_data.slice.clone(),
+                                vertices: gpu_data.vertices.clone(),
+                                pso_data: pso_data.clone(),
+                                material: material.clone(),
+                            },
+                            Vec::new(),
+                        ));
+                        vec.1.push(Instance::basic(mx_world.into(), color, uv_range, param0));
+                        // Create a new instance and defer the draw call.
+                        continue;
+                    }
+                    _ => {}
                 };
-                let vec = self.instance_cache.entry(key.clone()).or_insert((
-                    InstanceData {
-                        slice: gpu_data.slice.clone(),
-                        vertices: gpu_data.vertices.clone(),
-                        pso_data: pso_data.clone(),
-                        material: material.clone(),
-                    },
-                    Vec::new(),
-                ));
-                vec.1
-                    .push(Instance::basic(mx_world.into(), color, uv_range, mat_param));
-                continue;
             }
 
             let instance = match pso_data {
@@ -941,7 +950,19 @@ impl Renderer {
                     };
                     Instance::basic(mx_world.into(), color, uv_range, param0)
                 }
-                PsoData::Pbr { .. } => Instance::pbr(mx_world.into()),
+                PsoData::Pbr { .. } => {
+                    Instance::pbr(mx_world.into())
+                }
+            };
+            let joint_buffer_view = if let Some(ref ptr) = *skeleton {
+                match hub[ptr].sub_node {
+                    SubNode::Skeleton(ref skeleton_data) => {
+                        skeleton_data.gpu_buffer_view.clone()
+                    }
+                    _ => unreachable!()
+                }
+            } else {
+                self.default_joint_buffer_view.clone()
             };
 
             Self::render_mesh(
@@ -950,6 +971,7 @@ impl Renderer {
                 gpu_data.instances.clone(),
                 self.light_buf.clone(),
                 self.pbr_buf.clone(),
+                self.displacement_contributions_buf.clone(),
                 self.out_color.clone(),
                 self.out_depth.clone(),
                 &self.pso,
@@ -961,6 +983,13 @@ impl Renderer {
                 &shadow_sampler,
                 &shadow0,
                 &shadow1,
+                &gpu_data.displacement_contributions,
+                match gpu_data.displacements {
+                    Some((_, ref view)) => view.clone(),
+                    None => self.default_displacement_buffer_view.clone(),
+                },
+                joint_buffer_view,
+                gpu_data.displacements.is_some(),
             );
         }
 
@@ -983,6 +1012,7 @@ impl Renderer {
                 self.inst_buf.clone(),
                 self.light_buf.clone(),
                 self.pbr_buf.clone(),
+                self.displacement_contributions_buf.clone(),
                 self.out_color.clone(),
                 self.out_depth.clone(),
                 &self.pso,
@@ -994,6 +1024,10 @@ impl Renderer {
                 &shadow_sampler,
                 &shadow0,
                 &shadow1,
+                &ZEROED_DISPLACEMENT_CONTRIBUTION,
+                self.default_displacement_buffer_view.clone(),
+                self.default_joint_buffer_view.clone(),
+                false,
             );
         }
 
@@ -1100,6 +1134,7 @@ impl Renderer {
         inst_buf: h::Buffer<back::Resources, Instance>,
         light_buf: h::Buffer<back::Resources, LightParam>,
         pbr_buf: h::Buffer<back::Resources, PbrParams>,
+        displacement_contributions_buf: h::Buffer<back::Resources, DisplacementContribution>,
         out_color: h::RenderTargetView<back::Resources, ColorFormat>,
         out_depth: h::DepthStencilView<back::Resources, DepthFormat>,
         pso: &PipelineStates,
@@ -1111,6 +1146,10 @@ impl Renderer {
         shadow_sampler: &h::Sampler<back::Resources>,
         shadow0: &h::ShaderResourceView<back::Resources, f32>,
         shadow1: &h::ShaderResourceView<back::Resources, f32>,
+        displacement_contributions: &[DisplacementContribution; MAX_TARGETS],
+        displacements: h::ShaderResourceView<back::Resources, [f32; 4]>,
+        joint_transform_buffer_view: h::ShaderResourceView<back::Resources, [f32; 4]>,
+        displace: bool,
     ) {
         encoder.update_buffer(&inst_buf, instances, 0).unwrap();
 
@@ -1125,7 +1164,11 @@ impl Renderer {
 
         //TODO: batch per PSO
         match material.to_pso_data() {
-            PsoData::Pbr { maps, params } => {
+            PsoData::Pbr { maps, mut params } => {
+                if displace {
+                    encoder.update_buffer(&displacement_contributions_buf, &displacement_contributions[0..MAX_TARGETS], 0).unwrap();
+                    params.pbr_flags |= pso_data::PbrFlags::DISPLACEMENT_BUFFER.bits();
+                }
                 encoder.update_constant_buffer(&pbr_buf, &params);
                 let map_params = maps.into_params(map_default);
                 let data = pbr_pipe::Data {
@@ -1141,7 +1184,9 @@ impl Renderer {
                     occlusion_map: map_params.occlusion,
                     color_target: out_color.clone(),
                     depth_target: out_depth.clone(),
-                    joint_transforms: unimplemented!(),
+                    displacement_contributions: displacement_contributions_buf.clone(),
+                    displacements: displacements,
+                    joint_transforms: joint_transform_buffer_view,
                 };
                 encoder.draw(&slice, &pso.pbr, &data);
             }

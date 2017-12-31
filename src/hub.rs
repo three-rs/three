@@ -4,12 +4,11 @@ use light::{ShadowMap, ShadowProjection};
 use material::{Material};
 use mesh::{DynamicMesh, MAX_TARGETS, Target, Weight};
 use node::{NodeInternal, NodePointer, TransformInternal};
-use object::{Base};
 use render::{BackendResources, GpuData};
+use scene::Scene;
 use skeleton::{Bone, Skeleton};
 use text::{Operation as TextOperation, TextData};
 
-use arrayvec::ArrayVec;
 use cgmath::Transform;
 use froggy;
 use gfx;
@@ -88,9 +87,8 @@ pub(crate) enum Operation {
     SetMaterial(Material),
     SetSkeleton(Skeleton),
     SetShadow(ShadowMap, ShadowProjection),
-    SetTargets(ArrayVec<[Target; MAX_TARGETS]>),
     SetTexelRange(mint::Point2<i16>, mint::Vector2<u16>),
-    SetWeights([DisplacementContribution; MAX_TARGETS]),
+    SetWeights([f32; MAX_TARGETS]),
 }
 
 pub(crate) type HubPtr = Arc<Mutex<Hub>>;
@@ -172,9 +170,6 @@ impl Hub {
                         Hub::process_audio(operation, data);
                     }
                 },
-                Operation::SetParent(parent) => {
-                    self.nodes[&ptr].parent = Some(parent);
-                }
                 Operation::SetVisible(visible) => {
                     self.nodes[&ptr].visible = visible;
                 }
@@ -234,14 +229,6 @@ impl Hub {
                         cur_ptr = node.next_sibling.clone(); //TODO: avoid clone
                     }
                 }
-                Operation::SetAudio(operation) => {
-                    match self.nodes[&ptr].sub_node {
-                        SubNode::Audio(ref mut data) => {
-                            Hub::process_audio(operation, data);
-                        }
-                        _ => unreachable!()
-                    }
-                },
                 Operation::SetSkeleton(skeleton) => {
                     if let SubNode::Visual(_, _, ref mut s) = self.nodes[&ptr].sub_node {
                         *s = Some(skeleton);
@@ -252,15 +239,32 @@ impl Hub {
                         data.shadow = Some((map, proj));
                     }
                 },
-                Operation::SetTargets(targets) => {
-                    println!("Not yet implemented!");
-                },
                 Operation::SetWeights(weights) => {
-                    match self.nodes[&ptr].sub_node {
-                        SubNode::Visual(_, ref mut gpu_data, _) => {
-                            gpu_data.displacement_contributions = weights;
+                    fn set_weights(
+                        gpu_data: &mut GpuData,
+                        weights: [f32; MAX_TARGETS],
+                    ) {
+                        for i in 0 .. MAX_TARGETS {
+                            gpu_data.displacement_contributions[i].weight = weights[i];
                         }
-                        _ => println!("Not yet implemented!"),
+                    }
+
+                    let mut x = match self.nodes[&ptr].sub_node {
+                        SubNode::Visual(_, ref mut gpu_data, _) => {
+                            set_weights(gpu_data, weights);
+                            continue;
+                        }
+                        SubNode::Group { ref first_child } => first_child.clone(),
+                        _ => continue,
+                    };
+
+                    while let Some(ptr) = x {
+                        match &mut self.nodes[&ptr].sub_node {
+                            &mut SubNode::Visual(_, ref mut gpu_data, _) => {
+                                set_weights(gpu_data, weights);
+                            } _ => {},
+                        }
+                        x = self.nodes[&ptr].next_sibling.clone();
                     }
                 }
                 Operation::SetText(operation) => {
@@ -342,6 +346,37 @@ impl Hub {
             TextOperation::Scale(scale) => data.section.text[0].scale = Scale::uniform(scale),
             TextOperation::Size(size) => data.section.bounds = (size.x, size.y),
             TextOperation::Text(text) => data.section.text[0].text = text,
+        }
+    }
+
+    pub(crate) fn update_graph(
+        &mut self,
+        scene: &Scene,
+    ) {
+        struct Item {
+            ptr: NodePointer,
+            xform: TransformInternal,
+        }
+
+        let mut stack = vec![];
+        if let Some(child_ptr) = scene.first_child.clone() {
+            stack.push(Item {
+                ptr: child_ptr,
+                xform: TransformInternal::one(),
+            });
+        }
+
+        while let Some(item) = stack.pop() {
+            let mut x = self.nodes[&item.ptr].next_sibling.clone();
+            while let Some(child_ptr) = x {
+                let local_xform = self.nodes[&child_ptr].transform.clone();
+                let global_xform = item.xform.concat(&local_xform);
+                x = self.nodes[&child_ptr].next_sibling.clone();
+                stack.push(Item {
+                    ptr: child_ptr,
+                    xform: global_xform,
+                });
+            }
         }
     }
 

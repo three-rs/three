@@ -57,13 +57,6 @@ notify = "4"
 rand = "0.3"
 
 [[example]]
-name = "anim"
-
-[[example]]
-name = "aviator"
-path = "examples/aviator/main.rs"
-
-[[example]]
 name = "lights"
 
 [[example]]
@@ -88,12 +81,24 @@ name = "sprite"
 name = "tutorial"
 
 [[example]]
-name = "gltf"
-required-features = ["gltf-loader"]
- 
+name = "gltf-pbr-shader"
+
 [[example]]
-name = "gltf-animation"
-required-features = ["gltf-loader"]
+name = "gltf-node-animation"
+
+[[example]]
+name = "gltf-vertex-skinning"
+
+[[example]]
+name = "gltf-morph-targets"
 
 [[example]]
 name = "group"
+
+[[example]]
+name = "anim"
+
+[[example]]
+name = "aviator"
+path = "examples/aviator/main.rs"
+

@@ -8,9 +8,7 @@ use mint;
 
 use hub::{Hub, Message, Operation, SubNode};
 use mesh::MAX_TARGETS;
-use node::{Node, NodePointer};
-use render::DisplacementContribution;
-use scene::Scene;
+use node::NodePointer;
 
 //Note: no local state should be here, only remote links
 /// `Base` represents a concrete entity that can be added to the scene.
@@ -34,7 +32,7 @@ pub struct Base {
 }
 
 /// Marks data structures that are able to added to the scene graph.
-pub trait Object: AsRef<Base> + AsMut<Base> {
+pub trait Object: AsRef<Base> {
     /// Converts into the base type.
     fn upcast(&self) -> Base {
         self.as_ref().clone()
@@ -45,21 +43,7 @@ pub trait Object: AsRef<Base> + AsMut<Base> {
         &self,
         visible: bool,
     ) {
-        self.as_ref().set_visible(visible)
-    }
-
-    /// Rotates object in the specific direction of `target`.
-    fn look_at<E, T>(
-        &self,
-        eye: E,
-        target: T,
-        up: Option<mint::Vector3<f32>>,
-    ) where
-        Self: Sized,
-        E: Into<mint::Point3<f32>>,
-        T: Into<mint::Point3<f32>>,
-    {
-        self.as_ref().look_at(eye, target, up)
+        self.as_ref().send(Operation::SetVisible(visible));
     }
 
     /// Set both position, orientation and scale.
@@ -73,7 +57,7 @@ pub trait Object: AsRef<Base> + AsMut<Base> {
         P: Into<mint::Point3<f32>>,
         Q: Into<mint::Quaternion<f32>>,
     {
-        self.as_ref().set_transform(pos, rot, scale)
+        self.as_ref().send(Operation::SetTransform(Some(pos.into()), Some(rot.into()), Some(scale)));
     }
 
     /// Set position.
@@ -84,7 +68,7 @@ pub trait Object: AsRef<Base> + AsMut<Base> {
         Self: Sized,
         P: Into<mint::Point3<f32>>,
     {
-        self.as_ref().set_position(pos)
+        self.as_ref().send(Operation::SetTransform(Some(pos.into()), None, None));
     }
 
     /// Set orientation.
@@ -95,7 +79,7 @@ pub trait Object: AsRef<Base> + AsMut<Base> {
         Self: Sized,
         Q: Into<mint::Quaternion<f32>>,
     {
-        self.as_ref().set_orientation(rot)
+        self.as_ref().send(Operation::SetTransform(None, Some(rot.into()), None));
     }
 
     /// Set scale.
@@ -103,7 +87,39 @@ pub trait Object: AsRef<Base> + AsMut<Base> {
         &self,
         scale: f32,
     ) {
-        self.as_ref().set_scale(scale)
+        self.as_ref().send(Operation::SetTransform(None, None, Some(scale)));
+    }
+
+    /// Set weights.
+    fn set_weights(
+        &self,
+        weights: [f32; MAX_TARGETS],
+    ) {
+        self.as_ref().send(Operation::SetWeights(weights));
+    }
+
+    /// Rotates object in the specific direction of `target`.
+    fn look_at<E, T>(
+        &self,
+        eye: E,
+        target: T,
+        up: Option<mint::Vector3<f32>>,
+    ) where
+        Self: Sized,
+        E: Into<mint::Point3<f32>>,
+        T: Into<mint::Point3<f32>>,
+    {
+        use cgmath::{InnerSpace, Point3, Quaternion, Rotation, Vector3};
+        let p: [mint::Point3<f32>; 2] = [eye.into(), target.into()];
+        let dir = (Point3::from(p[0]) - Point3::from(p[1])).normalize();
+        let z = Vector3::unit_z();
+        let up = match up {
+            Some(v) => Vector3::from(v).normalize(),
+            None if dir.dot(z).abs() < 0.99 => z,
+            None => Vector3::unit_y(),
+        };
+        let q = Quaternion::look_at(dir, up).invert();
+        self.set_transform(p[0], q, 1.0);
     }
 }
 
@@ -137,113 +153,21 @@ impl fmt::Debug for Base {
 }
 
 impl Base {
-    /// Invisible objects are not rendered by cameras.
-    pub fn set_visible(
+    pub(crate) fn send(
         &self,
-        visible: bool,
+        operation: Operation,
     ) {
-        let msg = Operation::SetVisible(visible);
-        let _ = self.tx.send((self.node.downgrade(), msg));
-    }
-
-    /// Rotates object in the specific direction of `target`.
-    pub fn look_at<E, T>(
-        &self,
-        eye: E,
-        target: T,
-        up: Option<mint::Vector3<f32>>,
-    ) where
-        E: Into<mint::Point3<f32>>,
-        T: Into<mint::Point3<f32>>,
-    {
-        use cgmath::{InnerSpace, Point3, Quaternion, Rotation, Vector3};
-        let p: [mint::Point3<f32>; 2] = [eye.into(), target.into()];
-        let dir = (Point3::from(p[0]) - Point3::from(p[1])).normalize();
-        let z = Vector3::unit_z();
-        let up = match up {
-            Some(v) => Vector3::from(v).normalize(),
-            None if dir.dot(z).abs() < 0.99 => z,
-            None => Vector3::unit_y(),
-        };
-        let q = Quaternion::look_at(dir, up).invert();
-        self.set_transform(p[0], q, 1.0);
-    }
-
-    /// Set both position, orientation and scale.
-    pub fn set_transform<P, Q>(
-        &self,
-        pos: P,
-        rot: Q,
-        scale: f32,
-    ) where
-        P: Into<mint::Point3<f32>>,
-        Q: Into<mint::Quaternion<f32>>,
-    {
-        let msg = Operation::SetTransform(Some(pos.into()), Some(rot.into()), Some(scale));
-        let _ = self.tx.send((self.node.downgrade(), msg));
-    }
-
-    /// Set position.
-    pub fn set_position<P>(
-        &self,
-        pos: P,
-    ) where
-        P: Into<mint::Point3<f32>>,
-    {
-        let msg = Operation::SetTransform(Some(pos.into()), None, None);
-        let _ = self.tx.send((self.node.downgrade(), msg));
-    }
-
-    /// Set orientation.
-    pub fn set_orientation<Q>(
-        &self,
-        rot: Q,
-    ) where
-        Q: Into<mint::Quaternion<f32>>,
-    {
-        let msg = Operation::SetTransform(None, Some(rot.into()), None);
-        let _ = self.tx.send((self.node.downgrade(), msg));
-    }
-
-    /// Set scale.
-    pub fn set_scale(
-        &self,
-        scale: f32,
-    ) {
-        let msg = Operation::SetTransform(None, None, Some(scale));
-        let _ = self.tx.send((self.node.downgrade(), msg));
-    }
-
-    pub fn set_weights(
-        &mut self,
-        weights: [DisplacementContribution; MAX_TARGETS]
-    ) {
-        let msg = Operation::SetWeights(weights);
-        let _ = self.tx.send((self.node.downgrade(), msg));
-    }
-    
-    /// Get actual information about itself from the `scene`.
-    /// # Panics
-    /// Panics if `scene` doesn't have this `Base`.
-    pub fn sync(
-        &mut self,
-        scene: &Scene,
-    ) -> Node {
-        let mut hub = scene.hub.lock().unwrap();
-        hub.process_messages();
-        hub.update_graph();
-        let node = &hub.nodes[&self.node];
-        let root = &hub.nodes[&scene.object.node];
-        assert_eq!(node.scene_id, root.scene_id);
-        node.to_node()
+        let _ = self.tx.send((self.node.downgrade(), operation));
     }
 }
 
+// Required for `Base` to implement `trait Object`.
 impl AsRef<Base> for Base {
     fn as_ref(&self) -> &Base {
         self
     }
 }
+impl Object for Base {}
 
 /// Groups are used to combine several other objects or groups to work with them
 /// as with a single entity.
@@ -261,25 +185,21 @@ impl Group {
         }
     }
 
-    /// Add new [`Base`](struct.Base.html) to the group.
-    pub fn add<P>(
+    /// Add new [`Object`](trait.Object.html) to the group.
+    pub fn add<T: Object>(
         &self,
-        child: P,
-    ) where
-        P: AsRef<Base>,
-    {
-        let msg = Operation::AddChild(child.as_ref().node.clone());
-        let _ = self.object.tx.send((self.object.node.downgrade(), msg));
+        child: &T,
+    ) {
+        let node = child.as_ref().node.clone();
+        self.as_ref().send(Operation::AddChild(node));
     }
 
-    /// Removes a child [`Base`](struct.Base.html) from the group.
-    pub fn remove<P>(
+    /// Removes a child [`Object`](trait.Object.html) from the group.
+    pub fn remove<T: Object>(
         &self,
-        child: P,
-    ) where
-        P: AsRef<Base>,
-    {
-        let msg = Operation::RemoveChild(child.as_ref().node.clone());
-        let _ = self.object.tx.send((self.object.node.downgrade(), msg));
+        child: &T,
+    ) {
+        let node = child.as_ref().node.clone();
+        self.as_ref().send(Operation::RemoveChild(node));
     }
 }

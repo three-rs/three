@@ -18,6 +18,7 @@ use std::{fs, io};
 use camera::Camera;
 use gltf::Gltf;
 use gltf_utils::AccessorIter;
+use mesh::{Target, MAX_TARGETS};
 use object::Object;
 use skeleton::Skeleton;
 use std::path::{Path, PathBuf};
@@ -231,16 +232,59 @@ fn load_meshes(
     materials: &[Material],
     buffers: &gltf_importer::Buffers,
 ) -> VecMap<Vec<Mesh>> {
+    fn load_morph_targets(
+        primitive: &gltf::Primitive,
+        buffers: &gltf_importer::Buffers,
+    ) -> (geometry::MorphTargets, [Target; MAX_TARGETS], usize) {
+        let mut vertices = Vec::new();
+        let mut normals = Vec::new();
+        let mut tangents = Vec::new();
+        let mut targets = [Target::None; MAX_TARGETS];
+        let mut i = 0;
+        for target in primitive.morph_targets() {
+            if let Some(accessor) = target.positions() {
+                targets[i] = Target::Position;
+                i += 1;
+                let iter = AccessorIter::<[f32; 3]>::new(accessor, buffers);
+                vertices.extend(iter.map(|x| mint::Vector3::<f32>::from(x)));
+            }
+
+            if let Some(accessor) = target.normals() {
+                targets[i] = Target::Normal;
+                i += 1;
+                let iter = AccessorIter::<[f32; 3]>::new(accessor, buffers);
+                normals.extend(iter.map(|x| mint::Vector3::<f32>::from(x)));
+            }
+
+            if let Some(accessor) = target.tangents() {
+                targets[i] = Target::Tangent;
+                i += 1;
+                let iter = AccessorIter::<[f32; 3]>::new(accessor, buffers);
+                tangents.extend(iter.map(|x| mint::Vector3::<f32>::from(x)));
+            }
+        }
+
+        (
+            geometry::MorphTargets {
+                names: VecMap::new(),
+                vertices,
+                normals,
+                tangents,
+            },
+            targets,
+            i,
+        )
+    }
+    
     let mut meshes = VecMap::new();
     for mesh in gltf.meshes() {
         let mut primitives = Vec::new();
         for primitive in mesh.primitives() {
             use gltf_utils::PrimitiveIterators;
+            use itertools::Itertools;
             let mut faces = vec![];
             if let Some(mut iter) = primitive.indices_u32(buffers) {
-                while let (Some(a), Some(b), Some(c)) = (iter.next(), iter.next(), iter.next()) {
-                    faces.push([a, b, c]);
-                }
+                faces.extend(iter.tuples().map(|(a, b, c)| [a, b, c]));
             }
             let vertices: Vec<mint::Point3<f32>> = primitive
                 .positions(buffers)
@@ -262,16 +306,17 @@ fn load_meshes(
             } else {
                 Vec::new()
             };
-            let joints = if let Some(iter) = primitive.joints_u16(0, buffers) {
-                iter.map(|x| [x[0] as f32, x[1] as f32, x[2] as f32, x[3] as f32]).collect()
+            let joint_indices = if let Some(iter) = primitive.joints_u16(0, buffers) {
+                iter.map(|x| [x[0] as i32, x[1] as i32, x[2] as i32, x[3] as i32]).collect()
             } else {
                 Vec::new()
             };
-            let weights = if let Some(iter) = primitive.weights_f32(0, buffers) {
+            let joint_weights = if let Some(iter) = primitive.weights_f32(0, buffers) {
                 iter.collect()
             } else {
                 Vec::new()
             };
+            let (morph_targets, mesh_targets, nr_targets) = load_morph_targets(&primitive, &buffers);
             let geometry = Geometry {
                 vertices,
                 normals,
@@ -281,6 +326,7 @@ fn load_meshes(
                     indices: joint_indices,
                     weights: joint_weights,
                 },
+                morph_targets,
                 faces,
                 ..Geometry::empty()
             };
@@ -292,7 +338,12 @@ fn load_meshes(
                     map: None,
                 }.into()
             };
-            primitives.push(factory.mesh(geometry, material));
+            let mesh = if nr_targets > 0 {
+                factory.mesh_with_targets(geometry, material, mesh_targets)
+            } else {
+                factory.mesh(geometry, material)
+            };
+            primitives.push(mesh);
         }
         meshes.insert(mesh.index(), primitives);
     }
@@ -380,10 +431,50 @@ fn load_clips(
                     (Binding::Scale, Values::Scalar(values))
                 }
                 gltf::animation::TrsProperty::Weights => {
-                    let values = AccessorIter::<f32>::new(output, buffers)
-                        .collect::<Vec<_>>();
-                    assert_eq!(values.len(), times.len());
-                    (Binding::Weight(unimplemented!()), Values::Scalar(values))
+                    // Note
+                    //
+                    // The number of morph targets in glTF usually differs from the number of
+                    // morph targets in three-rs since where glTF sets a single weight for one set
+                    // of targets { POSITION, NORMAL, TANGENT }, three-rs expects separate weights
+                    // for each of POSITION, NORMAL, TANGENT in the same set.
+                    //
+                    // This array keeps track of how many times a weight needs to be duplicated
+                    // to reflect the above.
+                    let mut nr_three_targets_per_gltf_target = [0; MAX_TARGETS];
+                    let mut nr_three_targets = 0;
+                    let nr_gltf_targets;
+                    {
+                        let mesh = node.mesh().unwrap();
+                        let first_primitive = mesh.primitives().next().unwrap();
+                        nr_gltf_targets = first_primitive.morph_targets().len();
+                        for (i, target) in first_primitive.morph_targets().enumerate() {
+                            if target.positions().is_some() {
+                                nr_three_targets_per_gltf_target[i] += 1;
+                                nr_three_targets += 1;
+                            }
+                            if target.normals().is_some() {
+                                nr_three_targets_per_gltf_target[i] += 1;
+                                nr_three_targets += 1;
+                            }
+                            if target.tangents().is_some() {
+                                nr_three_targets_per_gltf_target[i] += 1;
+                                nr_three_targets += 1;
+                            }
+                        }
+                    }
+                    let mut values = Vec::with_capacity(times.len() * MAX_TARGETS);
+                    let raw = AccessorIter::<f32>::new(output, buffers).collect::<Vec<_>>();
+                    for chunk in raw.chunks(nr_gltf_targets) {
+                        for (i, value) in chunk.iter().enumerate() {
+                            for _ in 0 .. nr_three_targets_per_gltf_target[i] {
+                                values.push(*value)
+                            }
+                        }
+                        for _ in nr_three_targets .. MAX_TARGETS {
+                            values.push(0.0);
+                        }
+                    }
+                    (Binding::Weights, Values::Scalar(values))
                 }
             };
             tracks.push((

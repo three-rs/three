@@ -105,17 +105,16 @@
 
 use cgmath;
 use froggy;
-use mesh;
+use mesh::MAX_TARGETS;
 use mint;
-use object;
+use object::{Base, Object};
 use std::hash::{Hash, Hasher};
 use std::sync::mpsc;
 
 use mint::IntraXYZ as IntraXyz;
-use render::DisplacementContribution;
 
 /// A target of an animation.
-pub type Target = object::Base;
+pub type Target = Base;
 
 /// Describes the interpolation behaviour between keyframes.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -188,13 +187,13 @@ pub enum Binding {
     /// [`Scalar`]: enum.Values.html#variant.Scalar
     Scale,
 
-    /// Targets the weight property of an [`Object`].
+    /// Targets the weights property of an [`Object`].
     ///
     /// The corresponding keyframe values must be [`Scalar`].
     ///
     /// [`Object`]: ../object/trait.Object.html
     /// [`Scalar`]: enum.Values.html#variant.Scalar
-    Weight(mesh::Target),
+    Weights,
 }
 
 /// An index into the frames of a track.
@@ -456,7 +455,7 @@ impl ActionData {
 
         self.local_time += delta_time * self.local_time_scale;
         let mut finish_count = 0;
-        for &mut (ref track, ref mut target) in self.clip.tracks.iter_mut() {
+        for &(ref track, ref target) in self.clip.tracks.iter() {
             let frame_index = match track.frame_at_time(self.local_time) {
                 FrameRef::Unstarted => continue,
                 FrameRef::Ended => {
@@ -491,12 +490,14 @@ impl ActionData {
                         ))
                     };
                     let update = frame_start_value.slerp(frame_end_value, s);
+                    use Object;
                     target.set_orientation(update);
                 }
                 (Binding::Orientation, &Values::Quaternion(ref values)) => {
                     let frame_start_value: cgmath::Quaternion<f32> = values[frame_index].into();
                     let frame_end_value: cgmath::Quaternion<f32> = values[frame_index + 1].into();
                     let update = frame_start_value.slerp(frame_end_value, s);
+                    use Object;
                     target.set_orientation(update);
                 }
                 (Binding::Position, &Values::Vector3(ref values)) => {
@@ -513,16 +514,12 @@ impl ActionData {
                     target.set_scale(update); 
                 }
                 (Binding::Weights, &Values::Scalar(ref values)) => {
-                    let mut update = [DisplacementContribution::default(); MAX_TARGETS];
+                    let mut update = [0.0; MAX_TARGETS];
                     for i in 0 .. MAX_TARGETS {
                         let frame_start_value = values[MAX_TARGETS * frame_index + i];
                         let frame_end_value = values[MAX_TARGETS * (frame_index + 1) + i];
                         let weight = frame_start_value * (1.0 - s) + frame_end_value * s;
-                        // TODO
-                        update[i].position = 1.0;
-                        update[i].normal = 0.0;
-                        update[i].tangent = 0.0;
-                        update[i].weight = weight;
+                        update[i] = weight;
                     }
                     target.set_weights(update);
                 }

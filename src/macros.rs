@@ -42,12 +42,6 @@ macro_rules! three_object {
             }
         }
 
-        impl AsMut<$crate::object::Base> for $name {
-            fn as_mut(&mut self) -> &mut $crate::object::Base {
-                &mut self.$field
-            }
-        }
-
         impl $crate::Object for $name {}
     };
 }

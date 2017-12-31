@@ -29,6 +29,7 @@ const int NORMAL_MAP              = 1 << 1;
 const int METALLIC_ROUGHNESS_MAP  = 1 << 2;
 const int EMISSIVE_MAP            = 1 << 3;
 const int OCCLUSION_MAP           = 1 << 4;
+const int DISPLACEMENT_BUFFER     = 1 << 5;
 
 uniform sampler2D u_BaseColorSampler;
 uniform sampler2D u_NormalSampler;

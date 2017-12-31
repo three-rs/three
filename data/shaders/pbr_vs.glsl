@@ -20,14 +20,16 @@
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #version 150 core
+#define MAX_TARGETS 8U
 #include <globals>
-#include <morph_targets>
+
+const int DISPLACEMENT_BUFFER = 1 << 5;
 
 in vec4 a_Position;
 in vec2 a_TexCoord;
 in vec4 a_Normal;
 in vec4 a_Tangent;
-in vec4 a_JointIndices;
+in ivec4 a_JointIndices;
 in vec4 a_JointWeights;
 
 out vec3 v_Position;
@@ -38,9 +40,6 @@ out vec3 v_Normal;
 in vec4 i_World0;
 in vec4 i_World1;
 in vec4 i_World2;
-in vec4 i_MatParams;
-in vec4 i_Color;
-in vec4 i_UvRange;
 
 // Toggles displacement contributions to `a_Position/a_Normal/a_Tangent`.
 struct DisplacementContribution {
@@ -52,10 +51,21 @@ struct DisplacementContribution {
 };
 
 layout(std140) uniform b_DisplacementContributions {
-    DisplacementContribution u_DisplacementContributions[8];
+    DisplacementContribution u_DisplacementContributions[MAX_TARGETS];
+};
+
+layout(std140) uniform b_PbrParams {
+    vec4 u_BaseColorFactor;
+    vec3 u_Camera;
+    vec3 u_EmissiveFactor;
+    vec2 u_MetallicRoughnessValues;
+    float u_NormalScale;
+    float u_OcclusionStrength;
+    int u_PbrFlags;
 };
 
 uniform samplerBuffer b_JointTransforms;
+uniform samplerBuffer b_Displacements;
 
 mat4 fetch_joint_transform(int i)
 {
@@ -67,61 +77,68 @@ mat4 fetch_joint_transform(int i)
     return mat4(col0, col1, col2, col3);
 }
 
+vec3 fetch_displacement(uint i)
+{
+    int index = gl_VertexID * int(MAX_TARGETS) + int(i);
+    vec4 texel = texelFetch(b_Displacements, index);
+
+    return texel.xyz;
+}
+
 mat4 compute_skin_transform()
 {
     return
-	a_JointWeights.x * fetch_joint_transform(int(a_JointIndices.x)) +
-	a_JointWeights.y * fetch_joint_transform(int(a_JointIndices.y)) +
-	a_JointWeights.z * fetch_joint_transform(int(a_JointIndices.z)) +
-	a_JointWeights.w * fetch_joint_transform(int(a_JointIndices.w));
+	a_JointWeights.x * fetch_joint_transform(a_JointIndices.x) +
+	a_JointWeights.y * fetch_joint_transform(a_JointIndices.y) +
+	a_JointWeights.z * fetch_joint_transform(a_JointIndices.z) +
+	a_JointWeights.w * fetch_joint_transform(a_JointIndices.w);
 }
 
 vec4 compute_local_position()
 {
     vec4 position = a_Position;
 
-    position.xyz += u_DisplacementContributions[0].position * u_DisplacementContributions[0].weight * a_Displacement0.xyz;
-    position.xyz += u_DisplacementContributions[1].position * u_DisplacementContributions[1].weight * a_Displacement1.xyz;
-    position.xyz += u_DisplacementContributions[2].position * u_DisplacementContributions[2].weight * a_Displacement2.xyz;
-    position.xyz += u_DisplacementContributions[3].position * u_DisplacementContributions[3].weight * a_Displacement3.xyz;
-    position.xyz += u_DisplacementContributions[4].position * u_DisplacementContributions[4].weight * a_Displacement4.xyz;
-    position.xyz += u_DisplacementContributions[5].position * u_DisplacementContributions[5].weight * a_Displacement5.xyz;
-    position.xyz += u_DisplacementContributions[6].position * u_DisplacementContributions[6].weight * a_Displacement6.xyz;
-    position.xyz += u_DisplacementContributions[7].position * u_DisplacementContributions[7].weight * a_Displacement7.xyz;
+    for (uint i = 0U; i < MAX_TARGETS; ++i) {
+	position.xyz +=
+	    u_DisplacementContributions[i].position
+	    * u_DisplacementContributions[i].weight
+	    * fetch_displacement(i);
+    }
 
     return position;
 }
 
-vec3 compute_world_normal()
+vec3 compute_local_normal()
 {
     vec3 normal = a_Normal.xyz;
 
-    normal += u_DisplacementContributions[0].normal * u_DisplacementContributions[0].weight * a_Displacement0.xyz;
-    normal += u_DisplacementContributions[1].normal * u_DisplacementContributions[1].weight * a_Displacement1.xyz;
-    normal += u_DisplacementContributions[2].normal * u_DisplacementContributions[2].weight * a_Displacement2.xyz;
-    normal += u_DisplacementContributions[3].normal * u_DisplacementContributions[3].weight * a_Displacement3.xyz;
-    normal += u_DisplacementContributions[4].normal * u_DisplacementContributions[4].weight * a_Displacement4.xyz;
-    normal += u_DisplacementContributions[5].normal * u_DisplacementContributions[5].weight * a_Displacement5.xyz;
-    normal += u_DisplacementContributions[6].normal * u_DisplacementContributions[6].weight * a_Displacement6.xyz;
-    normal += u_DisplacementContributions[7].normal * u_DisplacementContributions[7].weight * a_Displacement7.xyz;
+    for (uint i = 0U; i < MAX_TARGETS; ++i) {
+	normal +=
+	    u_DisplacementContributions[i].normal
+	    * u_DisplacementContributions[i].weight
+	    * fetch_displacement(i);
+    }
 
-    return normalize(vec3(u_World * vec4(normal, 0.0)));
+    return normal;
 }
 
-vec3 compute_world_tangent()
+vec3 compute_local_tangent()
 {
     vec3 tangent = a_Tangent.xyz;
 
-    tangent += u_DisplacementContributions[0].tangent * u_DisplacementContributions[0].weight * a_Displacement0.xyz;
-    tangent += u_DisplacementContributions[1].tangent * u_DisplacementContributions[1].weight * a_Displacement1.xyz;
-    tangent += u_DisplacementContributions[2].tangent * u_DisplacementContributions[2].weight * a_Displacement2.xyz;
-    tangent += u_DisplacementContributions[3].tangent * u_DisplacementContributions[3].weight * a_Displacement3.xyz;
-    tangent += u_DisplacementContributions[4].tangent * u_DisplacementContributions[4].weight * a_Displacement4.xyz;
-    tangent += u_DisplacementContributions[5].tangent * u_DisplacementContributions[5].weight * a_Displacement5.xyz;
-    tangent += u_DisplacementContributions[6].tangent * u_DisplacementContributions[6].weight * a_Displacement6.xyz;
-    tangent += u_DisplacementContributions[7].tangent * u_DisplacementContributions[7].weight * a_Displacement7.xyz;
+    for (uint i = 0U; i < MAX_TARGETS; ++i) {
+	tangent +=
+	    u_DisplacementContributions[i].tangent
+	    * u_DisplacementContributions[i].weight
+	    * fetch_displacement(i);
+    }
 
-    return normalize(vec3(u_World * vec4(tangent, 0.0)));
+    return tangent;
+}
+
+bool available(int flag)
+{
+    return (u_PbrFlags & flag) == flag;
 }
 
 void main()
@@ -130,10 +147,22 @@ void main()
     mat4 mx_mvp = u_ViewProj * mx_world;
     mat4 mx_skin = compute_skin_transform();
 
-    vec4 local_position = compute_local_position();
+    vec4 local_position;
+    vec3 local_normal;
+    vec3 local_tangent;
+    if (available(DISPLACEMENT_BUFFER)) {
+	local_position = compute_local_position();
+	local_normal = compute_local_normal();
+	local_tangent = compute_local_tangent();
+    } else {
+	local_position = a_Position;
+	local_normal = a_Normal.xyz;
+	local_tangent = a_Tangent.xyz;
+    }
+
     vec4 world_position = mx_world * local_position;
-    vec3 world_normal = compute_world_normal();
-    vec3 world_tangent = compute_world_tangent();
+    vec3 world_normal = normalize(vec3(mx_world * vec4(local_normal, 0.0)));
+    vec3 world_tangent = normalize(vec3(mx_world * vec4(local_tangent, 0.0)));
     vec3 world_bitangent = cross(world_normal, world_tangent) * a_Tangent.w;
 
     v_Tbn = mat3(world_tangent, world_bitangent, world_normal);

@@ -301,7 +301,6 @@ pub mod custom;
 mod data;
 mod factory;
 pub mod geometry;
-mod group;
 mod hub;
 mod input;
 pub mod light;
@@ -316,6 +315,7 @@ mod sprite;
 mod text;
 mod texture;
 mod util;
+
 #[cfg(feature = "opengl")]
 pub mod window;
 
