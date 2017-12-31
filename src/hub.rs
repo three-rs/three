@@ -5,11 +5,10 @@ use material::{self, Material};
 use mesh::{DynamicMesh, MAX_TARGETS, Target};
 use node::{NodeInternal, NodePointer};
 use object;
-use render::{BackendResources, DisplacementContribution, GpuData};
+use render::{BackendResources, GpuData};
 use skeleton::{Bone, Skeleton};
 use text::{Operation as TextOperation, TextData};
 
-use arrayvec::ArrayVec;
 use cgmath::Transform;
 use froggy;
 use gfx;
@@ -83,9 +82,9 @@ pub(crate) enum Operation {
     SetMaterial(Material),
     SetSkeleton(Skeleton),
     SetShadow(ShadowMap, ShadowProjection),
-    SetTargets(ArrayVec<[Target; MAX_TARGETS]>),
+    SetTargets([Target; MAX_TARGETS]),
     SetTexelRange(mint::Point2<i16>, mint::Vector2<u16>),
-    SetWeights([DisplacementContribution; MAX_TARGETS]),
+    SetWeights([f32; MAX_TARGETS]),
 }
 
 pub(crate) type HubPtr = Arc<Mutex<Hub>>;
@@ -249,14 +248,58 @@ impl Hub {
                     }
                 },
                 Operation::SetTargets(targets) => {
-                    println!("Not yet implemented!");
+                    if let SubNode::Visual(_, ref mut gpu_data, _) = self.nodes[&ptr].sub_node {
+                        for i in 0 .. MAX_TARGETS {
+                            match targets[i] {
+                                Target::Position => {
+                                    gpu_data.displacement_contributions[i].position = 1.0;
+                                    gpu_data.displacement_contributions[i].normal = 0.0;
+                                    gpu_data.displacement_contributions[i].tangent = 0.0;
+                                }
+                                Target::Normal => {
+                                    gpu_data.displacement_contributions[i].position = 0.0;
+                                    gpu_data.displacement_contributions[i].normal = 1.0;
+                                    gpu_data.displacement_contributions[i].tangent = 0.0;
+                                }
+                                Target::Tangent => {
+                                    gpu_data.displacement_contributions[i].position = 0.0;
+                                    gpu_data.displacement_contributions[i].normal = 0.0;
+                                    gpu_data.displacement_contributions[i].tangent = 1.0;
+                                }
+                                Target::None => {
+                                    gpu_data.displacement_contributions[i].position = 0.0;
+                                    gpu_data.displacement_contributions[i].normal = 0.0;
+                                    gpu_data.displacement_contributions[i].tangent = 0.0;
+                                }
+                            }
+                        }
+                    }
                 },
                 Operation::SetWeights(weights) => {
-                    match self.nodes[&ptr].sub_node {
-                        SubNode::Visual(_, ref mut gpu_data, _) => {
-                            gpu_data.displacement_contributions = weights;
+                    fn set_weights(gpu_data: &mut GpuData, weights: [f32; MAX_TARGETS]) {
+                        for i in 0 .. MAX_TARGETS {
+                            gpu_data.displacement_contributions[i].weight = weights[i];
                         }
-                        _ => println!("Not yet implemented!"),
+                    }
+
+                    // Hack around borrow checker rules:
+                    // if
+                    {
+                        if let SubNode::Visual(_, ref mut gpu_data, _) = self.nodes[&ptr].sub_node {
+                            set_weights(gpu_data, weights);
+                            continue;
+                        }
+                    }
+                    // else
+                    {
+                        for item in self.nodes.iter_mut() {
+                            let update = item.parent.as_ref() == Some(&ptr);
+                            if update {
+                                if let SubNode::Visual(_, ref mut gpu_data, _) = item.sub_node {
+                                    set_weights(gpu_data, weights);
+                                }
+                            }
+                        }
                     }
                 }
             }
