@@ -20,10 +20,10 @@ fn main() {
     }
 
     let mut camera = window.factory.perspective_camera(60.0, 0.1 .. 100.0);
-    camera.set_position([0.0, 1.0, 9.5]);
+    camera.set_position([0.0, 1.0, 0.2]);
 
     let mut controls = three::controls::Orbit::builder(&camera)
-        .position([0.0, 1.0, 9.5])
+        .position([0.0, 1.0, 0.2])
         .target([0.0, 0.0, 0.0])
         .build();
     

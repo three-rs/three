@@ -34,7 +34,7 @@ use light::{Ambient, Directional, Hemisphere, Point, ShadowMap};
 use material::Material;
 use mesh::{DynamicMesh, Mesh};
 use object::Object;
-use render::{basic_pipe, BackendFactory, BackendResources, BasicPipelineState, DynamicData, GpuData, ShadowFormat, Vertex, DEFAULT_VERTEX, ZEROED_DISPLACEMENT_WEIGHTS};
+use render::{basic_pipe, BackendFactory, BackendResources, BasicPipelineState, DynamicData, GpuData, ShadowFormat, Vertex, DEFAULT_VERTEX, ZEROED_DISPLACEMENT_CONTRIBUTION};
 use scene::Scene;
 use sprite::Sprite;
 use skeleton::{Bone, Skeleton};
@@ -364,7 +364,7 @@ impl Factory {
                     vertices: vbuf,
                     constants: cbuf,
                     pending: None,
-                    displacement_weights: ZEROED_DISPLACEMENT_WEIGHTS,
+                    displacement_contributions: ZEROED_DISPLACEMENT_CONTRIBUTION,
                 },
                 None,
             ),
@@ -413,7 +413,7 @@ impl Factory {
                     vertices,
                     constants,
                     pending: None,
-                    displacement_weights: ZEROED_DISPLACEMENT_WEIGHTS,
+                    displacement_contributions: ZEROED_DISPLACEMENT_CONTRIBUTION,
                 },
                 None,
             ),
@@ -481,7 +481,7 @@ impl Factory {
                 vertices: self.quad_buf.clone(),
                 constants: self.backend.create_constant_buffer(1),
                 pending: None,
-                displacement_weights: ZEROED_DISPLACEMENT_WEIGHTS,
+                displacement_contributions: ZEROED_DISPLACEMENT_CONTRIBUTION,
             },
             None,
         ))
@@ -981,7 +981,7 @@ impl Factory {
                             vertices: vbuf,
                             constants: cbuf,
                             pending: None,
-                            displacement_weights: ZEROED_DISPLACEMENT_WEIGHTS,
+                            displacement_contributions: ZEROED_DISPLACEMENT_CONTRIBUTION,
                         },
                         None,
                     ),

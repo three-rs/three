@@ -44,16 +44,24 @@ out vec2 v_TexCoord;
 out mat3 v_Tbn;
 out vec3 v_Normal;
 
-struct DisplacementWeights {
-    // weights.x => POSITION
-    // weights.y => NORMAL
-    // weights.z => TANGENT
-    // weights.w => 0.0
-    vec4 weights;
+// Toggles displacement contributions to `a_Position/a_Normal/a_Tangent`.
+//
+// Every entry is either `1.0` or `0.0` representing on/off state respectively.
+//
+// Each of `m.{x, y, z}` are mutually exclusive; that is, if `m.x = 1.0`
+// then `m.yz == {0.0, 0.0}` et cetera.
+//
+// `m.w` is the weight to be applied.
+struct DisplacementContribution {
+    // position: 1.0 if morph target weights should influence a_Position
+    // normal: 1.0 if morph target weights should influence a_Normal
+    // tangent: 1.0 if morph target weights should influence a_Tangent
+    // weight: The weight to be applied.
+    float position, normal, tangent, weight;
 };
 
-layout(std140) uniform b_DisplacementWeights {
-    DisplacementWeights u_DisplacementWeights[8];
+layout(std140) uniform b_DisplacementContributions {
+    DisplacementContribution u_DisplacementContributions[8];
 };
 
 uniform samplerBuffer b_JointTransforms;
@@ -81,14 +89,14 @@ vec4 compute_local_position()
 {
     vec4 position = a_Position;
 
-    position.xyz += u_DisplacementWeights[0].weights.x * a_Displacement0.xyz;
-    position.xyz += u_DisplacementWeights[1].weights.x * a_Displacement1.xyz;
-    position.xyz += u_DisplacementWeights[2].weights.x * a_Displacement2.xyz;
-    position.xyz += u_DisplacementWeights[3].weights.x * a_Displacement3.xyz;
-    position.xyz += u_DisplacementWeights[4].weights.x * a_Displacement4.xyz;
-    position.xyz += u_DisplacementWeights[5].weights.x * a_Displacement5.xyz;
-    position.xyz += u_DisplacementWeights[6].weights.x * a_Displacement6.xyz;
-    position.xyz += u_DisplacementWeights[7].weights.x * a_Displacement7.xyz;
+    position.xyz += u_DisplacementContributions[0].position * u_DisplacementContributions[0].weight * a_Displacement0.xyz;
+    position.xyz += u_DisplacementContributions[1].position * u_DisplacementContributions[1].weight * a_Displacement1.xyz;
+    position.xyz += u_DisplacementContributions[2].position * u_DisplacementContributions[2].weight * a_Displacement2.xyz;
+    position.xyz += u_DisplacementContributions[3].position * u_DisplacementContributions[3].weight * a_Displacement3.xyz;
+    position.xyz += u_DisplacementContributions[4].position * u_DisplacementContributions[4].weight * a_Displacement4.xyz;
+    position.xyz += u_DisplacementContributions[5].position * u_DisplacementContributions[5].weight * a_Displacement5.xyz;
+    position.xyz += u_DisplacementContributions[6].position * u_DisplacementContributions[6].weight * a_Displacement6.xyz;
+    position.xyz += u_DisplacementContributions[7].position * u_DisplacementContributions[7].weight * a_Displacement7.xyz;
 
     return position;
 }
@@ -97,14 +105,14 @@ vec3 compute_world_normal()
 {
     vec3 normal = a_Normal.xyz;
 
-    normal.xyz += u_DisplacementWeights[0].weights.y * a_Displacement0.xyz;
-    normal.xyz += u_DisplacementWeights[1].weights.y * a_Displacement1.xyz;
-    normal.xyz += u_DisplacementWeights[2].weights.y * a_Displacement2.xyz;
-    normal.xyz += u_DisplacementWeights[3].weights.y * a_Displacement3.xyz;
-    normal.xyz += u_DisplacementWeights[4].weights.y * a_Displacement4.xyz;
-    normal.xyz += u_DisplacementWeights[5].weights.y * a_Displacement5.xyz;
-    normal.xyz += u_DisplacementWeights[6].weights.y * a_Displacement6.xyz;
-    normal.xyz += u_DisplacementWeights[7].weights.y * a_Displacement7.xyz;
+    normal += u_DisplacementContributions[0].normal * u_DisplacementContributions[0].weight * a_Displacement0.xyz;
+    normal += u_DisplacementContributions[1].normal * u_DisplacementContributions[1].weight * a_Displacement1.xyz;
+    normal += u_DisplacementContributions[2].normal * u_DisplacementContributions[2].weight * a_Displacement2.xyz;
+    normal += u_DisplacementContributions[3].normal * u_DisplacementContributions[3].weight * a_Displacement3.xyz;
+    normal += u_DisplacementContributions[4].normal * u_DisplacementContributions[4].weight * a_Displacement4.xyz;
+    normal += u_DisplacementContributions[5].normal * u_DisplacementContributions[5].weight * a_Displacement5.xyz;
+    normal += u_DisplacementContributions[6].normal * u_DisplacementContributions[6].weight * a_Displacement6.xyz;
+    normal += u_DisplacementContributions[7].normal * u_DisplacementContributions[7].weight * a_Displacement7.xyz;
 
     return normalize(vec3(u_World * vec4(normal, 0.0)));
 }
@@ -113,14 +121,14 @@ vec3 compute_world_tangent()
 {
     vec3 tangent = a_Tangent.xyz;
 
-    tangent.xyz += u_DisplacementWeights[0].weights.z * a_Displacement0.xyz;
-    tangent.xyz += u_DisplacementWeights[1].weights.z * a_Displacement1.xyz;
-    tangent.xyz += u_DisplacementWeights[2].weights.z * a_Displacement2.xyz;
-    tangent.xyz += u_DisplacementWeights[3].weights.z * a_Displacement3.xyz;
-    tangent.xyz += u_DisplacementWeights[4].weights.z * a_Displacement4.xyz;
-    tangent.xyz += u_DisplacementWeights[5].weights.z * a_Displacement5.xyz;
-    tangent.xyz += u_DisplacementWeights[6].weights.z * a_Displacement6.xyz;
-    tangent.xyz += u_DisplacementWeights[7].weights.z * a_Displacement7.xyz;
+    tangent += u_DisplacementContributions[0].tangent * u_DisplacementContributions[0].weight * a_Displacement0.xyz;
+    tangent += u_DisplacementContributions[1].tangent * u_DisplacementContributions[1].weight * a_Displacement1.xyz;
+    tangent += u_DisplacementContributions[2].tangent * u_DisplacementContributions[2].weight * a_Displacement2.xyz;
+    tangent += u_DisplacementContributions[3].tangent * u_DisplacementContributions[3].weight * a_Displacement3.xyz;
+    tangent += u_DisplacementContributions[4].tangent * u_DisplacementContributions[4].weight * a_Displacement4.xyz;
+    tangent += u_DisplacementContributions[5].tangent * u_DisplacementContributions[5].weight * a_Displacement5.xyz;
+    tangent += u_DisplacementContributions[6].tangent * u_DisplacementContributions[6].weight * a_Displacement6.xyz;
+    tangent += u_DisplacementContributions[7].tangent * u_DisplacementContributions[7].weight * a_Displacement7.xyz;
 
     return normalize(vec3(u_World * vec4(tangent, 0.0)));
 }

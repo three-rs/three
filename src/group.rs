@@ -1,5 +1,3 @@
-use hub::Operation;
-use mesh::MAX_TARGETS;
 use object::Base;
 
 /// Groups are used to combine several other objects or groups to work with
@@ -13,15 +11,5 @@ three_object!(Group::object);
 impl Group {
     pub(crate) fn new(object: Base) -> Self {
         Group { object }
-    }
-
-    /// Applies morph target weights to the direct mesh descendents of the
-    /// group.
-    pub fn set_weights(
-        &mut self,
-        weights: [f32; MAX_TARGETS],
-    ) {
-        let msg = Operation::SetWeights(weights);
-        let _ = self.object.tx.send((self.object.node.downgrade(), msg));
     }
 }

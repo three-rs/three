@@ -113,17 +113,17 @@ impl Default for Vertex {
     }
 }
 
-/// Set of zero valued displacement weights which cause vertex attributes
+/// Set of zero valued displacement contribution which cause vertex attributes
 /// to be unchanged by morph targets.
-pub const ZEROED_DISPLACEMENT_WEIGHTS: [DisplacementWeights; MAX_TARGETS] = [
-    DisplacementWeights { weights: [0.0; 4] },
-    DisplacementWeights { weights: [0.0; 4] },
-    DisplacementWeights { weights: [0.0; 4] },
-    DisplacementWeights { weights: [0.0; 4] },
-    DisplacementWeights { weights: [0.0; 4] },
-    DisplacementWeights { weights: [0.0; 4] },
-    DisplacementWeights { weights: [0.0; 4] },
-    DisplacementWeights { weights: [0.0; 4] },
+pub const ZEROED_DISPLACEMENT_CONTRIBUTION: [DisplacementContribution; MAX_TARGETS] = [
+    DisplacementContribution { position: 0.0, normal: 0.0, tangent: 0.0, weight: 0.0 },
+    DisplacementContribution { position: 0.0, normal: 0.0, tangent: 0.0, weight: 0.0 },
+    DisplacementContribution { position: 0.0, normal: 0.0, tangent: 0.0, weight: 0.0 },
+    DisplacementContribution { position: 0.0, normal: 0.0, tangent: 0.0, weight: 0.0 },
+    DisplacementContribution { position: 0.0, normal: 0.0, tangent: 0.0, weight: 0.0 },
+    DisplacementContribution { position: 0.0, normal: 0.0, tangent: 0.0, weight: 0.0 },
+    DisplacementContribution { position: 0.0, normal: 0.0, tangent: 0.0, weight: 0.0 },
+    DisplacementContribution { position: 0.0, normal: 0.0, tangent: 0.0, weight: 0.0 },
 ];
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
@@ -222,8 +222,11 @@ gfx_defines! {
         pbr_flags: i32 = "u_PbrFlags",
     }
 
-    constant DisplacementWeights {
-        weights: [f32; 4] = "weights",
+    constant DisplacementContribution {
+        position: f32 = "position",
+        normal: f32 = "normal",
+        tangent: f32 = "tangent",
+        weight: f32 = "weight",
     }
 
     pipeline pbr_pipe {
@@ -233,7 +236,7 @@ gfx_defines! {
         globals: gfx::ConstantBuffer<Globals> = "b_Globals",
         params: gfx::ConstantBuffer<PbrParams> = "b_PbrParams",
         lights: gfx::ConstantBuffer<LightParam> = "b_Lights",
-        displacement_weights: gfx::ConstantBuffer<DisplacementWeights> = "b_DisplacementWeights",
+        displacement_contributions: gfx::ConstantBuffer<DisplacementContribution> = "b_DisplacementContributions",
         joint_transforms: gfx::ShaderResource<[f32; 4]> = "b_JointTransforms",
 
         base_color_map: gfx::TextureSampler<[f32; 4]> = "u_BaseColorSampler",
@@ -251,9 +254,9 @@ gfx_defines! {
     }
 }
 
-impl Default for DisplacementWeights {
+impl Default for DisplacementContribution {
     fn default() -> Self {
-        Self { weights: [0.0; 4] }
+        Self { position: 0.0, normal: 0.0, tangent: 0.0, weight: 0.0 }
     }
 }
 
@@ -264,7 +267,7 @@ pub(crate) struct GpuData {
     pub vertices: gfx::handle::Buffer<back::Resources, Vertex>,
     pub constants: gfx::handle::Buffer<back::Resources, Locals>,
     pub pending: Option<DynamicData>,
-    pub displacement_weights: [DisplacementWeights; MAX_TARGETS],
+    pub displacement_contributions: [DisplacementContribution; MAX_TARGETS],
 }
 
 #[derive(Clone, Debug)]
@@ -460,7 +463,7 @@ pub struct Renderer {
     quad_buf: gfx::handle::Buffer<back::Resources, QuadParams>,
     light_buf: gfx::handle::Buffer<back::Resources, LightParam>,
     pbr_buf: gfx::handle::Buffer<back::Resources, PbrParams>,
-    displacement_weights_buf: gfx::handle::Buffer<back::Resources, DisplacementWeights>,
+    displacement_contributions_buf: gfx::handle::Buffer<back::Resources, DisplacementContribution>,
     out_color: gfx::handle::RenderTargetView<back::Resources, ColorFormat>,
     out_depth: gfx::handle::DepthStencilView<back::Resources, DepthFormat>,
     default_joint_buffer_view: gfx::handle::ShaderResourceView<back::Resources, [f32; 4]>,
@@ -516,7 +519,7 @@ impl Renderer {
         let quad_buf = gl_factory.create_constant_buffer(1);
         let light_buf = gl_factory.create_constant_buffer(MAX_LIGHTS);
         let pbr_buf = gl_factory.create_constant_buffer(1);
-        let displacement_weights_buf = gl_factory.create_constant_buffer(MAX_TARGETS);
+        let displacement_contributions_buf = gl_factory.create_constant_buffer(MAX_TARGETS);
         let pso = PipelineStates::init(source, &mut gl_factory).unwrap();
         let renderer = Renderer {
             device,
@@ -525,7 +528,7 @@ impl Renderer {
             quad_buf,
             light_buf,
             pbr_buf,
-            displacement_weights_buf,
+            displacement_contributions_buf,
             out_color,
             out_depth,
             pso,
@@ -874,10 +877,10 @@ impl Renderer {
                         },
                     );
                     self.encoder.update_buffer(
-                        &self.displacement_weights_buf,
-                        &gpu_data.displacement_weights,
+                        &self.displacement_contributions_buf,
+                        &gpu_data.displacement_contributions,
                         0,
-                    ).expect("update displacement weights buffer");
+                    ).expect("update displacement contributons buffer");
                     let data = pbr_pipe::Data {
                         vbuf: gpu_data.vertices.clone(),
                         locals: gpu_data.constants.clone(),
@@ -919,7 +922,7 @@ impl Renderer {
                                 .unwrap_or(&self.map_default)
                                 .to_param()
                         },
-                        displacement_weights: self.displacement_weights_buf.clone(),
+                        displacement_contributions: self.displacement_contributions_buf.clone(),
                         joint_transforms: joint_buffer_view,
                         color_target: self.out_color.clone(),
                         depth_target: self.out_depth.clone(),

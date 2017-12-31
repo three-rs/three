@@ -5,7 +5,7 @@ use material::{self, Material};
 use mesh::{DynamicMesh, MAX_TARGETS, Target};
 use node::{NodeInternal, NodePointer};
 use object;
-use render::{BackendResources, GpuData};
+use render::{BackendResources, DisplacementContribution, GpuData};
 use skeleton::{Bone, Skeleton};
 use text::{Operation as TextOperation, TextData};
 
@@ -85,7 +85,7 @@ pub(crate) enum Operation {
     SetShadow(ShadowMap, ShadowProjection),
     SetTargets(ArrayVec<[Target; MAX_TARGETS]>),
     SetTexelRange(mint::Point2<i16>, mint::Vector2<u16>),
-    SetWeights([f32; MAX_TARGETS]),
+    SetWeights([DisplacementContribution; MAX_TARGETS]),
 }
 
 pub(crate) type HubPtr = Arc<Mutex<Hub>>;
@@ -192,55 +192,72 @@ impl Hub {
     }
 
     pub(crate) fn process_messages(&mut self) {
-        while let Ok((pnode, operation)) = self.message_rx.try_recv() {
-            let node = match pnode.upgrade() {
-                Ok(ptr) => &mut self.nodes[&ptr],
+        while let Ok((weak_ptr, operation)) = self.message_rx.try_recv() {
+            let ptr = match weak_ptr.upgrade() {
+                Ok(ptr) => ptr,
                 Err(_) => continue,
             };
             match operation {
-                Operation::SetAudio(operation) => if let SubNode::Audio(ref mut data) = node.sub_node {
-                    Hub::process_audio(operation, data);
+                Operation::SetAudio(operation) => {
+                    if let SubNode::Audio(ref mut data) = self.nodes[&ptr].sub_node {
+                        Hub::process_audio(operation, data);
+                    }
                 },
                 Operation::SetParent(parent) => {
-                    node.parent = Some(parent);
+                    self.nodes[&ptr].parent = Some(parent);
                 }
                 Operation::SetVisible(visible) => {
-                    node.visible = visible;
+                    self.nodes[&ptr].visible = visible;
                 }
                 Operation::SetTransform(pos, rot, scale) => {
                     if let Some(pos) = pos {
-                        node.transform.disp = mint::Vector3::from(pos).into();
+                        self.nodes[&ptr].transform.disp = mint::Vector3::from(pos).into();
                     }
                     if let Some(rot) = rot {
-                        node.transform.rot = rot.into();
+                        self.nodes[&ptr].transform.rot = rot.into();
                     }
                     if let Some(scale) = scale {
-                        node.transform.scale = scale;
+                        self.nodes[&ptr].transform.scale = scale;
                     }
                 }
-                Operation::SetMaterial(material) => if let SubNode::Visual(ref mut mat, _, _) = node.sub_node {
-                    *mat = material;
-                },
-                Operation::SetTexelRange(base, size) => if let SubNode::Visual(ref mut material, _, _) = node.sub_node {
-                    match *material {
-                        material::Material::Sprite(ref mut params) => params.map.set_texel_range(base, size),
-                        _ => panic!("Unsupported material for texel range request"),
+                Operation::SetMaterial(material) => {
+                    if let SubNode::Visual(ref mut mat, _, _) = self.nodes[&ptr].sub_node {
+                        *mat = material;
                     }
                 },
-                Operation::SetText(operation) => if let SubNode::UiText(ref mut data) = node.sub_node {
-                    Hub::process_text(operation, data);
+                Operation::SetTexelRange(base, size) => {
+                    if let SubNode::Visual(ref mut material, _, _) = self.nodes[&ptr].sub_node {
+                        match *material {
+                            material::Material::Sprite(ref mut params) => params.map.set_texel_range(base, size),
+                            _ => panic!("Unsupported material for texel range request"),
+                        }
+                    }
                 },
-                Operation::SetSkeleton(skeleton) => if let SubNode::Visual(_, _, ref mut s) = node.sub_node {
-                    *s = Some(skeleton);
+                Operation::SetText(operation) => {
+                    if let SubNode::UiText(ref mut data) = self.nodes[&ptr].sub_node {
+                        Hub::process_text(operation, data);
+                    }
                 },
-                Operation::SetShadow(map, proj) => if let SubNode::Light(ref mut data) = node.sub_node {
-                    data.shadow = Some((map, proj));
+                Operation::SetSkeleton(skeleton) => {
+                    if let SubNode::Visual(_, _, ref mut s) = self.nodes[&ptr].sub_node {
+                        *s = Some(skeleton);
+                    }
+                },
+                Operation::SetShadow(map, proj) => {
+                    if let SubNode::Light(ref mut data) = self.nodes[&ptr].sub_node {
+                        data.shadow = Some((map, proj));
+                    }
                 },
                 Operation::SetTargets(targets) => {
                     println!("Not yet implemented!");
                 },
                 Operation::SetWeights(weights) => {
-                    println!("Not yet implemented!");
+                    match self.nodes[&ptr].sub_node {
+                        SubNode::Visual(_, ref mut gpu_data, _) => {
+                            gpu_data.displacement_contributions = weights;
+                        }
+                        _ => println!("Not yet implemented!"),
+                    }
                 }
             }
         }
