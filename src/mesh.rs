@@ -153,15 +153,6 @@ impl Mesh {
         let _ = self.object.tx.send((self.object.node.downgrade(), msg));
     }
 
-    /// Bind a set of morph targets to the mesh.
-    pub fn set_targets(
-        &mut self,
-        targets: [Target; MAX_TARGETS],
-    ) {
-        let msg = Operation::SetTargets(targets);
-        let _ = self.object.tx.send((self.object.node.downgrade(), msg));
-    }
-
     /// Set the morph target weights of a mesh.
     pub fn set_weights(
         &mut self,

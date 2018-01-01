@@ -85,12 +85,12 @@ pub struct Joints {
 pub struct MorphTargets {
     /// Morph target names, one per morph target index.
     pub names: VecMap<String>,
-    ///Contiguous sets of vertex displacements.
-    pub vertices: Vec<mint::Point3<f32>>,
-    ///Contiguous sets of normal displacements.
+    /// Contiguous sets of vertex displacements.
+    pub vertices: Vec<mint::Vector3<f32>>,
+    /// Contiguous sets of normal displacements.
     pub normals: Vec<mint::Vector3<f32>>,
     /// Contiguous sets of tangent displacements.
-    pub tangents: Vec<mint::Vector4<f32>>,
+    pub tangents: Vec<mint::Vector3<f32>>,
 }
 
 impl Geometry {

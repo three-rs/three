@@ -2,7 +2,7 @@ use audio::{AudioData, Operation as AudioOperation};
 use color::{self, Color};
 use light::{ShadowMap, ShadowProjection};
 use material::{self, Material};
-use mesh::{DynamicMesh, MAX_TARGETS, Target};
+use mesh::{DynamicMesh, MAX_TARGETS};
 use node::{NodeInternal, NodePointer};
 use object;
 use render::{BackendResources, GpuData};
@@ -82,7 +82,6 @@ pub(crate) enum Operation {
     SetMaterial(Material),
     SetSkeleton(Skeleton),
     SetShadow(ShadowMap, ShadowProjection),
-    SetTargets([Target; MAX_TARGETS]),
     SetTexelRange(mint::Point2<i16>, mint::Vector2<u16>),
     SetWeights([f32; MAX_TARGETS]),
 }
@@ -245,34 +244,6 @@ impl Hub {
                 Operation::SetShadow(map, proj) => {
                     if let SubNode::Light(ref mut data) = self.nodes[&ptr].sub_node {
                         data.shadow = Some((map, proj));
-                    }
-                },
-                Operation::SetTargets(targets) => {
-                    if let SubNode::Visual(_, ref mut gpu_data, _) = self.nodes[&ptr].sub_node {
-                        for i in 0 .. MAX_TARGETS {
-                            match targets[i] {
-                                Target::Position => {
-                                    gpu_data.displacement_contributions[i].position = 1.0;
-                                    gpu_data.displacement_contributions[i].normal = 0.0;
-                                    gpu_data.displacement_contributions[i].tangent = 0.0;
-                                }
-                                Target::Normal => {
-                                    gpu_data.displacement_contributions[i].position = 0.0;
-                                    gpu_data.displacement_contributions[i].normal = 1.0;
-                                    gpu_data.displacement_contributions[i].tangent = 0.0;
-                                }
-                                Target::Tangent => {
-                                    gpu_data.displacement_contributions[i].position = 0.0;
-                                    gpu_data.displacement_contributions[i].normal = 0.0;
-                                    gpu_data.displacement_contributions[i].tangent = 1.0;
-                                }
-                                Target::None => {
-                                    gpu_data.displacement_contributions[i].position = 0.0;
-                                    gpu_data.displacement_contributions[i].normal = 0.0;
-                                    gpu_data.displacement_contributions[i].tangent = 0.0;
-                                }
-                            }
-                        }
                     }
                 },
                 Operation::SetWeights(weights) => {

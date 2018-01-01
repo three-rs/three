@@ -18,7 +18,7 @@ use std::{fs, io};
 use camera::Camera;
 use gltf::Gltf;
 use gltf_utils::AccessorIter;
-use mesh::MAX_TARGETS;
+use mesh::{Target, MAX_TARGETS};
 use object::Object;
 use skeleton::Skeleton;
 use std::path::{Path, PathBuf};
@@ -228,6 +228,46 @@ fn load_meshes(
     materials: &[Material],
     buffers: &gltf_importer::Buffers,
 ) -> VecMap<Vec<Mesh>> {
+    fn load_morph_targets(
+        primitive: &gltf::Primitive,
+        buffers: &gltf_importer::Buffers,
+    ) -> (geometry::MorphTargets, [Target; MAX_TARGETS]) {
+        let mut vertices = Vec::new();
+        let mut normals = Vec::new();
+        let mut tangents = Vec::new();
+        let mut targets = [Target::None; MAX_TARGETS];
+        let mut i = 0;
+        for target in primitive.morph_targets() {
+            if let Some(accessor) = target.positions() {
+                targets[i] = Target::Position;
+                i += 1;
+                let iter = AccessorIter::<[f32; 3]>::new(accessor, buffers);
+                vertices.extend(iter.map(|x| mint::Vector3::<f32>::from(x)));
+            }
+
+            if let Some(accessor) = target.normals() {
+                targets[i] = Target::Normal;
+                i += 1;
+                let iter = AccessorIter::<[f32; 3]>::new(accessor, buffers);
+                normals.extend(iter.map(|x| mint::Vector3::<f32>::from(x)));
+            }
+
+            if let Some(accessor) = target.tangents() {
+                targets[i] = Target::Tangent;
+                i += 1;
+                let iter = AccessorIter::<[f32; 3]>::new(accessor, buffers);
+                tangents.extend(iter.map(|x| mint::Vector3::<f32>::from(x)));
+            }
+        }
+
+        (geometry::MorphTargets {
+            names: VecMap::new(),
+            vertices,
+            normals,
+            tangents,
+        }, targets)
+    }
+    
     let mut meshes = VecMap::new();
     for mesh in gltf.meshes() {
         let mut primitives = Vec::new();
@@ -269,6 +309,7 @@ fn load_meshes(
             } else {
                 Vec::new()
             };
+            let (morph_targets, mesh_targets) = load_morph_targets(&primitive, &buffers);
             let geometry = Geometry {
                 vertices,
                 normals,
@@ -278,6 +319,7 @@ fn load_meshes(
                     indices: joint_indices,
                     weights: joint_weights,
                 },
+                morph_targets,
                 faces,
                 ..Geometry::empty()
             };
@@ -289,7 +331,8 @@ fn load_meshes(
                     map: None,
                 }.into()
             };
-            primitives.push(factory.mesh(geometry, material));
+            let mut mesh = factory.mesh_with_targets(geometry, material, mesh_targets);
+            primitives.push(mesh);
         }
         meshes.insert(mesh.index(), primitives);
     }
