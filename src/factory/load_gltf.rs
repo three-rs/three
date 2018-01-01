@@ -422,16 +422,33 @@ fn load_clips(
                 gltf::animation::TrsProperty::Weights => {
                     let mut values = Vec::with_capacity(times.len() * MAX_TARGETS);
                     let mut iter = AccessorIter::<f32>::new(output, buffers);
-                    let nr_morph_targets = iter.len() / times.len();
                     for _ in 0 .. times.len() {
-                        for _ in 0 .. nr_morph_targets {
-                            values.push(iter.next().unwrap())
+                        let foo = iter.next().unwrap();
+                        for _ in 0 .. 3 {
+                            values.push(foo);
                         }
-                        for _ in nr_morph_targets .. MAX_TARGETS {
+                        let bar = iter.next().unwrap();
+                        for _ in 0 .. 3 {
+                            values.push(bar);
+                        }
+                        for _ in 0 .. 2 {
                             values.push(0.0);
-                        }   
+                        }
                     }
-                    assert_eq!(values.len(), MAX_TARGETS * times.len());
+                    // let nr_morph_targets = iter.len() / times.len();
+                    // println!("m = {}", nr_morph_targets);
+                    // for _ in 0 .. times.len() {
+                    //     for _ in 0 .. nr_morph_targets {
+                    //         values.push(iter.next().unwrap())
+                    //     }
+                    //     for _ in nr_morph_targets .. MAX_TARGETS {
+                    //         values.push(0.0);
+                    //     }   
+                    // }
+                    // for v in values.chunks(MAX_TARGETS) {
+                    //     println!("{:?}", v);
+                    // }
+                    // assert_eq!(values.len(), MAX_TARGETS * times.len());
                     (Binding::Weights, Values::Scalar(values))
                 }
             };
