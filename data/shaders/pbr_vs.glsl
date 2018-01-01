@@ -36,14 +36,13 @@ out vec3 v_Normal;
 in vec4 i_World0;
 in vec4 i_World1;
 in vec4 i_World2;
-in vec4 i_World3;
 in vec4 i_MatParams;
 in vec4 i_Color;
 in vec4 i_UvRange;
 
 void main()
 {
-    mat4 m_World = mat4(i_World0, i_World1, i_World2, i_World3);
+    mat4 m_World = transpose(mat4(i_World0, i_World1, i_World2, vec4(0.0, 0.0, 0.0, 1.0)));
     mat4 u_Model = m_World;
     mat4 u_Mvp = u_ViewProj * m_World;
 

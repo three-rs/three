@@ -1,6 +1,6 @@
 //! The renderer.
 
-use cgmath::{Matrix4, SquareMatrix, Transform as Transform_, Vector3};
+use cgmath::{Matrix, Matrix4, SquareMatrix, Transform as Transform_, Vector3};
 use color;
 use froggy;
 use gfx;
@@ -25,7 +25,6 @@ use std::path::PathBuf;
 pub use self::back::CommandBuffer as BackendCommandBuffer;
 pub use self::back::Factory as BackendFactory;
 pub use self::back::Resources as BackendResources;
-use self::pso_data::PsoData;
 pub use self::source::Source;
 
 use camera::Camera;
@@ -36,6 +35,7 @@ use material::Material;
 use scene::{Background, Scene};
 use text::Font;
 use texture::Texture;
+use self::pso_data::PsoData;
 
 /// The format of the back buffer color requested from the windowing system.
 pub type ColorFormat = gfx::format::Rgba8;
@@ -101,7 +101,6 @@ gfx_defines! {
         world0: [f32; 4] = "i_World0",
         world1: [f32; 4] = "i_World1",
         world2: [f32; 4] = "i_World2",
-        world3: [f32; 4] = "i_World3",
         color: [f32; 4] = "i_Color",
         mat_params: [f32; 4] = "i_MatParams",
         uv_range: [f32; 4] = "i_UvRange",
@@ -208,17 +207,17 @@ pub(crate) struct InstanceCacheKey {
 impl Instance {
     #[inline]
     fn basic(
-        mx_world: [[f32; 4]; 4],
+        mx_world_transposed: mint::RowMatrix4<f32>,
         color: u32,
         uv_range: [f32; 4],
         param: f32,
-    ) -> Instance {
+    ) -> Self {
         Instance {
-            world0: mx_world[0],
-            world1: mx_world[1],
-            world2: mx_world[2],
-            world3: mx_world[3],
+            world0: mx_world_transposed.x.into(),
+            world1: mx_world_transposed.y.into(),
+            world2: mx_world_transposed.z.into(),
             color: {
+                // TODO: add alpha parameter for `to_linear_rgb`
                 let rgb = color::to_linear_rgb(color);
                 [rgb[0], rgb[1], rgb[2], 0.0]
             },
@@ -228,12 +227,11 @@ impl Instance {
     }
 
     #[inline]
-    fn pbr(mx_world: [[f32; 4]; 4]) -> Instance {
+    fn pbr(mx_world_transposed: mint::RowMatrix4<f32>) -> Self {
         Instance {
-            world0: mx_world[0],
-            world1: mx_world[1],
-            world2: mx_world[2],
-            world3: mx_world[3],
+            world0: mx_world_transposed.x.into(),
+            world1: mx_world_transposed.y.into(),
+            world2: mx_world_transposed.z.into(),
             color: [0.0; 4],
             mat_params: [0.0; 4],
             uv_range: [0.0; 4],
@@ -709,9 +707,9 @@ impl Renderer {
                     SubNode::Visual(_, ref data) => data,
                     _ => continue,
                 };
-                let mx_world: [[f32; 4]; 4] = Matrix4::from(node.world_transform).into();
+                let mx_world: [[f32; 4]; 4] = Matrix4::from(node.world_transform).transpose().into();
                 self.encoder
-                    .update_buffer(&gpu_data.instances, &[Instance::pbr(mx_world)], 0)
+                    .update_buffer(&gpu_data.instances, &[Instance::pbr(mx_world.into())], 0)
                     .unwrap();
                 //TODO: avoid excessive cloning
                 let data = shadow_pipe::Data {
@@ -785,8 +783,7 @@ impl Renderer {
                 _ => continue,
             };
 
-            let mx_world: [[f32; 4]; 4] = Matrix4::from(node.world_transform).into();
-            println!("{:?}", mx_world);
+            let mx_world: [[f32; 4]; 4] = Matrix4::from(node.world_transform).transpose().into();
             let pso_data = material.to_pso_data();
 
             if let Some(ref key) = gpu_data.instance_cache_key {
@@ -809,7 +806,7 @@ impl Renderer {
                     Vec::new(),
                 ));
                 vec.1
-                    .push(Instance::basic(mx_world, color, uv_range, mat_param));
+                    .push(Instance::basic(mx_world.into(), color, uv_range, mat_param));
                 continue;
             }
             let instance = match pso_data {
@@ -818,9 +815,9 @@ impl Renderer {
                         Some(ref map) => map.uv_range(),
                         None => [0.0; 4],
                     };
-                    Instance::basic(mx_world, color, uv_range, param0)
+                    Instance::basic(mx_world.into(), color, uv_range, param0)
                 }
-                PsoData::Pbr { .. } => Instance::pbr(mx_world),
+                PsoData::Pbr { .. } => Instance::pbr(mx_world.into()),
             };
 
             Self::render_mesh(

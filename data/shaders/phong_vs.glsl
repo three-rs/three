@@ -14,12 +14,11 @@ out vec4 v_Color;
 in vec4 i_World0;
 in vec4 i_World1;
 in vec4 i_World2;
-in vec4 i_World3;
 in vec4 i_MatParams;
 in vec4 i_Color;
 
 void main() {
-    mat4 m_World = mat4(i_World0, i_World1, i_World2, i_World3);
+    mat4 m_World = transpose(mat4(i_World0, i_World1, i_World2, vec4(0.0, 0.0, 0.0, 1.0)));
     vec4 world = m_World * a_Position;
     v_World = world.xyz;
     v_Normal = normalize(mat3(m_World) * a_Normal.xyz);

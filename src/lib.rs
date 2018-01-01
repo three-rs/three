@@ -255,7 +255,6 @@
 
 #[macro_use]
 extern crate bitflags;
-extern crate byteorder;
 extern crate cgmath;
 #[macro_use]
 extern crate derivative;

@@ -246,7 +246,7 @@ impl Factory {
     ) -> Mesh {
         let vertices = Self::mesh_vertices(&geometry.base_shape);
         let instances = self.create_instance_buffer();
-        let (vbuf, mut slice) = if geometry.faces.is_empty() {
+        let (vertices, mut slice) = if geometry.faces.is_empty() {
             self.backend.create_vertex_buffer_with_slice(&vertices, ())
         } else {
             let faces: &[u32] = gfx::memory::cast_slice(&geometry.faces);
@@ -254,13 +254,12 @@ impl Factory {
                 .create_vertex_buffer_with_slice(&vertices, faces)
         };
         slice.instances = Some((1, 0));
-        let material = material.into();
         Mesh {
             object: self.hub.lock().unwrap().spawn_visual(
-                material,
+                material.into(),
                 GpuData {
                     slice,
-                    vertices: vbuf.clone(),
+                    vertices,
                     instances,
                     pending: None,
                     instance_cache_key: None,
@@ -302,13 +301,12 @@ impl Factory {
             (data.len(), dest_buf, upload_buf)
         };
         let instances = self.create_instance_buffer();
-        let material = material.into();
         DynamicMesh {
             object: self.hub.lock().unwrap().spawn_visual(
-                material,
+                material.into(),
                 GpuData {
                     slice,
-                    vertices: vertices.clone(),
+                    vertices,
                     instances,
                     pending: None,
                     instance_cache_key: None,
@@ -870,7 +868,7 @@ impl Factory {
                 };
                 info!("\t{:?}", material);
 
-                let (vbuf, mut slice) = self.backend
+                let (vertices, mut slice) = self.backend
                     .create_vertex_buffer_with_slice(&vertices, &indices[..]);
                 slice.instances = Some((1, 0));
                 let instances = self.backend
@@ -886,7 +884,7 @@ impl Factory {
                         material,
                         GpuData {
                             slice,
-                            vertices: vbuf.clone(),
+                            vertices,
                             instances,
                             pending: None,
                             instance_cache_key: None,

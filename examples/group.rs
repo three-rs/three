@@ -132,7 +132,7 @@ fn main() {
     let mut fps_counter = win.factory.ui_text(&font, "FPS: 00");
 
     let timer = win.input.time();
-    println!("{}", cubes.len());
+    println!("Total number of cubes: {}", cubes.len());
     while win.update() && !win.input.hit(three::KEY_ESCAPE) {
         let time = timer.get(&win.input);
         let delta_time = win.input.delta_time();
