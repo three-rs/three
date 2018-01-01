@@ -2,14 +2,16 @@ use audio::{AudioData, Operation as AudioOperation};
 use color::{self, Color};
 use light::{ShadowMap, ShadowProjection};
 use material::{self, Material};
-use mesh::DynamicMesh;
+use mesh::{DynamicMesh, MAX_TARGETS};
 use node::{NodeInternal, NodePointer};
 use object;
-use render::GpuData;
+use render::{BackendResources, GpuData};
+use skeleton::{Bone, Skeleton};
 use text::{Operation as TextOperation, TextData};
 
 use cgmath::Transform;
 use froggy;
+use gfx;
 use mint;
 
 use std::sync::{Arc, Mutex};
@@ -25,13 +27,29 @@ pub(crate) enum SubLight {
 
 #[derive(Clone, Debug)]
 pub(crate) struct LightData {
-    pub(crate) color: Color,
-    pub(crate) intensity: f32,
-    pub(crate) sub_light: SubLight,
-    pub(crate) shadow: Option<(ShadowMap, ShadowProjection)>,
+    pub color: Color,
+    pub intensity: f32,
+    pub sub_light: SubLight,
+    pub shadow: Option<(ShadowMap, ShadowProjection)>,
 }
 
-/// A sub-node specifies and contains the context-specific data owned by a `Node`.
+#[derive(Clone, Debug)]
+pub(crate) struct SkeletonData {
+    pub bones: Vec<Bone>,
+    pub inverse_bind_matrices: Vec<mint::ColumnMatrix4<f32>>,
+
+    pub gpu_buffer_view: gfx::handle::ShaderResourceView<BackendResources, [f32; 4]>,
+    pub gpu_buffer: gfx::handle::Buffer<BackendResources, [f32; 4]>,
+    pub cpu_buffer: Vec<[f32; 4]>,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct VisualData {
+    pub material: Material,
+    pub gpu: GpuData,
+    pub skeleton: Option<Skeleton>,
+}
+
 #[derive(Debug)]
 pub(crate) enum SubNode {
     /// No extra data, such as in the case of `Group`.
@@ -41,11 +59,13 @@ pub(crate) enum SubNode {
     /// Renderable text for 2D user interface.
     UiText(TextData),
     /// Renderable 3D content, such as a mesh.
-    Visual(Material, GpuData),
+    Visual(Material, GpuData, Option<Skeleton>),
     /// Lighting information for illumination and shadow casting.
     Light(LightData),
     /// Marks the root object of a `Scene`.
     Scene,
+    /// Array of `Bone` instances that may be bound to a `Skinned` mesh.
+    Skeleton(SkeletonData),
 }
 
 pub(crate) type Message = (froggy::WeakPointer<NodeInternal>, Operation);
@@ -60,8 +80,10 @@ pub(crate) enum Operation {
         Option<f32>,
     ),
     SetMaterial(Material),
-    SetTexelRange(mint::Point2<i16>, mint::Vector2<u16>),
+    SetSkeleton(Skeleton),
     SetShadow(ShadowMap, ShadowProjection),
+    SetTexelRange(mint::Point2<i16>, mint::Vector2<u16>),
+    SetWeights([f32; MAX_TARGETS]),
 }
 
 pub(crate) type HubPtr = Arc<Mutex<Hub>>;
@@ -123,8 +145,9 @@ impl Hub {
         &mut self,
         mat: Material,
         gpu_data: GpuData,
+        skeleton: Option<Skeleton>,
     ) -> object::Base {
-        self.spawn(SubNode::Visual(mat, gpu_data))
+        self.spawn(SubNode::Visual(mat, gpu_data, skeleton))
     }
 
     pub(crate) fn spawn_light(
@@ -159,48 +182,97 @@ impl Hub {
         object::Base { node, tx }
     }
 
+    pub(crate) fn spawn_skeleton(
+        &mut self,
+        data: SkeletonData,
+    ) -> object::Base {
+        self.spawn(SubNode::Skeleton(data))
+    }
+
     pub(crate) fn process_messages(&mut self) {
-        while let Ok((pnode, operation)) = self.message_rx.try_recv() {
-            let node = match pnode.upgrade() {
-                Ok(ptr) => &mut self.nodes[&ptr],
+        while let Ok((weak_ptr, operation)) = self.message_rx.try_recv() {
+            let ptr = match weak_ptr.upgrade() {
+                Ok(ptr) => ptr,
                 Err(_) => continue,
             };
             match operation {
-                Operation::SetAudio(operation) => if let SubNode::Audio(ref mut data) = node.sub_node {
-                    Hub::process_audio(operation, data);
+                Operation::SetAudio(operation) => {
+                    if let SubNode::Audio(ref mut data) = self.nodes[&ptr].sub_node {
+                        Hub::process_audio(operation, data);
+                    }
                 },
                 Operation::SetParent(parent) => {
-                    node.parent = Some(parent);
+                    self.nodes[&ptr].parent = Some(parent);
                 }
                 Operation::SetVisible(visible) => {
-                    node.visible = visible;
+                    self.nodes[&ptr].visible = visible;
                 }
                 Operation::SetTransform(pos, rot, scale) => {
                     if let Some(pos) = pos {
-                        node.transform.disp = mint::Vector3::from(pos).into();
+                        self.nodes[&ptr].transform.disp = mint::Vector3::from(pos).into();
                     }
                     if let Some(rot) = rot {
-                        node.transform.rot = rot.into();
+                        self.nodes[&ptr].transform.rot = rot.into();
                     }
                     if let Some(scale) = scale {
-                        node.transform.scale = scale;
+                        self.nodes[&ptr].transform.scale = scale;
                     }
                 }
-                Operation::SetMaterial(material) => if let SubNode::Visual(ref mut mat, _) = node.sub_node {
-                    *mat = material;
-                },
-                Operation::SetTexelRange(base, size) => if let SubNode::Visual(ref mut material, _) = node.sub_node {
-                    match *material {
-                        material::Material::Sprite(ref mut params) => params.map.set_texel_range(base, size),
-                        _ => panic!("Unsupported material for texel range request"),
+                Operation::SetMaterial(material) => {
+                    if let SubNode::Visual(ref mut mat, _, _) = self.nodes[&ptr].sub_node {
+                        *mat = material;
                     }
                 },
-                Operation::SetText(operation) => if let SubNode::UiText(ref mut data) = node.sub_node {
-                    Hub::process_text(operation, data);
+                Operation::SetTexelRange(base, size) => {
+                    if let SubNode::Visual(ref mut material, _, _) = self.nodes[&ptr].sub_node {
+                        match *material {
+                            material::Material::Sprite(ref mut params) => params.map.set_texel_range(base, size),
+                            _ => panic!("Unsupported material for texel range request"),
+                        }
+                    }
                 },
-                Operation::SetShadow(map, proj) => if let SubNode::Light(ref mut data) = node.sub_node {
-                    data.shadow = Some((map, proj));
+                Operation::SetText(operation) => {
+                    if let SubNode::UiText(ref mut data) = self.nodes[&ptr].sub_node {
+                        Hub::process_text(operation, data);
+                    }
                 },
+                Operation::SetSkeleton(skeleton) => {
+                    if let SubNode::Visual(_, _, ref mut s) = self.nodes[&ptr].sub_node {
+                        *s = Some(skeleton);
+                    }
+                },
+                Operation::SetShadow(map, proj) => {
+                    if let SubNode::Light(ref mut data) = self.nodes[&ptr].sub_node {
+                        data.shadow = Some((map, proj));
+                    }
+                },
+                Operation::SetWeights(weights) => {
+                    fn set_weights(gpu_data: &mut GpuData, weights: [f32; MAX_TARGETS]) {
+                        for i in 0 .. MAX_TARGETS {
+                            gpu_data.displacement_contributions[i].weight = weights[i];
+                        }
+                    }
+
+                    // Hack around borrow checker rules:
+                    // if
+                    {
+                        if let SubNode::Visual(_, ref mut gpu_data, _) = self.nodes[&ptr].sub_node {
+                            set_weights(gpu_data, weights);
+                            continue;
+                        }
+                    }
+                    // else
+                    {
+                        for item in self.nodes.iter_mut() {
+                            let update = item.parent.as_ref() == Some(&ptr);
+                            if update {
+                                if let SubNode::Visual(_, ref mut gpu_data, _) = item.sub_node {
+                                    set_weights(gpu_data, weights);
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
         self.nodes.sync_pending();
@@ -272,7 +344,7 @@ impl Hub {
         mesh: &DynamicMesh,
     ) {
         match self.get_mut(&mesh).sub_node {
-            SubNode::Visual(_, ref mut gpu_data) => gpu_data.pending = Some(mesh.dynamic.clone()),
+            SubNode::Visual(_, ref mut gpu_data, _) => gpu_data.pending = Some(mesh.dynamic.clone()),
             _ => unreachable!(),
         }
     }

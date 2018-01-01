@@ -253,6 +253,7 @@
 //! [`Scene`]: scene/struct.Scene.html
 //! [`Window`]: window/struct.Window.html
 
+extern crate arrayvec;
 #[macro_use]
 extern crate bitflags;
 extern crate cgmath;
@@ -277,7 +278,6 @@ extern crate phf;
 extern crate quick_error;
 extern crate rodio;
 extern crate vec_map;
-// OpenGL
 
 #[cfg(feature = "opengl")]
 extern crate gfx_device_gl;
@@ -298,6 +298,7 @@ pub mod custom;
 mod data;
 mod factory;
 pub mod geometry;
+mod group;
 mod hub;
 mod input;
 pub mod light;
@@ -307,6 +308,7 @@ mod node;
 pub mod object;
 pub mod render;
 pub mod scene;
+pub mod skeleton;
 mod sprite;
 mod text;
 mod texture;
@@ -334,6 +336,9 @@ pub use geometry::Geometry;
 pub use glutin::VirtualKeyCode as Key;
 
 #[doc(inline)]
+pub use group::Group;
+
+#[doc(inline)]
 pub use material::Material;
 
 #[doc(inline)]
@@ -343,7 +348,7 @@ pub use mesh::{DynamicMesh, Mesh};
 pub use node::{Node, Transform};
 
 #[doc(inline)]
-pub use object::{Group, Object};
+pub use object::Object;
 
 #[doc(inline)]
 pub use render::Renderer;

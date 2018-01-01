@@ -6,6 +6,7 @@ use color::Color;
 use render::BasicPipelineState;
 use texture::Texture;
 
+#[doc(inline)]
 pub use self::basic::Basic;
 
 /// Basic material API.
@@ -39,13 +40,9 @@ pub mod basic {
     #[derive(Clone, Debug, PartialEq)]
     pub struct Custom {
         /// Solid color applied in the absense of `map`.
-        ///
-        /// Default: `WHITE`.
         pub color: Color,
 
         /// Texture applied using the mesh texture co-ordinates.
-        ///
-        /// Default: `None`.
         pub map: Option<Texture<[f32; 4]>>,
 
         /// The custom pipeline state object to be applied to the mesh.

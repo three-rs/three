@@ -7,6 +7,7 @@ use std::sync::mpsc;
 use mint;
 
 use hub::{Message, Operation};
+use mesh::MAX_TARGETS;
 use node::{Node, NodePointer};
 use scene::Scene;
 
@@ -244,6 +245,15 @@ impl Base {
         let _ = self.tx.send((self.node.downgrade(), msg));
     }
 
+    /// Set weights.
+    pub fn set_weights(
+        &mut self,
+        weights: [f32; MAX_TARGETS],
+    ) {
+        let msg = Operation::SetWeights(weights);
+        let _ = self.tx.send((self.node.downgrade(), msg));
+    }
+    
     /// Get actual information about itself from the `scene`.
     /// # Panics
     /// Panics if `scene` doesn't have this `Base`.
@@ -270,19 +280,5 @@ impl AsRef<Base> for Base {
 impl AsMut<Base> for Base {
     fn as_mut(&mut self) -> &mut Base {
         self
-    }
-}
-
-/// Groups are used to combine several other objects or groups to work with them
-/// as with a single entity.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Group {
-    pub(crate) object: Base,
-}
-three_object!(Group::object);
-
-impl Group {
-    pub(crate) fn new(object: Base) -> Self {
-        Group { object }
     }
 }

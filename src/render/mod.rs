@@ -4,6 +4,7 @@ use cgmath::{Matrix4, SquareMatrix, Transform as Transform_, Vector3};
 use color;
 use froggy;
 use gfx;
+use gfx::format::I8Norm;
 use gfx::memory::Typed;
 use gfx::traits::{Device, Factory as Factory_, FactoryExt};
 #[cfg(feature = "opengl")]
@@ -12,6 +13,7 @@ use gfx_device_gl as back;
 use gfx_window_glutin;
 #[cfg(feature = "opengl")]
 use glutin;
+use hub;
 use mint;
 
 pub mod source;
@@ -30,6 +32,7 @@ use factory::Factory;
 use hub::{SubLight, SubNode};
 use light::{ShadowMap, ShadowProjection};
 use material::Material;
+use mesh::MAX_TARGETS;
 use scene::{Background, Scene};
 use text::Font;
 use texture::Texture;
@@ -85,6 +88,44 @@ quick_error! {
     }
 }
 
+/// Default values for type `Vertex`.
+pub const DEFAULT_VERTEX: Vertex = Vertex {
+    pos: [0.0, 0.0, 0.0, 1.0],
+    uv: [0.0, 0.0],
+    normal: [I8Norm(0), I8Norm(127), I8Norm(0), I8Norm(0)],
+    tangent: [I8Norm(127), I8Norm(0), I8Norm(0), I8Norm(0)],
+    joint_indices: [0.0, 0.0, 0.0, 0.0],
+    joint_weights: [1.0, 1.0, 1.0, 1.0],
+
+    displacement0: [0.0, 0.0, 0.0, 0.0],
+    displacement1: [0.0, 0.0, 0.0, 0.0],
+    displacement2: [0.0, 0.0, 0.0, 0.0],
+    displacement3: [0.0, 0.0, 0.0, 0.0],
+    displacement4: [0.0, 0.0, 0.0, 0.0],
+    displacement5: [0.0, 0.0, 0.0, 0.0],
+    displacement6: [0.0, 0.0, 0.0, 0.0],
+    displacement7: [0.0, 0.0, 0.0, 0.0],
+};
+
+impl Default for Vertex {
+    fn default() -> Self {
+        DEFAULT_VERTEX
+    }
+}
+
+/// Set of zero valued displacement contribution which cause vertex attributes
+/// to be unchanged by morph targets.
+pub const ZEROED_DISPLACEMENT_CONTRIBUTION: [DisplacementContribution; MAX_TARGETS] = [
+    DisplacementContribution { position: 0.0, normal: 0.0, tangent: 0.0, weight: 0.0 },
+    DisplacementContribution { position: 0.0, normal: 0.0, tangent: 0.0, weight: 0.0 },
+    DisplacementContribution { position: 0.0, normal: 0.0, tangent: 0.0, weight: 0.0 },
+    DisplacementContribution { position: 0.0, normal: 0.0, tangent: 0.0, weight: 0.0 },
+    DisplacementContribution { position: 0.0, normal: 0.0, tangent: 0.0, weight: 0.0 },
+    DisplacementContribution { position: 0.0, normal: 0.0, tangent: 0.0, weight: 0.0 },
+    DisplacementContribution { position: 0.0, normal: 0.0, tangent: 0.0, weight: 0.0 },
+    DisplacementContribution { position: 0.0, normal: 0.0, tangent: 0.0, weight: 0.0 },
+];
+
 #[cfg_attr(rustfmt, rustfmt_skip)]
 gfx_defines! {
     vertex Vertex {
@@ -92,13 +133,24 @@ gfx_defines! {
         uv: [f32; 2] = "a_TexCoord",
         normal: [gfx::format::I8Norm; 4] = "a_Normal",
         tangent: [gfx::format::I8Norm; 4] = "a_Tangent",
+        joint_indices: [f32; 4] = "a_JointIndices",
+        joint_weights: [f32; 4] = "a_JointWeights",
+
+        displacement0: [f32; 4] = "a_Displacement0",
+        displacement1: [f32; 4] = "a_Displacement1",
+        displacement2: [f32; 4] = "a_Displacement2",
+        displacement3: [f32; 4] = "a_Displacement3",
+        displacement4: [f32; 4] = "a_Displacement4",
+        displacement5: [f32; 4] = "a_Displacement5",
+        displacement6: [f32; 4] = "a_Displacement6",
+        displacement7: [f32; 4] = "a_Displacement7",
     }
 
     constant Locals {
-        mx_world: [[f32; 4]; 4] = "u_World",
         color: [f32; 4] = "u_Color",
         mat_params: [f32; 4] = "u_MatParams",
         uv_range: [f32; 4] = "u_UvRange",
+        mx_world: [[f32; 4]; 4] = "u_World",
     }
 
     constant LightParam {
@@ -170,6 +222,13 @@ gfx_defines! {
         pbr_flags: i32 = "u_PbrFlags",
     }
 
+    constant DisplacementContribution {
+        position: f32 = "position",
+        normal: f32 = "normal",
+        tangent: f32 = "tangent",
+        weight: f32 = "weight",
+    }
+
     pipeline pbr_pipe {
         vbuf: gfx::VertexBuffer<Vertex> = (),
 
@@ -177,6 +236,8 @@ gfx_defines! {
         globals: gfx::ConstantBuffer<Globals> = "b_Globals",
         params: gfx::ConstantBuffer<PbrParams> = "b_PbrParams",
         lights: gfx::ConstantBuffer<LightParam> = "b_Lights",
+        displacement_contributions: gfx::ConstantBuffer<DisplacementContribution> = "b_DisplacementContributions",
+        joint_transforms: gfx::ShaderResource<[f32; 4]> = "b_JointTransforms",
 
         base_color_map: gfx::TextureSampler<[f32; 4]> = "u_BaseColorSampler",
 
@@ -193,6 +254,12 @@ gfx_defines! {
     }
 }
 
+impl Default for DisplacementContribution {
+    fn default() -> Self {
+        Self { position: 0.0, normal: 0.0, tangent: 0.0, weight: 0.0 }
+    }
+}
+
 //TODO: private fields?
 #[derive(Clone, Debug)]
 pub(crate) struct GpuData {
@@ -200,6 +267,7 @@ pub(crate) struct GpuData {
     pub vertices: gfx::handle::Buffer<back::Resources, Vertex>,
     pub constants: gfx::handle::Buffer<back::Resources, Locals>,
     pub pending: Option<DynamicData>,
+    pub displacement_contributions: [DisplacementContribution; MAX_TARGETS],
 }
 
 #[derive(Clone, Debug)]
@@ -395,8 +463,10 @@ pub struct Renderer {
     quad_buf: gfx::handle::Buffer<back::Resources, QuadParams>,
     light_buf: gfx::handle::Buffer<back::Resources, LightParam>,
     pbr_buf: gfx::handle::Buffer<back::Resources, PbrParams>,
+    displacement_contributions_buf: gfx::handle::Buffer<back::Resources, DisplacementContribution>,
     out_color: gfx::handle::RenderTargetView<back::Resources, ColorFormat>,
     out_depth: gfx::handle::DepthStencilView<back::Resources, DepthFormat>,
+    default_joint_buffer_view: gfx::handle::ShaderResourceView<back::Resources, [f32; 4]>,
     pso: PipelineStates,
     map_default: Texture<[f32; 4]>,
     shadow_default: Texture<f32>,
@@ -418,10 +488,10 @@ impl Renderer {
         use gfx::texture as t;
         let (window, device, mut gl_factory, out_color, out_depth) = gfx_window_glutin::init(builder, context, event_loop);
         let (_, srv_white) = gl_factory
-            .create_texture_immutable::<gfx::format::Rgba8>(t::Kind::D2(1, 1, t::AaMode::Single), &[&[[0xFF; 4]]])
+            .create_texture_immutable::<gfx::format::Rgba8>(t::Kind::D2(1, 1, t::AaMode::Single), t::Mipmap::Provided, &[&[[0xFF; 4]]])
             .unwrap();
         let (_, srv_shadow) = gl_factory
-            .create_texture_immutable::<(gfx::format::R32, gfx::format::Float)>(t::Kind::D2(1, 1, t::AaMode::Single), &[&[0x3F800000]])
+            .create_texture_immutable::<(gfx::format::R32, gfx::format::Float)>(t::Kind::D2(1, 1, t::AaMode::Single), t::Mipmap::Provided, &[&[0x3F800000]])
             .unwrap();
         let sampler = gl_factory.create_sampler_linear();
         let sampler_shadow = gl_factory.create_sampler(t::SamplerInfo {
@@ -429,11 +499,27 @@ impl Renderer {
             border: t::PackedColor(!0), // clamp to 1.0
             ..t::SamplerInfo::new(t::FilterMethod::Bilinear, t::WrapMode::Border)
         });
+        let default_joint_buffer = gl_factory
+            .create_buffer_immutable(
+                &[
+                    [1.0, 0.0, 0.0, 0.0],
+                    [0.0, 1.0, 0.0, 0.0],
+                    [0.0, 0.0, 1.0, 0.0],
+                    [0.0, 0.0, 0.0, 1.0],
+                ],
+                gfx::buffer::Role::Constant,
+                gfx::SHADER_RESOURCE,
+            )
+            .unwrap();
+        let default_joint_buffer_view = gl_factory
+            .view_buffer_as_shader_resource(&default_joint_buffer)
+            .unwrap();
         let encoder = gl_factory.create_command_buffer().into();
         let const_buf = gl_factory.create_constant_buffer(1);
         let quad_buf = gl_factory.create_constant_buffer(1);
         let light_buf = gl_factory.create_constant_buffer(MAX_LIGHTS);
         let pbr_buf = gl_factory.create_constant_buffer(1);
+        let displacement_contributions_buf = gl_factory.create_constant_buffer(MAX_TARGETS);
         let pso = PipelineStates::init(source, &mut gl_factory).unwrap();
         let renderer = Renderer {
             device,
@@ -442,15 +528,17 @@ impl Renderer {
             quad_buf,
             light_buf,
             pbr_buf,
+            displacement_contributions_buf,
             out_color,
             out_depth,
             pso,
+            default_joint_buffer_view,
             map_default: Texture::new(srv_white, sampler, [1, 1]),
             shadow_default: Texture::new(srv_shadow, sampler_shadow, [1, 1]),
             shadow: ShadowType::Basic,
             debug_quads: froggy::Storage::new(),
             font_cache: HashMap::new(),
-            size: window.get_inner_size_pixels().unwrap(),
+            size: window.get_inner_size().unwrap(),
         };
         let factory = Factory::new(gl_factory);
         (renderer, window, factory)
@@ -468,7 +556,7 @@ impl Renderer {
         &mut self,
         window: &glutin::GlWindow,
     ) {
-        let size = window.get_inner_size_pixels().unwrap();
+        let size = window.get_inner_size().unwrap();
 
         // skip updating view and self size if some
         // of the sides equals to zero (fixes crash on minimize on Windows machines)
@@ -506,18 +594,48 @@ impl Renderer {
         camera: &Camera,
     ) {
         self.device.cleanup();
-        let mut hub = scene.hub.lock().unwrap();
+
+        let mut hub = scene.hub.lock().expect("acquire hub lock");
         let scene_id = hub.nodes[&scene.object.node].scene_id;
 
         hub.process_messages();
         hub.update_graph();
+        {
+            // Update joint transforms of skeletons
+            let mut cursor = hub.nodes.cursor();
+            while let Some((left, mut item, right)) = cursor.next() {
+                let world_transform = item.world_transform.clone();
+                match &mut item.sub_node {
+                    &mut SubNode::Skeleton(ref mut skeleton) => {
+                        skeleton.cpu_buffer.clear();
+                        for (bone, ibm) in skeleton.bones.iter().zip(skeleton.inverse_bind_matrices.iter()) {
+                            let bone_transform = Matrix4::from(left.get(&bone.object.node).or_else(|| right.get(&bone.object.node)).unwrap().world_transform);
+                            let inverse_world_transform = Matrix4::from(world_transform).invert().unwrap();
+                            let mx = inverse_world_transform * bone_transform * Matrix4::from(ibm.clone());
+                            skeleton.cpu_buffer.push(mx.x.into());
+                            skeleton.cpu_buffer.push(mx.y.into());
+                            skeleton.cpu_buffer.push(mx.z.into());
+                            skeleton.cpu_buffer.push(mx.w.into());
+                        }
 
+                        self.encoder
+                            .update_buffer(
+                                &skeleton.gpu_buffer,
+                                &skeleton.cpu_buffer[..],
+                                0,
+                            )
+                            .expect("upload to GPU target buffer");
+                    }
+                    _ => {}
+                }
+            }
+        }
         // update dynamic meshes
         for node in hub.nodes.iter_mut() {
             if !node.visible || node.scene_id != scene_id {
                 continue;
             }
-            if let SubNode::Visual(_, ref mut gpu_data) = node.sub_node {
+            if let SubNode::Visual(_, ref mut gpu_data, _) = node.sub_node {
                 if let Some(dynamic) = gpu_data.pending.take() {
                     self.encoder
                         .copy_buffer(
@@ -628,7 +746,7 @@ impl Renderer {
                     continue;
                 }
                 let gpu_data = match node.sub_node {
-                    SubNode::Visual(_, ref data) => data,
+                    SubNode::Visual(_, ref data, _) => data,
                     _ => continue,
                 };
                 self.encoder.update_constant_buffer(
@@ -701,9 +819,19 @@ impl Renderer {
             if !node.visible || node.scene_id != scene_id {
                 continue;
             }
-            let (material, gpu_data) = match node.sub_node {
-                SubNode::Visual(ref mat, ref data) => (mat, data),
+            let (material, gpu_data, skeleton) = match node.sub_node {
+                SubNode::Visual(ref mat, ref data, ref skeleton) => (mat, data, skeleton),
                 _ => continue,
+            };
+
+            let joint_buffer_view = if let &Some(ref object) = skeleton {
+                let data = match hub.get(object).sub_node {
+                    hub::SubNode::Skeleton(ref data) => data,
+                    _ => unreachable!(),
+                };
+                data.gpu_buffer_view.clone()
+            } else {
+                self.default_joint_buffer_view.clone()
             };
 
             //TODO: batch per PSO
@@ -748,6 +876,11 @@ impl Renderer {
                             _padding1: unsafe { mem::uninitialized() },
                         },
                     );
+                    self.encoder.update_buffer(
+                        &self.displacement_contributions_buf,
+                        &gpu_data.displacement_contributions,
+                        0,
+                    ).expect("update displacement contributons buffer");
                     let data = pbr_pipe::Data {
                         vbuf: gpu_data.vertices.clone(),
                         locals: gpu_data.constants.clone(),
@@ -789,6 +922,8 @@ impl Renderer {
                                 .unwrap_or(&self.map_default)
                                 .to_param()
                         },
+                        displacement_contributions: self.displacement_contributions_buf.clone(),
+                        joint_transforms: joint_buffer_view,
                         color_target: self.out_color.clone(),
                         depth_target: self.out_depth.clone(),
                     };

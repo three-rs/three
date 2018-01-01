@@ -44,7 +44,7 @@
 //! # let mut window = three::Window::new("");
 //! use three::Object;
 //! let mut gltf = window.factory.load_gltf("AnimatedScene.gltf");
-//! gltf.group.set_parent(&window.scene);
+//! gltf.set_parent(&window.scene);
 //! ```
 //!
 //! ### Creating animation actions
@@ -60,7 +60,7 @@
 //! # let mut window = three::Window::new("");
 //! # let mut mixer = three::animation::Mixer::new();
 //! # let mut gltf = window.factory.load_gltf("AnimatedScene.gltf");
-//! # gltf.group.set_parent(&window.scene);
+//! # gltf.set_parent(&window.scene);
 //! let actions: Vec<three::animation::Action> = gltf.clips
 //!     .into_iter()
 //!     .map(|clip| mixer.action(clip))
@@ -78,7 +78,7 @@
 //! # let camera = unimplemented!();
 //! # let mut mixer = three::animation::Mixer::new();
 //! # let mut gltf = window.factory.load_gltf("AnimatedScene.gltf");
-//! # gltf.group.set_parent(&window.scene);
+//! # gltf.set_parent(&window.scene);
 //! # let actions: Vec<three::animation::Action> = gltf.clips
 //! #     .into_iter()
 //! #     .map(|clip| mixer.action(clip))
@@ -110,6 +110,7 @@ use object;
 use std::hash::{Hash, Hasher};
 use std::sync::mpsc;
 
+use mesh::MAX_TARGETS;
 use mint::IntraXYZ as IntraXyz;
 
 /// A target of an animation.
@@ -126,9 +127,6 @@ pub enum Interpolation {
 
     /// Smooth cubic interpolation between keyframe values.
     Cubic,
-
-    /// Smooth Catmull–Rom spline interpolation between keyframe values.
-    CatmullRom,
 }
 
 /// Describes the looping behaviour of an [`Action`].
@@ -180,9 +178,22 @@ pub enum Binding {
     ///
     /// The corresponding keyframe values must be [`Scalar`].
     ///
+    /// ## Note
+    ///
+    /// Only uniform scaling is supported, hence the glTF importer takes the
+    /// Y axis as the scaling direction, ignoring any scaling in the X and Z axes.
+    ///
     /// [`Object`]: ../object/trait.Object.html
     /// [`Scalar`]: enum.Values.html#variant.Scalar
     Scale,
+
+    /// Targets the weights property of an [`Object`].
+    ///
+    /// The corresponding keyframe values must be [`Scalar`].
+    ///
+    /// [`Object`]: ../object/trait.Object.html
+    /// [`Scalar`]: enum.Values.html#variant.Scalar
+    Weights,
 }
 
 /// An index into the frames of a track.
@@ -209,11 +220,6 @@ pub enum Values {
     Quaternion(Vec<mint::Quaternion<f32>>),
 
     /// Scalar keyframes.
-    ///
-    /// ## Note
-    ///
-    /// Only uniform scaling is supported, hence the glTF importer takes the
-    /// Y axis as the scaling direction, ignoring any scaling in the X and Z axes.
     Scalar(Vec<f32>),
 
     /// 3D vector keyframes.
@@ -504,9 +510,19 @@ impl ActionData {
                     let frame_start_value = values[frame_index];
                     let frame_end_value = values[frame_index + 1];
                     let update = frame_start_value * (1.0 - s) + frame_end_value * s;
-                    target.set_scale(update);
+                    target.set_scale(update); 
                 }
-                _ => panic!("Unsupported (binding, value) pair"),
+                (Binding::Weights, &Values::Scalar(ref values)) => {
+                    let mut update = [0.0; MAX_TARGETS];
+                    for i in 0 .. MAX_TARGETS {
+                        let frame_start_value = values[MAX_TARGETS * frame_index + i];
+                        let frame_end_value = values[MAX_TARGETS * (frame_index + 1) + i];
+                        let weight = frame_start_value * (1.0 - s) + frame_end_value * s;
+                        update[i] = weight;
+                    }
+                    target.set_weights(update);
+                }
+                _ => panic!("Unsupported (binding, value) pair {:?}", (track.binding, &track.values)),
             }
         }
 

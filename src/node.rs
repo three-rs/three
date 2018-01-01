@@ -40,7 +40,7 @@ impl NodeInternal {
             visible: self.visible,
             world_visible: self.world_visible,
             material: match self.sub_node {
-                SubNode::Visual(ref mat, _) => Some(mat.clone()),
+                SubNode::Visual(ref mat, _, _) => Some(mat.clone()),
                 _ => None,
             },
         }
