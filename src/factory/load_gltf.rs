@@ -420,35 +420,49 @@ fn load_clips(
                     (Binding::Scale, Values::Scalar(values))
                 }
                 gltf::animation::TrsProperty::Weights => {
+                    // Note
+                    //
+                    // The number of morph targets in glTF usually differs from the number of
+                    // morph targets in three-rs since where glTF sets a single weight for one set
+                    // of targets { POSITION, NORMAL, TANGENT }, three-rs expects separate weights
+                    // for each of POSITION, NORMAL, TANGENT in the same set.
+                    //
+                    // This array keeps track of how many times a weight needs to be duplicated
+                    // to reflect the above.
+                    let mut nr_three_targets_per_gltf_target = [0; MAX_TARGETS];
+                    let mut nr_three_targets = 0;
+                    let nr_gltf_targets;
+                    {
+                        let mesh = node.mesh().unwrap();
+                        let first_primitive = mesh.primitives().next().unwrap();
+                        nr_gltf_targets = first_primitive.morph_targets().len();
+                        for (i, target) in first_primitive.morph_targets().enumerate() {
+                            if target.positions().is_some() {
+                                nr_three_targets_per_gltf_target[i] += 1;
+                                nr_three_targets += 1;
+                            }
+                            if target.normals().is_some() {
+                                nr_three_targets_per_gltf_target[i] += 1;
+                                nr_three_targets += 1;
+                            }
+                            if target.tangents().is_some() {
+                                nr_three_targets_per_gltf_target[i] += 1;
+                                nr_three_targets += 1;
+                            }
+                        }
+                    }
                     let mut values = Vec::with_capacity(times.len() * MAX_TARGETS);
-                    let mut iter = AccessorIter::<f32>::new(output, buffers);
-                    for _ in 0 .. times.len() {
-                        let foo = iter.next().unwrap();
-                        for _ in 0 .. 3 {
-                            values.push(foo);
+                    let raw = AccessorIter::<f32>::new(output, buffers).collect::<Vec<_>>();
+                    for chunk in raw.chunks(nr_gltf_targets) {
+                        for (i, value) in chunk.iter().enumerate() {
+                            for _ in 0 .. nr_three_targets_per_gltf_target[i] {
+                                values.push(*value)
+                            }
                         }
-                        let bar = iter.next().unwrap();
-                        for _ in 0 .. 3 {
-                            values.push(bar);
-                        }
-                        for _ in 0 .. 2 {
+                        for _ in nr_three_targets .. MAX_TARGETS {
                             values.push(0.0);
                         }
                     }
-                    // let nr_morph_targets = iter.len() / times.len();
-                    // println!("m = {}", nr_morph_targets);
-                    // for _ in 0 .. times.len() {
-                    //     for _ in 0 .. nr_morph_targets {
-                    //         values.push(iter.next().unwrap())
-                    //     }
-                    //     for _ in nr_morph_targets .. MAX_TARGETS {
-                    //         values.push(0.0);
-                    //     }   
-                    // }
-                    // for v in values.chunks(MAX_TARGETS) {
-                    //     println!("{:?}", v);
-                    // }
-                    // assert_eq!(values.len(), MAX_TARGETS * times.len());
                     (Binding::Weights, Values::Scalar(values))
                 }
             };

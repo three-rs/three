@@ -9,7 +9,7 @@ fn main() {
     light.set_parent(&window.scene);
     window.scene.background = three::Background::Color(0xC6F0FF);
 
-    let default = concat!(env!("CARGO_MANIFEST_DIR"), "/test_data/BoxAnimated.gltf");
+    let default = concat!(env!("CARGO_MANIFEST_DIR"), "/test_data/AnimatedMorphCube/AnimatedMorphCube.gltf");
     let path = std::env::args().nth(1).unwrap_or(default.into());
     let mut gltf = window.factory.load_gltf(&path);
     gltf.set_parent(&window.scene);
@@ -20,11 +20,11 @@ fn main() {
     }
 
     let mut camera = window.factory.perspective_camera(60.0, 0.1 .. 100.0);
-    camera.set_position([0.0, 1.0, 0.2]);
+    camera.set_parent(&window.scene);
 
     let mut controls = three::controls::Orbit::builder(&camera)
-        .position([0.0, 1.0, 0.2])
-        .target([0.0, 0.0, 0.0])
+        .position([-0.08, -0.05, 0.075])
+        .target([0.0, 0.0, 0.01])
         .build();
     
     while window.update() && !window.input.hit(three::KEY_ESCAPE) {

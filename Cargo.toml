@@ -87,10 +87,16 @@ name = "sprite"
 name = "tutorial"
 
 [[example]]
-name = "gltf"
+name = "gltf-pbr-shader"
 
 [[example]]
-name = "gltf-animation"
+name = "gltf-node-animation"
+
+[[example]]
+name = "gltf-vertex-skinning"
+
+[[example]]
+name = "gltf-morph-targets"
 
 [[example]]
 name = "group"
