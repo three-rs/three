@@ -1,9 +1,10 @@
-use gfx::handle as h;
-use render::BackendResources;
 use std::path::Path;
-use util;
 
+use gfx::handle as h;
 use mint;
+
+use render::BackendResources;
+use util;
 
 pub use gfx::texture::{FilterMethod, WrapMode};
 
@@ -18,10 +19,8 @@ pub struct Texture<T> {
     view: h::ShaderResourceView<BackendResources, T>,
     sampler: h::Sampler<BackendResources>,
     total_size: [u32; 2],
-    #[derivative(Hash(hash_with = "util::hash_f32_slice"))]
-    tex0: [f32; 2],
-    #[derivative(Hash(hash_with = "util::hash_f32_slice"))]
-    tex1: [f32; 2],
+    #[derivative(Hash(hash_with = "util::hash_f32_slice"))] tex0: [f32; 2],
+    #[derivative(Hash(hash_with = "util::hash_f32_slice"))] tex1: [f32; 2],
 }
 
 impl<T> Texture<T> {
@@ -35,10 +34,7 @@ impl<T> Texture<T> {
             sampler,
             total_size,
             tex0: [0.0; 2],
-            tex1: [
-                total_size[0] as f32,
-                total_size[1] as f32,
-            ],
+            tex1: [total_size[0] as f32, total_size[1] as f32],
         }
     }
 

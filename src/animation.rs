@@ -286,7 +286,6 @@ struct ActionData {
 
     /// Time scaling factor.
     pub local_time_scale: f32,
-
     // Unimplemented properties
     // ------------------------
     // * weight

@@ -27,6 +27,7 @@ pub use self::back::Factory as BackendFactory;
 pub use self::back::Resources as BackendResources;
 pub use self::source::Source;
 
+use self::pso_data::PsoData;
 use camera::Camera;
 use factory::Factory;
 use hub::{SubLight, SubNode};
@@ -35,7 +36,6 @@ use material::Material;
 use scene::{Background, Scene};
 use text::Font;
 use texture::Texture;
-use self::pso_data::PsoData;
 
 /// The format of the back buffer color requested from the windowing system.
 pub type ColorFormat = gfx::format::Rgba8;
@@ -207,15 +207,15 @@ pub(crate) struct InstanceCacheKey {
 impl Instance {
     #[inline]
     fn basic(
-        mx_world_transposed: mint::RowMatrix4<f32>,
+        mx_world: mint::RowMatrix4<f32>,
         color: u32,
         uv_range: [f32; 4],
         param: f32,
     ) -> Self {
         Instance {
-            world0: mx_world_transposed.x.into(),
-            world1: mx_world_transposed.y.into(),
-            world2: mx_world_transposed.z.into(),
+            world0: mx_world.x.into(),
+            world1: mx_world.y.into(),
+            world2: mx_world.z.into(),
             color: {
                 // TODO: add alpha parameter for `to_linear_rgb`
                 let rgb = color::to_linear_rgb(color);
@@ -227,11 +227,11 @@ impl Instance {
     }
 
     #[inline]
-    fn pbr(mx_world_transposed: mint::RowMatrix4<f32>) -> Self {
+    fn pbr(mx_world: mint::RowMatrix4<f32>) -> Self {
         Instance {
-            world0: mx_world_transposed.x.into(),
-            world1: mx_world_transposed.y.into(),
-            world2: mx_world_transposed.z.into(),
+            world0: mx_world.x.into(),
+            world1: mx_world.y.into(),
+            world2: mx_world.z.into(),
             color: [0.0; 4],
             mat_params: [0.0; 4],
             uv_range: [0.0; 4],
@@ -529,8 +529,6 @@ impl Renderer {
         let factory = Factory::new(gl_factory);
         (renderer, window, factory)
     }
-
-
 
     /// Reloads the shaders.
     pub fn reload(
@@ -978,7 +976,6 @@ impl Renderer {
         self.encoder.flush(&mut self.device);
     }
 
-
     #[inline]
     fn render_mesh(
         encoder: &mut gfx::Encoder<back::Resources, back::CommandBuffer>,
@@ -1047,7 +1044,6 @@ impl Renderer {
             }
         }
     }
-
 
     /// Draw [`ShadowMap`](struct.ShadowMap.html) for debug purposes.
     pub fn debug_shadow_quad(

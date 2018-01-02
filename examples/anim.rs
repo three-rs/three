@@ -38,12 +38,10 @@ const BIT_VERTEX_COLOR: u16 = 0x80;
 fn make_vertices(slice: &[i16]) -> Vec<mint::Point3<f32>> {
     slice
         .chunks(3)
-        .map(|v| {
-            mint::Point3 {
-                x: v[0] as f32 * SCALE,
-                y: v[1] as f32 * SCALE,
-                z: v[2] as f32 * SCALE,
-            }
+        .map(|v| mint::Point3 {
+            x: v[0] as f32 * SCALE,
+            y: v[1] as f32 * SCALE,
+            z: v[2] as f32 * SCALE,
         })
         .collect()
 }

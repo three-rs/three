@@ -120,13 +120,13 @@ pub struct Pbr {
     /// Base color alpha factor applied in the absense of `base_color_map`.
     ///
     /// Default: `1.0` (opaque).
-    #[derivative(Hash(hash_with="util::hash_f32"))]
+    #[derivative(Hash(hash_with = "util::hash_f32"))]
     pub base_color_alpha: f32,
 
     /// Metallic factor in the range [0.0, 1.0].
     ///
     /// Default: `1.0`.
-    #[derivative(Hash(hash_with="util::hash_f32"))]
+    #[derivative(Hash(hash_with = "util::hash_f32"))]
     pub metallic_factor: f32,
 
     /// Roughness factor in the range [0.0, 1.0].
@@ -135,14 +135,14 @@ pub struct Pbr {
     /// * A value of 0.0 means the material is completely smooth.
     ///
     /// Default: `1.0`.
-    #[derivative(Hash(hash_with="util::hash_f32"))]
+    #[derivative(Hash(hash_with = "util::hash_f32"))]
     pub roughness_factor: f32,
 
     /// Scalar multiplier in the range [0.0, 1.0] that controls the amount of
     /// occlusion applied in the presense of `occlusion_map`.
     ///
     /// Default: `1.0`.
-    #[derivative(Hash(hash_with="util::hash_f32"))]
+    #[derivative(Hash(hash_with = "util::hash_f32"))]
     pub occlusion_strength: f32,
 
     /// Solid emissive color applied in the absense of `emissive_map`.
@@ -155,7 +155,7 @@ pub struct Pbr {
     /// This value is ignored in the absense of `normal_map`.
     ///
     /// Default: `1.0`.
-    #[derivative(Hash(hash_with="util::hash_f32"))]
+    #[derivative(Hash(hash_with = "util::hash_f32"))]
     pub normal_scale: f32,
 
     /// Base color texture.
@@ -219,7 +219,7 @@ pub struct Phong {
     /// Higher values result in sharper highlights to produce a glossy effect.
     ///
     /// Default: `30.0`.
-    #[derivative(Hash(hash_with="util::hash_f32"))]
+    #[derivative(Hash(hash_with = "util::hash_f32"))]
     pub glossiness: f32,
 }
 
