@@ -3,7 +3,7 @@ use color::{self, Color};
 use light::{ShadowMap, ShadowProjection};
 use material::{self, Material};
 use mesh::DynamicMesh;
-use node::{NodeInternal, NodePointer};
+use node::{NodeInternal, NodePointer, TransformInternal};
 use object;
 use render::GpuData;
 use text::{Operation as TextOperation, TextData};
@@ -12,8 +12,10 @@ use cgmath::Transform;
 use froggy;
 use mint;
 
+use std::mem;
 use std::sync::{Arc, Mutex};
-use std::sync::{atomic, mpsc};
+use std::sync::mpsc;
+
 
 #[derive(Clone, Debug)]
 pub(crate) enum SubLight {
@@ -34,8 +36,10 @@ pub(crate) struct LightData {
 /// A sub-node specifies and contains the context-specific data owned by a `Node`.
 #[derive(Debug)]
 pub(crate) enum SubNode {
-    /// No extra data, such as in the case of `Group`.
+    /// No extra data.
     Empty,
+    /// Group can be a parent to other objects.
+    Group { first_child: Option<NodePointer> },
     /// Audio data.
     Audio(AudioData),
     /// Renderable text for 2D user interface.
@@ -44,14 +48,12 @@ pub(crate) enum SubNode {
     Visual(Material, GpuData),
     /// Lighting information for illumination and shadow casting.
     Light(LightData),
-    /// Marks the root object of a `Scene`.
-    Scene,
 }
 
 pub(crate) type Message = (froggy::WeakPointer<NodeInternal>, Operation);
 pub(crate) enum Operation {
+    AddChild(NodePointer),
     SetAudio(AudioOperation),
-    SetParent(NodePointer),
     SetVisible(bool),
     SetText(TextOperation),
     SetTransform(
@@ -83,6 +85,7 @@ impl Hub {
         Arc::new(Mutex::new(hub))
     }
 
+    // !!TODO: convert to indexing?!!
     pub(crate) fn get<T>(
         &self,
         object: T,
@@ -119,6 +122,10 @@ impl Hub {
         self.spawn(SubNode::Empty)
     }
 
+    pub(crate) fn spawn_group(&mut self) -> object::Base {
+        self.spawn(SubNode::Group { first_child: None })
+    }
+
     pub(crate) fn spawn_visual(
         &mut self,
         mat: Material,
@@ -148,30 +155,22 @@ impl Hub {
         self.spawn(SubNode::Audio(data))
     }
 
-    pub(crate) fn spawn_scene(&mut self) -> object::Base {
-        static SCENE_UID_COUNTER: atomic::AtomicUsize = atomic::ATOMIC_USIZE_INIT;
-        let uid = SCENE_UID_COUNTER.fetch_add(1, atomic::Ordering::Relaxed);
-        let tx = self.message_tx.clone();
-        let node = self.nodes.create(NodeInternal {
-            scene_id: Some(uid),
-            ..SubNode::Scene.into()
-        });
-        object::Base { node, tx }
-    }
-
     pub(crate) fn process_messages(&mut self) {
+        let mut deferred_sibling_updates = Vec::new();
+
         while let Ok((pnode, operation)) = self.message_rx.try_recv() {
             let node = match pnode.upgrade() {
                 Ok(ptr) => &mut self.nodes[&ptr],
                 Err(_) => continue,
             };
             match operation {
+                Operation::AddChild(child_ptr) => if let SubNode::Group { ref mut first_child } = node.sub_node {
+                    let sibling = mem::replace(first_child, Some(child_ptr.clone()));
+                    deferred_sibling_updates.push((child_ptr, sibling));
+                }
                 Operation::SetAudio(operation) => if let SubNode::Audio(ref mut data) = node.sub_node {
                     Hub::process_audio(operation, data);
                 },
-                Operation::SetParent(parent) => {
-                    node.parent = Some(parent);
-                }
                 Operation::SetVisible(visible) => {
                     node.visible = visible;
                 }
@@ -203,6 +202,15 @@ impl Hub {
                 },
             }
         }
+
+        for (child_ptr, sibling) in deferred_sibling_updates {
+            let child = &mut self.nodes[&child_ptr];
+            if child.next_sibling.is_some() {
+                error!("Attaching a child that still has an old parent, discarding siblings");
+            }
+            child.next_sibling = sibling;
+        }
+
         self.nodes.sync_pending();
     }
 
@@ -240,33 +248,6 @@ impl Hub {
         }
     }
 
-    pub(crate) fn update_graph(&mut self) {
-        let mut cursor = self.nodes.cursor();
-        while let Some((left, mut item, _)) = cursor.next() {
-            if !item.visible {
-                item.world_visible = false;
-                continue;
-            }
-            let (visibility, affilation, transform) = match item.parent {
-                Some(ref parent_ptr) => match left.get(parent_ptr) {
-                    Some(parent) => (
-                        parent.world_visible,
-                        parent.scene_id,
-                        parent.world_transform.concat(&item.transform),
-                    ),
-                    None => {
-                        error!("Parent node was created after the child, ignoring");
-                        (false, item.scene_id, item.transform)
-                    }
-                },
-                None => (true, item.scene_id, item.transform),
-            };
-            item.world_visible = visibility;
-            item.scene_id = affilation;
-            item.world_transform = transform;
-        }
-    }
-
     pub(crate) fn update_mesh(
         &mut self,
         mesh: &DynamicMesh,
@@ -275,5 +256,75 @@ impl Hub {
             SubNode::Visual(_, ref mut gpu_data) => gpu_data.pending = Some(mesh.dynamic.clone()),
             _ => unreachable!(),
         }
+    }
+
+    pub(crate) fn walk(&self, base: &Option<NodePointer>) -> TreeWalker {
+        let mut walker = TreeWalker {
+            hub: self,
+            stack: Vec::new(),
+            only_visible: true,
+        };
+        walker.descend(base);
+        walker
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct WalkedNode<'a> {
+    pub(crate) world_visible: bool,
+    pub(crate) world_transform: TransformInternal,
+    pub(crate) node: &'a NodeInternal,
+}
+
+pub(crate) struct TreeWalker<'a> {
+    hub: &'a Hub,
+    stack: Vec<WalkedNode<'a>>,
+    only_visible: bool,
+}
+
+impl<'a> TreeWalker<'a> {
+    fn descend(&mut self, base: &Option<NodePointer>) -> Option<&NodeInternal> {
+        let mut node = &self.hub.nodes[base.as_ref()?];
+
+        loop {
+            let wn = match self.stack.last() {
+                Some(parent) => WalkedNode {
+                    world_visible: parent.world_visible && node.visible,
+                    world_transform: parent.world_transform.concat(&node.transform),
+                    node,
+                },
+                None => WalkedNode {
+                    world_visible: node.visible,
+                    world_transform: node.transform,
+                    node,
+                },
+            };
+            self.stack.push(wn);
+
+            if self.only_visible && !node.visible {
+                break;
+            }
+
+            node = match node.sub_node {
+                SubNode::Group { first_child: Some(ref ptr) } => &self.hub.nodes[ptr],
+                _ => break,
+            };
+        }
+
+        Some(node)
+    }
+}
+
+impl<'a> Iterator for TreeWalker<'a> {
+    type Item = WalkedNode<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while let Some(top) = self.stack.pop() {
+            self.descend(&top.node.next_sibling);
+            if !self.only_visible || top.world_visible {
+                return Some(top)
+            }
+        }
+        None
     }
 }

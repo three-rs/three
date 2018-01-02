@@ -30,8 +30,11 @@ use hub::{Hub, HubPtr, LightData, SubLight, SubNode};
 use light::{Ambient, Directional, Hemisphere, Point, ShadowMap};
 use material::Material;
 use mesh::{DynamicMesh, Mesh};
-use object::{Group, Object};
-use render::{basic_pipe, BackendFactory, BackendResources, BasicPipelineState, DynamicData, GpuData, Instance, InstanceCacheKey, ShadowFormat, Vertex};
+use object::Group;
+use render::{basic_pipe,
+    BackendFactory, BackendResources, BasicPipelineState, DynamicData, GpuData,
+    Instance, InstanceCacheKey, ShadowFormat, Vertex,
+};
 use scene::Scene;
 use sprite::Sprite;
 use text::{Font, Text, TextData};
@@ -133,12 +136,11 @@ impl Factory {
 
     /// Create new empty [`Scene`](struct.Scene.html).
     pub fn scene(&mut self) -> Scene {
-        let object = self.hub.lock().unwrap().spawn_scene();
         let hub = self.hub.clone();
         let background = scene::Background::Color(color::BLACK);
         Scene {
-            object,
             hub,
+            first_child: None,
             background,
         }
     }
@@ -195,7 +197,7 @@ impl Factory {
 
     /// Create empty [`Group`](struct.Group.html).
     pub fn group(&mut self) -> Group {
-        Group::new(self.hub.lock().unwrap().spawn_empty())
+        Group::new(self.hub.lock().unwrap().spawn_group())
     }
 
     fn mesh_vertices(shape: &Shape) -> Vec<Vertex> {
@@ -793,8 +795,6 @@ impl Factory {
     }
 
     /// Load mesh from Wavefront Obj format.
-    /// #### Note
-    /// You must store `Vec<Mesh>` somewhere to keep them alive.
     pub fn load_obj(
         &mut self,
         path_str: &str,
@@ -814,7 +814,7 @@ impl Factory {
         let mut indices = Vec::new();
 
         for object in obj.object_iter() {
-            let group = Group::new(hub.spawn_empty());
+            let mut group = Group::new(hub.spawn_empty());
             for gr in object.group_iter() {
                 let (mut num_normals, mut num_uvs) = (0, 0);
                 {
@@ -879,7 +879,7 @@ impl Factory {
                         gfx::TRANSFER_DST,
                     )
                     .unwrap();
-                let mut mesh = Mesh {
+                let mesh = Mesh {
                     object: hub.spawn_visual(
                         material,
                         GpuData {
@@ -891,7 +891,7 @@ impl Factory {
                         },
                     ),
                 };
-                mesh.set_parent(&group);
+                group.add(&mesh);
                 meshes.push(mesh);
             }
 

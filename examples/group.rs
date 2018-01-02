@@ -28,10 +28,10 @@ fn create_cubes(
 
     let root = {
         let mut group = factory.group();
-        let mut mesh = factory.mesh(geometry.clone(), materials[0].clone());
+        let mesh = factory.mesh(geometry.clone(), materials[0].clone());
         group.set_position([0.0, 0.0, 1.0]);
         group.set_scale(2.0);
-        mesh.set_parent(&group);
+        group.add(&mesh);
         Cube {
             group,
             mesh,
@@ -86,8 +86,8 @@ fn create_cubes(
             };
             let p: mint::Vector3<f32> = child.disp.into();
             cube.group.set_transform(p, child.rot, child.scale);
-            cube.group.set_parent(&list[next.parent_id].group);
-            cube.mesh.set_parent(&cube.group);
+            list[next.parent_id].group.add(&cube.group);
+            cube.group.add(&cube.mesh);
             if next.mat_id + 1 < materials.len() && next.lev_id + 1 < levels.len() {
                 stack.push(Stack {
                     parent_id: list.len(),
@@ -115,7 +115,7 @@ fn main() {
 
     let mut light = win.factory.point_light(0xffffff, 1.0);
     light.set_position([0.0, -10.0, 10.0]);
-    light.set_parent(&win.scene);
+    win.scene.add(&light);
 
     let materials: Vec<_> = COLORS
         .iter()
@@ -123,7 +123,7 @@ fn main() {
         .collect();
     let levels: Vec<_> = SPEEDS.iter().map(|&speed| Level { speed }).collect();
     let mut cubes = create_cubes(&mut win.factory, &materials, &levels);
-    cubes[0].group.set_parent(&win.scene);
+    win.scene.add(&cubes[0].group);
 
     let font = win.factory.load_font(format!(
         "{}/data/fonts/DejaVuSans.ttf",

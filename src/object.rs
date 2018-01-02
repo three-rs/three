@@ -7,8 +7,8 @@ use std::sync::mpsc;
 use mint;
 
 use hub::{Message, Operation};
-use node::{Node, NodePointer};
-use scene::Scene;
+use node::NodePointer;
+
 
 //Note: no local state should be here, only remote links
 /// `Base` represents a concrete entity that can be added to the scene.
@@ -74,17 +74,6 @@ pub trait Object: AsRef<Base> + AsMut<Base> {
         self.as_mut().set_transform(pos, rot, scale)
     }
 
-    /// Add new [`Base`](struct.Base.html) to the group.
-    fn set_parent<P>(
-        &mut self,
-        parent: P,
-    ) where
-        Self: Sized,
-        P: AsRef<Base>,
-    {
-        self.as_mut().set_parent(parent)
-    }
-
     /// Set position.
     fn set_position<P>(
         &mut self,
@@ -113,16 +102,6 @@ pub trait Object: AsRef<Base> + AsMut<Base> {
         scale: f32,
     ) {
         self.as_mut().set_scale(scale)
-    }
-
-    /// Get actual information about itself from the `scene`.
-    /// # Panics
-    /// Panics if `scene` doesn't have this `Base`.
-    fn sync(
-        &mut self,
-        scene: &Scene,
-    ) -> Node {
-        self.as_mut().sync(scene)
     }
 }
 
@@ -202,17 +181,6 @@ impl Base {
         let _ = self.tx.send((self.node.downgrade(), msg));
     }
 
-    /// Add new [`Base`](struct.Base.html) to the group.
-    pub fn set_parent<P>(
-        &mut self,
-        parent: P,
-    ) where
-        P: AsRef<Self>,
-    {
-        let msg = Operation::SetParent(parent.as_ref().node.clone());
-        let _ = self.tx.send((self.node.downgrade(), msg));
-    }
-
     /// Set position.
     pub fn set_position<P>(
         &mut self,
@@ -243,22 +211,6 @@ impl Base {
         let msg = Operation::SetTransform(None, None, Some(scale));
         let _ = self.tx.send((self.node.downgrade(), msg));
     }
-
-    /// Get actual information about itself from the `scene`.
-    /// # Panics
-    /// Panics if `scene` doesn't have this `Base`.
-    pub fn sync(
-        &mut self,
-        scene: &Scene,
-    ) -> Node {
-        let mut hub = scene.hub.lock().unwrap();
-        hub.process_messages();
-        hub.update_graph();
-        let node = &hub.nodes[&self.node];
-        let root = &hub.nodes[&scene.object.node];
-        assert_eq!(node.scene_id, root.scene_id);
-        node.to_node()
-    }
 }
 
 impl AsRef<Base> for Base {
@@ -284,5 +236,16 @@ three_object!(Group::object);
 impl Group {
     pub(crate) fn new(object: Base) -> Self {
         Group { object }
+    }
+
+    /// Add new [`Base`](struct.Base.html) to the group.
+    pub fn add<P>(
+        &mut self,
+        child: P,
+    ) where
+        P: AsRef<Base>,
+    {
+        let msg = Operation::AddChild(child.as_ref().node.clone());
+        let _ = self.object.tx.send((self.object.node.downgrade(), msg));
     }
 }

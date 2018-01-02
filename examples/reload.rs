@@ -89,12 +89,12 @@ fn main() {
         .watch(&dir, notify::RecursiveMode::NonRecursive)
         .unwrap();
 
-    let map_path = concat!(env!("CARGO_MANIFEST_DIR"), "/test_data/gradient.png");
+    let map_path = concat!(env!("CARGO_MANIFEST_DIR"), "/test_data/texture.png");
     let map = win.factory.load_texture(map_path);
     let material = three::material::Sprite { map };
     let mut sprite = win.factory.sprite(material);
     sprite.set_scale(1.0);
-    sprite.set_parent(&win.scene);
+    win.scene.add(&sprite);
 
     let mut reload = true;
     while win.update() && !win.input.hit(three::KEY_ESCAPE) {

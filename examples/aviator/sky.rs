@@ -7,20 +7,17 @@ use three::{self, Object};
 
 use COLOR_WHITE;
 
-struct Cloud {
-    group: three::Group,
-    meshes: Vec<three::Mesh>,
+
+pub struct Sky {
+    pub group: three::Group,
 }
 
-impl Cloud {
-    fn new<R: Rng>(
+impl Sky {
+    fn make_cloud<R: Rng>(
         rng: &mut R,
         factory: &mut three::Factory,
-    ) -> Self {
-        let mut cloud = Cloud {
-            group: factory.group(),
-            meshes: Vec::new(),
-        };
+    ) -> three::Group {
+        let mut group = factory.group();
         let geo = three::Geometry::cuboid(20.0, 20.0, 20.0);
         let material = three::material::Lambert {
             color: COLOR_WHITE,
@@ -40,31 +37,20 @@ impl Cloud {
                 q,
                 rng.gen_range(0.1, 1.0),
             );
-            m.set_parent(&cloud.group);
-            cloud.meshes.push(m);
+            group.add(&m);
         }
-        cloud
+        group
     }
-}
 
-pub struct Sky {
-    pub group: three::Group,
-    clouds: Vec<Cloud>,
-}
-
-impl Sky {
     pub fn new<R: Rng>(
         rng: &mut R,
         factory: &mut three::Factory,
     ) -> Self {
-        let mut sky = Sky {
-            group: factory.group(),
-            clouds: Vec::new(),
-        };
+        let mut group = factory.group();
         let num = 20i32;
         let step_angle = PI * 2.0 / num as f32;
         for i in 0 .. num {
-            let mut c = Cloud::new(rng, factory);
+            let mut cloud = Self::make_cloud(rng, factory);
             let angle = cgmath::Rad(i as f32 * step_angle);
             let dist = rng.gen_range(750.0, 950.0);
             let pos = [
@@ -73,10 +59,9 @@ impl Sky {
                 rng.gen_range(-800.0, -400.0),
             ];
             let q = cgmath::Quaternion::from_angle_z(angle + cgmath::Rad::turn_div_4());
-            c.group.set_transform(pos, q, rng.gen_range(1.0, 3.0));
-            c.group.set_parent(&sky.group);
-            sky.clouds.push(c);
+            cloud.set_transform(pos, q, rng.gen_range(1.0, 3.0));
+            group.add(&cloud);
         }
-        sky
+        Sky { group }
     }
 }

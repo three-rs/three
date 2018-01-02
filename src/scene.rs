@@ -4,14 +4,12 @@ use object;
 
 use color::Color;
 use hub::{Hub, HubPtr};
-use node::Node;
-use object::Object;
+use node::{Node, NodePointer};
+use object::{Base, Object};
 use texture::{CubeMap, Texture};
 
+use std::mem;
 use std::sync::MutexGuard;
-
-/// Unique identifier for a scene.
-pub type Uid = usize;
 
 /// Background type.
 #[derive(Clone, Debug, PartialEq)]
@@ -29,12 +27,32 @@ pub enum Background {
 ///
 /// [`Camera`]: ../camera/struct.Camera.html
 pub struct Scene {
-    pub(crate) object: object::Base,
     pub(crate) hub: HubPtr,
+    pub(crate) first_child: Option<NodePointer>,
     /// See [`Background`](struct.Background.html).
     pub background: Background,
 }
-three_object!(Scene::object);
+
+impl Scene {
+    /// Add new [`Base`](struct.Base.html) to the scene.
+    pub fn add<P>(
+        &mut self,
+        child_base: P,
+    ) where
+        P: AsRef<Base>,
+    {
+        let mut hub = self.hub.lock().unwrap();
+        let child_ptr = child_base.as_ref().node.clone();
+        let mut tail_ptr = child_ptr.clone();
+        let old_first = mem::replace(&mut self.first_child, Some(child_ptr));
+
+        while let Some(ref next) = hub.nodes[&tail_ptr].next_sibling {
+            tail_ptr = next.clone();
+        }
+        hub.nodes[&tail_ptr].next_sibling = old_first;
+    }
+}
+
 
 /// `SyncGuard` is used to obtain information about scene nodes in the most effective way.
 ///
@@ -43,7 +61,6 @@ three_object!(Scene::object);
 /// Imagine that you have your own helper type `Enemy`:
 ///
 /// ```rust
-/// # #[macro_use]
 /// # extern crate three;
 /// struct Enemy {
 ///     mesh: three::Mesh,
@@ -61,7 +78,6 @@ three_object!(Scene::object);
 /// walk through every enemy in your game:
 ///
 /// ```rust,no_run
-/// # #[macro_use]
 /// # extern crate three;
 /// # #[derive(Clone)]
 /// # struct Enemy {
@@ -89,14 +105,14 @@ three_object!(Scene::object);
 /// # let geometry = three::Geometry::default();
 /// # let material = three::material::Basic { color: three::color::RED, map: None };
 /// # let mesh = win.factory.mesh(geometry, material);
-/// # let mut enemy = Enemy { mesh, is_visible: true };
-/// # enemy.set_parent(&win.scene);
+/// # let enemy = Enemy { mesh, is_visible: true };
+/// # win.scene.add(&enemy);
 /// # let mut enemies = vec![enemy];
 /// # loop {
 /// let mut sync = win.scene.sync_guard();
 /// for mut enemy in &mut enemies {
 ///     let node = sync.resolve(enemy);
-///     let position = node.world_transform.position;
+///     let position = node.transform.position;
 ///     if position.x > 10.0 {
 ///         enemy.is_visible = false;
 ///         enemy.set_visible(false);
@@ -109,10 +125,7 @@ three_object!(Scene::object);
 /// ```
 ///
 /// [`object::Base::sync`]: ../object/struct.Base.html#method.sync
-pub struct SyncGuard<'a> {
-    hub: MutexGuard<'a, Hub>,
-    scene_id: Option<Uid>,
-}
+pub struct SyncGuard<'a>(pub(crate) MutexGuard<'a, Hub>);
 
 impl<'a> SyncGuard<'a> {
     /// Obtains `objects`'s [`Node`] in an effective way.
@@ -126,8 +139,7 @@ impl<'a> SyncGuard<'a> {
         object: &T,
     ) -> Node {
         let base: &object::Base = object.as_ref();
-        let node_internal = &self.hub.nodes[&base.node];
-        assert_eq!(node_internal.scene_id, self.scene_id);
+        let node_internal = &self.0.nodes[&base.node];
         node_internal.to_node()
     }
 }
@@ -136,11 +148,9 @@ impl Scene {
     /// Create new [`SyncGuard`](struct.SyncGuard.html).
     ///
     /// This is performance-costly operation, you should not use it many times per frame.
-    pub fn sync_guard<'a>(&'a mut self) -> SyncGuard<'a> {
+    pub fn sync_guard(&mut self) -> SyncGuard {
         let mut hub = self.hub.lock().unwrap();
         hub.process_messages();
-        hub.update_graph();
-        let scene_id = hub.nodes[&self.object.node].scene_id;
-        SyncGuard { hub, scene_id }
+        SyncGuard(hub)
     }
 }
