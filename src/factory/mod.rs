@@ -331,19 +331,17 @@ impl Factory {
     ) -> Mesh {
         let instances = self.create_instance_buffer();
         let mut hub = self.hub.lock().unwrap();
-        let material = match hub.get(&template).sub_node {
-            SubNode::Visual(ref mat, _) => mat.clone(),
-            _ => unreachable!(),
-        };
-        let gpu_data = match hub.get(&template).sub_node {
-            SubNode::Visual(_, ref gpu) => GpuData {
-                instances,
-                instance_cache_key: Some(InstanceCacheKey {
-                    material: material.clone(),
-                    geometry: gpu.vertices.clone(),
-                }),
-                ..gpu.clone()
-            },
+        let (material, gpu_data) = match hub[template].sub_node {
+            SubNode::Visual(ref mat, ref gpu) => {
+                (mat.clone(), GpuData {
+                    instances,
+                    instance_cache_key: Some(InstanceCacheKey {
+                        material: mat.clone(),
+                        geometry: gpu.vertices.clone(),
+                    }),
+                    ..gpu.clone()
+                })
+            }
             _ => unreachable!(),
         };
         Mesh {
@@ -359,9 +357,9 @@ impl Factory {
         material: M,
     ) -> Mesh {
         let instances = self.create_instance_buffer();
-        let mut hub = self.hub.lock().unwrap();
         let material = material.into();
-        let gpu_data = match hub.get(&template).sub_node {
+        let mut hub = self.hub.lock().unwrap();
+        let gpu_data = match hub[template].sub_node {
             SubNode::Visual(_, ref gpu) => GpuData {
                 instances,
                 instance_cache_key: Some(InstanceCacheKey {

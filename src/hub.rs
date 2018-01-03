@@ -12,7 +12,7 @@ use cgmath::Transform;
 use froggy;
 use mint;
 
-use std::mem;
+use std::{mem, ops};
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc;
 
@@ -74,6 +74,21 @@ pub(crate) struct Hub {
     message_rx: mpsc::Receiver<Message>,
 }
 
+impl<T: AsRef<object::Base>> ops::Index<T> for Hub {
+    type Output = NodeInternal;
+    fn index(&self, i: T) -> &Self::Output {
+        let base: &object::Base = i.as_ref();
+        &self.nodes[&base.node]
+    }
+}
+
+impl<T: AsRef<object::Base>> ops::IndexMut<T> for Hub {
+    fn index_mut(&mut self, i: T) -> &mut Self::Output {
+        let base: &object::Base = i.as_ref();
+        &mut self.nodes[&base.node]
+    }
+}
+
 impl Hub {
     pub(crate) fn new() -> HubPtr {
         let (tx, rx) = mpsc::channel();
@@ -83,29 +98,6 @@ impl Hub {
             message_rx: rx,
         };
         Arc::new(Mutex::new(hub))
-    }
-
-    // !!TODO: convert to indexing?!!
-    pub(crate) fn get<T>(
-        &self,
-        object: T,
-    ) -> &NodeInternal
-    where
-        T: AsRef<object::Base>,
-    {
-        let base: &object::Base = object.as_ref();
-        &self.nodes[&base.node]
-    }
-
-    pub(crate) fn get_mut<T>(
-        &mut self,
-        object: T,
-    ) -> &mut NodeInternal
-    where
-        T: AsRef<object::Base>,
-    {
-        let base: &object::Base = object.as_ref();
-        &mut self.nodes[&base.node]
     }
 
     fn spawn(
@@ -252,7 +244,7 @@ impl Hub {
         &mut self,
         mesh: &DynamicMesh,
     ) {
-        match self.get_mut(&mesh).sub_node {
+        match self[mesh].sub_node {
             SubNode::Visual(_, ref mut gpu_data) => gpu_data.pending = Some(mesh.dynamic.clone()),
             _ => unreachable!(),
         }

@@ -726,7 +726,7 @@ impl Renderer {
         // prepare target and globals
         let (mx_inv_proj, mx_view, mx_vp) = {
             let p: [[f32; 4]; 4] = camera.matrix(self.aspect_ratio()).into();
-            let node = &hub.nodes[&camera.object.node];
+            let node = &hub[&camera];
             let world_transform = node.transform; //TODO!!!
             let mx_view = Matrix4::from(world_transform.inverse_transform().unwrap());
             let mx_vp = Matrix4::from(p) * mx_view;
