@@ -1,9 +1,10 @@
 //! The renderer.
 
-use cgmath::{Matrix4, SquareMatrix, Transform as Transform_, Vector3};
+use cgmath::{Matrix, Matrix4, SquareMatrix, Transform as Transform_, Vector3};
 use color;
 use froggy;
 use gfx;
+use gfx::handle as h;
 use gfx::memory::Typed;
 use gfx::traits::{Device, Factory as Factory_, FactoryExt};
 #[cfg(feature = "opengl")]
@@ -15,8 +16,9 @@ use glutin;
 use mint;
 
 pub mod source;
+mod pso_data;
 
-use std::{io, mem, str};
+use std::{io, str};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -25,6 +27,7 @@ pub use self::back::Factory as BackendFactory;
 pub use self::back::Resources as BackendResources;
 pub use self::source::Source;
 
+use self::pso_data::PsoData;
 use camera::Camera;
 use factory::Factory;
 use hub::{SubLight, SubNode};
@@ -94,11 +97,13 @@ gfx_defines! {
         tangent: [gfx::format::I8Norm; 4] = "a_Tangent",
     }
 
-    constant Locals {
-        mx_world: [[f32; 4]; 4] = "u_World",
-        color: [f32; 4] = "u_Color",
-        mat_params: [f32; 4] = "u_MatParams",
-        uv_range: [f32; 4] = "u_UvRange",
+    vertex Instance {
+        world0: [f32; 4] = "i_World0",
+        world1: [f32; 4] = "i_World1",
+        world2: [f32; 4] = "i_World2",
+        color: [f32; 4] = "i_Color",
+        mat_params: [f32; 4] = "i_MatParams",
+        uv_range: [f32; 4] = "i_UvRange",
     }
 
     constant LightParam {
@@ -121,7 +126,7 @@ gfx_defines! {
 
     pipeline basic_pipe {
         vbuf: gfx::VertexBuffer<Vertex> = (),
-        cb_locals: gfx::ConstantBuffer<Locals> = "b_Locals",
+        inst_buf: gfx::InstanceBuffer<Instance> = (),
         cb_lights: gfx::ConstantBuffer<LightParam> = "b_Lights",
         cb_globals: gfx::ConstantBuffer<Globals> = "b_Globals",
         tex_map: gfx::TextureSampler<[f32; 4]> = "t_Map",
@@ -137,7 +142,7 @@ gfx_defines! {
 
     pipeline shadow_pipe {
         vbuf: gfx::VertexBuffer<Vertex> = (),
-        cb_locals: gfx::ConstantBuffer<Locals> = "b_Locals",
+        inst_buf: gfx::InstanceBuffer<Instance> = (),
         cb_globals: gfx::ConstantBuffer<Globals> = "b_Globals",
         target: gfx::DepthTarget<ShadowFormat> =
             gfx::preset::depth::LESS_EQUAL_WRITE,
@@ -172,8 +177,8 @@ gfx_defines! {
 
     pipeline pbr_pipe {
         vbuf: gfx::VertexBuffer<Vertex> = (),
+        inst_buf: gfx::InstanceBuffer<Instance> = (),
 
-        locals: gfx::ConstantBuffer<Locals> = "b_Locals",
         globals: gfx::ConstantBuffer<Globals> = "b_Globals",
         params: gfx::ConstantBuffer<PbrParams> = "b_PbrParams",
         lights: gfx::ConstantBuffer<LightParam> = "b_Lights",
@@ -193,19 +198,69 @@ gfx_defines! {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub(crate) struct InstanceCacheKey {
+    pub(crate) material: Material,
+    pub(crate) geometry: h::Buffer<back::Resources, Vertex>,
+}
+
+impl Instance {
+    #[inline]
+    fn basic(
+        mx_world: mint::RowMatrix4<f32>,
+        color: u32,
+        uv_range: [f32; 4],
+        param: f32,
+    ) -> Self {
+        Instance {
+            world0: mx_world.x.into(),
+            world1: mx_world.y.into(),
+            world2: mx_world.z.into(),
+            color: {
+                // TODO: add alpha parameter for `to_linear_rgb`
+                let rgb = color::to_linear_rgb(color);
+                [rgb[0], rgb[1], rgb[2], 0.0]
+            },
+            mat_params: [param, 0.0, 0.0, 0.0],
+            uv_range,
+        }
+    }
+
+    #[inline]
+    fn pbr(mx_world: mint::RowMatrix4<f32>) -> Self {
+        Instance {
+            world0: mx_world.x.into(),
+            world1: mx_world.y.into(),
+            world2: mx_world.z.into(),
+            color: [0.0; 4],
+            mat_params: [0.0; 4],
+            uv_range: [0.0; 4],
+        }
+    }
+}
+
 //TODO: private fields?
 #[derive(Clone, Debug)]
 pub(crate) struct GpuData {
     pub slice: gfx::Slice<back::Resources>,
-    pub vertices: gfx::handle::Buffer<back::Resources, Vertex>,
-    pub constants: gfx::handle::Buffer<back::Resources, Locals>,
+    pub vertices: h::Buffer<back::Resources, Vertex>,
+    pub instances: h::Buffer<back::Resources, Instance>,
     pub pending: Option<DynamicData>,
+    pub instance_cache_key: Option<InstanceCacheKey>,
+}
+
+#[derive(Clone, Debug)]
+struct InstanceData {
+    pub slice: gfx::Slice<back::Resources>,
+    pub vertices: h::Buffer<back::Resources, Vertex>,
+    pub pso_data: PsoData,
+    pub material: Material,
 }
 
 #[derive(Clone, Debug)]
 pub(crate) struct DynamicData {
     pub num_vertices: usize,
-    pub buffer: gfx::handle::Buffer<back::Resources, Vertex>,
+    pub buffer: h::Buffer<back::Resources, Vertex>,
 }
 
 /// Shadow type is used to specify shadow's rendering algorithm.
@@ -218,18 +273,8 @@ pub enum ShadowType {
     Pcf,
 }
 
-bitflags! {
-    struct PbrFlags: i32 {
-        const BASE_COLOR_MAP         = 1 << 0;
-        const NORMAL_MAP             = 1 << 1;
-        const METALLIC_ROUGHNESS_MAP = 1 << 2;
-        const EMISSIVE_MAP           = 1 << 3;
-        const OCCLUSION_MAP          = 1 << 4;
-    }
-}
-
 struct DebugQuad {
-    resource: gfx::handle::RawShaderResourceView<back::Resources>,
+    resource: h::RawShaderResourceView<back::Resources>,
     pos: [i32; 2],
     size: [i32; 2],
 }
@@ -378,6 +423,21 @@ impl PipelineStates {
             skybox: pso_skybox,
         })
     }
+
+    pub(crate) fn pso_by_material(
+        &self,
+        material: &Material,
+    ) -> &BasicPipelineState {
+        match *material {
+            Material::Basic(_) => &self.mesh_basic_fill,
+            Material::Line(_) => &self.line_basic,
+            Material::Wireframe(_) => &self.mesh_basic_wireframe,
+            Material::Lambert(_) => &self.mesh_gouraud,
+            Material::Phong(_) => &self.mesh_phong,
+            Material::Sprite(_) => &self.sprite,
+            _ => unreachable!(),
+        }
+    }
 }
 
 /// Handle for additional viewport to render some relevant debug information.
@@ -391,18 +451,21 @@ pub struct DebugQuadHandle(froggy::Pointer<DebugQuad>);
 pub struct Renderer {
     device: back::Device,
     encoder: gfx::Encoder<back::Resources, back::CommandBuffer>,
-    const_buf: gfx::handle::Buffer<back::Resources, Globals>,
-    quad_buf: gfx::handle::Buffer<back::Resources, QuadParams>,
-    light_buf: gfx::handle::Buffer<back::Resources, LightParam>,
-    pbr_buf: gfx::handle::Buffer<back::Resources, PbrParams>,
-    out_color: gfx::handle::RenderTargetView<back::Resources, ColorFormat>,
-    out_depth: gfx::handle::DepthStencilView<back::Resources, DepthFormat>,
+    factory: back::Factory,
+    const_buf: h::Buffer<back::Resources, Globals>,
+    quad_buf: h::Buffer<back::Resources, QuadParams>,
+    inst_buf: h::Buffer<back::Resources, Instance>,
+    light_buf: h::Buffer<back::Resources, LightParam>,
+    pbr_buf: h::Buffer<back::Resources, PbrParams>,
+    out_color: h::RenderTargetView<back::Resources, ColorFormat>,
+    out_depth: h::DepthStencilView<back::Resources, DepthFormat>,
     pso: PipelineStates,
     map_default: Texture<[f32; 4]>,
     shadow_default: Texture<f32>,
     debug_quads: froggy::Storage<DebugQuad>,
     size: (u32, u32),
     font_cache: HashMap<PathBuf, Font>,
+    instance_cache: HashMap<InstanceCacheKey, (InstanceData, Vec<Instance>)>,
     /// `ShadowType` of this `Renderer`.
     pub shadow: ShadowType,
 }
@@ -434,19 +497,30 @@ impl Renderer {
         let quad_buf = gl_factory.create_constant_buffer(1);
         let light_buf = gl_factory.create_constant_buffer(MAX_LIGHTS);
         let pbr_buf = gl_factory.create_constant_buffer(1);
+        let inst_buf = gl_factory
+            .create_buffer(
+                1,
+                gfx::buffer::Role::Vertex,
+                gfx::memory::Usage::Dynamic,
+                gfx::TRANSFER_DST,
+            )
+            .unwrap();
         let pso = PipelineStates::init(source, &mut gl_factory).unwrap();
         let renderer = Renderer {
             device,
+            factory: gl_factory.clone(),
             encoder,
             const_buf,
             quad_buf,
             light_buf,
+            inst_buf,
             pbr_buf,
             out_color,
             out_depth,
             pso,
             map_default: Texture::new(srv_white, sampler, [1, 1]),
             shadow_default: Texture::new(srv_shadow, sampler_shadow, [1, 1]),
+            instance_cache: HashMap::new(),
             shadow: ShadowType::Basic,
             debug_quads: froggy::Storage::new(),
             font_cache: HashMap::new(),
@@ -534,8 +608,8 @@ impl Renderer {
 
         // gather lights
         struct ShadowRequest {
-            target: gfx::handle::DepthStencilView<back::Resources, ShadowFormat>,
-            resource: gfx::handle::ShaderResourceView<back::Resources, f32>,
+            target: h::DepthStencilView<back::Resources, ShadowFormat>,
+            resource: h::ShaderResourceView<back::Resources, f32>,
             mx_view: Matrix4<f32>,
             mx_proj: Matrix4<f32>,
         }
@@ -631,19 +705,14 @@ impl Renderer {
                     SubNode::Visual(_, ref data) => data,
                     _ => continue,
                 };
-                self.encoder.update_constant_buffer(
-                    &gpu_data.constants,
-                    &Locals {
-                        mx_world: Matrix4::from(node.world_transform).into(),
-                        color: [0.0; 4],
-                        mat_params: [0.0; 4],
-                        uv_range: [0.0; 4],
-                    },
-                );
+                let mx_world: [[f32; 4]; 4] = Matrix4::from(node.world_transform).transpose().into();
+                self.encoder
+                    .update_buffer(&gpu_data.instances, &[Instance::pbr(mx_world.into())], 0)
+                    .unwrap();
                 //TODO: avoid excessive cloning
                 let data = shadow_pipe::Data {
                     vbuf: gpu_data.vertices.clone(),
-                    cb_locals: gpu_data.constants.clone(),
+                    inst_buf: gpu_data.instances.clone(),
                     cb_globals: self.const_buf.clone(),
                     target: request.target.clone(),
                 };
@@ -697,6 +766,12 @@ impl Renderer {
             Some(ref request) => request.resource.clone(),
             None => shadow_default.clone(),
         };
+
+        // clear instance cache
+        for instances in self.instance_cache.values_mut() {
+            instances.1.clear();
+        }
+
         for node in hub.nodes.iter() {
             if !node.visible || node.scene_id != scene_id {
                 continue;
@@ -706,146 +781,94 @@ impl Renderer {
                 _ => continue,
             };
 
-            //TODO: batch per PSO
-            match *material {
-                Material::Pbr(ref params) => {
-                    self.encoder.update_constant_buffer(
-                        &gpu_data.constants,
-                        &Locals {
-                            mx_world: Matrix4::from(node.world_transform).into(),
-                            ..unsafe { mem::zeroed() }
-                        },
-                    );
-                    let mut pbr_flags = PbrFlags::empty();
-                    if params.base_color_map.is_some() {
-                        pbr_flags.insert(BASE_COLOR_MAP);
-                    }
-                    if params.normal_map.is_some() {
-                        pbr_flags.insert(NORMAL_MAP);
-                    }
-                    if params.metallic_roughness_map.is_some() {
-                        pbr_flags.insert(METALLIC_ROUGHNESS_MAP);
-                    }
-                    if params.emissive_map.is_some() {
-                        pbr_flags.insert(EMISSIVE_MAP);
-                    }
-                    if params.occlusion_map.is_some() {
-                        pbr_flags.insert(OCCLUSION_MAP);
-                    }
-                    let bcf = color::to_linear_rgb(params.base_color_factor);
-                    let emf = color::to_linear_rgb(params.emissive_factor);
-                    self.encoder.update_constant_buffer(
-                        &self.pbr_buf,
-                        &PbrParams {
-                            base_color_factor: [bcf[0], bcf[1], bcf[2], params.base_color_alpha],
-                            camera: [0.0, 0.0, 1.0],
-                            emissive_factor: [emf[0], emf[1], emf[2]],
-                            metallic_roughness: [params.metallic_factor, params.roughness_factor],
-                            normal_scale: params.normal_scale,
-                            occlusion_strength: params.occlusion_strength,
-                            pbr_flags: pbr_flags.bits(),
-                            _padding0: unsafe { mem::uninitialized() },
-                            _padding1: unsafe { mem::uninitialized() },
-                        },
-                    );
-                    let data = pbr_pipe::Data {
-                        vbuf: gpu_data.vertices.clone(),
-                        locals: gpu_data.constants.clone(),
-                        globals: self.const_buf.clone(),
-                        lights: self.light_buf.clone(),
-                        params: self.pbr_buf.clone(),
-                        base_color_map: {
-                            params
-                                .base_color_map
-                                .as_ref()
-                                .unwrap_or(&self.map_default)
-                                .to_param()
-                        },
-                        normal_map: {
-                            params
-                                .normal_map
-                                .as_ref()
-                                .unwrap_or(&self.map_default)
-                                .to_param()
-                        },
-                        emissive_map: {
-                            params
-                                .emissive_map
-                                .as_ref()
-                                .unwrap_or(&self.map_default)
-                                .to_param()
-                        },
-                        metallic_roughness_map: {
-                            params
-                                .metallic_roughness_map
-                                .as_ref()
-                                .unwrap_or(&self.map_default)
-                                .to_param()
-                        },
-                        occlusion_map: {
-                            params
-                                .occlusion_map
-                                .as_ref()
-                                .unwrap_or(&self.map_default)
-                                .to_param()
-                        },
-                        color_target: self.out_color.clone(),
-                        depth_target: self.out_depth.clone(),
-                    };
-                    self.encoder.draw(&gpu_data.slice, &self.pso.pbr, &data);
-                }
-                ref other => {
-                    let (pso, color, param0, map) = match *other {
-                        Material::Pbr(_) => unreachable!(),
-                        Material::Basic(ref params) => (
-                            &self.pso.mesh_basic_fill,
-                            params.color,
-                            0.0,
-                            params.map.as_ref(),
-                        ),
-                        Material::CustomBasic(ref params) => (&params.pipeline, params.color, 0.0, params.map.as_ref()),
-                        Material::Lambert(ref params) => (
-                            &self.pso.mesh_gouraud,
-                            params.color,
-                            if params.flat { 0.0 } else { 1.0 },
-                            None,
-                        ),
-                        Material::Line(ref params) => (&self.pso.line_basic, params.color, 0.0, None),
-                        Material::Phong(ref params) => (&self.pso.mesh_phong, params.color, params.glossiness, None),
-                        Material::Sprite(ref params) => (&self.pso.sprite, !0, 0.0, Some(&params.map)),
-                        Material::Wireframe(ref params) => (&self.pso.mesh_basic_wireframe, params.color, 0.0, None),
-                    };
+            let mx_world: [[f32; 4]; 4] = Matrix4::from(node.world_transform).transpose().into();
+            let pso_data = material.to_pso_data();
+
+            if let Some(ref key) = gpu_data.instance_cache_key {
+                let uv_range = [0.0; 4];
+                let color = match pso_data {
+                    PsoData::Basic { color, .. } => color,
+                    PsoData::Pbr { .. } => !0,
+                };
+                let mat_param = match pso_data {
+                    PsoData::Basic { param0, .. } => param0,
+                    PsoData::Pbr { .. } => 0.0,
+                };
+                let vec = self.instance_cache.entry(key.clone()).or_insert((
+                    InstanceData {
+                        slice: gpu_data.slice.clone(),
+                        vertices: gpu_data.vertices.clone(),
+                        pso_data: pso_data.clone(),
+                        material: material.clone(),
+                    },
+                    Vec::new(),
+                ));
+                vec.1
+                    .push(Instance::basic(mx_world.into(), color, uv_range, mat_param));
+                continue;
+            }
+            let instance = match pso_data {
+                PsoData::Basic { color, map, param0 } => {
                     let uv_range = match map {
                         Some(ref map) => map.uv_range(),
                         None => [0.0; 4],
                     };
-                    self.encoder.update_constant_buffer(
-                        &gpu_data.constants,
-                        &Locals {
-                            mx_world: Matrix4::from(node.world_transform).into(),
-                            color: {
-                                let rgb = color::to_linear_rgb(color);
-                                [rgb[0], rgb[1], rgb[2], 0.0]
-                            },
-                            mat_params: [param0, 0.0, 0.0, 0.0],
-                            uv_range,
-                        },
-                    );
-                    //TODO: avoid excessive cloning
-                    let data = basic_pipe::Data {
-                        vbuf: gpu_data.vertices.clone(),
-                        cb_locals: gpu_data.constants.clone(),
-                        cb_lights: self.light_buf.clone(),
-                        cb_globals: self.const_buf.clone(),
-                        tex_map: map.unwrap_or(&self.map_default).to_param(),
-                        shadow_map0: (shadow0.clone(), shadow_sampler.clone()),
-                        shadow_map1: (shadow1.clone(), shadow_sampler.clone()),
-                        out_color: self.out_color.clone(),
-                        out_depth: (self.out_depth.clone(), (0, 0)),
-                    };
-                    self.encoder.draw(&gpu_data.slice, pso, &data);
+                    Instance::basic(mx_world.into(), color, uv_range, param0)
                 }
+                PsoData::Pbr { .. } => Instance::pbr(mx_world.into()),
             };
+
+            Self::render_mesh(
+                &mut self.encoder,
+                self.const_buf.clone(),
+                gpu_data.instances.clone(),
+                self.light_buf.clone(),
+                self.pbr_buf.clone(),
+                self.out_color.clone(),
+                self.out_depth.clone(),
+                &self.pso,
+                &self.map_default,
+                &[instance],
+                gpu_data.vertices.clone(),
+                gpu_data.slice.clone(),
+                &material,
+                &shadow_sampler,
+                &shadow0,
+                &shadow1,
+            );
+        }
+
+        // render instanced meshes
+        for &(ref mesh_data, ref all_instances) in self.instance_cache.values() {
+            if all_instances.len() > self.inst_buf.len() {
+                self.inst_buf = self.factory
+                    .create_buffer(
+                        all_instances.len(),
+                        gfx::buffer::Role::Vertex,
+                        gfx::memory::Usage::Dynamic,
+                        gfx::TRANSFER_DST,
+                    )
+                    // TODO: Better error handling
+                    .unwrap();
+            }
+            Self::render_mesh(
+                &mut self.encoder,
+                self.const_buf.clone(),
+                self.inst_buf.clone(),
+                self.light_buf.clone(),
+                self.pbr_buf.clone(),
+                self.out_color.clone(),
+                self.out_depth.clone(),
+                &self.pso,
+                &self.map_default,
+                all_instances,
+                mesh_data.vertices.clone(),
+                mesh_data.slice.clone(),
+                &mesh_data.material,
+                &shadow_sampler,
+                &shadow0,
+                &shadow1,
+            );
         }
 
         let quad_slice = gfx::Slice {
@@ -951,6 +974,75 @@ impl Renderer {
         }
 
         self.encoder.flush(&mut self.device);
+    }
+
+    #[inline]
+    fn render_mesh(
+        encoder: &mut gfx::Encoder<back::Resources, back::CommandBuffer>,
+        const_buf: h::Buffer<back::Resources, Globals>,
+        inst_buf: h::Buffer<back::Resources, Instance>,
+        light_buf: h::Buffer<back::Resources, LightParam>,
+        pbr_buf: h::Buffer<back::Resources, PbrParams>,
+        out_color: h::RenderTargetView<back::Resources, ColorFormat>,
+        out_depth: h::DepthStencilView<back::Resources, DepthFormat>,
+        pso: &PipelineStates,
+        map_default: &Texture<[f32; 4]>,
+        instances: &[Instance],
+        vertex_buf: h::Buffer<back::Resources, Vertex>,
+        slice: gfx::Slice<back::Resources>,
+        material: &Material,
+        shadow_sampler: &h::Sampler<back::Resources>,
+        shadow0: &h::ShaderResourceView<back::Resources, f32>,
+        shadow1: &h::ShaderResourceView<back::Resources, f32>,
+    ) {
+        encoder.update_buffer(&inst_buf, instances, 0).unwrap();
+
+        let slice = if instances.len() > 1 {
+            gfx::Slice {
+                instances: Some((instances.len() as u32, 0)),
+                ..slice
+            }
+        } else {
+            slice
+        };
+
+        //TODO: batch per PSO
+        match material.to_pso_data() {
+            PsoData::Pbr { maps, params } => {
+                encoder.update_constant_buffer(&pbr_buf, &params);
+                let map_params = maps.into_params(map_default);
+                let data = pbr_pipe::Data {
+                    vbuf: vertex_buf,
+                    inst_buf: inst_buf,
+                    globals: const_buf.clone(),
+                    lights: light_buf.clone(),
+                    params: pbr_buf.clone(),
+                    base_color_map: map_params.base_color,
+                    normal_map: map_params.normal,
+                    emissive_map: map_params.emissive,
+                    metallic_roughness_map: map_params.metallic_roughness,
+                    occlusion_map: map_params.occlusion,
+                    color_target: out_color.clone(),
+                    depth_target: out_depth.clone(),
+                };
+                encoder.draw(&slice, &pso.pbr, &data);
+            }
+            PsoData::Basic { map, .. } => {
+                //TODO: avoid excessive cloning
+                let data = basic_pipe::Data {
+                    vbuf: vertex_buf,
+                    inst_buf: inst_buf,
+                    cb_lights: light_buf.clone(),
+                    cb_globals: const_buf.clone(),
+                    tex_map: map.unwrap_or(map_default.clone()).to_param(),
+                    shadow_map0: (shadow0.clone(), shadow_sampler.clone()),
+                    shadow_map1: (shadow1.clone(), shadow_sampler.clone()),
+                    out_color: out_color.clone(),
+                    out_depth: (out_depth.clone(), (0, 0)),
+                };
+                encoder.draw(&slice, pso.pso_by_material(&material), &data);
+            }
+        }
     }
 
     /// Draw [`ShadowMap`](struct.ShadowMap.html) for debug purposes.

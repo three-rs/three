@@ -130,9 +130,13 @@ impl super::Factory {
                 base_color_alpha,
                 metallic_factor: pbr.metallic_factor(),
                 roughness_factor: pbr.roughness_factor(),
-                occlusion_strength: mat.occlusion_texture().map_or(1.0, |t| t.strength()),
+                occlusion_strength: mat.occlusion_texture().map_or(1.0, |t| {
+                    t.strength()
+                }),
                 emissive_factor: color::from_linear_rgb(mat.emissive_factor()),
-                normal_scale: mat.normal_texture().map_or(1.0, |t| t.scale()),
+                normal_scale: mat.normal_texture().map_or(1.0, |t| {
+                    t.scale()
+                }),
                 base_color_map,
                 normal_map,
                 emissive_map,

@@ -256,6 +256,8 @@
 #[macro_use]
 extern crate bitflags;
 extern crate cgmath;
+#[macro_use]
+extern crate derivative;
 extern crate froggy;
 extern crate genmesh;
 #[macro_use]

@@ -104,14 +104,7 @@ fn create_cubes(
 
 const COLORS: [three::Color; 6] = [0xffff80, 0x8080ff, 0x80ff80, 0xff8080, 0x80ffff, 0xff80ff];
 
-const SPEEDS: [f32; 5] = [
-    0.7,
-    -1.0,
-    1.3,
-    -1.6,
-    1.9,
-    //-2.2, //TODO when performance allows
-];
+const SPEEDS: [f32; 6] = [0.7, -1.0, 1.3, -1.6, 1.9, -2.2];
 
 fn main() {
     let mut win = three::Window::new("Three-rs group example");
@@ -132,9 +125,18 @@ fn main() {
     let mut cubes = create_cubes(&mut win.factory, &materials, &levels);
     cubes[0].group.set_parent(&win.scene);
 
+    let font = win.factory.load_font(format!(
+        "{}/data/fonts/DejaVuSans.ttf",
+        env!("CARGO_MANIFEST_DIR")
+    ));
+    let mut fps_counter = win.factory.ui_text(&font, "FPS: 00");
+
     let timer = win.input.time();
+    println!("Total number of cubes: {}", cubes.len());
     while win.update() && !win.input.hit(three::KEY_ESCAPE) {
         let time = timer.get(&win.input);
+        let delta_time = win.input.delta_time();
+        fps_counter.set_text(format!("FPS: {}", 1.0 / delta_time));
         for cube in cubes.iter_mut() {
             let level = &levels[cube.level_id];
             let angle = Rad(time * level.speed);

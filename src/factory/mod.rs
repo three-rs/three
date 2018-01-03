@@ -31,7 +31,7 @@ use light::{Ambient, Directional, Hemisphere, Point, ShadowMap};
 use material::Material;
 use mesh::{DynamicMesh, Mesh};
 use object::{Group, Object};
-use render::{basic_pipe, BackendFactory, BackendResources, BasicPipelineState, DynamicData, GpuData, ShadowFormat, Vertex};
+use render::{basic_pipe, BackendFactory, BackendResources, BasicPipelineState, DynamicData, GpuData, Instance, InstanceCacheKey, ShadowFormat, Vertex};
 use scene::Scene;
 use sprite::Sprite;
 use text::{Font, Text, TextData};
@@ -107,6 +107,18 @@ fn f2i(x: f32) -> I8Norm {
 }
 
 impl Factory {
+    fn create_instance_buffer(&mut self) -> gfx::handle::Buffer<BackendResources, Instance> {
+        // TODO: Better error handling
+        self.backend
+            .create_buffer(
+                1,
+                gfx::buffer::Role::Vertex,
+                gfx::memory::Usage::Dynamic,
+                gfx::TRANSFER_DST,
+            )
+            .unwrap()
+    }
+
     pub(crate) fn new(mut backend: BackendFactory) -> Self {
         let quad_buf = backend.create_vertex_buffer(&QUAD);
         let default_sampler = backend.create_sampler_linear();
@@ -217,13 +229,11 @@ impl Factory {
             )
         };
         izip!(position_iter, normal_iter, tangent_iter, uv_iter)
-            .map(|(position, normal, tangent, tex_coord)| {
-                Vertex {
-                    pos: [position.x, position.y, position.z, 1.0],
-                    normal: normal,
-                    uv: tex_coord,
-                    tangent: tangent,
-                }
+            .map(|(position, normal, tangent, tex_coord)| Vertex {
+                pos: [position.x, position.y, position.z, 1.0],
+                normal: normal,
+                uv: tex_coord,
+                tangent: tangent,
             })
             .collect()
     }
@@ -235,22 +245,24 @@ impl Factory {
         material: M,
     ) -> Mesh {
         let vertices = Self::mesh_vertices(&geometry.base_shape);
-        let cbuf = self.backend.create_constant_buffer(1);
-        let (vbuf, slice) = if geometry.faces.is_empty() {
+        let instances = self.create_instance_buffer();
+        let (vertices, mut slice) = if geometry.faces.is_empty() {
             self.backend.create_vertex_buffer_with_slice(&vertices, ())
         } else {
             let faces: &[u32] = gfx::memory::cast_slice(&geometry.faces);
             self.backend
                 .create_vertex_buffer_with_slice(&vertices, faces)
         };
+        slice.instances = Some((1, 0));
         Mesh {
             object: self.hub.lock().unwrap().spawn_visual(
                 material.into(),
                 GpuData {
                     slice,
-                    vertices: vbuf,
-                    constants: cbuf,
+                    vertices,
+                    instances,
                     pending: None,
+                    instance_cache_key: None,
                 },
             ),
         }
@@ -268,7 +280,7 @@ impl Factory {
                 start: 0,
                 end: data.len() as u32,
                 base_vertex: 0,
-                instances: None,
+                instances: Some((1, 0)),
                 buffer: self.backend.create_index_buffer(data),
             }
         };
@@ -288,16 +300,16 @@ impl Factory {
             }
             (data.len(), dest_buf, upload_buf)
         };
-        let constants = self.backend.create_constant_buffer(1);
-
+        let instances = self.create_instance_buffer();
         DynamicMesh {
             object: self.hub.lock().unwrap().spawn_visual(
                 material.into(),
                 GpuData {
                     slice,
                     vertices,
-                    constants,
+                    instances,
                     pending: None,
+                    instance_cache_key: None,
                 },
             ),
             geometry,
@@ -315,16 +327,21 @@ impl Factory {
         &mut self,
         template: &Mesh,
     ) -> Mesh {
+        let instances = self.create_instance_buffer();
         let mut hub = self.hub.lock().unwrap();
-        let gpu_data = match hub.get(&template).sub_node {
-            SubNode::Visual(_, ref gpu) => GpuData {
-                constants: self.backend.create_constant_buffer(1),
-                ..gpu.clone()
-            },
-            _ => unreachable!(),
-        };
         let material = match hub.get(&template).sub_node {
             SubNode::Visual(ref mat, _) => mat.clone(),
+            _ => unreachable!(),
+        };
+        let gpu_data = match hub.get(&template).sub_node {
+            SubNode::Visual(_, ref gpu) => GpuData {
+                instances,
+                instance_cache_key: Some(InstanceCacheKey {
+                    material: material.clone(),
+                    geometry: gpu.vertices.clone(),
+                }),
+                ..gpu.clone()
+            },
             _ => unreachable!(),
         };
         Mesh {
@@ -339,16 +356,22 @@ impl Factory {
         template: &Mesh,
         material: M,
     ) -> Mesh {
+        let instances = self.create_instance_buffer();
         let mut hub = self.hub.lock().unwrap();
+        let material = material.into();
         let gpu_data = match hub.get(&template).sub_node {
             SubNode::Visual(_, ref gpu) => GpuData {
-                constants: self.backend.create_constant_buffer(1),
+                instances,
+                instance_cache_key: Some(InstanceCacheKey {
+                    material: material.clone(),
+                    geometry: gpu.vertices.clone(),
+                }),
                 ..gpu.clone()
             },
             _ => unreachable!(),
         };
         Mesh {
-            object: hub.spawn_visual(material.into(), gpu_data),
+            object: hub.spawn_visual(material, gpu_data),
         }
     }
 
@@ -357,13 +380,18 @@ impl Factory {
         &mut self,
         material: material::Sprite,
     ) -> Sprite {
+        let instances = self.create_instance_buffer();
+        let mut slice = gfx::Slice::new_match_vertex_buffer(&self.quad_buf);
+        slice.instances = Some((1, 0));
+        let material = Material::from(material);
         Sprite::new(self.hub.lock().unwrap().spawn_visual(
-            material.into(),
+            material,
             GpuData {
-                slice: gfx::Slice::new_match_vertex_buffer(&self.quad_buf),
+                slice,
                 vertices: self.quad_buf.clone(),
-                constants: self.backend.create_constant_buffer(1),
+                instances,
                 pending: None,
+                instance_cache_key: None,
             },
         ))
     }
@@ -644,23 +672,14 @@ impl Factory {
             .iter()
             .map(|path| {
                 let format = Factory::parse_texture_format(path.as_ref());
-                let file = fs::File::open(path).unwrap_or_else(|e| {
-                    panic!("Unable to open {}: {:?}", path.as_ref().display(), e)
-                });
+                let file = fs::File::open(path).unwrap_or_else(|e| panic!("Unable to open {}: {:?}", path.as_ref().display(), e));
                 image::load(io::BufReader::new(file), format)
-                    .unwrap_or_else(|e| {
-                        panic!("Unable to decode {}: {:?}", path.as_ref().display(), e)
-                    })
+                    .unwrap_or_else(|e| panic!("Unable to decode {}: {:?}", path.as_ref().display(), e))
                     .to_rgba()
             })
             .collect::<Vec<_>>();
         let data: [&[u8]; 6] = [
-            &images[0],
-            &images[1],
-            &images[2],
-            &images[3],
-            &images[4],
-            &images[5],
+            &images[0], &images[1], &images[2], &images[3], &images[4], &images[5]
         ];
         let size = images[0].dimensions().0;
         let kind = t::Kind::Cube(size as t::Size);
@@ -838,9 +857,7 @@ impl Factory {
 
                 info!(
                     "\tmaterial {} with {} normals and {} uvs",
-                    gr.name,
-                    num_normals,
-                    num_uvs
+                    gr.name, num_normals, num_uvs
                 );
                 let material = match gr.material {
                     Some(ref rc_mat) => self.load_obj_material(&*rc_mat, num_normals != 0, num_uvs != 0, path_parent),
@@ -851,17 +868,26 @@ impl Factory {
                 };
                 info!("\t{:?}", material);
 
-                let (vbuf, slice) = self.backend
+                let (vertices, mut slice) = self.backend
                     .create_vertex_buffer_with_slice(&vertices, &indices[..]);
-                let cbuf = self.backend.create_constant_buffer(1);
+                slice.instances = Some((1, 0));
+                let instances = self.backend
+                    .create_buffer(
+                        1,
+                        gfx::buffer::Role::Vertex,
+                        gfx::memory::Usage::Dynamic,
+                        gfx::TRANSFER_DST,
+                    )
+                    .unwrap();
                 let mut mesh = Mesh {
                     object: hub.spawn_visual(
                         material,
                         GpuData {
                             slice,
-                            vertices: vbuf,
-                            constants: cbuf,
+                            vertices,
+                            instances,
                             pending: None,
+                            instance_cache_key: None,
                         },
                     ),
                 };

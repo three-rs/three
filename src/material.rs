@@ -5,6 +5,7 @@ use color;
 use color::Color;
 use render::BasicPipelineState;
 use texture::Texture;
+use util;
 
 pub use self::basic::Basic;
 
@@ -13,7 +14,9 @@ pub mod basic {
     use super::*;
 
     /// Parameters for a basic solid mesh material.
-    #[derive(Clone, Debug, PartialEq)]
+    ///
+    /// Renders triangle meshes with a solid color or texture.
+    #[derive(Clone, Hash, Debug, PartialEq, Eq)]
     pub struct Basic {
         /// Solid color applied in the absense of `map`.
         ///
@@ -36,7 +39,10 @@ pub mod basic {
     }
 
     /// Parameters for a basic solid mesh material with a custom pipeline.
-    #[derive(Clone, Debug, PartialEq)]
+    ///
+    /// Renders triangle meshes with a custom pipeline with a basic material as
+    /// its input.
+    #[derive(Clone, Debug, PartialEq, Hash)]
     pub struct Custom {
         /// Solid color applied in the absense of `map`.
         ///
@@ -51,10 +57,14 @@ pub mod basic {
         /// The custom pipeline state object to be applied to the mesh.
         pub pipeline: BasicPipelineState,
     }
+
+    impl Eq for Custom {}
 }
 
 /// Parameters for a Lamberian diffusion reflection model.
-#[derive(Clone, Debug, PartialEq)]
+///
+/// Renders triangle meshes with the Gouraud illumination model.
+#[derive(Clone, Hash, Debug, PartialEq, Eq)]
 pub struct Lambert {
     /// Solid color applied in the absense of `map`.
     ///
@@ -77,7 +87,9 @@ impl Default for Lambert {
 }
 
 /// Parameters for a line material.
-#[derive(Clone, Debug, PartialEq)]
+///
+/// Renders line strip meshes with a solid color and unit width.
+#[derive(Clone, Hash, Debug, PartialEq, Eq)]
 pub struct Line {
     /// Solid line color.
     ///
@@ -94,7 +106,11 @@ impl Default for Line {
 }
 
 /// Parameters for a PBR (physically based rendering) lighting model.
-#[derive(Clone, Debug, PartialEq)]
+///
+/// Renders triangle meshes with a PBR (physically-based rendering)
+/// illumination model
+#[derive(Derivative)]
+#[derivative(Clone, Debug, PartialEq, Hash, Eq)]
 pub struct Pbr {
     /// Solid base color applied in the absense of `base_color_map`.
     ///
@@ -104,11 +120,13 @@ pub struct Pbr {
     /// Base color alpha factor applied in the absense of `base_color_map`.
     ///
     /// Default: `1.0` (opaque).
+    #[derivative(Hash(hash_with = "util::hash_f32"))]
     pub base_color_alpha: f32,
 
     /// Metallic factor in the range [0.0, 1.0].
     ///
     /// Default: `1.0`.
+    #[derivative(Hash(hash_with = "util::hash_f32"))]
     pub metallic_factor: f32,
 
     /// Roughness factor in the range [0.0, 1.0].
@@ -117,12 +135,14 @@ pub struct Pbr {
     /// * A value of 0.0 means the material is completely smooth.
     ///
     /// Default: `1.0`.
+    #[derivative(Hash(hash_with = "util::hash_f32"))]
     pub roughness_factor: f32,
 
     /// Scalar multiplier in the range [0.0, 1.0] that controls the amount of
     /// occlusion applied in the presense of `occlusion_map`.
     ///
     /// Default: `1.0`.
+    #[derivative(Hash(hash_with = "util::hash_f32"))]
     pub occlusion_strength: f32,
 
     /// Solid emissive color applied in the absense of `emissive_map`.
@@ -135,6 +155,7 @@ pub struct Pbr {
     /// This value is ignored in the absense of `normal_map`.
     ///
     /// Default: `1.0`.
+    #[derivative(Hash(hash_with = "util::hash_f32"))]
     pub normal_scale: f32,
 
     /// Base color texture.
@@ -183,7 +204,10 @@ impl Default for Pbr {
 }
 
 /// Parameters for a Phong reflection model.
-#[derive(Clone, Debug, PartialEq)]
+///
+/// Renders triangle meshes with the Phong illumination model.
+#[derive(Derivative)]
+#[derivative(Clone, Debug, PartialEq, Hash, Eq)]
 pub struct Phong {
     /// Solid color applied in the absense of `map`.
     ///
@@ -195,6 +219,7 @@ pub struct Phong {
     /// Higher values result in sharper highlights to produce a glossy effect.
     ///
     /// Default: `30.0`.
+    #[derivative(Hash(hash_with = "util::hash_f32"))]
     pub glossiness: f32,
 }
 
@@ -208,14 +233,20 @@ impl Default for Phong {
 }
 
 /// Texture for a 2D sprite.
-#[derive(Clone, Debug, PartialEq)]
+///
+/// Renders [`Sprite`] objects with the given texture.
+///
+/// [`Sprite`]: ../sprite/struct.Sprite.html
+#[derive(Clone, Hash, Debug, PartialEq, Eq)]
 pub struct Sprite {
     /// The texture the apply to the sprite.
     pub map: Texture<[f32; 4]>,
 }
 
 /// Parameters for mesh wireframe rasterization.
-#[derive(Clone, Debug, PartialEq)]
+///
+/// Renders the edges of a triangle mesh with a solid color.
+#[derive(Clone, Hash, Debug, PartialEq, Eq)]
 pub struct Wireframe {
     /// Solid color applied to each wireframe edge.
     ///
@@ -224,7 +255,7 @@ pub struct Wireframe {
 }
 
 /// Specifies the appearance of a [`Mesh`](struct.Mesh.html).
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub enum Material {
     /// Renders triangle meshes with a solid color or texture.
     Basic(Basic),

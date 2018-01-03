@@ -25,6 +25,7 @@ includedir_codegen = "0.2.0"
 [dependencies]
 bitflags = "0.9"
 cgmath = { version = "0.15", features = ["mint"] }
+derivative = "1.0"
 froggy = "0.4.4"
 genmesh = "0.5"
 gfx = "0.16"
