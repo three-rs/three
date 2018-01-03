@@ -53,7 +53,7 @@ fn main() {
     let material = three::material::Sprite {
         map: win.factory.load_texture(pikachu_path_str),
     };
-    let mut sprite = win.factory.sprite(material);
+    let sprite = win.factory.sprite(material);
     sprite.set_scale(8.0);
     win.scene.add(&sprite);
 

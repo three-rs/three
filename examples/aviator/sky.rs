@@ -17,7 +17,7 @@ impl Sky {
         rng: &mut R,
         factory: &mut three::Factory,
     ) -> three::Group {
-        let mut group = factory.group();
+        let group = factory.group();
         let geo = three::Geometry::cuboid(20.0, 20.0, 20.0);
         let material = three::material::Lambert {
             color: COLOR_WHITE,
@@ -25,7 +25,7 @@ impl Sky {
         };
         let template = factory.mesh(geo, material.clone());
         for i in 0i32 .. rng.gen_range(3, 6) {
-            let mut m = factory.mesh_instance(&template);
+            let m = factory.mesh_instance(&template);
             let rot: cgmath::Quaternion<f32> = rng.gen();
             let q = rot.normalize();
             m.set_transform(
@@ -46,11 +46,11 @@ impl Sky {
         rng: &mut R,
         factory: &mut three::Factory,
     ) -> Self {
-        let mut group = factory.group();
+        let group = factory.group();
         let num = 20i32;
         let step_angle = PI * 2.0 / num as f32;
         for i in 0 .. num {
-            let mut cloud = Self::make_cloud(rng, factory);
+            let cloud = Self::make_cloud(rng, factory);
             let angle = cgmath::Rad(i as f32 * step_angle);
             let dist = rng.gen_range(750.0, 950.0);
             let pos = [

@@ -4,10 +4,10 @@ use three::Object;
 
 fn main() {
     let mut win = three::Window::new("Three-rs materials example");
-    let mut cam = win.factory.perspective_camera(75.0, 1.0 .. 50.0);
+    let cam = win.factory.perspective_camera(75.0, 1.0 .. 50.0);
     cam.set_position([0.0, 0.0, 10.0]);
 
-    let mut light = win.factory.point_light(0xffffff, 0.5);
+    let light = win.factory.point_light(0xffffff, 0.5);
     let mut pos = [0.0, 5.0, 5.0];
     light.set_position(pos);
     win.scene.add(&light);
@@ -52,7 +52,7 @@ fn main() {
         .enumerate()
         .map(|(i, mat)| {
             let offset = 4.0 * (i as f32 + 0.5 - 0.5 * count as f32);
-            let mut mesh = win.factory.mesh(geometry.clone(), mat);
+            let mesh = win.factory.mesh(geometry.clone(), mat);
             mesh.set_position([offset, 0.0, 0.0]);
             win.scene.add(&mesh);
             mesh

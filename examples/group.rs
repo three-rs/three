@@ -27,7 +27,7 @@ fn create_cubes(
     }
 
     let root = {
-        let mut group = factory.group();
+        let group = factory.group();
         let mesh = factory.mesh(geometry.clone(), materials[0].clone());
         group.set_position([0.0, 0.0, 1.0]);
         group.set_scale(2.0);
@@ -78,7 +78,7 @@ fn create_cubes(
     while let Some(next) = stack.pop() {
         for child in &children {
             let mat = materials[next.mat_id].clone();
-            let mut cube = Cube {
+            let cube = Cube {
                 group: factory.group(),
                 mesh: factory.mesh_instance_with_material(&list[0].mesh, mat),
                 level_id: next.lev_id,
@@ -110,10 +110,10 @@ fn main() {
     let mut win = three::Window::new("Three-rs group example");
     win.scene.background = three::Background::Color(0x204060);
 
-    let mut cam = win.factory.perspective_camera(60.0, 1.0 .. 100.0);
+    let cam = win.factory.perspective_camera(60.0, 1.0 .. 100.0);
     cam.look_at([-1.8, -8.0, 7.0], [0.0, 0.0, 3.5], None);
 
-    let mut light = win.factory.point_light(0xffffff, 1.0);
+    let light = win.factory.point_light(0xffffff, 1.0);
     light.set_position([0.0, -10.0, 10.0]);
     win.scene.add(&light);
 

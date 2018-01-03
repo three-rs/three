@@ -14,11 +14,11 @@ fn main() {
         .target([0.0, 0.0, 0.0])
         .build();
 
-    let mut dir_light = win.factory.directional_light(0xffffff, 0.9);
+    let dir_light = win.factory.directional_light(0xffffff, 0.9);
     dir_light.look_at([15.0, 35.0, 35.0], [0.0, 0.0, 2.0], None);
     win.scene.add(&dir_light);
 
-    let mut root = win.factory.group();
+    let root = win.factory.group();
     win.scene.add(&root);
     let (mut group_map, _meshes) = win.factory.load_obj(&path);
     for g in group_map.values_mut() {

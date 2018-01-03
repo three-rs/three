@@ -234,7 +234,7 @@ impl super::Factory {
             },
         ];
 
-        while let Some(mut item) = stack.pop() {
+        while let Some(item) = stack.pop() {
             // TODO: Groups do not handle non-uniform scaling, so for now
             // we'll choose Y to be the scale factor in all directions.
             let (translation, rotation, scale) = item.node.transform().decomposed();
@@ -386,7 +386,7 @@ impl super::Factory {
         let mut instances = Vec::new();
         let mut node_map = HashMap::new();
         let mut clips = Vec::new();
-        let mut group = self.group();
+        let group = self.group();
 
         if let Some(scene) = gltf.default_scene() {
             for root in scene.nodes() {

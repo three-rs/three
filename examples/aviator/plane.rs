@@ -17,7 +17,7 @@ pub struct AirPlane {
 
 impl AirPlane {
     pub fn new(factory: &mut three::Factory) -> Self {
-        let mut group = factory.group();
+        let group = factory.group();
 
         let cockpit = {
             let mut geo = three::Geometry::cuboid(80.0, 50.0, 50.0);
@@ -37,7 +37,7 @@ impl AirPlane {
         };
         group.add(&cockpit);
 
-        let mut engine = factory.mesh(
+        let engine = factory.mesh(
             three::Geometry::cuboid(20.0, 50.0, 50.0),
             three::material::Lambert {
                 color: COLOR_WHITE,
@@ -47,7 +47,7 @@ impl AirPlane {
         engine.set_position([40.0, 0.0, 0.0]);
         group.add(&engine);
 
-        let mut tail = factory.mesh(
+        let tail = factory.mesh(
             three::Geometry::cuboid(15.0, 20.0, 5.0),
             three::material::Lambert {
                 color: COLOR_RED,
@@ -66,7 +66,7 @@ impl AirPlane {
         );
         group.add(&wing);
 
-        let mut propeller_group = factory.group();
+        let propeller_group = factory.group();
         propeller_group.set_position([50.0, 0.0, 0.0]);
         group.add(&propeller_group);
         let propeller = factory.mesh(
@@ -77,7 +77,7 @@ impl AirPlane {
             },
         );
         propeller_group.add(&propeller);
-        let mut blade = factory.mesh(
+        let blade = factory.mesh(
             three::Geometry::cuboid(1.0, 100.0, 20.0),
             three::material::Lambert {
                 color: COLOR_BROWN_DARK,

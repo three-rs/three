@@ -25,7 +25,7 @@ fn main() {
     let mut win = three::Window::new("Three-rs Aviator demo");
     win.scene.background = three::Background::Color(COLOR_BACKGROUND);
 
-    let mut cam = win.factory.perspective_camera(60.0, 1.0 .. 1000.0);
+    let cam = win.factory.perspective_camera(60.0, 1.0 .. 1000.0);
     cam.set_position([0.0, 100.0, 200.0]);
     win.scene.add(&cam);
 
@@ -42,7 +42,7 @@ fn main() {
     let ambient_light = win.factory.ambient_light(0xdc8874, 0.5);
     win.scene.add(&ambient_light);
 
-    let mut sea = {
+    let sea = {
         let geo = three::Geometry::cylinder(600.0, 600.0, 800.0, 40);
         let material = three::material::Lambert {
             color: COLOR_BLUE,
@@ -54,7 +54,7 @@ fn main() {
     sea.set_transform([0.0, -600.0, 0.0], sea_base_q, 1.0);
     win.scene.add(&sea);
 
-    let mut sky = sky::Sky::new(&mut rng, &mut win.factory);
+    let sky = sky::Sky::new(&mut rng, &mut win.factory);
     sky.group.set_position([0.0, -600.0, 0.0]);
     win.scene.add(&sky.group);
 

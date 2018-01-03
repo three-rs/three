@@ -92,7 +92,7 @@ fn main() {
     let map_path = concat!(env!("CARGO_MANIFEST_DIR"), "/test_data/texture.png");
     let map = win.factory.load_texture(map_path);
     let material = three::material::Sprite { map };
-    let mut sprite = win.factory.sprite(material);
+    let sprite = win.factory.sprite(material);
     sprite.set_scale(1.0);
     win.scene.add(&sprite);
 

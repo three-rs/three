@@ -40,15 +40,15 @@ pub trait Object: AsRef<Base> + AsMut<Base> {
 
     /// Invisible objects are not rendered by cameras.
     fn set_visible(
-        &mut self,
+        &self,
         visible: bool,
     ) {
-        self.as_mut().set_visible(visible)
+        self.as_ref().set_visible(visible)
     }
 
     /// Rotates object in the specific direction of `target`.
     fn look_at<E, T>(
-        &mut self,
+        &self,
         eye: E,
         target: T,
         up: Option<mint::Vector3<f32>>,
@@ -57,12 +57,12 @@ pub trait Object: AsRef<Base> + AsMut<Base> {
         E: Into<mint::Point3<f32>>,
         T: Into<mint::Point3<f32>>,
     {
-        self.as_mut().look_at(eye, target, up)
+        self.as_ref().look_at(eye, target, up)
     }
 
     /// Set both position, orientation and scale.
     fn set_transform<P, Q>(
-        &mut self,
+        &self,
         pos: P,
         rot: Q,
         scale: f32,
@@ -71,37 +71,37 @@ pub trait Object: AsRef<Base> + AsMut<Base> {
         P: Into<mint::Point3<f32>>,
         Q: Into<mint::Quaternion<f32>>,
     {
-        self.as_mut().set_transform(pos, rot, scale)
+        self.as_ref().set_transform(pos, rot, scale)
     }
 
     /// Set position.
     fn set_position<P>(
-        &mut self,
+        &self,
         pos: P,
     ) where
         Self: Sized,
         P: Into<mint::Point3<f32>>,
     {
-        self.as_mut().set_position(pos)
+        self.as_ref().set_position(pos)
     }
 
     /// Set orientation.
     fn set_orientation<Q>(
-        &mut self,
+        &self,
         rot: Q,
     ) where
         Self: Sized,
         Q: Into<mint::Quaternion<f32>>,
     {
-        self.as_mut().set_orientation(rot)
+        self.as_ref().set_orientation(rot)
     }
 
     /// Set scale.
     fn set_scale(
-        &mut self,
+        &self,
         scale: f32,
     ) {
-        self.as_mut().set_scale(scale)
+        self.as_ref().set_scale(scale)
     }
 }
 
@@ -137,7 +137,7 @@ impl fmt::Debug for Base {
 impl Base {
     /// Invisible objects are not rendered by cameras.
     pub fn set_visible(
-        &mut self,
+        &self,
         visible: bool,
     ) {
         let msg = Operation::SetVisible(visible);
@@ -146,7 +146,7 @@ impl Base {
 
     /// Rotates object in the specific direction of `target`.
     pub fn look_at<E, T>(
-        &mut self,
+        &self,
         eye: E,
         target: T,
         up: Option<mint::Vector3<f32>>,
@@ -169,7 +169,7 @@ impl Base {
 
     /// Set both position, orientation and scale.
     pub fn set_transform<P, Q>(
-        &mut self,
+        &self,
         pos: P,
         rot: Q,
         scale: f32,
@@ -183,7 +183,7 @@ impl Base {
 
     /// Set position.
     pub fn set_position<P>(
-        &mut self,
+        &self,
         pos: P,
     ) where
         P: Into<mint::Point3<f32>>,
@@ -194,7 +194,7 @@ impl Base {
 
     /// Set orientation.
     pub fn set_orientation<Q>(
-        &mut self,
+        &self,
         rot: Q,
     ) where
         Q: Into<mint::Quaternion<f32>>,
@@ -205,7 +205,7 @@ impl Base {
 
     /// Set scale.
     pub fn set_scale(
-        &mut self,
+        &self,
         scale: f32,
     ) {
         let msg = Operation::SetTransform(None, None, Some(scale));
@@ -215,12 +215,6 @@ impl Base {
 
 impl AsRef<Base> for Base {
     fn as_ref(&self) -> &Base {
-        self
-    }
-}
-
-impl AsMut<Base> for Base {
-    fn as_mut(&mut self) -> &mut Base {
         self
     }
 }
@@ -243,7 +237,7 @@ impl Group {
 
     /// Add new [`Base`](struct.Base.html) to the group.
     pub fn add<P>(
-        &mut self,
+        &self,
         child: P,
     ) where
         P: AsRef<Base>,

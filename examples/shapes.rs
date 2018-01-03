@@ -7,10 +7,10 @@ use three::Object;
 
 fn main() {
     let mut win = three::Window::new("Three-rs shapes example");
-    let mut cam = win.factory.perspective_camera(75.0, 1.0 .. 50.0);
+    let cam = win.factory.perspective_camera(75.0, 1.0 .. 50.0);
     cam.set_position([0.0, 0.0, 10.0]);
 
-    let mut mbox = {
+    let mbox = {
         let geometry = three::Geometry::cuboid(3.0, 2.0, 1.0);
         let material = three::material::Wireframe { color: 0x00FF00 };
         win.factory.mesh(geometry, material)
@@ -18,7 +18,7 @@ fn main() {
     mbox.set_position([-3.0, -3.0, 0.0]);
     win.scene.add(&mbox);
 
-    let mut mcyl = {
+    let mcyl = {
         let geometry = three::Geometry::cylinder(1.0, 2.0, 2.0, 5);
         let material = three::material::Wireframe { color: 0xFF0000 };
         win.factory.mesh(geometry, material)
@@ -26,7 +26,7 @@ fn main() {
     mcyl.set_position([3.0, -3.0, 0.0]);
     win.scene.add(&mcyl);
 
-    let mut msphere = {
+    let msphere = {
         let geometry = three::Geometry::uv_sphere(2.0, 5, 5);
         let material = three::material::Wireframe { color: 0xFF0000 };
         win.factory.mesh(geometry, material)
@@ -34,7 +34,7 @@ fn main() {
     msphere.set_position([-3.0, 3.0, 0.0]);
     win.scene.add(&msphere);
 
-    let mut mline = {
+    let mline = {
         let geometry = three::Geometry::with_vertices(vec![
             [-2.0, -1.0, 0.0].into(),
             [0.0, 1.0, 0.0].into(),

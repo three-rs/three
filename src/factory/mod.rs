@@ -811,7 +811,7 @@ impl Factory {
         let mut indices = Vec::new();
 
         for object in obj.object_iter() {
-            let mut group = Group::new(&mut *hub);
+            let group = Group::new(&mut *hub);
             for gr in object.group_iter() {
                 let (mut num_normals, mut num_uvs) = (0, 0);
                 {

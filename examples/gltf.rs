@@ -4,7 +4,7 @@ use three::Object;
 
 fn main() {
     let mut win = three::Window::new("Three-rs glTF example");
-    let mut light = win.factory.directional_light(0xFFFFFF, 7.0);
+    let light = win.factory.directional_light(0xFFFFFF, 7.0);
     light.look_at([1.0, 1.0, 1.0], [0.0, 0.0, 0.0], None);
     win.scene.add(&light);
     win.scene.background = three::Background::Color(0xC6F0FF);

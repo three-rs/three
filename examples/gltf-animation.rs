@@ -4,7 +4,7 @@ use three::Object;
 
 fn main() {
     let mut window = three::Window::new("Three-rs glTF animation example");
-    let mut light = window.factory.directional_light(0xFFFFFF, 0.4);
+    let light = window.factory.directional_light(0xFFFFFF, 0.4);
     light.look_at([1.0, 1.0, 1.0], [0.0, 0.0, 0.0], None);
     window.scene.add(&light);
     window.scene.background = three::Background::Color(0xC6F0FF);
@@ -19,7 +19,7 @@ fn main() {
         mixer.action(clip);
     }
 
-    let mut camera = window.factory.perspective_camera(60.0, 0.1 .. 10.0);
+    let camera = window.factory.perspective_camera(60.0, 0.1 .. 10.0);
     camera.set_position([0.0, 1.0, 5.0]);
     while window.update() && !window.input.hit(three::KEY_ESCAPE) {
         mixer.update(window.input.delta_time());

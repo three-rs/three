@@ -94,7 +94,7 @@ impl Builder {
         let dir = (Point3::from(self.position) - Point3::from(self.target)).normalize();
         let up = Vector3::unit_z();
         let q = Quaternion::look_at(dir, up).invert();
-        let mut object = self.object.clone();
+        let object = self.object.clone();
         object.set_transform(self.position, q, 1.0);
 
         Orbit {
