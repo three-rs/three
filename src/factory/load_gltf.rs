@@ -273,11 +273,10 @@ fn load_meshes(
         let mut primitives = Vec::new();
         for primitive in mesh.primitives() {
             use gltf_utils::PrimitiveIterators;
+            use itertools::Itertools;
             let mut faces = vec![];
             if let Some(mut iter) = primitive.indices_u32(buffers) {
-                while let (Some(a), Some(b), Some(c)) = (iter.next(), iter.next(), iter.next()) {
-                    faces.push([a, b, c]);
-                }
+                faces.extend(iter.tuples().map(|(a, b, c)| [a, b, c]));
             }
             let vertices: Vec<mint::Point3<f32>> = primitive
                 .positions(buffers)
