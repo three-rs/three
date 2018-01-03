@@ -13,6 +13,7 @@ use color::Color;
 use hub::Operation as HubOperation;
 use render::{BackendCommandBuffer, BackendFactory, BackendResources, ColorFormat, DepthFormat};
 
+#[derive(Debug)]
 pub(crate) enum Operation {
     Text(String),
     Font(Font),

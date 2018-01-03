@@ -1,10 +1,10 @@
 use audio::{AudioData, Operation as AudioOperation};
 use color::{self, Color};
 use light::{ShadowMap, ShadowProjection};
-use material::{self, Material};
+use material::Material;
 use mesh::DynamicMesh;
 use node::{NodeInternal, NodePointer, TransformInternal};
-use object;
+use object::Base;
 use render::GpuData;
 use text::{Operation as TextOperation, TextData};
 
@@ -51,6 +51,7 @@ pub(crate) enum SubNode {
 }
 
 pub(crate) type Message = (froggy::WeakPointer<NodeInternal>, Operation);
+#[derive(Debug)]
 pub(crate) enum Operation {
     AddChild(NodePointer),
     SetAudio(AudioOperation),
@@ -74,17 +75,17 @@ pub(crate) struct Hub {
     message_rx: mpsc::Receiver<Message>,
 }
 
-impl<T: AsRef<object::Base>> ops::Index<T> for Hub {
+impl<T: AsRef<Base>> ops::Index<T> for Hub {
     type Output = NodeInternal;
     fn index(&self, i: T) -> &Self::Output {
-        let base: &object::Base = i.as_ref();
+        let base: &Base = i.as_ref();
         &self.nodes[&base.node]
     }
 }
 
-impl<T: AsRef<object::Base>> ops::IndexMut<T> for Hub {
+impl<T: AsRef<Base>> ops::IndexMut<T> for Hub {
     fn index_mut(&mut self, i: T) -> &mut Self::Output {
-        let base: &object::Base = i.as_ref();
+        let base: &Base = i.as_ref();
         &mut self.nodes[&base.node]
     }
 }
@@ -100,51 +101,29 @@ impl Hub {
         Arc::new(Mutex::new(hub))
     }
 
-    fn spawn(
+    pub(crate) fn spawn(
         &mut self,
         sub: SubNode,
-    ) -> object::Base {
-        object::Base {
+    ) -> Base {
+        Base {
             node: self.nodes.create(sub.into()),
             tx: self.message_tx.clone(),
         }
-    }
-
-    pub(crate) fn spawn_empty(&mut self) -> object::Base {
-        self.spawn(SubNode::Empty)
-    }
-
-    pub(crate) fn spawn_group(&mut self) -> object::Base {
-        self.spawn(SubNode::Group { first_child: None })
     }
 
     pub(crate) fn spawn_visual(
         &mut self,
         mat: Material,
         gpu_data: GpuData,
-    ) -> object::Base {
+    ) -> Base {
         self.spawn(SubNode::Visual(mat, gpu_data))
     }
 
     pub(crate) fn spawn_light(
         &mut self,
         data: LightData,
-    ) -> object::Base {
+    ) -> Base {
         self.spawn(SubNode::Light(data))
-    }
-
-    pub(crate) fn spawn_ui_text(
-        &mut self,
-        text: TextData,
-    ) -> object::Base {
-        self.spawn(SubNode::UiText(text))
-    }
-
-    pub(crate) fn spawn_audio_source(
-        &mut self,
-        data: AudioData,
-    ) -> object::Base {
-        self.spawn(SubNode::Audio(data))
     }
 
     pub(crate) fn process_messages(&mut self) {
@@ -156,16 +135,9 @@ impl Hub {
                 Err(_) => continue,
             };
             match operation {
-                Operation::AddChild(child_ptr) => if let SubNode::Group { ref mut first_child } = node.sub_node {
-                    let sibling = mem::replace(first_child, Some(child_ptr.clone()));
-                    deferred_sibling_updates.push((child_ptr, sibling));
-                }
-                Operation::SetAudio(operation) => if let SubNode::Audio(ref mut data) = node.sub_node {
-                    Hub::process_audio(operation, data);
-                },
                 Operation::SetVisible(visible) => {
                     node.visible = visible;
-                }
+                },
                 Operation::SetTransform(pos, rot, scale) => {
                     if let Some(pos) = pos {
                         node.transform.disp = mint::Vector3::from(pos).into();
@@ -176,23 +148,45 @@ impl Hub {
                     if let Some(scale) = scale {
                         node.transform.scale = scale;
                     }
-                }
-                Operation::SetMaterial(material) => if let SubNode::Visual(ref mut mat, _) = node.sub_node {
-                    *mat = material;
                 },
-                Operation::SetTexelRange(base, size) => if let SubNode::Visual(ref mut material, _) = node.sub_node {
-                    match *material {
-                        material::Material::Sprite(ref mut params) => params.map.set_texel_range(base, size),
-                        _ => panic!("Unsupported material for texel range request"),
+                Operation::AddChild(child_ptr) => match node.sub_node {
+                    SubNode::Group { ref mut first_child } => {
+                        let sibling = mem::replace(first_child, Some(child_ptr.clone()));
+                        deferred_sibling_updates.push((child_ptr, sibling));
                     }
+                    _ => unreachable!()
                 },
-                Operation::SetText(operation) => if let SubNode::UiText(ref mut data) = node.sub_node {
-                    Hub::process_text(operation, data);
+                Operation::SetAudio(operation) => match node.sub_node {
+                    SubNode::Audio(ref mut data) => {
+                        Hub::process_audio(operation, data);
+                    }
+                    _ => unreachable!()
                 },
-                Operation::SetShadow(map, proj) => if let SubNode::Light(ref mut data) = node.sub_node {
-                    data.shadow = Some((map, proj));
+                Operation::SetText(operation) => match node.sub_node {
+                    SubNode::UiText(ref mut data) => {
+                        Hub::process_text(operation, data);
+                    }
+                    _ => unreachable!()
                 },
-            }
+                Operation::SetShadow(map, proj) => match node.sub_node {
+                    SubNode::Light(ref mut data) => {
+                        data.shadow = Some((map, proj));
+                    }
+                    _ => unreachable!()
+                },
+                Operation::SetMaterial(material) => match node.sub_node {
+                    SubNode::Visual(ref mut mat, _) => {
+                        *mat = material;
+                    }
+                    _ => unreachable!()
+                },
+                Operation::SetTexelRange(base, size) => match node.sub_node {
+                    SubNode::Visual(Material::Sprite(ref mut params), _) => {
+                        params.map.set_texel_range(base, size);
+                    }
+                    _ => unreachable!()
+                },
+            };
         }
 
         for (child_ptr, sibling) in deferred_sibling_updates {

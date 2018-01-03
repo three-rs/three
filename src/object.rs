@@ -6,7 +6,7 @@ use std::sync::mpsc;
 
 use mint;
 
-use hub::{Message, Operation};
+use hub::{Hub, Message, Operation, SubNode};
 use node::NodePointer;
 
 
@@ -229,13 +229,16 @@ impl AsMut<Base> for Base {
 /// as with a single entity.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Group {
-    pub(crate) object: Base,
+    object: Base,
 }
 three_object!(Group::object);
 
 impl Group {
-    pub(crate) fn new(object: Base) -> Self {
-        Group { object }
+    pub(crate) fn new(hub: &mut Hub) -> Self {
+        let sub = SubNode::Group { first_child: None };
+        Group {
+            object: hub.spawn(sub),
+        }
     }
 
     /// Add new [`Base`](struct.Base.html) to the group.

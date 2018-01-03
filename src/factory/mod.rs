@@ -7,7 +7,6 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use animation;
-use camera;
 use cgmath::Vector3;
 use color;
 use genmesh::{Polygon, Triangulate};
@@ -23,7 +22,7 @@ use render;
 use scene;
 
 use audio::{AudioData, Clip, Source};
-use camera::Camera;
+use camera::{Camera, Projection, ZRange};
 use color::Color;
 use geometry::{Geometry, Shape};
 use hub::{Hub, HubPtr, LightData, SubLight, SubNode};
@@ -155,10 +154,10 @@ impl Factory {
         extent_y: f32,
         range: ops::Range<f32>,
     ) -> Camera {
-        Camera {
-            object: self.hub.lock().unwrap().spawn_empty(),
-            projection: camera::Projection::orthographic(center, extent_y, range),
-        }
+        Camera::new(
+            &mut *self.hub.lock().unwrap(),
+            Projection::orthographic(center, extent_y, range),
+        )
     }
 
     /// Create new [Perspective] Camera.
@@ -184,20 +183,20 @@ impl Factory {
     /// ```
     ///
     /// [Perspective]: https://en.wikipedia.org/wiki/Perspective_(graphical)
-    pub fn perspective_camera<R: Into<camera::ZRange>>(
+    pub fn perspective_camera<R: Into<ZRange>>(
         &mut self,
         fov_y: f32,
         range: R,
     ) -> Camera {
-        Camera {
-            object: self.hub.lock().unwrap().spawn_empty(),
-            projection: camera::Projection::perspective(fov_y, range),
-        }
+        Camera::new(
+            &mut *self.hub.lock().unwrap(),
+            Projection::perspective(fov_y, range),
+        )
     }
 
     /// Create empty [`Group`](struct.Group.html).
     pub fn group(&mut self) -> Group {
-        Group::new(self.hub.lock().unwrap().spawn_group())
+        Group::new(&mut *self.hub.lock().unwrap())
     }
 
     fn mesh_vertices(shape: &Shape) -> Vec<Vertex> {
@@ -528,15 +527,15 @@ impl Factory {
         font: &Font,
         text: S,
     ) -> Text {
-        let data = TextData::new(font, text);
-        let object = self.hub.lock().unwrap().spawn_ui_text(data);
+        let sub = SubNode::UiText(TextData::new(font, text));
+        let object = self.hub.lock().unwrap().spawn(sub);
         Text::with_object(object)
     }
 
     /// Create new audio source.
     pub fn audio_source(&mut self) -> Source {
-        let data = AudioData::new();
-        let object = self.hub.lock().unwrap().spawn_audio_source(data);
+        let sub = SubNode::Audio(AudioData::new());
+        let object = self.hub.lock().unwrap().spawn(sub);
         Source::with_object(object)
     }
 
@@ -812,7 +811,7 @@ impl Factory {
         let mut indices = Vec::new();
 
         for object in obj.object_iter() {
-            let mut group = Group::new(hub.spawn_empty());
+            let mut group = Group::new(&mut *hub);
             for gr in object.group_iter() {
                 let (mut num_normals, mut num_uvs) = (0, 0);
                 {
