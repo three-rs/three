@@ -34,6 +34,12 @@ fn main() {
     msphere.set_position([-3.0, 3.0, 0.0]);
     win.scene.add(&msphere);
 
+    // test removal from scene
+    win.scene.remove(&mcyl);
+    win.scene.remove(&mbox);
+    win.scene.add(&mcyl);
+    win.scene.add(&mbox);
+
     let mline = {
         let geometry = three::Geometry::with_vertices(vec![
             [-2.0, -1.0, 0.0].into(),

@@ -42,14 +42,44 @@ impl Scene {
         P: AsRef<Base>,
     {
         let mut hub = self.hub.lock().unwrap();
-        let child_ptr = child_base.as_ref().node.clone();
-        let mut tail_ptr = child_ptr.clone();
-        let old_first = mem::replace(&mut self.first_child, Some(child_ptr));
+        let node_ptr = child_base.as_ref().node.clone();
+        let child = &mut hub[child_base];
 
-        while let Some(ref next) = hub.nodes[&tail_ptr].next_sibling {
-            tail_ptr = next.clone();
+        if child.next_sibling.is_some() {
+            error!("Element {:?} is added to a scene while still having old parent - {}",
+                child.sub_node, "discarding siblings");
         }
-        hub.nodes[&tail_ptr].next_sibling = old_first;
+
+        child.next_sibling = mem::replace(&mut self.first_child, Some(node_ptr));
+    }
+
+    /// Remove a previously added [`Base`](struct.Base.html) from the scene.
+    pub fn remove<P>(
+        &mut self,
+        child_base: P,
+    ) where
+        P: AsRef<Base>,
+    {
+        let target_maybe = Some(child_base.as_ref().node.clone());
+        let mut hub = self.hub.lock().unwrap();
+        let next_sibling = hub[child_base].next_sibling.clone();
+
+        if self.first_child == target_maybe {
+            self.first_child = next_sibling;
+            return;
+        }
+
+        let mut cur_ptr = self.first_child.clone();
+        while let Some(ptr) = cur_ptr.take() {
+            let node = &mut hub.nodes[&ptr];
+            if node.next_sibling == target_maybe {
+                node.next_sibling = next_sibling;
+                return;
+            }
+            cur_ptr = node.next_sibling.clone(); //TODO: avoid clone
+        }
+
+        error!("Unable to find child for removal");
     }
 }
 

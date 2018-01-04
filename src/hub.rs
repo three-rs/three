@@ -54,6 +54,7 @@ pub(crate) type Message = (froggy::WeakPointer<NodeInternal>, Operation);
 #[derive(Debug)]
 pub(crate) enum Operation {
     AddChild(NodePointer),
+    RemoveChild(NodePointer),
     SetAudio(AudioOperation),
     SetVisible(bool),
     SetText(TextOperation),
@@ -127,74 +128,111 @@ impl Hub {
     }
 
     pub(crate) fn process_messages(&mut self) {
-        let mut deferred_sibling_updates = Vec::new();
-
         while let Ok((pnode, operation)) = self.message_rx.try_recv() {
-            let node = match pnode.upgrade() {
-                Ok(ptr) => &mut self.nodes[&ptr],
+            let ptr = match pnode.upgrade() {
+                Ok(ptr) => ptr,
                 Err(_) => continue,
             };
             match operation {
                 Operation::SetVisible(visible) => {
-                    node.visible = visible;
-                },
+                    self.nodes[&ptr].visible = visible;
+                }
                 Operation::SetTransform(pos, rot, scale) => {
+                    let transform = &mut self.nodes[&ptr].transform;
                     if let Some(pos) = pos {
-                        node.transform.disp = mint::Vector3::from(pos).into();
+                        transform.disp = mint::Vector3::from(pos).into();
                     }
                     if let Some(rot) = rot {
-                        node.transform.rot = rot.into();
+                        transform.rot = rot.into();
                     }
                     if let Some(scale) = scale {
-                        node.transform.scale = scale;
+                        transform.scale = scale;
                     }
-                },
-                Operation::AddChild(child_ptr) => match node.sub_node {
-                    SubNode::Group { ref mut first_child } => {
-                        let sibling = mem::replace(first_child, Some(child_ptr.clone()));
-                        deferred_sibling_updates.push((child_ptr, sibling));
+                }
+                Operation::AddChild(child_ptr) => {
+                    let sibling = match self.nodes[&ptr].sub_node {
+                        SubNode::Group { ref mut first_child } =>
+                            mem::replace(first_child, Some(child_ptr.clone())),
+                        _ => unreachable!(),
+                    };
+                    let child = &mut self.nodes[&child_ptr];
+                    if child.next_sibling.is_some() {
+                        error!("Element {:?} is added to a group while still having old parent - {}",
+                            child.sub_node, "discarding siblings");
                     }
-                    _ => unreachable!()
-                },
-                Operation::SetAudio(operation) => match node.sub_node {
-                    SubNode::Audio(ref mut data) => {
-                        Hub::process_audio(operation, data);
-                    }
-                    _ => unreachable!()
-                },
-                Operation::SetText(operation) => match node.sub_node {
-                    SubNode::UiText(ref mut data) => {
-                        Hub::process_text(operation, data);
-                    }
-                    _ => unreachable!()
-                },
-                Operation::SetShadow(map, proj) => match node.sub_node {
-                    SubNode::Light(ref mut data) => {
-                        data.shadow = Some((map, proj));
-                    }
-                    _ => unreachable!()
-                },
-                Operation::SetMaterial(material) => match node.sub_node {
-                    SubNode::Visual(ref mut mat, _) => {
-                        *mat = material;
-                    }
-                    _ => unreachable!()
-                },
-                Operation::SetTexelRange(base, size) => match node.sub_node {
-                    SubNode::Visual(Material::Sprite(ref mut params), _) => {
-                        params.map.set_texel_range(base, size);
-                    }
-                    _ => unreachable!()
-                },
-            };
-        }
+                    child.next_sibling = sibling;
+                }
+                Operation::RemoveChild(child_ptr) => {
+                    let next_sibling = self.nodes[&child_ptr].next_sibling.clone();
+                    let target_maybe = Some(child_ptr);
+                    let mut cur_ptr = match self.nodes[&ptr].sub_node {
+                        SubNode::Group { ref mut first_child } => {
+                            if *first_child == target_maybe {
+                                *first_child = next_sibling;
+                                continue;
+                            }
+                            first_child.clone()
+                        }
+                        _ => unreachable!()
+                    };
 
-        for (child_ptr, sibling) in deferred_sibling_updates {
-            let child = &mut self.nodes[&child_ptr];
-            if child.next_sibling.is_some() {
-                error!("Attaching a child that still has an old parent, discarding siblings");
-            }
-            child.next_sibling = sibling;
+                    //TODO: consolidate the code with `Scene::remove()`
+                    loop {
+                        let node = match cur_ptr.take() {
+                            Some(next_ptr) => &mut self.nodes[&next_ptr],
+                            None => {
+                                error!("Unable to find child for removal");
+                                break;
+                            }
+                        };
+                        if node.next_sibling == target_maybe {
+                            node.next_sibling = next_sibling;
+                            break;
+                        }
+                        cur_ptr = node.next_sibling.clone(); //TODO: avoid clone
+                    }
+                }
+                Operation::SetAudio(operation) => {
+                    match self.nodes[&ptr].sub_node {
+                        SubNode::Audio(ref mut data) => {
+                            Hub::process_audio(operation, data);
+                        }
+                        _ => unreachable!()
+                    }
+                }
+                Operation::SetText(operation) => {
+                    match self.nodes[&ptr].sub_node {
+                        SubNode::UiText(ref mut data) => {
+                            Hub::process_text(operation, data);
+                        }
+                        _ => unreachable!()
+                    }
+                }
+                Operation::SetShadow(map, proj) => {
+                    match self.nodes[&ptr].sub_node {
+                        SubNode::Light(ref mut data) => {
+                            data.shadow = Some((map, proj));
+                        }
+                        _ => unreachable!()
+                    }
+                }
+                Operation::SetMaterial(material) => {
+                    match self.nodes[&ptr].sub_node {
+                        SubNode::Visual(ref mut mat, _) => {
+                            *mat = material;
+                        }
+                        _ => unreachable!()
+                    }
+                }
+                Operation::SetTexelRange(base, size) => {
+                    match self.nodes[&ptr].sub_node {
+                        SubNode::Visual(Material::Sprite(ref mut params), _) => {
+                            params.map.set_texel_range(base, size);
+                        }
+                        _ => unreachable!()
+                    }
+                }
+            };
         }
 
         self.nodes.sync_pending();

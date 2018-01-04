@@ -245,4 +245,15 @@ impl Group {
         let msg = Operation::AddChild(child.as_ref().node.clone());
         let _ = self.object.tx.send((self.object.node.downgrade(), msg));
     }
+
+    /// Removes a child [`Base`](struct.Base.html) from the group.
+    pub fn remove<P>(
+        &self,
+        child: P,
+    ) where
+        P: AsRef<Base>,
+    {
+        let msg = Operation::RemoveChild(child.as_ref().node.clone());
+        let _ = self.object.tx.send((self.object.node.downgrade(), msg));
+    }
 }
