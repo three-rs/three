@@ -10,6 +10,7 @@ use std::mem;
 use std::marker::PhantomData;
 use std::sync::MutexGuard;
 
+
 /// Background type.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Background {
@@ -166,7 +167,7 @@ impl<'a> SyncGuard<'a> {
     /// Panics if `scene` doesn't have this `object::Base`.
     ///
     /// [`Node`]: ../node/struct.Node.html
-    pub fn resolve<T: Object + 'a>(
+    pub fn resolve<T: 'a + Object>(
         &mut self,
         object: &T,
     ) -> node::Node<node::Local> {
@@ -180,13 +181,13 @@ impl<'a> SyncGuard<'a> {
     /// Panics if the doesn't have this `object::Base`.
     ///
     /// [`Node`]: ../node/struct.Node.html
-    pub fn resolve_world<T: Object + 'a>(
+    pub fn resolve_world<T: 'a + Object>(
         &mut self,
         object: &T,
     ) -> node::Node<node::World> {
         let internal = &self.hub[object] as *const _;
         let wn = self.hub
-            .walk(&self.scene.first_child)
+            .walk_all(&self.scene.first_child)
             .find(|wn| wn.node as *const _ == internal)
             .expect("Unable to find objects for world resolve!");
         node::Node {

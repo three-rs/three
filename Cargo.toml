@@ -15,6 +15,9 @@ exclude = ["doc", "bors.toml", ".travis.yml", "test_data"]
 
 [lib]
 
+[profile.release]
+debug = true
+
 [features]
 default = ["opengl"]
 "opengl" = ["gfx_device_gl", "gfx_window_glutin", "glutin"]

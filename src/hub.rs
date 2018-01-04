@@ -282,45 +282,58 @@ impl Hub {
         }
     }
 
-    pub(crate) fn walk(&self, base: &Option<NodePointer>) -> TreeWalker {
+    fn walk_impl(
+        &self, base: &Option<NodePointer>, only_visible: bool
+    ) -> TreeWalker {
+        let default_stack_size = 10;
         let mut walker = TreeWalker {
             hub: self,
-            stack: Vec::new(),
-            only_visible: true,
+            only_visible,
+            stack: Vec::with_capacity(default_stack_size),
         };
         walker.descend(base);
         walker
+    }
+
+    pub(crate) fn walk(&self, base: &Option<NodePointer>) -> TreeWalker {
+        self.walk_impl(base, true)
+    }
+
+    pub(crate) fn walk_all(&self, base: &Option<NodePointer>) -> TreeWalker {
+        self.walk_impl(base, false)
     }
 }
 
 #[derive(Debug)]
 pub(crate) struct WalkedNode<'a> {
+    pub(crate) node: &'a NodeInternal,
     pub(crate) world_visible: bool,
     pub(crate) world_transform: TransformInternal,
-    pub(crate) node: &'a NodeInternal,
 }
 
 pub(crate) struct TreeWalker<'a> {
     hub: &'a Hub,
-    stack: Vec<WalkedNode<'a>>,
     only_visible: bool,
+    stack: Vec<WalkedNode<'a>>,
 }
 
 impl<'a> TreeWalker<'a> {
     fn descend(&mut self, base: &Option<NodePointer>) -> Option<&NodeInternal> {
+        // Note: this is a CPU hotspot, presumably for copying stuff around
+        // TODO: profile carefully and optimize
         let mut node = &self.hub.nodes[base.as_ref()?];
 
         loop {
             let wn = match self.stack.last() {
                 Some(parent) => WalkedNode {
+                    node,
                     world_visible: parent.world_visible && node.visible,
                     world_transform: parent.world_transform.concat(&node.transform),
-                    node,
                 },
                 None => WalkedNode {
+                    node,
                     world_visible: node.visible,
                     world_transform: node.transform,
-                    node,
                 },
             };
             self.stack.push(wn);

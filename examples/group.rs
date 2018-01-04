@@ -102,9 +102,19 @@ fn create_cubes(
     list
 }
 
-const COLORS: [three::Color; 6] = [0xffff80, 0x8080ff, 0x80ff80, 0xff8080, 0x80ffff, 0xff80ff];
-
-const SPEEDS: [f32; 6] = [0.7, -1.0, 1.3, -1.6, 1.9, -2.2];
+struct LevelDesc {
+    color: three::Color,
+    speed: f32, // in radians per second
+}
+const LEVELS: &[LevelDesc] = &[
+    LevelDesc { color: 0xffff80, speed: 0.7 },
+    LevelDesc { color: 0x8080ff, speed: -1.0 },
+    LevelDesc { color: 0x80ff80, speed: 1.3 },
+    LevelDesc { color: 0xff8080, speed: -1.6 },
+    LevelDesc { color: 0x80ffff, speed: 1.9 },
+    LevelDesc { color: 0xff80ff, speed: -2.2 },
+    //LevelDesc { color: 0x8080ff, speed: 2.5 },
+];
 
 fn main() {
     let mut win = three::Window::new("Three-rs group example");
@@ -117,11 +127,14 @@ fn main() {
     light.set_position([0.0, -10.0, 10.0]);
     win.scene.add(&light);
 
-    let materials: Vec<_> = COLORS
+    let materials = LEVELS
         .iter()
-        .map(|&color| three::material::Lambert { color, flat: false })
-        .collect();
-    let levels: Vec<_> = SPEEDS.iter().map(|&speed| Level { speed }).collect();
+        .map(|l| three::material::Lambert { color: l.color, flat: false })
+        .collect::<Vec<_>>();
+    let levels = LEVELS
+        .iter()
+        .map(|l| Level { speed: l.speed })
+        .collect::<Vec<_>>();
     let mut cubes = create_cubes(&mut win.factory, &materials, &levels);
     win.scene.add(&cubes[0].group);
 
