@@ -593,18 +593,30 @@ impl Renderer {
             if !node.visible {
                 continue;
             }
-            if let SubNode::Visual(_, ref mut gpu_data) = node.sub_node {
-                if let Some(dynamic) = gpu_data.pending.take() {
-                    self.encoder
-                        .copy_buffer(
-                            &dynamic.buffer,
-                            &gpu_data.vertices,
-                            0,
-                            0,
-                            dynamic.num_vertices,
-                        )
-                        .unwrap();
+            match node.sub_node {
+                SubNode::Visual(_, ref mut gpu_data) => {
+                    if let Some(dynamic) = gpu_data.pending.take() {
+                        self.encoder
+                            .copy_buffer(
+                                &dynamic.buffer,
+                                &gpu_data.vertices,
+                                0,
+                                0,
+                                dynamic.num_vertices,
+                            )
+                            .unwrap();
+                    }
                 }
+                // Note: UI text currently applies to all the scenes.
+                // We may want to make it scene-dependent at some point.
+                SubNode::UiText(ref text) => {
+                    text.font.queue(&text.section);
+                    if !self.font_cache.contains_key(&text.font.path) {
+                        self.font_cache
+                            .insert(text.font.path.clone(), text.font.clone());
+                    }
+                }
+                _ => {}
             }
         }
 
@@ -772,14 +784,6 @@ impl Renderer {
         for w in hub.walk(&scene.first_child) {
             let (material, gpu_data) = match w.node.sub_node {
                 SubNode::Visual(ref mat, ref data) => (mat, data),
-                SubNode::UiText(ref text) => {
-                    text.font.queue(&text.section);
-                    if !self.font_cache.contains_key(&text.font.path) {
-                        self.font_cache
-                            .insert(text.font.path.clone(), text.font.clone());
-                    }
-                    continue;
-                },
                 _ => continue,
             };
 
