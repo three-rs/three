@@ -335,8 +335,11 @@ impl PipelineStates {
         let pbr = backend.create_shader_set(&src.pbr.vs, &src.pbr.ps)?;
         let skybox = backend.create_shader_set(&src.skybox.vs, &src.skybox.ps)?;
 
-        let rast_quad = gfx::state::Rasterizer::new_fill();
-        let rast_fill = gfx::state::Rasterizer::new_fill().with_cull_back();
+        let rast_quad = gfx::state::Rasterizer {
+            samples: Some(gfx::state::MultiSample),
+            ..gfx::state::Rasterizer::new_fill()
+        };
+        let rast_fill = rast_quad.with_cull_back();
         let rast_wire = gfx::state::Rasterizer {
             method: gfx::state::RasterMethod::Line(1),
             ..rast_fill
