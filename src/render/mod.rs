@@ -134,7 +134,7 @@ gfx_defines! {
         shadow_map0: gfx::TextureSampler<f32> = "t_Shadow0",
         shadow_map1: gfx::TextureSampler<f32> = "t_Shadow1",
         out_color: gfx::BlendTarget<ColorFormat> =
-            ("Target0", gfx::state::MASK_ALL, gfx::preset::blend::REPLACE),
+            ("Target0", gfx::state::ColorMask::all(), gfx::preset::blend::REPLACE),
         out_depth: gfx::DepthStencilTarget<DepthFormat> =
             (gfx::preset::depth::LESS_EQUAL_WRITE, gfx::state::Stencil {
                 front: STENCIL_SIDE, back: STENCIL_SIDE,
@@ -385,7 +385,7 @@ impl PipelineStates {
             gfx::Primitive::TriangleStrip,
             rast_fill,
             basic_pipe::Init {
-                out_color: ("Target0", gfx::state::MASK_ALL, gfx::preset::blend::ALPHA),
+                out_color: ("Target0", gfx::state::ColorMask::all(), gfx::preset::blend::ALPHA),
                 ..basic_pipe::new()
             },
         )?;
@@ -485,11 +485,17 @@ impl Renderer {
         use gfx::texture as t;
         let (window, device, mut gl_factory, out_color, out_depth) = gfx_window_glutin::init(builder, context, event_loop);
         let (_, srv_white) = gl_factory
-            .create_texture_immutable::<gfx::format::Rgba8>(t::Kind::D2(1, 1, t::AaMode::Single), &[&[[0xFF; 4]]])
-            .unwrap();
+            .create_texture_immutable::<gfx::format::Rgba8>(
+                t::Kind::D2(1, 1, t::AaMode::Single),
+                t::Mipmap::Provided,
+                &[&[[0xFF; 4]]]
+            ).unwrap();
         let (_, srv_shadow) = gl_factory
-            .create_texture_immutable::<(gfx::format::R32, gfx::format::Float)>(t::Kind::D2(1, 1, t::AaMode::Single), &[&[0x3F800000]])
-            .unwrap();
+            .create_texture_immutable::<(gfx::format::R32, gfx::format::Float)>(
+                t::Kind::D2(1, 1, t::AaMode::Single),
+                t::Mipmap::Provided,
+                &[&[0x3F800000]],
+            ).unwrap();
         let sampler = gl_factory.create_sampler_linear();
         let sampler_shadow = gl_factory.create_sampler(t::SamplerInfo {
             comparison: Some(gfx::state::Comparison::Less),
@@ -506,7 +512,7 @@ impl Renderer {
                 1,
                 gfx::buffer::Role::Vertex,
                 gfx::memory::Usage::Dynamic,
-                gfx::TRANSFER_DST,
+                gfx::memory::Bind::TRANSFER_DST,
             )
             .unwrap();
         let pso = PipelineStates::init(source, &mut gl_factory).unwrap();
@@ -528,7 +534,7 @@ impl Renderer {
             shadow: ShadowType::Basic,
             debug_quads: froggy::Storage::new(),
             font_cache: HashMap::new(),
-            size: window.get_inner_size_pixels().unwrap(),
+            size: window.get_inner_size().unwrap(),
         };
         let factory = Factory::new(gl_factory);
         (renderer, window, factory)
@@ -546,7 +552,7 @@ impl Renderer {
         &mut self,
         window: &glutin::GlWindow,
     ) {
-        let size = window.get_inner_size_pixels().unwrap();
+        let size = window.get_inner_size().unwrap();
 
         // skip updating view and self size if some
         // of the sides equals to zero (fixes crash on minimize on Windows machines)
@@ -848,7 +854,7 @@ impl Renderer {
                         all_instances.len(),
                         gfx::buffer::Role::Vertex,
                         gfx::memory::Usage::Dynamic,
-                        gfx::TRANSFER_DST,
+                        gfx::memory::Bind::TRANSFER_DST,
                     )
                     // TODO: Better error handling
                     .unwrap();

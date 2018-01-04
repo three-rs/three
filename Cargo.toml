@@ -15,9 +15,6 @@ exclude = ["doc", "bors.toml", ".travis.yml", "test_data"]
 
 [lib]
 
-[profile.release]
-debug = true
-
 [features]
 default = ["opengl"]
 "opengl" = ["gfx_device_gl", "gfx_window_glutin", "glutin"]
@@ -26,72 +23,32 @@ default = ["opengl"]
 includedir_codegen = "0.2.0"
 
 [dependencies]
-bitflags = "0.9"
+bitflags = "1"
 cgmath = { version = "0.15", features = ["mint"] }
 derivative = "1.0"
 froggy = "0.4.4"
 genmesh = "0.5"
-gfx = "0.16.3"
-gfx_glyph = "0.7"
+gfx = "0.17.1"
+gfx_glyph = "0.8"
 gltf = { features = ["names"], version = "0.9.2" }
 gltf-importer = { features = ["names"], version = "0.9.2" }
 gltf-utils = { features = ["names"], version = "0.9.2" }
-image = "0.13"
-includedir = "0.2.0"
-itertools = "0.6"
-log = "0.3"
-obj = { version = "0.6", features = ["genmesh"] }
+image = "0.18"
+includedir = "0.2"
+itertools = "0.7"
+log = "0.4"
+obj = { version = "0.8.1", features = ["genmesh"] }
 phf = "0.7.12"
-quick-error = "1.2.1"
+quick-error = "1.2"
 rodio = "0.5"
-mint = "0.4.2"
+mint = "0.5"
 vec_map = "0.8"
 # OpenGL
-gfx_device_gl = { version = "0.14", optional = true }
-gfx_window_glutin = { version = "0.17", optional = true }
-glutin = { version = "0.9", optional = true }
+gfx_device_gl = { version = "0.15", optional = true }
+gfx_window_glutin = { version = "0.20", optional = true }
+glutin = { version = "0.12", optional = true }
 
 [dev-dependencies]
 env_logger = "0.4"
-notify = "4.0.1"
+notify = "4"
 rand = "0.3"
-
-[[example]]
-name = "lights"
-
-[[example]]
-name = "materials"
-
-[[example]]
-name = "mesh-update"
-
-[[example]]
-name = "obj"
-
-[[example]]
-name = "reload"
-
-[[example]]
-name = "shapes"
-
-[[example]]
-name = "sprite"
-
-[[example]]
-name = "tutorial"
-
-[[example]]
-name = "gltf"
-
-[[example]]
-name = "gltf-animation"
-
-[[example]]
-name = "group"
-
-[[example]]
-name = "anim"
-
-[[example]]
-name = "aviator"
-path = "examples/aviator/main.rs"
