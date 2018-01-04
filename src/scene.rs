@@ -1,14 +1,13 @@
 //! `Scene` and `SyncGuard` structures.
 
-use object;
-
+use node;
 use color::Color;
-use hub::{Hub, HubPtr};
-use node::{Node, NodePointer};
+use hub::{Hub, HubPtr, SubNode};
 use object::{Base, Object};
 use texture::{CubeMap, Texture};
 
 use std::mem;
+use std::marker::PhantomData;
 use std::sync::MutexGuard;
 
 /// Background type.
@@ -28,7 +27,7 @@ pub enum Background {
 /// [`Camera`]: ../camera/struct.Camera.html
 pub struct Scene {
     pub(crate) hub: HubPtr,
-    pub(crate) first_child: Option<NodePointer>,
+    pub(crate) first_child: Option<node::NodePointer>,
     /// See [`Background`](struct.Background.html).
     pub background: Background,
 }
@@ -155,10 +154,13 @@ impl Scene {
 /// ```
 ///
 /// [`object::Base::sync`]: ../object/struct.Base.html#method.sync
-pub struct SyncGuard<'a>(pub(crate) MutexGuard<'a, Hub>);
+pub struct SyncGuard<'a> {
+    scene: &'a Scene,
+    hub: MutexGuard<'a, Hub>,
+}
 
 impl<'a> SyncGuard<'a> {
-    /// Obtains `objects`'s [`Node`] in an effective way.
+    /// Obtains `objects`'s local space [`Node`] in an effective way.
     ///
     /// # Panics
     /// Panics if `scene` doesn't have this `object::Base`.
@@ -167,10 +169,35 @@ impl<'a> SyncGuard<'a> {
     pub fn resolve<T: Object + 'a>(
         &mut self,
         object: &T,
-    ) -> Node {
-        let base: &object::Base = object.as_ref();
-        let node_internal = &self.0.nodes[&base.node];
-        node_internal.to_node()
+    ) -> node::Node<node::Local> {
+        self.hub[object].to_node()
+    }
+
+    /// Obtains `objects`'s world [`Node`] by traversing the scene graph.
+    /// *Note*: this can be slow.
+    ///
+    /// # Panics
+    /// Panics if the doesn't have this `object::Base`.
+    ///
+    /// [`Node`]: ../node/struct.Node.html
+    pub fn resolve_world<T: Object + 'a>(
+        &mut self,
+        object: &T,
+    ) -> node::Node<node::World> {
+        let internal = &self.hub[object] as *const _;
+        let wn = self.hub
+            .walk(&self.scene.first_child)
+            .find(|wn| wn.node as *const _ == internal)
+            .expect("Unable to find objects for world resolve!");
+        node::Node {
+            visible: wn.world_visible,
+            transform: wn.world_transform.into(),
+            material: match wn.node.sub_node {
+                SubNode::Visual(ref mat, _) => Some(mat.clone()),
+                _ => None,
+            },
+            _space: PhantomData,
+        }
     }
 }
 
@@ -181,6 +208,6 @@ impl Scene {
     pub fn sync_guard(&mut self) -> SyncGuard {
         let mut hub = self.hub.lock().unwrap();
         hub.process_messages();
-        SyncGuard(hub)
+        SyncGuard { scene: self, hub }
     }
 }

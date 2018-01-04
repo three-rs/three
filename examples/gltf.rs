@@ -38,8 +38,8 @@ fn main() {
 
     let init = win.scene
         .sync_guard()
-        .resolve(&cam)
-        .transform; //TODO: world transform
+        .resolve_world(&cam)
+        .transform;
     let mut controls = three::controls::FirstPerson::builder(&cam)
         .position(init.position)
         .move_speed(4.0)

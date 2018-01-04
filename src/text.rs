@@ -36,7 +36,7 @@ pub enum Align {
     /// Leftmost & rightmost characters are equidistant to the render position.
     /// Bounds start from the render position and advance equally left & right.
     Center,
-    /// Rightmost character is immetiately to the left of the render position.
+    /// Rightmost character is immediately to the left of the render position.
     /// Bounds start from the render position and advance leftwards.
     Right,
 }

@@ -617,8 +617,13 @@ impl Renderer {
         }
         let mut lights = Vec::new();
         let mut shadow_requests = Vec::new();
+        let mut mx_camera_transform = hub[&camera].transform;
 
         for w in hub.walk(&scene.first_child) {
+            // grab the camera world space info
+            if w.node as *const _ == &hub[&camera] as *const _ {
+                mx_camera_transform = w.world_transform;
+            }
             let light = match w.node.sub_node {
                 SubNode::Light(ref light) => light,
                 _ => continue,
@@ -639,7 +644,7 @@ impl Renderer {
                 shadow_requests.push(ShadowRequest {
                     target,
                     resource: map.to_resource(),
-                    mx_view: mx_view,
+                    mx_view,
                     mx_proj: mx_proj.into(),
                 });
                 shadow_requests.len() as i32 - 1
@@ -724,21 +729,14 @@ impl Renderer {
         }
 
         // prepare target and globals
-        let (mx_inv_proj, mx_view, mx_vp) = {
-            let p: [[f32; 4]; 4] = camera.matrix(self.aspect_ratio()).into();
-            let node = &hub[&camera];
-            let world_transform = node.transform; //TODO!!!
-            let mx_view = Matrix4::from(world_transform.inverse_transform().unwrap());
-            let mx_vp = Matrix4::from(p) * mx_view;
-            (Matrix4::from(p).invert().unwrap(), mx_view, mx_vp)
-        };
-
+        let mx_view = Matrix4::from(mx_camera_transform.inverse_transform().unwrap());
+        let mx_proj = Matrix4::from(camera.matrix(self.aspect_ratio()));
         self.encoder.update_constant_buffer(
             &self.const_buf,
             &Globals {
-                mx_vp: mx_vp.into(),
+                mx_vp: (mx_proj * mx_view).into(),
                 mx_view: mx_view.into(),
-                mx_inv_proj: mx_inv_proj.into(),
+                mx_inv_proj: mx_proj.invert().unwrap().into(),
                 num_lights: lights.len() as u32,
             },
         );

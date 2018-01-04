@@ -340,7 +340,7 @@ pub use material::Material;
 pub use mesh::{DynamicMesh, Mesh};
 
 #[doc(inline)]
-pub use node::{Node, Transform};
+pub use node::{Node, Transform, Local, World};
 
 #[doc(inline)]
 pub use object::{Group, Object};

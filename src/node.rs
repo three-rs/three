@@ -5,14 +5,17 @@ use mint;
 use hub::SubNode;
 use material::Material;
 
+use std::marker::PhantomData;
+
+
 /// Pointer to a Node
 pub(crate) type NodePointer = froggy::Pointer<NodeInternal>;
 pub(crate) type TransformInternal = cgmath::Decomposed<cgmath::Vector3<f32>, cgmath::Quaternion<f32>>;
 
 // Fat node of the scene graph.
 //
-// `NodeInternal` is used by `three-rs` internally,
-// client code uses [`object::Base`](struct.Base.html) instead.
+// `NodeInternal` is used by `three-rs` to represent an object in our scene graph,
+// shaped as a node tree. Client code uses [`object::Base`](struct.Base.html) instead.
 #[derive(Debug)]
 pub(crate) struct NodeInternal {
     /// `true` if this node (and its children) are visible to cameras.
@@ -26,7 +29,7 @@ pub(crate) struct NodeInternal {
 }
 
 impl NodeInternal {
-    pub(crate) fn to_node(&self) -> Node {
+    pub(crate) fn to_node(&self) -> Node<Local> {
         Node {
             transform: self.transform.into(),
             visible: self.visible,
@@ -34,6 +37,7 @@ impl NodeInternal {
                 SubNode::Visual(ref mat, _) => Some(mat.clone()),
                 _ => None,
             },
+            _space: PhantomData,
         }
     }
 }
@@ -49,7 +53,7 @@ impl From<SubNode> for NodeInternal {
     }
 }
 
-/// Position, rotation, and scale of the scene `Node`.
+/// Position, rotation, and scale of the scene node.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Transform {
     /// Position.
@@ -71,13 +75,21 @@ impl From<TransformInternal> for Transform {
     }
 }
 
+/// Local space, defined relative to the parent node.
+pub enum Local {}
+/// World space, defined relative to the scene root.
+pub enum World {}
+
 /// General information about scene `Node`.
 #[derive(Clone, Debug, PartialEq)]
-pub struct Node {
+pub struct Node<Space> {
     /// Is `Node` visible by cameras or not?
     pub visible: bool,
-    /// Relative to parent transform.
+    //Note: this really begs for `euclid`-style parametrized math types.
+    /// Transformation in `Space`.
     pub transform: Transform,
     /// Material in case this `Node` has it.
     pub material: Option<Material>,
+    ///
+    pub(crate) _space: PhantomData<Space>,
 }
