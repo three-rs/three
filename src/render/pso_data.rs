@@ -75,19 +75,19 @@ impl Material {
             Material::Pbr(ref material) => {
                 let mut pbr_flags = PbrFlags::empty();
                 if material.base_color_map.is_some() {
-                    pbr_flags.insert(BASE_COLOR_MAP);
+                    pbr_flags.insert(PbrFlags::BASE_COLOR_MAP);
                 }
                 if material.normal_map.is_some() {
-                    pbr_flags.insert(NORMAL_MAP);
+                    pbr_flags.insert(PbrFlags::NORMAL_MAP);
                 }
                 if material.metallic_roughness_map.is_some() {
-                    pbr_flags.insert(METALLIC_ROUGHNESS_MAP);
+                    pbr_flags.insert(PbrFlags::METALLIC_ROUGHNESS_MAP);
                 }
                 if material.emissive_map.is_some() {
-                    pbr_flags.insert(EMISSIVE_MAP);
+                    pbr_flags.insert(PbrFlags::EMISSIVE_MAP);
                 }
                 if material.occlusion_map.is_some() {
-                    pbr_flags.insert(OCCLUSION_MAP);
+                    pbr_flags.insert(PbrFlags::OCCLUSION_MAP);
                 }
                 let bcf = color::to_linear_rgb(material.base_color_factor);
                 let emf = color::to_linear_rgb(material.emissive_factor);

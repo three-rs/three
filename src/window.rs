@@ -94,15 +94,15 @@ impl Builder {
 
     /// Create new `Window` with desired parameters.
     pub fn build(&mut self) -> Window {
-        use glutin::get_primary_monitor;
-
-        let builder = if self.fullscreen {
-            glutin::WindowBuilder::new().with_fullscreen(get_primary_monitor())
+        let event_loop = glutin::EventsLoop::new();
+        let monitor_id = if self.fullscreen {
+            Some(event_loop.get_primary_monitor())
         } else {
-            glutin::WindowBuilder::new()
+            None
         };
 
-        let builder = builder
+        let builder = glutin::WindowBuilder::new()
+            .with_fullscreen(monitor_id)
             .with_dimensions(self.dimensions.0, self.dimensions.1)
             .with_title(self.title.clone());
 
@@ -143,7 +143,6 @@ impl Builder {
             try_override!(basic, gouraud, pbr, phong, quad, shadow, skybox, sprite,);
         }
 
-        let event_loop = glutin::EventsLoop::new();
         let (renderer, window, mut factory) = Renderer::new(builder, context, &event_loop, &source_set);
         let scene = factory.scene();
         Window {
@@ -189,7 +188,7 @@ impl Window {
         let window = &self.window;
 
         self.event_loop.poll_events(|event| {
-            use glutin::WindowEvent::{Closed, Focused, KeyboardInput, MouseInput, MouseMoved, MouseWheel, Resized};
+            use glutin::WindowEvent::{Closed, Focused, KeyboardInput, MouseInput, CursorMoved, MouseWheel, Resized};
             match event {
                 glutin::Event::WindowEvent { event, .. } => match event {
                     Resized(..) => renderer.resize(window),
@@ -204,7 +203,7 @@ impl Window {
                         ..
                     } => input.keyboard_input(state, keycode),
                     MouseInput { state, button, .. } => input.mouse_input(state, button),
-                    MouseMoved {
+                    CursorMoved {
                         position: (x, y), ..
                     } => input.mouse_moved(
                         [x as f32, y as f32].into(),
@@ -237,7 +236,7 @@ impl Window {
     /// Get current window size in pixels.
     pub fn size(&self) -> mint::Vector2<f32> {
         let size = self.window
-            .get_inner_size_pixels()
+            .get_inner_size()
             .expect("Can't get window size");
         [size.0 as f32, size.1 as f32].into()
     }
