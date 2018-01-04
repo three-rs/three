@@ -99,7 +99,7 @@ fn make_geometry() -> three::Geometry {
 
 fn main() {
     let mut win = three::Window::new("Three-rs mesh blending example");
-    let mut cam = win.factory.perspective_camera(60.0, 1.0 .. 1000.0);
+    let cam = win.factory.perspective_camera(60.0, 1.0 .. 1000.0);
     cam.look_at(
         [100.0, 0.0, 100.0],
         [0.0, 0.0, 30.0],
@@ -119,9 +119,9 @@ fn main() {
         );
     }
 
-    let mut mesh = win.factory
+    let mesh = win.factory
         .mesh_dynamic(geom, three::material::Wireframe { color: 0xFFFFFF });
-    mesh.set_parent(&win.scene);
+    win.scene.add(&mesh);
 
     let mut shape = 0;
     let (mut name0, mut name1) = ("fly00".to_string(), "fly01".to_string());

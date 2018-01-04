@@ -70,9 +70,8 @@
 //! #      color: 0xFFFF00,
 //! #      .. Default::default()
 //! # };
-//! # let mut mesh = window.factory.mesh(geometry, material);
-//! use three::Object;
-//! mesh.set_parent(&window.scene);
+//! # let mesh = window.factory.mesh(geometry, material);
+//! window.scene.add(&mesh);
 //! # }
 //! ```
 //!
@@ -110,8 +109,7 @@
 //! #         .. Default::default()
 //! #     };
 //! #     let mut mesh = window.factory.mesh(geometry, material);
-//! #     use three::Object;
-//! #     mesh.set_parent(&window.scene);
+//! #     window.scene.add(&mesh);
 //! let center = [0.0, 0.0];
 //! let yextent = 1.0;
 //! let zrange = -1.0 .. 1.0;
@@ -146,8 +144,8 @@
 //!         color: 0xFFFF00,
 //!         .. Default::default()
 //!     };
-//!     let mut mesh = window.factory.mesh(geometry, material);
-//!     mesh.set_parent(&window.scene);
+//!     let mesh = window.factory.mesh(geometry, material);
+//!     window.scene.add(&mesh);
 //!
 //!     let center = [0.0, 0.0];
 //!     let yextent = 1.0;
@@ -202,8 +200,8 @@
 //! fn main() {
 //! #    let mut window = three::Window::new("");
 //!     // Initialization code omitted.
-//!     let mut my_object = MyObject { group: window.factory.group() };
-//!     my_object.set_parent(&window.scene);
+//!     let my_object = MyObject { group: window.factory.group() };
+//!     window.scene.add(&my_object);
 //! }
 //! ```
 //!
@@ -342,7 +340,7 @@ pub use material::Material;
 pub use mesh::{DynamicMesh, Mesh};
 
 #[doc(inline)]
-pub use node::{Node, Transform};
+pub use node::{Node, Transform, Local, World};
 
 #[doc(inline)]
 pub use object::{Group, Object};

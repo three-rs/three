@@ -7,7 +7,6 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use animation;
-use camera;
 use cgmath::Vector3;
 use color;
 use genmesh::{Polygon, Triangulate};
@@ -23,15 +22,18 @@ use render;
 use scene;
 
 use audio::{AudioData, Clip, Source};
-use camera::Camera;
+use camera::{Camera, Projection, ZRange};
 use color::Color;
 use geometry::{Geometry, Shape};
 use hub::{Hub, HubPtr, LightData, SubLight, SubNode};
 use light::{Ambient, Directional, Hemisphere, Point, ShadowMap};
 use material::Material;
 use mesh::{DynamicMesh, Mesh};
-use object::{Group, Object};
-use render::{basic_pipe, BackendFactory, BackendResources, BasicPipelineState, DynamicData, GpuData, Instance, InstanceCacheKey, ShadowFormat, Vertex};
+use object::Group;
+use render::{basic_pipe,
+    BackendFactory, BackendResources, BasicPipelineState, DynamicData, GpuData,
+    Instance, InstanceCacheKey, ShadowFormat, Vertex,
+};
 use scene::Scene;
 use sprite::Sprite;
 use text::{Font, Text, TextData};
@@ -133,12 +135,11 @@ impl Factory {
 
     /// Create new empty [`Scene`](struct.Scene.html).
     pub fn scene(&mut self) -> Scene {
-        let object = self.hub.lock().unwrap().spawn_scene();
         let hub = self.hub.clone();
         let background = scene::Background::Color(color::BLACK);
         Scene {
-            object,
             hub,
+            first_child: None,
             background,
         }
     }
@@ -153,10 +154,10 @@ impl Factory {
         extent_y: f32,
         range: ops::Range<f32>,
     ) -> Camera {
-        Camera {
-            object: self.hub.lock().unwrap().spawn_empty(),
-            projection: camera::Projection::orthographic(center, extent_y, range),
-        }
+        Camera::new(
+            &mut *self.hub.lock().unwrap(),
+            Projection::orthographic(center, extent_y, range),
+        )
     }
 
     /// Create new [Perspective] Camera.
@@ -182,20 +183,20 @@ impl Factory {
     /// ```
     ///
     /// [Perspective]: https://en.wikipedia.org/wiki/Perspective_(graphical)
-    pub fn perspective_camera<R: Into<camera::ZRange>>(
+    pub fn perspective_camera<R: Into<ZRange>>(
         &mut self,
         fov_y: f32,
         range: R,
     ) -> Camera {
-        Camera {
-            object: self.hub.lock().unwrap().spawn_empty(),
-            projection: camera::Projection::perspective(fov_y, range),
-        }
+        Camera::new(
+            &mut *self.hub.lock().unwrap(),
+            Projection::perspective(fov_y, range),
+        )
     }
 
     /// Create empty [`Group`](struct.Group.html).
     pub fn group(&mut self) -> Group {
-        Group::new(self.hub.lock().unwrap().spawn_empty())
+        Group::new(&mut *self.hub.lock().unwrap())
     }
 
     fn mesh_vertices(shape: &Shape) -> Vec<Vertex> {
@@ -329,19 +330,17 @@ impl Factory {
     ) -> Mesh {
         let instances = self.create_instance_buffer();
         let mut hub = self.hub.lock().unwrap();
-        let material = match hub.get(&template).sub_node {
-            SubNode::Visual(ref mat, _) => mat.clone(),
-            _ => unreachable!(),
-        };
-        let gpu_data = match hub.get(&template).sub_node {
-            SubNode::Visual(_, ref gpu) => GpuData {
-                instances,
-                instance_cache_key: Some(InstanceCacheKey {
-                    material: material.clone(),
-                    geometry: gpu.vertices.clone(),
-                }),
-                ..gpu.clone()
-            },
+        let (material, gpu_data) = match hub[template].sub_node {
+            SubNode::Visual(ref mat, ref gpu) => {
+                (mat.clone(), GpuData {
+                    instances,
+                    instance_cache_key: Some(InstanceCacheKey {
+                        material: mat.clone(),
+                        geometry: gpu.vertices.clone(),
+                    }),
+                    ..gpu.clone()
+                })
+            }
             _ => unreachable!(),
         };
         Mesh {
@@ -357,9 +356,9 @@ impl Factory {
         material: M,
     ) -> Mesh {
         let instances = self.create_instance_buffer();
-        let mut hub = self.hub.lock().unwrap();
         let material = material.into();
-        let gpu_data = match hub.get(&template).sub_node {
+        let mut hub = self.hub.lock().unwrap();
+        let gpu_data = match hub[template].sub_node {
             SubNode::Visual(_, ref gpu) => GpuData {
                 instances,
                 instance_cache_key: Some(InstanceCacheKey {
@@ -528,15 +527,15 @@ impl Factory {
         font: &Font,
         text: S,
     ) -> Text {
-        let data = TextData::new(font, text);
-        let object = self.hub.lock().unwrap().spawn_ui_text(data);
+        let sub = SubNode::UiText(TextData::new(font, text));
+        let object = self.hub.lock().unwrap().spawn(sub);
         Text::with_object(object)
     }
 
     /// Create new audio source.
     pub fn audio_source(&mut self) -> Source {
-        let data = AudioData::new();
-        let object = self.hub.lock().unwrap().spawn_audio_source(data);
+        let sub = SubNode::Audio(AudioData::new());
+        let object = self.hub.lock().unwrap().spawn(sub);
         Source::with_object(object)
     }
 
@@ -793,8 +792,6 @@ impl Factory {
     }
 
     /// Load mesh from Wavefront Obj format.
-    /// #### Note
-    /// You must store `Vec<Mesh>` somewhere to keep them alive.
     pub fn load_obj(
         &mut self,
         path_str: &str,
@@ -814,7 +811,7 @@ impl Factory {
         let mut indices = Vec::new();
 
         for object in obj.object_iter() {
-            let group = Group::new(hub.spawn_empty());
+            let group = Group::new(&mut *hub);
             for gr in object.group_iter() {
                 let (mut num_normals, mut num_uvs) = (0, 0);
                 {
@@ -879,7 +876,7 @@ impl Factory {
                         gfx::TRANSFER_DST,
                     )
                     .unwrap();
-                let mut mesh = Mesh {
+                let mesh = Mesh {
                     object: hub.spawn_visual(
                         material,
                         GpuData {
@@ -891,7 +888,7 @@ impl Factory {
                         },
                     ),
                 };
-                mesh.set_parent(&group);
+                group.add(&mesh);
                 meshes.push(mesh);
             }
 

@@ -13,6 +13,7 @@ use color::Color;
 use hub::Operation as HubOperation;
 use render::{BackendCommandBuffer, BackendFactory, BackendResources, ColorFormat, DepthFormat};
 
+#[derive(Debug)]
 pub(crate) enum Operation {
     Text(String),
     Font(Font),
@@ -35,7 +36,7 @@ pub enum Align {
     /// Leftmost & rightmost characters are equidistant to the render position.
     /// Bounds start from the render position and advance equally left & right.
     Center,
-    /// Rightmost character is immetiately to the left of the render position.
+    /// Rightmost character is immediately to the left of the render position.
     /// Bounds start from the render position and advance leftwards.
     Right,
 }

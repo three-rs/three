@@ -1,7 +1,6 @@
 //! The renderer.
 
-use cgmath::{Matrix, Matrix4, SquareMatrix, Transform as Transform_, Vector3};
-use color;
+use cgmath::{Matrix4, SquareMatrix, Transform as Transform_, Vector3};
 use froggy;
 use gfx;
 use gfx::handle as h;
@@ -17,6 +16,8 @@ use mint;
 
 pub mod source;
 mod pso_data;
+
+use color;
 
 use std::{io, str};
 use std::collections::HashMap;
@@ -582,30 +583,40 @@ impl Renderer {
         scene: &Scene,
         camera: &Camera,
     ) {
-        self.device.cleanup();
         let mut hub = scene.hub.lock().unwrap();
-        let scene_id = hub.nodes[&scene.object.node].scene_id;
-
         hub.process_messages();
-        hub.update_graph();
+        self.device.cleanup();
 
         // update dynamic meshes
+        // Note: mutable node access here
         for node in hub.nodes.iter_mut() {
-            if !node.visible || node.scene_id != scene_id {
+            if !node.visible {
                 continue;
             }
-            if let SubNode::Visual(_, ref mut gpu_data) = node.sub_node {
-                if let Some(dynamic) = gpu_data.pending.take() {
-                    self.encoder
-                        .copy_buffer(
-                            &dynamic.buffer,
-                            &gpu_data.vertices,
-                            0,
-                            0,
-                            dynamic.num_vertices,
-                        )
-                        .unwrap();
+            match node.sub_node {
+                SubNode::Visual(_, ref mut gpu_data) => {
+                    if let Some(dynamic) = gpu_data.pending.take() {
+                        self.encoder
+                            .copy_buffer(
+                                &dynamic.buffer,
+                                &gpu_data.vertices,
+                                0,
+                                0,
+                                dynamic.num_vertices,
+                            )
+                            .unwrap();
+                    }
                 }
+                // Note: UI text currently applies to all the scenes.
+                // We may want to make it scene-dependent at some point.
+                SubNode::UiText(ref text) => {
+                    text.font.queue(&text.section);
+                    if !self.font_cache.contains_key(&text.font.path) {
+                        self.font_cache
+                            .insert(text.font.path.clone(), text.font.clone());
+                    }
+                }
+                _ => {}
             }
         }
 
@@ -618,73 +629,81 @@ impl Renderer {
         }
         let mut lights = Vec::new();
         let mut shadow_requests = Vec::new();
-        for node in hub.nodes.iter() {
-            if !node.visible || node.scene_id != scene_id {
-                continue;
+        let mut mx_camera_transform = hub[&camera].transform;
+
+        for w in hub.walk(&scene.first_child) {
+            // grab the camera world space info
+            if w.node as *const _ == &hub[&camera] as *const _ {
+                mx_camera_transform = w.world_transform;
             }
-            if let SubNode::Light(ref light) = node.sub_node {
-                if lights.len() == MAX_LIGHTS {
-                    error!("Max number of lights ({}) reached", MAX_LIGHTS);
-                    break;
-                }
-                let shadow_index = if let Some((ref map, ref projection)) = light.shadow {
-                    let target = map.to_target();
-                    let dim = target.get_dimensions();
-                    let aspect = dim.0 as f32 / dim.1 as f32;
-                    let mx_proj = match projection {
-                        &ShadowProjection::Orthographic(ref p) => p.matrix(aspect),
-                    };
-                    let mx_view = Matrix4::from(node.world_transform.inverse_transform().unwrap());
-                    shadow_requests.push(ShadowRequest {
-                        target,
-                        resource: map.to_resource(),
-                        mx_view: mx_view,
-                        mx_proj: mx_proj.into(),
-                    });
-                    shadow_requests.len() as i32 - 1
-                } else {
-                    -1
+            let light = match w.node.sub_node {
+                SubNode::Light(ref light) => light,
+                _ => continue,
+            };
+            if lights.len() == MAX_LIGHTS {
+                error!("Max number of lights ({}) reached", MAX_LIGHTS);
+                break;
+            }
+
+            let shadow_index = if let Some((ref map, ref projection)) = light.shadow {
+                let target = map.to_target();
+                let dim = target.get_dimensions();
+                let aspect = dim.0 as f32 / dim.1 as f32;
+                let mx_proj = match projection {
+                    &ShadowProjection::Orthographic(ref p) => p.matrix(aspect),
                 };
-                let mut color_back = 0;
-                let mut p = node.world_transform.disp.extend(1.0);
-                let d = node.world_transform.rot * Vector3::unit_z();
-                let intensity = match light.sub_light {
-                    SubLight::Ambient => [light.intensity, 0.0, 0.0, 0.0],
-                    SubLight::Directional => {
-                        p = d.extend(0.0);
-                        [0.0, light.intensity, 0.0, 0.0]
-                    }
-                    SubLight::Hemisphere { ground } => {
-                        color_back = ground | 0x010101; // can't be 0
-                        p = d.extend(0.0);
-                        [light.intensity, 0.0, 0.0, 0.0]
-                    }
-                    SubLight::Point => [0.0, light.intensity, 0.0, 0.0],
-                };
-                let projection = if shadow_index >= 0 {
-                    let request = &shadow_requests[shadow_index as usize];
-                    let matrix = request.mx_proj * request.mx_view;
-                    matrix.into()
-                } else {
-                    [[0.0; 4]; 4]
-                };
-                lights.push(LightParam {
-                    projection,
-                    pos: p.into(),
-                    dir: d.extend(0.0).into(),
-                    focus: [0.0, 0.0, 0.0, 0.0],
-                    color: {
-                        let rgb = color::to_linear_rgb(light.color);
-                        [rgb[0], rgb[1], rgb[2], 0.0]
-                    },
-                    color_back: {
-                        let rgb = color::to_linear_rgb(color_back);
-                        [rgb[0], rgb[1], rgb[2], 0.0]
-                    },
-                    intensity,
-                    shadow_params: [shadow_index, 0, 0, 0],
+                let mx_view = Matrix4::from(w.world_transform.inverse_transform().unwrap());
+                shadow_requests.push(ShadowRequest {
+                    target,
+                    resource: map.to_resource(),
+                    mx_view,
+                    mx_proj: mx_proj.into(),
                 });
-            }
+                shadow_requests.len() as i32 - 1
+            } else {
+                -1
+            };
+
+            let mut color_back = 0;
+            let mut p = w.world_transform.disp.extend(1.0);
+            let d = w.world_transform.rot * Vector3::unit_z();
+            let intensity = match light.sub_light {
+                SubLight::Ambient => [light.intensity, 0.0, 0.0, 0.0],
+                SubLight::Directional => {
+                    p = d.extend(0.0);
+                    [0.0, light.intensity, 0.0, 0.0]
+                }
+                SubLight::Hemisphere { ground } => {
+                    color_back = ground | 0x010101; // can't be 0
+                    p = d.extend(0.0);
+                    [light.intensity, 0.0, 0.0, 0.0]
+                }
+                SubLight::Point => [0.0, light.intensity, 0.0, 0.0],
+            };
+            let projection = if shadow_index >= 0 {
+                let request = &shadow_requests[shadow_index as usize];
+                let matrix = request.mx_proj * request.mx_view;
+                matrix.into()
+            } else {
+                [[0.0; 4]; 4]
+            };
+
+            lights.push(LightParam {
+                projection,
+                pos: p.into(),
+                dir: d.extend(0.0).into(),
+                focus: [0.0, 0.0, 0.0, 0.0],
+                color: {
+                    let rgb = color::to_linear_rgb(light.color);
+                    [rgb[0], rgb[1], rgb[2], 0.0]
+                },
+                color_back: {
+                    let rgb = color::to_linear_rgb(color_back);
+                    [rgb[0], rgb[1], rgb[2], 0.0]
+                },
+                intensity,
+                shadow_params: [shadow_index, 0, 0, 0],
+            });
         }
 
         // render shadow maps
@@ -700,15 +719,13 @@ impl Renderer {
                     num_lights: 0,
                 },
             );
-            for node in hub.nodes.iter() {
-                if !node.visible || node.scene_id != scene_id {
-                    continue;
-                }
-                let gpu_data = match node.sub_node {
+
+            for w in hub.walk(&scene.first_child) {
+                let gpu_data = match w.node.sub_node {
                     SubNode::Visual(_, ref data) => data,
                     _ => continue,
                 };
-                let mx_world: [[f32; 4]; 4] = Matrix4::from(node.world_transform).transpose().into();
+                let mx_world: mint::ColumnMatrix4<_> = Matrix4::from(w.world_transform).into();
                 self.encoder
                     .update_buffer(&gpu_data.instances, &[Instance::pbr(mx_world.into())], 0)
                     .unwrap();
@@ -724,25 +741,14 @@ impl Renderer {
         }
 
         // prepare target and globals
-        let (mx_inv_proj, mx_view, mx_vp) = {
-            let p: [[f32; 4]; 4] = camera.matrix(self.aspect_ratio()).into();
-            let node = &hub.nodes[&camera.object.node];
-            let w = match node.scene_id {
-                Some(id) if Some(id) == scene_id => node.world_transform,
-                Some(_) => panic!("Camera does not belong to this scene"),
-                None => node.transform,
-            };
-            let mx_view = Matrix4::from(w.inverse_transform().unwrap());
-            let mx_vp = Matrix4::from(p) * mx_view;
-            (Matrix4::from(p).invert().unwrap(), mx_view, mx_vp)
-        };
-
+        let mx_view = Matrix4::from(mx_camera_transform.inverse_transform().unwrap());
+        let mx_proj = Matrix4::from(camera.matrix(self.aspect_ratio()));
         self.encoder.update_constant_buffer(
             &self.const_buf,
             &Globals {
-                mx_vp: mx_vp.into(),
+                mx_vp: (mx_proj * mx_view).into(),
                 mx_view: mx_view.into(),
-                mx_inv_proj: mx_inv_proj.into(),
+                mx_inv_proj: mx_proj.invert().unwrap().into(),
                 num_lights: lights.len() as u32,
             },
         );
@@ -775,27 +781,20 @@ impl Renderer {
             instances.1.clear();
         }
 
-        for node in hub.nodes.iter() {
-            if !node.visible || node.scene_id != scene_id {
-                continue;
-            }
-            let (material, gpu_data) = match node.sub_node {
+        for w in hub.walk(&scene.first_child) {
+            let (material, gpu_data) = match w.node.sub_node {
                 SubNode::Visual(ref mat, ref data) => (mat, data),
                 _ => continue,
             };
 
-            let mx_world: [[f32; 4]; 4] = Matrix4::from(node.world_transform).transpose().into();
+            let mx_world: mint::ColumnMatrix4<_> = Matrix4::from(w.world_transform).into();
             let pso_data = material.to_pso_data();
 
             if let Some(ref key) = gpu_data.instance_cache_key {
                 let uv_range = [0.0; 4];
-                let color = match pso_data {
-                    PsoData::Basic { color, .. } => color,
-                    PsoData::Pbr { .. } => !0,
-                };
-                let mat_param = match pso_data {
-                    PsoData::Basic { param0, .. } => param0,
-                    PsoData::Pbr { .. } => 0.0,
+                let (color, mat_param) = match pso_data {
+                    PsoData::Basic { color, param0, .. } => (color, param0),
+                    PsoData::Pbr { .. } => (!0, 0.0),
                 };
                 let vec = self.instance_cache.entry(key.clone()).or_insert((
                     InstanceData {
@@ -925,15 +924,6 @@ impl Renderer {
         }
 
         // draw ui text
-        for node in hub.nodes.iter() {
-            if let SubNode::UiText(ref text) = node.sub_node {
-                text.font.queue(&text.section);
-                if !self.font_cache.contains_key(&text.font.path) {
-                    self.font_cache
-                        .insert(text.font.path.clone(), text.font.clone());
-                }
-            }
-        }
         for (_, font) in &self.font_cache {
             font.draw(&mut self.encoder, &self.out_color, &self.out_depth);
         }

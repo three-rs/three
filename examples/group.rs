@@ -27,11 +27,11 @@ fn create_cubes(
     }
 
     let root = {
-        let mut group = factory.group();
-        let mut mesh = factory.mesh(geometry.clone(), materials[0].clone());
+        let group = factory.group();
+        let mesh = factory.mesh(geometry.clone(), materials[0].clone());
         group.set_position([0.0, 0.0, 1.0]);
         group.set_scale(2.0);
-        mesh.set_parent(&group);
+        group.add(&mesh);
         Cube {
             group,
             mesh,
@@ -78,7 +78,7 @@ fn create_cubes(
     while let Some(next) = stack.pop() {
         for child in &children {
             let mat = materials[next.mat_id].clone();
-            let mut cube = Cube {
+            let cube = Cube {
                 group: factory.group(),
                 mesh: factory.mesh_instance_with_material(&list[0].mesh, mat),
                 level_id: next.lev_id,
@@ -86,8 +86,8 @@ fn create_cubes(
             };
             let p: mint::Vector3<f32> = child.disp.into();
             cube.group.set_transform(p, child.rot, child.scale);
-            cube.group.set_parent(&list[next.parent_id].group);
-            cube.mesh.set_parent(&cube.group);
+            list[next.parent_id].group.add(&cube.group);
+            cube.group.add(&cube.mesh);
             if next.mat_id + 1 < materials.len() && next.lev_id + 1 < levels.len() {
                 stack.push(Stack {
                     parent_id: list.len(),
@@ -102,28 +102,41 @@ fn create_cubes(
     list
 }
 
-const COLORS: [three::Color; 6] = [0xffff80, 0x8080ff, 0x80ff80, 0xff8080, 0x80ffff, 0xff80ff];
-
-const SPEEDS: [f32; 6] = [0.7, -1.0, 1.3, -1.6, 1.9, -2.2];
+struct LevelDesc {
+    color: three::Color,
+    speed: f32, // in radians per second
+}
+const LEVELS: &[LevelDesc] = &[
+    LevelDesc { color: 0xffff80, speed: 0.7 },
+    LevelDesc { color: 0x8080ff, speed: -1.0 },
+    LevelDesc { color: 0x80ff80, speed: 1.3 },
+    LevelDesc { color: 0xff8080, speed: -1.6 },
+    LevelDesc { color: 0x80ffff, speed: 1.9 },
+    LevelDesc { color: 0xff80ff, speed: -2.2 },
+    //LevelDesc { color: 0x8080ff, speed: 2.5 },
+];
 
 fn main() {
     let mut win = three::Window::new("Three-rs group example");
     win.scene.background = three::Background::Color(0x204060);
 
-    let mut cam = win.factory.perspective_camera(60.0, 1.0 .. 100.0);
+    let cam = win.factory.perspective_camera(60.0, 1.0 .. 100.0);
     cam.look_at([-1.8, -8.0, 7.0], [0.0, 0.0, 3.5], None);
 
-    let mut light = win.factory.point_light(0xffffff, 1.0);
+    let light = win.factory.point_light(0xffffff, 1.0);
     light.set_position([0.0, -10.0, 10.0]);
-    light.set_parent(&win.scene);
+    win.scene.add(&light);
 
-    let materials: Vec<_> = COLORS
+    let materials = LEVELS
         .iter()
-        .map(|&color| three::material::Lambert { color, flat: false })
-        .collect();
-    let levels: Vec<_> = SPEEDS.iter().map(|&speed| Level { speed }).collect();
+        .map(|l| three::material::Lambert { color: l.color, flat: false })
+        .collect::<Vec<_>>();
+    let levels = LEVELS
+        .iter()
+        .map(|l| Level { speed: l.speed })
+        .collect::<Vec<_>>();
     let mut cubes = create_cubes(&mut win.factory, &materials, &levels);
-    cubes[0].group.set_parent(&win.scene);
+    win.scene.add(&cubes[0].group);
 
     let font = win.factory.load_font(format!(
         "{}/data/fonts/DejaVuSans.ttf",

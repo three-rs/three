@@ -4,7 +4,7 @@ extern crate three;
 
 use cgmath::prelude::*;
 use std::f32::consts::PI;
-use three::Object;
+
 
 fn make_tetrahedron_geometry() -> three::Geometry {
     let vertices = vec![
@@ -52,7 +52,7 @@ fn main() {
     let material = three::material::Wireframe { color: 0xFFFF00 };
     let mut mesh = win.factory.mesh_dynamic(geometry, material);
     let vertex_count = mesh.vertex_count();
-    mesh.set_parent(&win.scene);
+    win.scene.add(&mesh);
 
     let mut timer = win.input.time();
     let mut vi = 0;

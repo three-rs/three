@@ -58,7 +58,10 @@
 
 use cgmath;
 use mint;
+
+use hub::{Hub, SubNode};
 use object;
+
 use std::ops;
 
 /// The Z values of the near and far clipping planes of a camera's projection.
@@ -97,7 +100,7 @@ pub enum Projection {
 /// [`Projection`]: enum.Projection.html
 #[derive(Clone, Debug, PartialEq)]
 pub struct Camera {
-    pub(crate) object: object::Base,
+    object: object::Base,
 
     /// Projection parameters of this camera.
     pub projection: Projection,
@@ -105,6 +108,13 @@ pub struct Camera {
 three_object!(Camera::object);
 
 impl Camera {
+    pub(crate) fn new(hub: &mut Hub, projection: Projection) -> Self {
+        Camera {
+            object: hub.spawn(SubNode::Empty),
+            projection,
+        }
+    }
+
     /// Computes the projection matrix representing the camera's projection.
     pub fn matrix(
         &self,

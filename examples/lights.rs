@@ -4,7 +4,7 @@ use three::Object;
 
 fn main() {
     let mut win = three::Window::new("Three-rs lights example");
-    let mut cam = win.factory.perspective_camera(45.0, 1.0 .. 50.0);
+    let cam = win.factory.perspective_camera(45.0, 1.0 .. 50.0);
     cam.look_at([-4.0, 15.0, 10.0], [0.0, 0.0, 2.0], None);
 
     let mut hemisphere_light = win.factory.hemisphere_light(0xffffff, 0x8080ff, 0.5);
@@ -26,11 +26,11 @@ fn main() {
         dir_light.as_mut(),
     ];
     for l in lights.iter_mut() {
-        l.set_parent(&win.scene);
         l.set_visible(false);
+        win.scene.add(l);
     }
 
-    let mut sphere = {
+    let sphere = {
         let geometry = three::Geometry::uv_sphere(3.0, 20, 20);
         let material = three::material::Phong {
             color: 0xffA0A0,
@@ -39,9 +39,9 @@ fn main() {
         win.factory.mesh(geometry, material)
     };
     sphere.set_position([0.0, 0.0, 2.5]);
-    sphere.set_parent(&win.scene);
+    win.scene.add(&sphere);
 
-    let mut plane = {
+    let plane = {
         let geometry = three::Geometry::plane(100.0, 100.0);
         let material = three::material::Lambert {
             color: 0xA0ffA0,
@@ -50,7 +50,7 @@ fn main() {
         win.factory.mesh(geometry, material)
     };
     plane.set_position([0.0, -30.0, 0.0]);
-    plane.set_parent(&win.scene);
+    win.scene.add(&plane);
 
     let mut light_id = 0i8;
     lights[0].set_visible(true);

@@ -53,9 +53,9 @@ fn main() {
     let material = three::material::Sprite {
         map: win.factory.load_texture(pikachu_path_str),
     };
-    let mut sprite = win.factory.sprite(material);
+    let sprite = win.factory.sprite(material);
     sprite.set_scale(8.0);
-    sprite.set_parent(&win.scene);
+    win.scene.add(&sprite);
 
     let mut anim = Animator {
         cell_size: [96, 96],
