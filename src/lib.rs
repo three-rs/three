@@ -261,8 +261,11 @@ extern crate genmesh;
 #[macro_use]
 extern crate gfx;
 extern crate gfx_glyph;
+#[cfg(feature = "gltf-loader")]
 extern crate gltf;
+#[cfg(feature = "gltf-loader")]
 extern crate gltf_importer;
+#[cfg(feature = "gltf-loader")]
 extern crate gltf_utils;
 extern crate image;
 extern crate includedir;
@@ -324,7 +327,11 @@ pub use controls::{AXIS_DOWN_UP, AXIS_LEFT_RIGHT, KEY_ESCAPE, KEY_SPACE, MOUSE_L
 pub use controls::{Button, Input, Timer};
 
 #[doc(inline)]
-pub use factory::{Factory, Gltf};
+pub use factory::Factory;
+
+#[cfg(feature = "gltf-loader")]
+#[doc(inline)]
+pub use factory::Gltf;
 
 #[doc(inline)]
 pub use geometry::Geometry;
