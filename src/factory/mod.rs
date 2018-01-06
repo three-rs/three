@@ -1,3 +1,4 @@
+#[cfg(feature = "gltf-loader")]
 mod load_gltf;
 
 use std::{cmp, fs, io, iter, ops};
@@ -82,6 +83,7 @@ pub struct Factory {
 /// Loaded glTF 2.0 returned by [`Factory::load_gltf`].
 ///
 /// [`Factory::load_gltf`]: struct.Factory.html#method.load_gltf
+#[cfg(feature = "gltf-loader")]
 pub struct Gltf {
     /// Imported camera views.
     pub cameras: Vec<Camera>,

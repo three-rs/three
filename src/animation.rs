@@ -1,3 +1,4 @@
+// TODO: Rewrite examples such that they don't rely on the gltf-loader feature.
 //! Animation system.
 //!
 //! ## Introduction
@@ -55,6 +56,7 @@
 //! immediately.
 //!
 //! ```rust,no_run
+//! # use three::Object;
 //! # let mut window = three::Window::new("");
 //! # let mut mixer = three::animation::Mixer::new();
 //! # let gltf = window.factory.load_gltf("AnimatedScene.gltf");
@@ -71,6 +73,7 @@
 //! game loop.
 //!
 //! ```rust,no_run
+//! # use three::Object;
 //! # let mut window = three::Window::new("");
 //! # let camera = unimplemented!();
 //! # let mut mixer = three::animation::Mixer::new();
