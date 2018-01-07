@@ -12,6 +12,8 @@ use render::Renderer;
 use scene::Scene;
 use std::path::PathBuf;
 
+pub use glutin::CursorState;
+
 /// `Window` is the core entity of every `three-rs` application.
 ///
 /// It provides [user input](struct.Window.html#method.update),
@@ -241,16 +243,20 @@ impl Window {
         [size.0 as f32, size.1 as f32].into()
     }
 
-    /// Set cursor visibility
-    pub fn show_cursor(
-        &self,
-        enable: bool,
-    ) {
-        let _ = if enable {
-            self.window.set_cursor_state(glutin::CursorState::Normal)
-        } else {
-            self.window.set_cursor_state(glutin::CursorState::Hide)
-        };
+    /// Sets how the cursor should be handled.
+    ///
+    /// See the documentation for [`CursorState`] for the possible cursor states.
+    ///
+    /// Note that if you use [`CursorState::Grab`], you should use [`Input::mouse_delta_raw`] for
+    /// detecting mouse movement, as [`Input::mouse_delta`] will only report movement of the cursor
+    /// within the window.
+    ///
+    /// [`CursorState`]: enum.CursorState.html
+    /// [`CursorState::Grab`]: enum.CursorState.html#variant.Grab
+    /// [`Input::mouse_delta_raw`]: struct.Input.html#method.mouse_delta_raw
+    /// [`Input::mouse_delta`]: struct.Input.html#method.mouse_delta_raw
+    pub fn set_cursor_state(&self, state: CursorState) {
+        let _ = self.window.set_cursor_state(state);
     }
 
     /// Returns underlaying `glutin::GlWindow`.
