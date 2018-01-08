@@ -83,13 +83,6 @@ impl Input {
         self.delta.mouse_wheel.clear();
     }
 
-    /// Create new timer.
-    pub fn time(&self) -> Timer {
-        Timer {
-            start: self.state.time_moment,
-        }
-    }
-
     /// Get current delta time (time since previous frame) in seconds.
     pub fn delta_time(&self) -> TimerDuration {
         self.delta.time_delta

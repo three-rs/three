@@ -64,11 +64,11 @@ fn main() {
         .set_transform([0.0, 100.0, 0.0], [0.0, 0.0, 0.0, 1.0], 0.25);
     win.scene.add(&airplane.group);
 
-    let timer = win.input.time();
+    let timer = three::Timer::new();
     while win.update() && !win.input.hit(three::KEY_ESCAPE) {
         use cgmath::{Quaternion, Rad};
         // assume the original velocities are given for 60fps
-        let time = 60.0 * timer.get(&win.input);
+        let time = 60.0 * timer.elapsed();
 
         airplane.update(time, win.input.mouse_pos_ndc());
 
