@@ -475,7 +475,7 @@ impl Delta for axis::Key {
         &self,
         input: &Input,
     ) -> Self::Output {
-        match (self.pos.hit(input), self.neg.hit(input)) {
+        match (input.delta.keys_hit.contains(&self.pos), input.delta.keys_hit.contains(&self.neg)) {
             (true, true) => Some(0),
             (true, false) => Some(1),
             (false, true) => Some(-1),
