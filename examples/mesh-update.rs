@@ -54,13 +54,13 @@ fn main() {
     let vertex_count = mesh.vertex_count();
     win.scene.add(&mesh);
 
-    let mut timer = win.input.time();
+    let mut timer = three::Timer::new();
     let mut vi = 0;
     while win.update() && !win.input.hit(three::KEY_ESCAPE) {
-        let elapsed_time = timer.get(&win.input);
+        let elapsed_time = timer.elapsed();
         if elapsed_time > 1.0 {
             // Reset the timer.
-            timer = win.input.time();
+            timer.reset();
             // Update the vertex `vi`.
             let mut vmap = win.factory.map_vertices(&mut mesh);
             let dir = cgmath::Vector4::from(vmap[vi].pos).truncate();

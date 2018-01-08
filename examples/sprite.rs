@@ -24,14 +24,12 @@ impl Animator {
     fn update(
         &mut self,
         switch_row: Option<u16>,
-        input: &three::Input,
     ) {
+        self.timer.reset();
         if let Some(row) = switch_row {
             self.current = [0, row];
-            self.timer = input.time();
             self.update_uv();
-        } else if self.timer.get(input) >= self.duration && (self.repeat || self.current[0] < self.cell_counts[0]) {
-            self.timer = input.time();
+        } else if self.timer.elapsed() >= self.duration && (self.repeat || self.current[0] < self.cell_counts[0]) {
             self.current[0] += 1;
             if self.current[0] < self.cell_counts[0] {
                 self.update_uv();
@@ -63,7 +61,7 @@ fn main() {
         duration: 0.1,
         repeat: true,
         current: [0, 0],
-        timer: win.input.time(),
+        timer: three::Timer::new(),
         sprite,
     };
     anim.update_uv();
@@ -82,7 +80,7 @@ fn main() {
             }
             (anim.current[1] + diff as u16) % total as u16
         });
-        anim.update(row, &win.input);
+        anim.update(row);
 
         win.render(&cam);
     }

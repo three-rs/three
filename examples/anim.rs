@@ -126,10 +126,10 @@ fn main() {
     let mut shape = 0;
     let (mut name0, mut name1) = ("fly00".to_string(), "fly01".to_string());
     let blend_time = 0.2f32;
-    let mut timer = win.input.time();
+    let mut timer = three::Timer::new();
 
     while win.update() && !win.input.hit(three::KEY_ESCAPE) {
-        let kf = timer.get(&win.input) / blend_time;
+        let kf = timer.elapsed() / blend_time;
         win.factory.mix(&mesh, &[(&name1, kf), (&name0, 1.0 - kf)]);
         if kf > 1.0 {
             shape += 1;
@@ -143,7 +143,7 @@ fn main() {
             };
             name0 = format!("fly{:02}", shape);
             name1 = format!("fly{:02}", shape1);
-            timer = win.input.time();
+            timer.reset();
         }
         win.render(&cam);
     }

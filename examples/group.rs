@@ -144,10 +144,10 @@ fn main() {
     ));
     let mut fps_counter = win.factory.ui_text(&font, "FPS: 00");
 
-    let timer = win.input.time();
+    let timer = three::Timer::new();
     println!("Total number of cubes: {}", cubes.len());
     while win.update() && !win.input.hit(three::KEY_ESCAPE) {
-        let time = timer.get(&win.input);
+        let time = timer.elapsed();
         let delta_time = win.input.delta_time();
         fps_counter.set_text(format!("FPS: {}", 1.0 / delta_time));
         for cube in cubes.iter_mut() {
