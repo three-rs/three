@@ -84,6 +84,7 @@ pub struct Factory {
 ///
 /// [`Factory::load_gltf`]: struct.Factory.html#method.load_gltf
 #[cfg(feature = "gltf-loader")]
+#[derive(Debug, Clone)]
 pub struct Gltf {
     /// Imported camera views.
     pub cameras: Vec<Camera>,
