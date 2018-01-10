@@ -28,7 +28,7 @@ pub mod orbit;
 
 pub use self::first_person::FirstPerson;
 pub use self::orbit::Orbit;
-pub use input::{axis, Button, Delta, Hit, HitCount, Input, Timer, AXIS_DOWN_UP, AXIS_LEFT_RIGHT, KEY_ESCAPE, KEY_SPACE, MOUSE_LEFT, MOUSE_RIGHT};
+pub use input::{axis, Button, Delta, Hit, HitCount, Input, MouseButton, Timer, AXIS_DOWN_UP, AXIS_LEFT_RIGHT, KEY_ESCAPE, KEY_SPACE, MOUSE_LEFT, MOUSE_RIGHT};
 
 /// Virtual key code.
 pub use input::Key;

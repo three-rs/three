@@ -1,5 +1,5 @@
-use glutin::{ElementState, MouseButton, MouseScrollDelta};
-pub use glutin::VirtualKeyCode as Key;
+use glutin::{ElementState, MouseScrollDelta};
+pub use glutin::{MouseButton, VirtualKeyCode as Key};
 use mint;
 
 use std::collections::HashSet;
