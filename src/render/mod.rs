@@ -180,7 +180,7 @@ gfx_defines! {
         shadow_map0: gfx::TextureSampler<f32> = "t_Shadow0",
         shadow_map1: gfx::TextureSampler<f32> = "t_Shadow1",
         out_color: gfx::BlendTarget<ColorFormat> =
-            ("Target0", gfx::state::MASK_ALL, gfx::preset::blend::REPLACE),
+            ("Target0", gfx::state::ColorMask::all(), gfx::preset::blend::REPLACE),
         out_depth: gfx::DepthStencilTarget<DepthFormat> =
             (gfx::preset::depth::LESS_EQUAL_WRITE, gfx::state::Stencil {
                 front: STENCIL_SIDE, back: STENCIL_SIDE,
@@ -404,7 +404,7 @@ impl PipelineStates {
             gfx::Primitive::TriangleStrip,
             rast_fill,
             basic_pipe::Init {
-                out_color: ("Target0", gfx::state::MASK_ALL, gfx::preset::blend::ALPHA),
+                out_color: ("Target0", gfx::state::ColorMask::all(), gfx::preset::blend::ALPHA),
                 ..basic_pipe::new()
             },
         )?;
@@ -508,7 +508,7 @@ impl Renderer {
                     [0.0, 0.0, 0.0, 1.0],
                 ],
                 gfx::buffer::Role::Constant,
-                gfx::SHADER_RESOURCE,
+                gfx::memory::Bind::SHADER_RESOURCE,
             )
             .unwrap();
         let default_joint_buffer_view = gl_factory

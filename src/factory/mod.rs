@@ -206,7 +206,7 @@ impl Factory {
                 4 * bones.len(),
                 gfx::buffer::Role::Constant,
                 gfx::memory::Usage::Dynamic,
-                gfx::SHADER_RESOURCE,
+                gfx::memory::Bind::SHADER_RESOURCE,
             )
             .expect("create GPU target buffer");
         let gpu_buffer_view = self.backend
@@ -611,7 +611,7 @@ impl Factory {
         let (num_vertices, vertices, upload_buf) = {
             let data = Self::mesh_vertices(&geometry, [Target::None; MAX_TARGETS]);
             let dest_buf = self.backend
-                .create_buffer_immutable(&data, gfx::buffer::Role::Vertex, gfx::memory::TRANSFER_DST)
+                .create_buffer_immutable(&data, gfx::buffer::Role::Vertex, gfx::memory::Bind::TRANSFER_DST)
                 .unwrap();
             let upload_buf = self.backend.create_upload_buffer(data.len()).unwrap();
             // TODO: Workaround for not having a 'write-to-slice' capability.

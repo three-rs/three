@@ -52,7 +52,9 @@ fn build_scene_hierarchy(
         stack.push(Item { group, node });
     }
 
-    while let Some(Item { group, node }) = stack.pop() {
+    while let Some(Item { mut group, node }) = stack.pop() {
+        let (translation, rotation, non_uniform_scale) = node.transform().decomposed();
+        group.set_transform(translation, rotation, non_uniform_scale[1]);
         for child_node in node.children() {
             let mut child_group = factory.group();
             child_group.set_parent(&group);

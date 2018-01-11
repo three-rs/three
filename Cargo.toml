@@ -28,38 +28,30 @@ bitflags = "0.9"
 cgmath = { version = "0.15", features = ["mint"] }
 froggy = "0.4.4"
 genmesh = "0.5"
-# gfx = "0.16"
-# gfx_glyph = "0.7"
+gfx = "0.17"
+gfx_glyph = "0.8"
 gltf = { features = ["names"], version = "0.10.0", git = "https://github.com/gltf-rs/gltf" }
 gltf-importer = { features = ["names"], version = "0.10.0", git = "https://github.com/gltf-rs/gltf" }
 gltf-utils = { features = ["names"], version = "0.10.0", git = "https://github.com/gltf-rs/gltf" }
 image = "0.13"
-includedir = "0.2.0"
+includedir = "0.2"
 itertools = "0.6"
 log = "0.3"
 obj = { version = "0.6", features = ["genmesh"] }
 phf = "0.7.12"
-quick-error = "1.2.1"
+quick-error = "1.2"
 rodio = "0.5"
 mint = "0.4.2"
 vec_map = "0.8"
 
 # OpenGL
-# gfx_device_gl = { version = "0.14", optional = true }
-# gfx_window_glutin = { version = "0.19", optional = true }
-# glutin = { version = "0.9", optional = true }
-
-# [patch.crates-io]
-gfx = { git = "https://github.com/gfx-rs/gfx", branch = "pre-ll", version = "0.16" }
-gfx_core = { git = "https://github.com/gfx-rs/gfx", branch = "pre-ll", version = "0.7" }
-gfx_device_gl = { git = "https://github.com/gfx-rs/gfx", branch = "pre-ll", version = "0.14", optional = true }
-gfx_glyph = { git = "https://github.com/alteous/gfx-glyph" }
-gfx_window_glutin = { git = "https://github.com/gfx-rs/gfx", branch = "pre-ll", version = "0.19", optional = true }
-glutin = { git = "https://github.com/tomaka/glutin", optional = true }
+gfx_device_gl = { version = "0.15", optional = true }
+gfx_window_glutin = { version = "0.20", optional = true }
+glutin = { version = "0.12", optional = true }
 
 [dev-dependencies]
 env_logger = "0.4"
-notify = "4.0.1"
+notify = "4.0"
 rand = "0.3"
 
 [[example]]
