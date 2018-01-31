@@ -34,7 +34,7 @@ mod scene;
 #[cfg(feature = "opengl")]
 mod window;
 
-pub use camera::{OrbitControls, Orthographic, Perspective};
+pub use camera::{OrbitControls, Orthographic, Perspective, Projection};
 pub use factory::{Factory, FilterMethod, Geometry, GeometryShape, ShadowMap, Sampler, Texture, WrapMode};
 pub use input::{Button, KeyAxis, Timer, Input,
                 KEY_ESCAPE, KEY_SPACE, MOUSE_LEFT, MOUSE_RIGHT,
