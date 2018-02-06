@@ -694,8 +694,8 @@ impl Factory {
     fn request_texture<P: AsRef<Path>>(
         &mut self,
         path: P,
+        sampler: Sampler,
     ) -> Texture<[f32; 4]> {
-        let sampler = self.default_sampler();
         match self.texture_cache.entry(path.as_ref().to_owned()) {
             Entry::Occupied(e) => e.get().clone(),
             Entry::Vacant(e) => {
@@ -745,7 +745,10 @@ impl Factory {
             } => material::Basic {
                 color: cf2u(color),
                 map: match (has_uv, map_kd) {
-                    (true, &Some(ref name)) => Some(self.request_texture(&concat_path(obj_dir, name))),
+                    (true, &Some(ref name)) => {
+                        let sampler = self.default_sampler();
+                        Some(self.request_texture(&concat_path(obj_dir, name), sampler))
+                    },
                     _ => None,
                 },
             }.into(),
@@ -774,13 +777,24 @@ impl Factory {
         Texture::new(view, sampler.0, [width as u32, height as u32])
     }
 
-    /// Load texture from file.
+    /// Load texture from file, with default `Sampler`.
     /// Supported file formats are: PNG, JPEG, GIF, WEBP, PPM, TIFF, TGA, BMP, ICO, HDR.
     pub fn load_texture<P: AsRef<Path>>(
         &mut self,
         path_str: P,
     ) -> Texture<[f32; 4]> {
-        self.request_texture(path_str)
+        let sampler = self.default_sampler();
+        self.request_texture(path_str, sampler)
+    }
+
+    /// Load texture from file, with custom `Sampler`.
+    /// Supported file formats are: PNG, JPEG, GIF, WEBP, PPM, TIFF, TGA, BMP, ICO, HDR.
+    pub fn load_texture_with_sampler<P: AsRef<Path>>(
+        &mut self,
+        path_str: P,
+        sampler: Sampler,
+    ) -> Texture<[f32; 4]> {
+        self.request_texture(path_str, sampler)
     }
 
     /// Load cubemap from files.
