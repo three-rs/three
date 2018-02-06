@@ -797,10 +797,16 @@ impl Renderer {
             let pso_data = material.to_pso_data();
 
             if let Some(ref key) = gpu_data.instance_cache_key {
-                let uv_range = [0.0; 4];
-                let (color, mat_param) = match pso_data {
-                    PsoData::Basic { color, param0, .. } => (color, param0),
-                    PsoData::Pbr { .. } => (!0, 0.0),
+                let (color, mat_param, uv_range) = match pso_data {
+                    PsoData::Basic { color, param0, ref map } => {
+                        let uv_range = if let Some(ref texture) = *map {
+                            texture.uv_range()
+                        } else {
+                            [0.0; 4]
+                        };
+                        (color, param0, uv_range)
+                    },
+                    PsoData::Pbr { .. } => (!0, 0.0, [0.0; 4]),
                 };
                 let vec = self.instance_cache.entry(key.clone()).or_insert((
                     InstanceData {
