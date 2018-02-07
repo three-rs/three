@@ -428,12 +428,13 @@ impl PipelineStates {
         })
     }
 
-    pub(crate) fn pso_by_material(
-        &self,
-        material: &Material,
-    ) -> &BasicPipelineState {
+    pub(crate) fn pso_by_material<'a>(
+        &'a self,
+        material: &'a Material,
+    ) -> &'a BasicPipelineState {
         match *material {
             Material::Basic(_) => &self.mesh_basic_fill,
+            Material::CustomBasic(ref b) => &b.pipeline,
             Material::Line(_) => &self.line_basic,
             Material::Wireframe(_) => &self.mesh_basic_wireframe,
             Material::Lambert(_) => &self.mesh_gouraud,
