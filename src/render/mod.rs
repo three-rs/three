@@ -61,7 +61,7 @@ const STENCIL_SIDE: gfx::state::StencilSide = gfx::state::StencilSide {
 };
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
-quick_error! { 
+quick_error! {
     #[doc = "Error encountered when building pipelines."]
     #[derive(Debug)]
     pub enum PipelineCreationError {
@@ -688,25 +688,27 @@ impl Renderer {
         hub.process_messages();
             // Update joint transforms of skeletons
             let mut cursor = hub.nodes.cursor();
+            let mut cpu_buffer = Vec::new();
             while let Some((left, mut item, right)) = cursor.next() {
                 let world_transform = item.world_transform.clone();
                 match &mut item.sub_node {
                     &mut SubNode::Skeleton(ref mut skeleton) => {
-                        skeleton.cpu_buffer.clear();
+                        cpu_buffer.clear();
                         for (bone, ibm) in skeleton.bones.iter().zip(skeleton.inverse_bind_matrices.iter()) {
+                            //TODO: make this nicer
                             let bone_transform = Matrix4::from(left.get(&bone.object.node).or_else(|| right.get(&bone.object.node)).unwrap().world_transform);
                             let inverse_world_transform = Matrix4::from(world_transform).invert().unwrap();
                             let mx = inverse_world_transform * bone_transform * Matrix4::from(ibm.clone());
-                            skeleton.cpu_buffer.push(mx.x.into());
-                            skeleton.cpu_buffer.push(mx.y.into());
-                            skeleton.cpu_buffer.push(mx.z.into());
-                            skeleton.cpu_buffer.push(mx.w.into());
+                            cpu_buffer.push(mx.x.into());
+                            cpu_buffer.push(mx.y.into());
+                            cpu_buffer.push(mx.z.into());
+                            cpu_buffer.push(mx.w.into());
                         }
 
                         self.encoder
                             .update_buffer(
                                 &skeleton.gpu_buffer,
-                                &skeleton.cpu_buffer[..],
+                                &cpu_buffer,
                                 0,
                             )
                             .expect("upload to GPU target buffer");
@@ -1173,19 +1175,19 @@ impl Renderer {
                 let map_params = maps.into_params(map_default);
                 let data = pbr_pipe::Data {
                     vbuf: vertex_buf,
-                    inst_buf: inst_buf,
-                    globals: const_buf.clone(),
-                    lights: light_buf.clone(),
-                    params: pbr_buf.clone(),
+                    inst_buf,
+                    globals: const_buf,
+                    lights: light_buf,
+                    params: pbr_buf,
                     base_color_map: map_params.base_color,
                     normal_map: map_params.normal,
                     emissive_map: map_params.emissive,
                     metallic_roughness_map: map_params.metallic_roughness,
                     occlusion_map: map_params.occlusion,
-                    color_target: out_color.clone(),
-                    depth_target: out_depth.clone(),
-                    displacement_contributions: displacement_contributions_buf.clone(),
-                    displacements: displacements,
+                    color_target: out_color,
+                    depth_target: out_depth,
+                    displacement_contributions: displacement_contributions_buf,
+                    displacements,
                     joint_transforms: joint_transform_buffer_view,
                 };
                 encoder.draw(&slice, &pso.pbr, &data);
@@ -1194,14 +1196,14 @@ impl Renderer {
                 //TODO: avoid excessive cloning
                 let data = basic_pipe::Data {
                     vbuf: vertex_buf,
-                    inst_buf: inst_buf,
-                    cb_lights: light_buf.clone(),
+                    inst_buf,
+                    cb_lights: light_buf,
                     cb_globals: const_buf.clone(),
                     tex_map: map.unwrap_or(map_default.clone()).to_param(),
                     shadow_map0: (shadow0.clone(), shadow_sampler.clone()),
                     shadow_map1: (shadow1.clone(), shadow_sampler.clone()),
-                    out_color: out_color.clone(),
-                    out_depth: (out_depth.clone(), (0, 0)),
+                    out_color,
+                    out_depth: (out_depth, (0, 0)),
                 };
                 encoder.draw(&slice, pso.pso_by_material(&material), &data);
             }

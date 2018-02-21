@@ -20,10 +20,10 @@ fn main() {
     dir_light.set_shadow(shadow_map, 40.0, 1.0 .. 200.0);
 
     let mut lights: [&mut three::object::Base; 4] = [
-        hemisphere_light.as_mut(),
-        ambient_light.as_mut(),
-        point_light.as_mut(),
-        dir_light.as_mut(),
+        hemisphere_light.as_ref(),
+        ambient_light.as_ref(),
+        point_light.as_ref(),
+        dir_light.as_ref(),
     ];
     for l in lights.iter_mut() {
         l.set_visible(false);

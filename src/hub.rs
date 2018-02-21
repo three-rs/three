@@ -39,10 +39,8 @@ pub(crate) struct LightData {
 pub(crate) struct SkeletonData {
     pub bones: Vec<Bone>,
     pub inverse_bind_matrices: Vec<mint::ColumnMatrix4<f32>>,
-
     pub gpu_buffer_view: gfx::handle::ShaderResourceView<BackendResources, [f32; 4]>,
     pub gpu_buffer: gfx::handle::Buffer<BackendResources, [f32; 4]>,
-    pub cpu_buffer: Vec<[f32; 4]>,
 }
 
 #[derive(Clone, Debug)]

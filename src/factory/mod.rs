@@ -207,14 +207,7 @@ impl Factory {
         let gpu_buffer_view = self.backend
             .view_buffer_as_shader_resource(&gpu_buffer)
             .expect("create shader resource view for GPU target buffer");
-        let mut cpu_buffer = Vec::with_capacity(bones.len());
-        for mx in &inverse_bind_matrices {
-            cpu_buffer.push(mx.x.into());
-            cpu_buffer.push(mx.y.into());
-            cpu_buffer.push(mx.z.into());
-            cpu_buffer.push(mx.w.into());
-        }
-        let data = hub::SkeletonData { bones, gpu_buffer, inverse_bind_matrices, gpu_buffer_view, cpu_buffer };
+        let data = hub::SkeletonData { bones, gpu_buffer, inverse_bind_matrices, gpu_buffer_view };
         let object = self.hub.lock().unwrap().spawn_skeleton(data);
         Skeleton { object }
     }
@@ -381,19 +374,19 @@ impl Factory {
             for i in 0 .. MAX_TARGETS {
                 match targets[i] {
                     Target::Position => {
-                        for (j, v) in geometry.morph_targets.vertices[pi * nr_vertices .. (pi + 1) * nr_vertices].iter().cloned().enumerate() {
+                        for (j, v) in geometry.morph_targets.vertices[pi * nr_vertices .. (pi + 1) * nr_vertices].iter().enumerate() {
                             contents[j * MAX_TARGETS + i] = [v.x, v.y, v.z, 0.0];
                         }
                         pi += 1;
                     }
                     Target::Normal => {
-                        for (j, v) in geometry.morph_targets.normals[ni * nr_vertices .. (ni + 1) * nr_vertices].iter().cloned().enumerate() {
+                        for (j, v) in geometry.morph_targets.normals[ni * nr_vertices .. (ni + 1) * nr_vertices].iter().enumerate() {
                             contents[j * MAX_TARGETS + i] = [v.x, v.y, v.z, 0.0];
                         }
                         ni += 1;
                     }
                     Target::Tangent => {
-                        for (j, v) in geometry.morph_targets.tangents[ti * nr_vertices .. (ti + 1) * nr_vertices].iter().cloned().enumerate() {
+                        for (j, v) in geometry.morph_targets.tangents[ti * nr_vertices .. (ti + 1) * nr_vertices].iter().enumerate() {
                             contents[j * MAX_TARGETS + i] = [v.x, v.y, v.z, 0.0];
                         }
                         ti += 1;
@@ -739,7 +732,7 @@ impl Factory {
         let mut mapping = self.backend.write_mapping(&mesh.dynamic.buffer).unwrap();
 
         let n = mesh.geometry.vertices.len();
-        for i in 0 .. n { 
+        for i in 0 .. n {
             let (mut pos, ksum) = shapes.iter().fold(
                 (Vector3::new(0.0, 0.0, 0.0), 0.0),
                 |(pos, ksum), &(idx, k)| {
