@@ -81,18 +81,6 @@ name = "sprite"
 name = "tutorial"
 
 [[example]]
-name = "gltf-pbr-shader"
-
-[[example]]
-name = "gltf-node-animation"
-
-[[example]]
-name = "gltf-vertex-skinning"
-
-[[example]]
-name = "gltf-morph-targets"
-
-[[example]]
 name = "group"
 
 [[example]]
@@ -102,3 +90,18 @@ name = "anim"
 name = "aviator"
 path = "examples/aviator/main.rs"
 
+[[example]]
+name = "gltf-pbr-shader"
+required-features = ["gltf-loader"]
+
+[[example]]
+name = "gltf-node-animation"
+required-features = ["gltf-loader"]
+
+[[example]]
+name = "gltf-vertex-skinning"
+required-features = ["gltf-loader"]
+
+[[example]]
+name = "gltf-morph-targets"
+required-features = ["gltf-loader"]

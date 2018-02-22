@@ -29,7 +29,7 @@ use hub::{Hub, HubPtr, LightData, SubLight, SubNode};
 use light::{Ambient, Directional, Hemisphere, Point, ShadowMap};
 use material::{self, Material};
 use mesh::{DynamicMesh, Mesh};
-use object::{Group, Object};
+use object;
 use render::{basic_pipe,
     BackendFactory, BackendResources, BasicPipelineState, DisplacementContribution,
     DynamicData, GpuData, Instance, InstanceCacheKey, PipelineCreationError, ShadowFormat, Source, Vertex,
@@ -127,13 +127,6 @@ pub struct Gltf {
 impl AsRef<object::Base> for Gltf {
     fn as_ref(&self) -> &object::Base {
         self.root.as_ref()
-    }
-}
-
-#[cfg(feature = "gltf-loader")]
-impl AsMut<object::Base> for Gltf {
-    fn as_mut(&mut self) -> &mut object::Base {
-        self.root.as_mut()
     }
 }
 

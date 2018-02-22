@@ -12,6 +12,7 @@ If you a looking for something simple to prototype 3D graphics with, you found i
 
 ![Aviator](examples/aviator/shot.png)
 ![CarObj](https://raw.githubusercontent.com/three-rs/example-data/5d821bc9647a8db26888f8dd286f318eaabd2a52/obj-car.png)
+![glTF-skinning](https://user-images.githubusercontent.com/107301/36550245-d878073e-17c2-11e8-87ca-68299dfff775.png)
 
 ## Motivation and Goals
 

@@ -19,14 +19,14 @@ fn main() {
         mixer.action(clip);
     }
 
-    let camera = window.factory.perspective_camera(60.0, 0.1 .. 100.0);
+    let camera = window.factory.perspective_camera(45.0, 0.1 .. 100.0);
     window.scene.add(&camera);
 
     let mut controls = three::controls::Orbit::builder(&camera)
         .position([0.0, -3.0, 3.0])
-        .target([0.0, 0.0, -1.0])
+        .target([0.0, 0.0, 1.0])
         .build();
-    
+
     while window.update() && !window.input.hit(three::KEY_ESCAPE) {
         mixer.update(window.input.delta_time());
         controls.update(&window.input);

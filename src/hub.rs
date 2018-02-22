@@ -4,8 +4,8 @@ use light::{ShadowMap, ShadowProjection};
 use material::Material;
 use mesh::DynamicMesh;
 use node::{NodeInternal, NodePointer, TransformInternal};
+use object::Base;
 use render::{BackendResources, GpuData};
-use scene::Scene;
 use skeleton::{Bone, Skeleton};
 use text::{Operation as TextOperation, TextData};
 
@@ -228,46 +228,6 @@ impl Hub {
                         cur_ptr = node.next_sibling.clone(); //TODO: avoid clone
                     }
                 }
-                Operation::SetSkeleton(skeleton) => {
-                    if let SubNode::Visual(_, _, ref mut s) = self.nodes[&ptr].sub_node {
-                        *s = Some(skeleton);
-                    }
-                },
-                Operation::SetShadow(map, proj) => {
-                    if let SubNode::Light(ref mut data) = self.nodes[&ptr].sub_node {
-                        data.shadow = Some((map, proj));
-                    }
-                },
-                Operation::SetWeights(weights) => {
-                    fn set_weights(
-                        gpu_data: &mut GpuData,
-                        weights: &[f32],
-                    ) {
-                        use std::iter::repeat;
-                        for (out, input) in gpu_data.displacement_contributions
-                            .iter_mut()
-                            .zip(weights.iter().chain(repeat(&0.0)))
-                        {
-                            out.weight = *input;
-                        }
-                    }
-
-                    let mut x = match self.nodes[&ptr].sub_node {
-                        SubNode::Visual(_, ref mut gpu_data, _) => {
-                            set_weights(gpu_data, &weights);
-                            continue;
-                        }
-                        SubNode::Group { ref first_child } => first_child.clone(),
-                        _ => continue,
-                    };
-
-                    while let Some(ptr) = x {
-                        if let SubNode::Visual(_, ref mut gpu_data, _) = self.nodes[&ptr].sub_node {
-                            set_weights(gpu_data, &weights);
-                        }
-                        x = self.nodes[&ptr].next_sibling.clone();
-                    }
-                }
                 Operation::SetText(operation) => {
                     match self.nodes[&ptr].sub_node {
                         SubNode::UiText(ref mut data) => {
@@ -308,8 +268,36 @@ impl Hub {
                         _ => unreachable!()
                     }
                 }
-                Operation::SetTargets(targets) => unimplemented!(),
-                Operation::SetWeights(weights) => unimplemented!(),
+                Operation::SetWeights(weights) => {
+                    fn set_weights(
+                        gpu_data: &mut GpuData,
+                        weights: &[f32],
+                    ) {
+                        use std::iter::repeat;
+                        for (out, input) in gpu_data.displacement_contributions
+                            .iter_mut()
+                            .zip(weights.iter().chain(repeat(&0.0)))
+                        {
+                            out.weight = *input;
+                        }
+                    }
+
+                    let mut x = match self.nodes[&ptr].sub_node {
+                        SubNode::Visual(_, ref mut gpu_data, _) => {
+                            set_weights(gpu_data, &weights);
+                            continue;
+                        }
+                        SubNode::Group { ref first_child } => first_child.clone(),
+                        _ => continue,
+                    };
+
+                    while let Some(ptr) = x {
+                        if let SubNode::Visual(_, ref mut gpu_data, _) = self.nodes[&ptr].sub_node {
+                            set_weights(gpu_data, &weights);
+                        }
+                        x = self.nodes[&ptr].next_sibling.clone();
+                    }
+                }
             }
         }
 
@@ -347,37 +335,6 @@ impl Hub {
             TextOperation::Scale(scale) => data.section.text[0].scale = Scale::uniform(scale),
             TextOperation::Size(size) => data.section.bounds = (size.x, size.y),
             TextOperation::Text(text) => data.section.text[0].text = text,
-        }
-    }
-
-    pub(crate) fn update_graph(
-        &mut self,
-        scene: &Scene,
-    ) {
-        struct Item {
-            ptr: NodePointer,
-            xform: TransformInternal,
-        }
-
-        let mut stack = vec![];
-        if let Some(child_ptr) = scene.first_child.clone() {
-            stack.push(Item {
-                ptr: child_ptr,
-                xform: TransformInternal::one(),
-            });
-        }
-
-        while let Some(item) = stack.pop() {
-            let mut x = self.nodes[&item.ptr].next_sibling.clone();
-            while let Some(child_ptr) = x {
-                let local_xform = self.nodes[&child_ptr].transform.clone();
-                let global_xform = item.xform.concat(&local_xform);
-                x = self.nodes[&child_ptr].next_sibling.clone();
-                stack.push(Item {
-                    ptr: child_ptr,
-                    xform: global_xform,
-                });
-            }
         }
     }
 

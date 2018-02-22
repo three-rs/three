@@ -26,7 +26,7 @@ fn main() {
         .position([3.0, 3.0, 3.0])
         .target([0.0, 1.0, 0.0])
         .build();
-    
+
     while window.update() && !window.input.hit(three::KEY_ESCAPE) {
         mixer.update(window.input.delta_time());
         controls.update(&window.input);

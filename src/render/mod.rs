@@ -20,7 +20,7 @@ mod pso_data;
 
 use color;
 
-use std::{io, mem, str};
+use std::{io, str};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -624,7 +624,6 @@ impl Renderer {
             out_color,
             out_depth,
             pso,
-            default_joint_buffer,
             default_joint_buffer_view,
             default_displacement_buffer_view,
             map_default: Texture::new(srv_white, sampler, [1, 1]),
@@ -1193,7 +1192,7 @@ impl Renderer {
                         displacement_contributions
                     };
                     encoder.update_buffer(&displacement_contributions_buf, data, 0).unwrap();
-                    params.pbr_flags |= pso_data::PbrFlags::DISPLACEMENT_BUFFER.bits();
+                    params.pbr_flags |= PbrFlags::DISPLACEMENT_BUFFER.bits();
                 }
                 encoder.update_constant_buffer(&pbr_buf, &params);
                 let map_params = maps.into_params(map_default);
