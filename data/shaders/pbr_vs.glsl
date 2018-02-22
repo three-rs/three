@@ -43,7 +43,7 @@ layout(std140) uniform b_PbrParams {
 };
 
 uniform samplerBuffer b_JointTransforms;
-uniform samplerBuffer b_Displacements;
+uniform sampler2D u_Displacements;
 
 //TODO: store each join transform in 3 vectors, similar to `i_WorldX`
 
@@ -54,13 +54,6 @@ mat4 fetch_joint_transform(int i) {
     vec4 col3 = texelFetch(b_JointTransforms, 4 * i + 3);
 
     return mat4(col0, col1, col2, col3);
-}
-
-vec3 fetch_displacement(uint i) {
-    int index = gl_VertexID * int(MAX_TARGETS) + int(i);
-    vec4 texel = texelFetch(b_Displacements, index);
-
-    return texel.xyz;
 }
 
 mat4 compute_skin_transform() {
@@ -76,19 +69,18 @@ bool available(int flag) {
 }
 
 void main() {
-    vec4 local_position = a_Position;
-    vec4 local_normal = a_Normal;
-    vec4 local_tangent = vec4(a_Tangent.xyz, 0.0);
+    vec3 local_position = a_Position.xyz;
+    vec3 local_normal = a_Normal.xyz;
+    vec3 local_tangent = a_Tangent.xyz;
 
     if (available(DISPLACEMENT_BUFFER)) {
-        //TODO: store displacements in a 2D image of size (num_vertices, num_displacements).
-        // That will allow a dynamic check for the number of actually stored displacements,
-        // limiting the loop iteration count for trivial cases.
-        for (uint i = 0U; i < MAX_TARGETS; ++i) {
-            float disp = u_DisplacementContributions[i].weight * fetch_displacement(i);
-            local_position.xyz += u_DisplacementContributions[i].position * disp;
-            local_normal.xyz += u_DisplacementContributions[i].normal * disp;
-            local_tangent.xyz += u_DisplacementContributions[i].tangent * disp;
+        uint num_targets = uvec2(textureSize(u_Displacements, 0)).y / 3U;
+        for (uint i = 0U; i < min(num_targets, MAX_TARGETS); ++i) {
+            DisplacementContribution disp = u_DisplacementContributions[i];
+            if (disp.weight == 0.0) continue;
+            local_position += disp.position * disp.weight * texelFetch(u_Displacements, ivec2(gl_VertexID, 3U*i+0U), 0).xyz;
+            local_normal   += disp.normal   * disp.weight * texelFetch(u_Displacements, ivec2(gl_VertexID, 3U*i+1U), 0).xyz;
+            local_tangent  += disp.tangent  * disp.weight * texelFetch(u_Displacements, ivec2(gl_VertexID, 3U*i+2U), 0).xyz;
         }
     }
 
@@ -96,14 +88,14 @@ void main() {
     mat4 mx_mvp = u_ViewProj * mx_world;
     mat4 mx_skin = compute_skin_transform();
 
-    vec4 world_position = mx_world * local_position;
-    vec3 world_normal = normalize(vec3(mx_world * local_normal));
-    vec3 world_tangent = normalize(vec3(mx_world * local_tangent));
+    vec4 world_position = mx_world * vec4(local_position, a_Position.w);
+    vec3 world_normal = mat3(mx_world) * normalize(local_normal);
+    vec3 world_tangent = mat3(mx_world) * normalize(local_tangent);
     vec3 world_bitangent = cross(world_normal, world_tangent) * a_Tangent.w;
 
     v_Tbn = mat3(world_tangent, world_bitangent, world_normal);
     v_Position = world_position.xyz / world_position.w;
     v_TexCoord = a_TexCoord;
 
-    gl_Position = mx_mvp * mx_skin * local_position;
+    gl_Position = mx_mvp * mx_skin * vec4(local_position, a_Position.w);
 }

@@ -513,14 +513,15 @@ impl ActionData {
                     target.set_scale(update);
                 }
                 (Binding::Weights, &Values::Scalar(ref values)) => {
-                    use render::MAX_TARGETS; //TODO: make this flexible
-                    let mut update = vec![0.0; MAX_TARGETS];
-                    for i in 0 .. MAX_TARGETS {
-                        let frame_start_value = values[MAX_TARGETS * frame_index + i];
-                        let frame_end_value = values[MAX_TARGETS * (frame_index + 1) + i];
-                        let weight = frame_start_value * (1.0 - s) + frame_end_value * s;
-                        update[i] = weight;
-                    }
+                    // values are: first all scalars for shape[0], then all scalars for shape[1], etc
+                    let update = values
+                        .chunks(track.times.len())
+                        .map(|chunk| {
+                            let start_value = chunk[frame_index];
+                            let end_value = chunk[frame_index + 1];
+                            start_value * (1.0 - s) + end_value * s
+                        })
+                        .collect();
                     target.set_weights(update);
                 }
                 _ => panic!("Unsupported (binding, value) pair"),

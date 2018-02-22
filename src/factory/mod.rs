@@ -374,18 +374,18 @@ impl Factory {
                 displacement_contributions.push(contribution);
             }
 
-            let buffer = self.backend
-                .create_buffer_immutable(
-                    &contents,
-                    gfx::buffer::Role::Constant,
-                    gfx::memory::Bind::SHADER_RESOURCE,
+            let texture_and_view = self.backend
+                .create_texture_immutable::<[f32; 4]>(
+                    gfx::texture::Kind::D2(
+                        num_vertices as _,
+                        3 * num_shapes as gfx::texture::Size,
+                        gfx::texture::AaMode::Single,
+                    ),
+                    gfx::texture::Mipmap::Provided,
+                    &[gfx::memory::cast_slice(&contents)],
                 )
                 .unwrap();
-            let view = self.backend
-                .view_buffer_as_shader_resource(&buffer)
-                .unwrap();
-
-            Some((buffer, view))
+            Some(texture_and_view)
         } else {
             None
         };

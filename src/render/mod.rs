@@ -225,7 +225,7 @@ gfx_defines! {
         lights: gfx::ConstantBuffer<LightParam> = "b_Lights",
         displacement_contributions: gfx::ConstantBuffer<DisplacementContribution> = "b_DisplacementContributions",
         joint_transforms: gfx::ShaderResource<[f32; 4]> = "b_JointTransforms",
-        displacements: gfx::ShaderResource<[f32; 4]> = "b_Displacements",
+        displacements: gfx::TextureSampler<[f32; 4]> = "u_Displacements",
         base_color_map: gfx::TextureSampler<[f32; 4]> = "u_BaseColorSampler",
 
         normal_map: gfx::TextureSampler<[f32; 4]> = "u_NormalSampler",
@@ -293,7 +293,11 @@ pub(crate) struct GpuData {
     pub slice: gfx::Slice<back::Resources>,
     pub vertices: h::Buffer<back::Resources, Vertex>,
     pub instances: h::Buffer<back::Resources, Instance>,
-    pub displacements: Option<(h::Buffer<back::Resources, [f32; 4]>, h::ShaderResourceView<back::Resources, [f32; 4]>)>,
+    pub displacements: Option<(
+        h::Texture<back::Resources,
+        gfx::format::R32_G32_B32_A32>,
+        h::ShaderResourceView<back::Resources, [f32; 4]>,
+    )>,
     pub pending: Option<DynamicData>,
     pub instance_cache_key: Option<InstanceCacheKey>,
     pub displacement_contributions: Vec<DisplacementContribution>,
@@ -965,6 +969,10 @@ impl Renderer {
             } else {
                 self.default_joint_buffer_view.clone()
             };
+            let displacement_view = match gpu_data.displacements {
+                Some((_, ref view)) => view.clone(),
+                None => self.default_displacement_buffer_view.clone(),
+            };
 
             Self::render_mesh(
                 &mut self.encoder,
@@ -985,10 +993,7 @@ impl Renderer {
                 &shadow0,
                 &shadow1,
                 &gpu_data.displacement_contributions,
-                match gpu_data.displacements {
-                    Some((_, ref view)) => view.clone(),
-                    None => self.default_displacement_buffer_view.clone(),
-                },
+                (displacement_view, self.map_default.to_param().1),
                 joint_buffer_view,
                 gpu_data.displacements.is_some(),
             );
@@ -1026,7 +1031,7 @@ impl Renderer {
                 &shadow0,
                 &shadow1,
                 &ZEROED_DISPLACEMENT_CONTRIBUTION,
-                self.default_displacement_buffer_view.clone(),
+                (self.default_displacement_buffer_view.clone(), self.map_default.to_param().1),
                 self.default_joint_buffer_view.clone(),
                 false,
             );
@@ -1128,6 +1133,7 @@ impl Renderer {
         self.encoder.flush(&mut self.device);
     }
 
+    //TODO: make it generic over `gfx::Resources`
     #[inline]
     fn render_mesh(
         encoder: &mut gfx::Encoder<back::Resources, back::CommandBuffer>,
@@ -1148,7 +1154,7 @@ impl Renderer {
         shadow0: &h::ShaderResourceView<back::Resources, f32>,
         shadow1: &h::ShaderResourceView<back::Resources, f32>,
         displacement_contributions: &[DisplacementContribution],
-        displacements: h::ShaderResourceView<back::Resources, [f32; 4]>,
+        displacements: (h::ShaderResourceView<back::Resources, [f32; 4]>, h::Sampler<back::Resources>),
         joint_transform_buffer_view: h::ShaderResourceView<back::Resources, [f32; 4]>,
         displace: bool,
     ) {
