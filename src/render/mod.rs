@@ -35,7 +35,6 @@ use factory::Factory;
 use hub::{SubLight, SubNode};
 use light::{ShadowMap, ShadowProjection};
 use material::Material;
-use mesh::MAX_TARGETS;
 use scene::{Background, Scene};
 use text::Font;
 use texture::Texture;
@@ -50,6 +49,7 @@ pub type ShadowFormat = gfx::format::Depth32F;
 pub type BasicPipelineState = gfx::PipelineState<back::Resources, basic_pipe::Meta>;
 
 const MAX_LIGHTS: usize = 4;
+pub(crate) const MAX_TARGETS: usize = 8;
 
 const STENCIL_SIDE: gfx::state::StencilSide = gfx::state::StencilSide {
     fun: gfx::state::Comparison::Always,
@@ -110,14 +110,14 @@ impl Default for Vertex {
 /// Set of zero valued displacement contribution which cause vertex attributes
 /// to be unchanged by morph targets.
 pub const ZEROED_DISPLACEMENT_CONTRIBUTION: [DisplacementContribution; MAX_TARGETS] = [
-    DisplacementContribution { position: 0.0, normal: 0.0, tangent: 0.0, weight: 0.0 },
-    DisplacementContribution { position: 0.0, normal: 0.0, tangent: 0.0, weight: 0.0 },
-    DisplacementContribution { position: 0.0, normal: 0.0, tangent: 0.0, weight: 0.0 },
-    DisplacementContribution { position: 0.0, normal: 0.0, tangent: 0.0, weight: 0.0 },
-    DisplacementContribution { position: 0.0, normal: 0.0, tangent: 0.0, weight: 0.0 },
-    DisplacementContribution { position: 0.0, normal: 0.0, tangent: 0.0, weight: 0.0 },
-    DisplacementContribution { position: 0.0, normal: 0.0, tangent: 0.0, weight: 0.0 },
-    DisplacementContribution { position: 0.0, normal: 0.0, tangent: 0.0, weight: 0.0 },
+    DisplacementContribution::ZERO,
+    DisplacementContribution::ZERO,
+    DisplacementContribution::ZERO,
+    DisplacementContribution::ZERO,
+    DisplacementContribution::ZERO,
+    DisplacementContribution::ZERO,
+    DisplacementContribution::ZERO,
+    DisplacementContribution::ZERO,
 ];
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
@@ -282,10 +282,9 @@ impl Instance {
     }
 }
 
-impl Default for DisplacementContribution {
-    fn default() -> Self {
-        Self { position: 0.0, normal: 0.0, tangent: 0.0, weight: 0.0 }
-    }
+impl DisplacementContribution {
+    /// Zero displacement contribution.
+    pub const ZERO: Self = DisplacementContribution { position: 0.0, normal: 0.0, tangent: 0.0, weight: 0.0 };
 }
 
 //TODO: private fields?
@@ -297,7 +296,7 @@ pub(crate) struct GpuData {
     pub displacements: Option<(h::Buffer<back::Resources, [f32; 4]>, h::ShaderResourceView<back::Resources, [f32; 4]>)>,
     pub pending: Option<DynamicData>,
     pub instance_cache_key: Option<InstanceCacheKey>,
-    pub displacement_contributions: [DisplacementContribution; MAX_TARGETS],
+    pub displacement_contributions: Vec<DisplacementContribution>,
 }
 
 #[derive(Clone, Debug)]
@@ -1148,7 +1147,7 @@ impl Renderer {
         shadow_sampler: &h::Sampler<back::Resources>,
         shadow0: &h::ShaderResourceView<back::Resources, f32>,
         shadow1: &h::ShaderResourceView<back::Resources, f32>,
-        displacement_contributions: &[DisplacementContribution; MAX_TARGETS],
+        displacement_contributions: &[DisplacementContribution],
         displacements: h::ShaderResourceView<back::Resources, [f32; 4]>,
         joint_transform_buffer_view: h::ShaderResourceView<back::Resources, [f32; 4]>,
         displace: bool,
@@ -1168,7 +1167,13 @@ impl Renderer {
         match material.to_pso_data() {
             PsoData::Pbr { maps, mut params } => {
                 if displace {
-                    encoder.update_buffer(&displacement_contributions_buf, &displacement_contributions[0..MAX_TARGETS], 0).unwrap();
+                    let data = if displacement_contributions.len() > MAX_TARGETS {
+                        error!("Too many mesh targets ({})!", displacement_contributions.len());
+                        &displacement_contributions[.. MAX_TARGETS]
+                    } else {
+                        displacement_contributions
+                    };
+                    encoder.update_buffer(&displacement_contributions_buf, data, 0).unwrap();
                     params.pbr_flags |= pso_data::PbrFlags::DISPLACEMENT_BUFFER.bits();
                 }
                 encoder.update_constant_buffer(&pbr_buf, &params);

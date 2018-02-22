@@ -8,34 +8,6 @@ use skeleton::Skeleton;
 
 use std::hash::{Hash, Hasher};
 
-/// The maximum number of [`Target`]s able to influence a [`Mesh`].
-///
-/// [`Target`]: enum.Target.html
-/// [`Mesh`]: struct.Mesh.html
-pub const MAX_TARGETS: usize = 8;
-
-/// Defines a target of displacement.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum Target {
-    /// Target the position attribute.
-    Position,
-
-    /// Target the normal attribute,
-    Normal,
-
-    /// Target the tangent attribute.
-    Tangent,
-
-    /// Leave attribute unchanged.
-    None,
-}
-
-impl Default for Target {
-    fn default() -> Self {
-        Target::None
-    }
-}
-
 /// [`Geometry`](struct.Geometry.html) with some [`Material`](struct.Material.html).
 ///
 /// # Examples
@@ -150,20 +122,12 @@ impl Mesh {
     ) {
         self.as_ref().send(Operation::SetSkeleton(skeleton));
     }
-
-    /// Set the morph target weights of a mesh.
-    pub fn set_weights(
-        &mut self,
-        weights: [f32; MAX_TARGETS],
-    ) {
-        self.as_ref().send(Operation::SetWeights(weights));
-    }
 }
 
 impl DynamicMesh {
     /// Returns the number of vertices of the geometry base shape.
     pub fn vertex_count(&self) -> usize {
-        self.geometry.vertices.len()
+        self.geometry.base.vertices.len()
     }
 
     /// Set mesh material.

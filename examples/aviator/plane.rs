@@ -21,7 +21,7 @@ impl AirPlane {
 
         let cockpit = {
             let mut geo = three::Geometry::cuboid(80.0, 50.0, 50.0);
-            for v in geo.base_shape.vertices.iter_mut() {
+            for v in geo.base.vertices.iter_mut() {
                 if v.x < 0.0 {
                     v.z += if v.y > 0.0 { -20.0 } else { 20.0 };
                     v.y += if v.y > 0.0 { -10.0 } else { 30.0 };

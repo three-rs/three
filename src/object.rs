@@ -7,7 +7,6 @@ use std::sync::mpsc;
 use mint;
 
 use hub::{Hub, Message, Operation, SubNode};
-use mesh::MAX_TARGETS;
 use node::NodePointer;
 
 //Note: no local state should be here, only remote links
@@ -91,9 +90,10 @@ pub trait Object: AsRef<Base> {
     }
 
     /// Set weights.
+    //Note: needed for animations
     fn set_weights(
         &self,
-        weights: [f32; MAX_TARGETS],
+        weights: Vec<f32>,
     ) {
         self.as_ref().send(Operation::SetWeights(weights));
     }

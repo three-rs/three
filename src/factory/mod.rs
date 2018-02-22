@@ -28,9 +28,13 @@ use geometry::Geometry;
 use hub::{Hub, HubPtr, LightData, SubLight, SubNode};
 use light::{Ambient, Directional, Hemisphere, Point, ShadowMap};
 use material::{self, Material};
-use mesh::{DynamicMesh, Mesh, Target, MAX_TARGETS};
+use mesh::{DynamicMesh, Mesh};
 use object::{Group, Object};
-use render::{basic_pipe, BackendFactory, BackendResources, BasicPipelineState, DisplacementContribution, DEFAULT_VERTEX, DynamicData, GpuData, Instance, InstanceCacheKey, PipelineCreationError, ShadowFormat, Source, Vertex, ZEROED_DISPLACEMENT_CONTRIBUTION};
+use render::{basic_pipe,
+    BackendFactory, BackendResources, BasicPipelineState, DisplacementContribution,
+    DynamicData, GpuData, Instance, InstanceCacheKey, PipelineCreationError, ShadowFormat, Source, Vertex,
+    DEFAULT_VERTEX, ZEROED_DISPLACEMENT_CONTRIBUTION,
+};
 use scene::{Background, Scene};
 use sprite::Sprite;
 use skeleton::{Bone, Skeleton};
@@ -268,13 +272,12 @@ impl Factory {
     }
 
     fn mesh_vertices(geometry: &Geometry) -> Vec<Vertex> {
-        let position_iter = geometry.vertices.iter();
-        let normal_iter = if geometry.normals.is_empty() {
+        let position_iter = geometry.base.vertices.iter();
+        let normal_iter = if geometry.base.normals.is_empty() {
             Either::Left(iter::repeat(NORMAL_Z))
         } else {
             Either::Right(
-                geometry
-                    .normals
+                geometry.base.normals
                     .iter()
                     .map(|n| [f2i(n.x), f2i(n.y), f2i(n.z), I8Norm(0)]),
             )
@@ -284,15 +287,13 @@ impl Factory {
         } else {
             Either::Right(geometry.tex_coords.iter().map(|uv| [uv.x, uv.y]))
         };
-        let tangent_iter = if geometry.tangents.is_empty() {
-            // @alteous:
-            // TODO: Generate tangents if texture co-ordinates are provided.
+        let tangent_iter = if geometry.base.tangents.is_empty() {
+            // TODO: Generate tangents if texture coordinates are provided.
             // (Use mikktspace algorithm or otherwise.)
             Either::Left(iter::repeat(TANGENT_X))
         } else {
             Either::Right(
-                geometry
-                    .tangents
+                geometry.base.tangents
                     .iter()
                     .map(|t| [f2i(t.x), f2i(t.y), f2i(t.z), f2i(t.w)]),
             )
@@ -335,17 +336,6 @@ impl Factory {
         geometry: Geometry,
         material: M,
     ) -> Mesh {
-        self.mesh_with_targets(geometry, material, [Target::None; MAX_TARGETS])
-    }
-
-    /// Create new `Mesh` mesh with desired `Geometry`, `Material`, and
-    /// morph `Target` bindings.
-    pub fn mesh_with_targets<M: Into<Material>>(
-        &mut self,
-        geometry: Geometry,
-        material: M,
-        targets: [Target; MAX_TARGETS],
-    ) -> Mesh {
         let vertices = Self::mesh_vertices(&geometry);
         let (vbuf, mut slice) = if geometry.faces.is_empty() {
             self.backend.create_vertex_buffer_with_slice(&vertices, ())
@@ -355,49 +345,38 @@ impl Factory {
                 .create_vertex_buffer_with_slice(&vertices, faces)
         };
         slice.instances = Some((1, 0));
-        let mut dcs = [DisplacementContribution::default(); MAX_TARGETS];
-        let mut nr_targets = MAX_TARGETS;
-        for i in 0 .. MAX_TARGETS {
-            match targets[i] {
-                Target::Position => dcs[i].position = 1.0,
-                Target::Normal => dcs[i].normal = 1.0,
-                Target::Tangent => dcs[i].tangent = 1.0,
-                Target::None => nr_targets -= 1,
-            }
-        }
+        let num_shapes = geometry.shapes.len();
+        let mut displacement_contributions = Vec::with_capacity(num_shapes);
         let instances = self.create_instance_buffer();
-        let displacements = if nr_targets > 0 {
-            let nr_vertices = geometry.vertices.len();
-            let nr_displacements = MAX_TARGETS * nr_vertices;
-            let mut contents = vec![[0.0; 4]; nr_displacements];
-            let (mut pi, mut ni, mut ti) = (0, 0, 0);
-            for i in 0 .. MAX_TARGETS {
-                match targets[i] {
-                    Target::Position => {
-                        for (j, v) in geometry.morph_targets.vertices[pi * nr_vertices .. (pi + 1) * nr_vertices].iter().enumerate() {
-                            contents[j * MAX_TARGETS + i] = [v.x, v.y, v.z, 0.0];
-                        }
-                        pi += 1;
+        let displacements = if num_shapes != 0 {
+            let num_vertices = geometry.base.vertices.len();
+            let mut contents = vec![[0.0; 4]; num_shapes * 3 * num_vertices];
+            for (content_chunk, shape) in contents.chunks_mut(3 * num_vertices).zip(&geometry.shapes) {
+                let mut contribution = DisplacementContribution::ZERO;
+                if !shape.vertices.is_empty() {
+                    contribution.position = 1.0;
+                    for (out, v) in content_chunk[0 * num_vertices .. 1 * num_vertices].iter_mut().zip(&shape.vertices) {
+                        *out = [v.x, v.y, v.z, 1.0];
                     }
-                    Target::Normal => {
-                        for (j, v) in geometry.morph_targets.normals[ni * nr_vertices .. (ni + 1) * nr_vertices].iter().enumerate() {
-                            contents[j * MAX_TARGETS + i] = [v.x, v.y, v.z, 0.0];
-                        }
-                        ni += 1;
-                    }
-                    Target::Tangent => {
-                        for (j, v) in geometry.morph_targets.tangents[ti * nr_vertices .. (ti + 1) * nr_vertices].iter().enumerate() {
-                            contents[j * MAX_TARGETS + i] = [v.x, v.y, v.z, 0.0];
-                        }
-                        ti += 1;
-                    }
-                    Target::None => {}
                 }
+                if !shape.normals.is_empty() {
+                    contribution.normal = 1.0;
+                    for (out, v) in content_chunk[1 * num_vertices .. 2 * num_vertices].iter_mut().zip(&shape.normals) {
+                        *out = [v.x, v.y, v.z, 0.0];
+                    }
+                }
+                if !shape.tangents.is_empty() {
+                    contribution.tangent = 1.0;
+                    for (out, &v) in content_chunk[2 * num_vertices .. 3 * num_vertices].iter_mut().zip(&shape.tangents) {
+                        *out = v.into();
+                    }
+                }
+                displacement_contributions.push(contribution);
             }
 
             let buffer = self.backend
                 .create_buffer_immutable(
-                    &contents[..nr_displacements],
+                    &contents,
                     gfx::buffer::Role::Constant,
                     gfx::memory::Bind::SHADER_RESOURCE,
                 )
@@ -421,7 +400,7 @@ impl Factory {
                     displacements,
                     pending: None,
                     instance_cache_key: None,
-                    displacement_contributions: dcs,
+                    displacement_contributions,
                 },
                 None,
             ),
@@ -471,7 +450,7 @@ impl Factory {
                     displacements: None,
                     pending: None,
                     instance_cache_key: None,
-                    displacement_contributions: ZEROED_DISPLACEMENT_CONTRIBUTION,
+                    displacement_contributions: ZEROED_DISPLACEMENT_CONTRIBUTION.to_vec(),
                 },
                 None,
             ),
@@ -554,7 +533,7 @@ impl Factory {
                 displacements: None,
                 pending: None,
                 instance_cache_key: None,
-                displacement_contributions: ZEROED_DISPLACEMENT_CONTRIBUTION,
+                displacement_contributions: ZEROED_DISPLACEMENT_CONTRIBUTION.to_vec(),
             },
             None,
         ))
@@ -717,31 +696,22 @@ impl Factory {
     pub fn mix(
         &mut self,
         mesh: &DynamicMesh,
-        shapes: &[(&str, f32)],
+        shapes: &[(usize, f32)],
     ) {
         self.hub.lock().unwrap().update_mesh(mesh);
-        let shapes: Vec<_> = shapes
-            .iter()
-            .filter_map(|&(name, k)| {
-                mesh.geometry.morph_targets.names
-                    .iter()
-                    .find(|&(_, entry)| entry == name)
-                    .map(|(idx, _)| (idx, k))
-            })
-            .collect();
         let mut mapping = self.backend.write_mapping(&mesh.dynamic.buffer).unwrap();
 
-        let n = mesh.geometry.vertices.len();
+        let n = mesh.geometry.base.vertices.len();
         for i in 0 .. n {
             let (mut pos, ksum) = shapes.iter().fold(
                 (Vector3::new(0.0, 0.0, 0.0), 0.0),
                 |(pos, ksum), &(idx, k)| {
-                    let p: [f32; 3] = mesh.geometry.morph_targets.vertices[idx * n + i].into();
+                    let p: [f32; 3] = mesh.geometry.shapes[idx].vertices[i].into();
                     (pos + k * Vector3::from(p), ksum + k)
                 },
             );
             if ksum != 1.0 {
-                let p: [f32; 3] = mesh.geometry.vertices[i].into();
+                let p: [f32; 3] = mesh.geometry.base.vertices[i].into();
                 pos += (1.0 - ksum) * Vector3::from(p);
             }
             mapping[i] = Vertex {
@@ -1063,7 +1033,7 @@ impl Factory {
                             displacements: None,
                             pending: None,
                             instance_cache_key: None,
-                            displacement_contributions: ZEROED_DISPLACEMENT_CONTRIBUTION,
+                            displacement_contributions: ZEROED_DISPLACEMENT_CONTRIBUTION.to_vec(),
                         },
                         None,
                     ),

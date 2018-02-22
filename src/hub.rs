@@ -1,8 +1,8 @@
 use audio::{AudioData, Operation as AudioOperation};
 use color::{self, Color};
 use light::{ShadowMap, ShadowProjection};
-use material::{Material};
-use mesh::{DynamicMesh, MAX_TARGETS, Target, Weight};
+use material::Material;
+use mesh::DynamicMesh;
 use node::{NodeInternal, NodePointer, TransformInternal};
 use render::{BackendResources, GpuData};
 use scene::Scene;
@@ -86,7 +86,7 @@ pub(crate) enum Operation {
     SetSkeleton(Skeleton),
     SetShadow(ShadowMap, ShadowProjection),
     SetTexelRange(mint::Point2<i16>, mint::Vector2<u16>),
-    SetWeights([f32; MAX_TARGETS]),
+    SetWeights(Vec<f32>),
 }
 
 pub(crate) type HubPtr = Arc<Mutex<Hub>>;
@@ -240,16 +240,20 @@ impl Hub {
                 Operation::SetWeights(weights) => {
                     fn set_weights(
                         gpu_data: &mut GpuData,
-                        weights: [f32; MAX_TARGETS],
+                        weights: &[f32],
                     ) {
-                        for i in 0 .. MAX_TARGETS {
-                            gpu_data.displacement_contributions[i].weight = weights[i];
+                        use std::iter::repeat;
+                        for (out, input) in gpu_data.displacement_contributions
+                            .iter_mut()
+                            .zip(weights.iter().chain(repeat(&0.0)))
+                        {
+                            out.weight = *input;
                         }
                     }
 
                     let mut x = match self.nodes[&ptr].sub_node {
                         SubNode::Visual(_, ref mut gpu_data, _) => {
-                            set_weights(gpu_data, weights);
+                            set_weights(gpu_data, &weights);
                             continue;
                         }
                         SubNode::Group { ref first_child } => first_child.clone(),
@@ -257,10 +261,8 @@ impl Hub {
                     };
 
                     while let Some(ptr) = x {
-                        match &mut self.nodes[&ptr].sub_node {
-                            &mut SubNode::Visual(_, ref mut gpu_data, _) => {
-                                set_weights(gpu_data, weights);
-                            } _ => {},
+                        if let SubNode::Visual(_, ref mut gpu_data, _) = self.nodes[&ptr].sub_node {
+                            set_weights(gpu_data, &weights);
                         }
                         x = self.nodes[&ptr].next_sibling.clone();
                     }

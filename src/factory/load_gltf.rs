@@ -18,13 +18,14 @@ use std::{fs, io};
 use camera::Camera;
 use gltf::Gltf;
 use gltf_utils::AccessorIter;
-use mesh::{Target, MAX_TARGETS};
 use object::Object;
+use render::MAX_TARGETS;
 use skeleton::Skeleton;
 use std::path::{Path, PathBuf};
 use vec_map::VecMap;
 
-use {Geometry, Group, Material, Mesh, Texture};
+use {Group, Material, Mesh, Texture};
+use geometry::{Geometry, Shape};
 use super::Factory;
 
 fn build_scene_hierarchy(
@@ -235,47 +236,28 @@ fn load_meshes(
     fn load_morph_targets(
         primitive: &gltf::Primitive,
         buffers: &gltf_importer::Buffers,
-    ) -> (geometry::MorphTargets, [Target; MAX_TARGETS], usize) {
-        let mut vertices = Vec::new();
-        let mut normals = Vec::new();
-        let mut tangents = Vec::new();
-        let mut targets = [Target::None; MAX_TARGETS];
-        let mut i = 0;
-        for target in primitive.morph_targets() {
-            if let Some(accessor) = target.positions() {
-                targets[i] = Target::Position;
-                i += 1;
-                let iter = AccessorIter::<[f32; 3]>::new(accessor, buffers);
-                vertices.extend(iter.map(|x| mint::Vector3::<f32>::from(x)));
-            }
-
-            if let Some(accessor) = target.normals() {
-                targets[i] = Target::Normal;
-                i += 1;
-                let iter = AccessorIter::<[f32; 3]>::new(accessor, buffers);
-                normals.extend(iter.map(|x| mint::Vector3::<f32>::from(x)));
-            }
-
-            if let Some(accessor) = target.tangents() {
-                targets[i] = Target::Tangent;
-                i += 1;
-                let iter = AccessorIter::<[f32; 3]>::new(accessor, buffers);
-                tangents.extend(iter.map(|x| mint::Vector3::<f32>::from(x)));
-            }
-        }
-
-        (
-            geometry::MorphTargets {
-                names: VecMap::new(),
-                vertices,
-                normals,
-                tangents,
-            },
-            targets,
-            i,
-        )
+    ) -> Vec<Shape> {
+        primitive
+            .morph_targets()
+            .map(|target| {
+                let mut shape = Shape::default();
+                if let Some(accessor) = target.positions() {
+                    let iter = AccessorIter::<[f32; 3]>::new(accessor, buffers);
+                    shape.vertices.extend(iter.map(mint::Point3::<f32>::from));
+                }
+                if let Some(accessor) = target.normals() {
+                    let iter = AccessorIter::<[f32; 3]>::new(accessor, buffers);
+                    shape.normals.extend(iter.map(mint::Vector3::<f32>::from));
+                }
+                if let Some(accessor) = target.tangents() {
+                    let iter = AccessorIter::<[f32; 3]>::new(accessor, buffers);
+                    shape.tangents.extend(iter.map(|v| mint::Vector4{ x: v[0], y: v[1], z: v[2], w: 0.0 }));
+                }
+                shape
+            })
+            .collect()
     }
-    
+
     let mut meshes = VecMap::new();
     for mesh in gltf.meshes() {
         let mut primitives = Vec::new();
@@ -316,19 +298,20 @@ fn load_meshes(
             } else {
                 Vec::new()
             };
-            let (morph_targets, mesh_targets, nr_targets) = load_morph_targets(&primitive, &buffers);
+            let shapes = load_morph_targets(&primitive, &buffers);
             let geometry = Geometry {
-                vertices,
-                normals,
-                tangents,
+                base: Shape {
+                    vertices,
+                    normals,
+                    tangents,
+                },
                 tex_coords,
+                faces,
+                shapes,
                 joints: geometry::Joints {
                     indices: joint_indices,
                     weights: joint_weights,
                 },
-                morph_targets,
-                faces,
-                ..Geometry::empty()
             };
             let material = if let Some(index) = primitive.material().index() {
                 materials[index].clone()
@@ -338,11 +321,7 @@ fn load_meshes(
                     map: None,
                 }.into()
             };
-            let mesh = if nr_targets > 0 {
-                factory.mesh_with_targets(geometry, material, mesh_targets)
-            } else {
-                factory.mesh(geometry, material)
-            };
+            let mesh = factory.mesh(geometry, material);
             primitives.push(mesh);
         }
         meshes.insert(mesh.index(), primitives);

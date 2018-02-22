@@ -44,7 +44,7 @@
 //! ```rust,no_run,ignore
 //! # let mut window = three::Window::new("");
 //! let gltf = window.factory.load_gltf("AnimatedScene.gltf");
-//! window.scene.add(&gltf.group);
+//! window.scene.add(&gltf);
 //! ```
 //!
 //! ### Creating animation actions
@@ -60,7 +60,7 @@
 //! # let mut window = three::Window::new("");
 //! # let mut mixer = three::animation::Mixer::new();
 //! # let gltf = window.factory.load_gltf("AnimatedScene.gltf");
-//! # window.scene.add(&gltf.group);
+//! # window.scene.add(&gltf);
 //! let actions: Vec<three::animation::Action> = gltf.clips
 //!     .into_iter()
 //!     .map(|clip| mixer.action(clip))
@@ -78,7 +78,7 @@
 //! # let camera = unimplemented!();
 //! # let mut mixer = three::animation::Mixer::new();
 //! # let gltf = window.factory.load_gltf("AnimatedScene.gltf");
-//! # window.scene.add(&gltf.group);
+//! # window.scene.add(&gltf);
 //! # let actions: Vec<three::animation::Action> = gltf.clips
 //! #     .into_iter()
 //! #     .map(|clip| mixer.action(clip))
@@ -105,13 +105,12 @@
 
 use cgmath;
 use froggy;
-use mesh::MAX_TARGETS;
 use mint;
 use object::{Base, Object};
+
 use std::hash::{Hash, Hasher};
 use std::sync::mpsc;
 
-use mint::IntraXYZ as IntraXyz;
 
 /// A target of an animation.
 pub type Target = Base;
@@ -214,7 +213,7 @@ enum FrameRef {
 #[derive(Clone, Debug)]
 pub enum Values {
     /// Euler angle keyframes in radians.
-    Euler(Vec<mint::EulerAngles<f32, IntraXyz>>),
+    Euler(Vec<mint::EulerAngles<f32, mint::IntraXYZ>>),
 
     /// Quaternion keyframes.
     Quaternion(Vec<mint::Quaternion<f32>>),
@@ -511,10 +510,11 @@ impl ActionData {
                     let frame_start_value = values[frame_index];
                     let frame_end_value = values[frame_index + 1];
                     let update = frame_start_value * (1.0 - s) + frame_end_value * s;
-                    target.set_scale(update); 
+                    target.set_scale(update);
                 }
                 (Binding::Weights, &Values::Scalar(ref values)) => {
-                    let mut update = [0.0; MAX_TARGETS];
+                    use render::MAX_TARGETS; //TODO: make this flexible
+                    let mut update = vec![0.0; MAX_TARGETS];
                     for i in 0 .. MAX_TARGETS {
                         let frame_start_value = values[MAX_TARGETS * frame_index + i];
                         let frame_end_value = values[MAX_TARGETS * (frame_index + 1) + i];

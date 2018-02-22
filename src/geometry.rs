@@ -3,7 +3,6 @@
 use genmesh::{EmitTriangles, Triangulate, Vertex as GenVertex};
 use genmesh::generators::{self, IndexedPolygon, SharedVertex};
 use mint;
-use vec_map::VecMap;
 
 /// A collection of vertices, their normals, and faces that defines the
 /// shape of a polyhedral object.
@@ -33,11 +32,11 @@ use vec_map::VecMap;
 ///
 /// three::Geometry {
 ///     faces,
-///     base_shape: three::geometry::Shape {
+///     base: three::Shape {
 ///         vertices,
-///         .. three::geometry::Shape::empty()
+///         .. three::Shape::default()
 ///     },
-///     .. three::Geometry::empty()
+///     .. three::Geometry::default()
 /// }
 /// # }
 /// # fn main() { let _ = make_tetrahedron(); }
@@ -49,19 +48,11 @@ use vec_map::VecMap;
 ///   in `vertices`.
 /// * If joints are provided, the number of entries in `joints.indices` must
 ///   match the number of entries in `joints.weights`.
-/// * If morph targets are provided, the number of entries in all of
-///   `morph_targets.positions`, `morph_targets.normals`, and
-///   `morph_targets.tangents` must be an integer multiple (>= 0) of the
-///   number of entries in`vertices`.
 #[derive(Clone, Debug, Default)]
 pub struct Geometry {
-    /// Vertex positions.
-    pub vertices: Vec<mint::Point3<f32>>,
-    /// Vertex normals.
-    pub normals: Vec<mint::Vector3<f32>>,
-    /// Vertex tangents.
-    pub tangents: Vec<mint::Vector4<f32>>,
-    /// Vertex texture co-ordinates.
+    /// Idle shape of the geometry.
+    pub base: Shape,
+    /// Texture co-ordinates.
     pub tex_coords: Vec<mint::Point2<f32>>,
     /// Face indices.
     ///
@@ -70,8 +61,19 @@ pub struct Geometry {
     pub faces: Vec<[u32; 3]>,
     /// Properties for vertex skinning.
     pub joints: Joints,
-    /// Properties for morph target animation.
-    pub morph_targets: MorphTargets,
+    /// A list of blend shapes.
+    pub shapes: Vec<Shape>,
+}
+
+/// A geometry shape.
+#[derive(Clone, Debug, Default)]
+pub struct Shape {
+    /// Vertices.
+    pub vertices: Vec<mint::Point3<f32>>,
+    /// Normals.
+    pub normals: Vec<mint::Vector3<f32>>,
+    /// Tangents.
+    pub tangents: Vec<mint::Vector4<f32>>,
 }
 
 /// Properties for vertex skinning.
@@ -83,57 +85,7 @@ pub struct Joints {
     pub weights: Vec<[f32; 4]>,
 }
 
-/// Properties for morph target animation
-#[derive(Clone, Debug, Default)]
-pub struct MorphTargets {
-    /// Morph target names, one per morph target index.
-    pub names: VecMap<String>,
-    /// Contiguous sets of vertex displacements.
-    pub vertices: Vec<mint::Vector3<f32>>,
-    /// Contiguous sets of normal displacements.
-    pub normals: Vec<mint::Vector3<f32>>,
-    /// Contiguous sets of tangent displacements.
-    pub tangents: Vec<mint::Vector3<f32>>,
-}
-
 impl Geometry {
-    /// Create empty `Geometry`.
-    ///
-    /// # Examples
-    ///
-    /// Basic usage.
-    ///
-    /// ```rust
-    /// let geometry = three::Geometry::empty();
-    /// assert!(geometry.base_shape.vertices.is_empty());
-    /// assert!(geometry.shapes.is_empty());
-    /// assert!(geometry.faces.is_empty());
-    /// ```
-    ///
-    /// Completing geometry for a triangle.
-    ///
-    /// ```rust
-    /// # extern crate three;
-    /// fn make_triangle() -> three::Geometry {
-    ///    let vertices = vec![
-    ///        [-0.5, -0.5, 0.0].into(),
-    ///        [ 0.5, -0.5, 0.0].into(),
-    ///        [ 0.5, -0.5, 0.0].into(),
-    ///    ];
-    ///    three::Geometry {
-    ///        base_shape: three::geometry::Shape {
-    ///            vertices,
-    ///            .. three::geometry::Shape::empty()
-    ///        },
-    ///        .. three::Geometry::empty()
-    ///    }
-    /// }
-    /// # fn main() { let _ = make_triangle(); }
-    /// ```
-    pub fn empty() -> Self {
-        Default::default()
-    }
-
     /// Create `Geometry` from vector of vertices.
     ///
     /// # Examples
@@ -150,9 +102,11 @@ impl Geometry {
     /// ```
     pub fn with_vertices(vertices: Vec<mint::Point3<f32>>) -> Self {
         Geometry {
-            vertices,
-            normals: Vec::new(),
-            ..Geometry::empty()
+            base: Shape {
+                vertices,
+                .. Shape::default()
+            },
+            .. Geometry::default()
         }
     }
 
@@ -168,14 +122,17 @@ impl Geometry {
         Fnor: Fn(GenVertex) -> mint::Vector3<f32>,
     {
         Geometry {
-            vertices: gen.shared_vertex_iter().map(fpos).collect(),
-            normals: gen.shared_vertex_iter().map(fnor).collect(),
-            // TODO: Add similar functions for tangents and texture co-ords
+            base: Shape {
+                vertices: gen.shared_vertex_iter().map(fpos).collect(),
+                normals: gen.shared_vertex_iter().map(fnor).collect(),
+                .. Shape::default()
+            },
+            // TODO: Add similar functions for tangents and texture coords
             faces: gen.indexed_polygon_iter()
                 .triangulate()
                 .map(|t| [t.x as u32, t.y as u32, t.z as u32])
                 .collect(),
-            .. Default::default()
+            .. Geometry::default()
         }
     }
 

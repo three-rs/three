@@ -189,11 +189,6 @@
 //!     }
 //! }
 //!
-//! impl AsMut<three::object::Base> for MyObject {
-//!     fn as_mut(&mut self) -> &mut three::object::Base {
-//!         self.group.as_mut()
-//!     }
-//! }
 //!
 //! impl Object for MyObject {}
 //!
@@ -300,7 +295,7 @@ pub mod controls;
 pub mod custom;
 mod data;
 mod factory;
-pub mod geometry;
+mod geometry;
 mod hub;
 mod input;
 pub mod light;
@@ -336,7 +331,7 @@ pub use factory::Factory;
 pub use factory::Gltf;
 
 #[doc(inline)]
-pub use geometry::Geometry;
+pub use geometry::{Geometry, Joints, Shape};
 
 #[cfg(feature = "opengl")]
 #[doc(inline)]
