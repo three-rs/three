@@ -48,12 +48,12 @@ uniform sampler2D u_Displacements;
 //TODO: store each join transform in 3 vectors, similar to `i_WorldX`
 
 mat4 fetch_joint_transform(int i) {
-    vec4 col0 = texelFetch(b_JointTransforms, 4 * i + 0);
-    vec4 col1 = texelFetch(b_JointTransforms, 4 * i + 1);
-    vec4 col2 = texelFetch(b_JointTransforms, 4 * i + 2);
-    vec4 col3 = texelFetch(b_JointTransforms, 4 * i + 3);
+    //Note: has to match `render::VECS_PER_BONE`
+    vec4 row0 = texelFetch(b_JointTransforms, 3 * i + 0);
+    vec4 row1 = texelFetch(b_JointTransforms, 3 * i + 1);
+    vec4 row2 = texelFetch(b_JointTransforms, 3 * i + 2);
 
-    return mat4(col0, col1, col2, col3);
+    return transpose(mat4(row0, row1, row2, vec4(0.0, 0.0, 0.0, 1.0)));
 }
 
 mat4 compute_skin_transform() {

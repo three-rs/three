@@ -1,6 +1,6 @@
 //! The renderer.
 
-use cgmath::{Matrix4, SquareMatrix, Transform as Transform_, Vector3};
+use cgmath::{Matrix as Matrix_, Matrix4, SquareMatrix, Transform as Transform_, Vector3};
 use froggy;
 use gfx;
 use gfx::format::I8Norm;
@@ -48,8 +48,9 @@ pub type ShadowFormat = gfx::format::Depth32F;
 /// The concrete type of a basic pipeline.
 pub type BasicPipelineState = gfx::PipelineState<back::Resources, basic_pipe::Meta>;
 
-const MAX_LIGHTS: usize = 4;
+pub(crate) const MAX_LIGHTS: usize = 4;
 pub(crate) const MAX_TARGETS: usize = 8;
+pub(crate) const VECS_PER_BONE: usize = 3;
 
 const STENCIL_SIDE: gfx::state::StencilSide = gfx::state::StencilSide {
     fun: gfx::state::Comparison::Always,
@@ -692,6 +693,7 @@ impl Renderer {
         // update joint transforms of skeletons
         {
             use node::TransformInternal;
+
             struct SkeletonTemp {
                 inverse_world_transform: TransformInternal,
                 cpu_buffer: Vec<[f32; 4]>,
@@ -704,19 +706,18 @@ impl Renderer {
                     SubNode::Skeleton(ref skeleton) => {
                         skeletons.push(SkeletonTemp {
                             inverse_world_transform: w.world_transform.inverse_transform().unwrap(),
-                            cpu_buffer: vec![[0.0; 4]; skeleton.bones.len() * 4],
+                            cpu_buffer: vec![[0.0; 4]; skeleton.bones.len() * VECS_PER_BONE],
                             gpu_buffer: skeleton.gpu_buffer.clone(),
                         });
                     }
                     SubNode::Bone { index, inverse_bind_matrix } => {
                         let skel = skeletons.last_mut().unwrap();
                         let mx_base = Matrix4::from(skel.inverse_world_transform.concat(&w.world_transform));
-                        let mx = mx_base * Matrix4::from(inverse_bind_matrix);
-                        let buf = &mut skel.cpu_buffer[index*4 .. index*4 + 4];
+                        let mx = (mx_base * Matrix4::from(inverse_bind_matrix)).transpose();
+                        let buf = &mut skel.cpu_buffer[index * VECS_PER_BONE .. (index + 1) * VECS_PER_BONE];
                         buf[0] = mx.x.into();
                         buf[1] = mx.y.into();
                         buf[2] = mx.z.into();
-                        buf[3] = mx.w.into();
                     }
                     _ => {}
                 }

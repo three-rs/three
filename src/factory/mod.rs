@@ -33,7 +33,7 @@ use object::{Group, Object};
 use render::{basic_pipe,
     BackendFactory, BackendResources, BasicPipelineState, DisplacementContribution,
     DynamicData, GpuData, Instance, InstanceCacheKey, PipelineCreationError, ShadowFormat, Source, Vertex,
-    DEFAULT_VERTEX, ZEROED_DISPLACEMENT_CONTRIBUTION,
+    DEFAULT_VERTEX, VECS_PER_BONE, ZEROED_DISPLACEMENT_CONTRIBUTION,
 };
 use scene::{Background, Scene};
 use sprite::Sprite;
@@ -206,7 +206,7 @@ impl Factory {
     ) -> Skeleton {
         let gpu_buffer = self.backend
             .create_buffer(
-                4 * bones.len(),
+                bones.len() * VECS_PER_BONE,
                 gfx::buffer::Role::Constant,
                 gfx::memory::Usage::Dynamic,
                 gfx::memory::Bind::SHADER_RESOURCE,
