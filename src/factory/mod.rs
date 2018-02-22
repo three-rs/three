@@ -184,8 +184,13 @@ impl Factory {
     ///
     /// [`Bone`]: ../skeleton/struct.Bone.html
     /// [`Skeleton`]: ../skeleton/struct.Skeleton.html
-    pub fn bone(&mut self) -> Bone {
-        let object = self.hub.lock().unwrap().spawn(SubNode::Empty);
+    pub fn bone(
+        &mut self,
+        index: usize,
+        inverse_bind_matrix: mint::ColumnMatrix4<f32>,
+    ) -> Bone {
+        let data = SubNode::Bone { index, inverse_bind_matrix };
+        let object = self.hub.lock().unwrap().spawn(data);
         Bone { object }
     }
 
@@ -198,7 +203,6 @@ impl Factory {
     pub fn skeleton(
         &mut self,
         bones: Vec<Bone>,
-        inverse_bind_matrices: Vec<mint::ColumnMatrix4<f32>>,
     ) -> Skeleton {
         let gpu_buffer = self.backend
             .create_buffer(
@@ -211,7 +215,7 @@ impl Factory {
         let gpu_buffer_view = self.backend
             .view_buffer_as_shader_resource(&gpu_buffer)
             .expect("create shader resource view for GPU target buffer");
-        let data = hub::SkeletonData { bones, gpu_buffer, inverse_bind_matrices, gpu_buffer_view };
+        let data = hub::SkeletonData { bones, gpu_buffer, gpu_buffer_view };
         let object = self.hub.lock().unwrap().spawn_skeleton(data);
         Skeleton { object }
     }

@@ -689,37 +689,49 @@ impl Renderer {
     ) {
         let mut hub = scene.hub.lock().unwrap();
         hub.process_messages();
-            // Update joint transforms of skeletons
-            let mut cursor = hub.nodes.cursor();
-            let mut cpu_buffer = Vec::new();
-            while let Some((left, mut item, right)) = cursor.next() {
-                let world_transform = item.world_transform.clone();
-                match &mut item.sub_node {
-                    &mut SubNode::Skeleton(ref mut skeleton) => {
-                        cpu_buffer.clear();
-                        for (bone, ibm) in skeleton.bones.iter().zip(skeleton.inverse_bind_matrices.iter()) {
-                            //TODO: make this nicer
-                            let bone_transform = Matrix4::from(left.get(&bone.object.node).or_else(|| right.get(&bone.object.node)).unwrap().world_transform);
-                            let inverse_world_transform = Matrix4::from(world_transform).invert().unwrap();
-                            let mx = inverse_world_transform * bone_transform * Matrix4::from(ibm.clone());
-                            cpu_buffer.push(mx.x.into());
-                            cpu_buffer.push(mx.y.into());
-                            cpu_buffer.push(mx.z.into());
-                            cpu_buffer.push(mx.w.into());
-                        }
+        // update joint transforms of skeletons
+        {
+            use node::TransformInternal;
+            struct SkeletonTemp {
+                inverse_world_transform: TransformInternal,
+                cpu_buffer: Vec<[f32; 4]>,
+                gpu_buffer: gfx::handle::Buffer<BackendResources, [f32; 4]>,
+            }
 
-                        self.encoder
-                            .update_buffer(
-                                &skeleton.gpu_buffer,
-                                &cpu_buffer,
-                                0,
-                            )
-                            .expect("upload to GPU target buffer");
+            let mut skeletons = Vec::new();
+            for w in hub.walk(&scene.first_child) {
+                match w.node.sub_node {
+                    SubNode::Skeleton(ref skeleton) => {
+                        skeletons.push(SkeletonTemp {
+                            inverse_world_transform: w.world_transform.inverse_transform().unwrap(),
+                            cpu_buffer: vec![[0.0; 4]; skeleton.bones.len() * 4],
+                            gpu_buffer: skeleton.gpu_buffer.clone(),
+                        });
+                    }
+                    SubNode::Bone { index, inverse_bind_matrix } => {
+                        let skel = skeletons.last_mut().unwrap();
+                        let mx_base = Matrix4::from(skel.inverse_world_transform.concat(&w.world_transform));
+                        let mx = mx_base * Matrix4::from(inverse_bind_matrix);
+                        let buf = &mut skel.cpu_buffer[index*4 .. index*4 + 4];
+                        buf[0] = mx.x.into();
+                        buf[1] = mx.y.into();
+                        buf[2] = mx.z.into();
+                        buf[3] = mx.w.into();
                     }
                     _ => {}
                 }
             }
-        }*/
+
+            for skel in skeletons {
+                self.encoder
+                    .update_buffer(
+                        &skel.gpu_buffer,
+                        &skel.cpu_buffer,
+                        0,
+                    )
+                    .expect("upload to GPU target buffer");
+            }
+        }
 
         // update dynamic meshes
         // Note: mutable node access here

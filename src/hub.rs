@@ -38,7 +38,6 @@ pub(crate) struct LightData {
 #[derive(Clone, Debug)]
 pub(crate) struct SkeletonData {
     pub bones: Vec<Bone>,
-    pub inverse_bind_matrices: Vec<mint::ColumnMatrix4<f32>>,
     pub gpu_buffer_view: gfx::handle::ShaderResourceView<BackendResources, [f32; 4]>,
     pub gpu_buffer: gfx::handle::Buffer<BackendResources, [f32; 4]>,
 }
@@ -64,7 +63,9 @@ pub(crate) enum SubNode {
     Visual(Material, GpuData, Option<Skeleton>),
     /// Lighting information for illumination and shadow casting.
     Light(LightData),
-    /// Array of `Bone` instances that may be bound to a `Skinned` mesh.
+    /// A single bone.
+    Bone { index: usize, inverse_bind_matrix: mint::ColumnMatrix4<f32> },
+    /// Skeleton root.
     Skeleton(SkeletonData),
 }
 

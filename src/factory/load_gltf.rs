@@ -39,12 +39,7 @@ fn build_scene_hierarchy(
         node: gltf::Node<'a>,
     }
 
-    fn clone_child_node<'a>(gltf: &'a gltf::Gltf, node: &gltf::Node) -> gltf::Node<'a> {
-        gltf.nodes().nth(node.index()).unwrap()
-    }
-
-    let nr_nodes = gltf.nodes().len();
-    let mut stack = Vec::with_capacity(nr_nodes);
+    let mut stack = Vec::with_capacity(gltf.nodes().len());
 
     for node in scene.nodes() {
         let group = factory.group();
@@ -56,7 +51,10 @@ fn build_scene_hierarchy(
         for child_node in node.children() {
             let child_group = factory.group();
             group.add(&child_group);
-            stack.push(Item { group: child_group, node: clone_child_node(gltf, &child_node) });
+            stack.push(Item {
+                group: child_group,
+                node: gltf.nodes().nth(child_node.index()).unwrap()
+            });
         }
         heirarchy.insert(node.index(), group);
     }
@@ -335,6 +333,8 @@ fn load_skeletons(
     heirarchy: &VecMap<Group>,
     buffers: &gltf_importer::Buffers,
 ) -> Vec<Skeleton> {
+    use std::iter::repeat;
+
     let mut skeletons = Vec::new();
     for skin in gltf.skins() {
         let mut ibms = Vec::new();
@@ -344,12 +344,21 @@ fn load_skeletons(
                 ibms.push(ibm.into());
             }
         }
-        for joint in skin.joints() {
-            let bone = factory.bone();
+        let mx_id = mint::ColumnMatrix4::from([
+            [1., 0., 0., 0.],
+            [0., 1., 0., 0.],
+            [0., 0., 1., 0.],
+            [0., 0., 0., 1.],
+        ]);
+        let ibm_iter = ibms.
+            into_iter().
+            chain(repeat(mx_id));
+        for (joint, ibm) in skin.joints().zip(ibm_iter) {
+            let bone = factory.bone(bones.len(), ibm);
             heirarchy[&joint.index()].add(&bone);
             bones.push(bone);
         }
-        let skeleton = factory.skeleton(bones, ibms);
+        let skeleton = factory.skeleton(bones);
         skeletons.push(skeleton);
     }
     skeletons
