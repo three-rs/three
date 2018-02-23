@@ -1,4 +1,5 @@
 // TODO: Rewrite examples such that they don't rely on the gltf-loader feature.
+
 //! Animation system.
 //!
 //! ## Introduction
@@ -489,14 +490,12 @@ impl ActionData {
                         ))
                     };
                     let update = frame_start_value.slerp(frame_end_value, s);
-                    use Object;
                     target.set_orientation(update);
                 }
                 (Binding::Orientation, &Values::Quaternion(ref values)) => {
                     let frame_start_value: cgmath::Quaternion<f32> = values[frame_index].into();
                     let frame_end_value: cgmath::Quaternion<f32> = values[frame_index + 1].into();
                     let update = frame_start_value.slerp(frame_end_value, s);
-                    use Object;
                     target.set_orientation(update);
                 }
                 (Binding::Position, &Values::Vector3(ref values)) => {

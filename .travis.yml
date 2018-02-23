@@ -23,8 +23,7 @@ notifications:
     on_start: never
 
 script:
-  - cargo check
-  - cargo doc
   - cargo test
   - cargo test --all-features
+  - cargo doc
 # - if [ "$TRAVIS_RUST_VERSION" == "nightly" ]; then (cargo bench); fi

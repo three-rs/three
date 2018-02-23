@@ -687,6 +687,11 @@ impl Renderer {
         scene: &Scene,
         camera: &Camera,
     ) {
+        {
+            use gfx::Device;
+            self.device.cleanup();
+        }
+
         let mut hub = scene.hub.lock().unwrap();
         hub.process_messages();
         // update joint transforms of skeletons

@@ -25,11 +25,12 @@ impl Animator {
         &mut self,
         switch_row: Option<u16>,
     ) {
-        self.timer.reset();
         if let Some(row) = switch_row {
+            self.timer.reset();
             self.current = [0, row];
             self.update_uv();
         } else if self.timer.elapsed() >= self.duration && (self.repeat || self.current[0] < self.cell_counts[0]) {
+            self.timer.reset();
             self.current[0] += 1;
             if self.current[0] < self.cell_counts[0] {
                 self.update_uv();

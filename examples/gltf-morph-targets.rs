@@ -19,7 +19,7 @@ fn main() {
         mixer.action(clip);
     }
 
-    let camera = window.factory.perspective_camera(60.0, 0.1 .. 10.0);
+    let camera = window.factory.perspective_camera(60.0, 0.1 .. 20.0);
     camera.set_position([0.0, 1.0, 5.0]);
 
     let mut controls = three::controls::Orbit::builder(&camera)
