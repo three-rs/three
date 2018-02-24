@@ -335,39 +335,39 @@ struct DebugQuad {
 }
 
 /// All pipeline state objects used by the `three` renderer.
-pub struct PipelineStates {
+pub struct PipelineStates<R: gfx::Resources> {
     /// Corresponds to `Material::Basic`.
-    mesh_basic_fill: BasicPipelineState,
+    mesh_basic_fill: gfx::PipelineState<R, basic_pipe::Meta>,
 
     /// Corresponds to `Material::Line`.
-    line_basic: BasicPipelineState,
+    line_basic: gfx::PipelineState<R, basic_pipe::Meta>,
 
     /// Corresponds to `Material::Wireframe`.
-    mesh_basic_wireframe: BasicPipelineState,
+    mesh_basic_wireframe: gfx::PipelineState<R, basic_pipe::Meta>,
 
     /// Corresponds to `Material::Gouraud`.
-    mesh_gouraud: BasicPipelineState,
+    mesh_gouraud: gfx::PipelineState<R, basic_pipe::Meta>,
 
     /// Corresponds to `Material::Phong`.
-    mesh_phong: BasicPipelineState,
+    mesh_phong: gfx::PipelineState<R, basic_pipe::Meta>,
 
     /// Corresponds to `Material::Sprite`.
-    sprite: BasicPipelineState,
+    sprite: gfx::PipelineState<R, basic_pipe::Meta>,
 
     /// Used internally for shadow casting.
-    shadow: gfx::PipelineState<back::Resources, shadow_pipe::Meta>,
+    shadow: gfx::PipelineState<R, shadow_pipe::Meta>,
 
     /// Used internally for rendering sprites.
-    quad: gfx::PipelineState<back::Resources, quad_pipe::Meta>,
+    quad: gfx::PipelineState<R, quad_pipe::Meta>,
 
     /// Corresponds to `Material::Pbr`.
-    pbr: gfx::PipelineState<back::Resources, pbr_pipe::Meta>,
+    pbr: gfx::PipelineState<R, pbr_pipe::Meta>,
 
     /// Used internally for rendering `Background::Skybox`.
-    skybox: gfx::PipelineState<back::Resources, quad_pipe::Meta>,
+    skybox: gfx::PipelineState<R, quad_pipe::Meta>,
 }
 
-impl PipelineStates {
+impl PipelineStates<back::Resources> {
     /// Creates the set of pipeline states needed by the `three` renderer.
     pub fn new(
         src: &source::Set,
@@ -376,10 +376,28 @@ impl PipelineStates {
         Self::init(src, &mut factory.backend)
     }
 
+    pub(crate) fn pso_by_material<'a>(
+        &'a self,
+        material: &'a Material,
+    ) -> &'a BasicPipelineState {
+        match *material {
+            Material::Basic(_) => &self.mesh_basic_fill,
+            Material::CustomBasic(ref b) => &b.pipeline,
+            Material::Line(_) => &self.line_basic,
+            Material::Wireframe(_) => &self.mesh_basic_wireframe,
+            Material::Lambert(_) => &self.mesh_gouraud,
+            Material::Phong(_) => &self.mesh_phong,
+            Material::Sprite(_) => &self.sprite,
+            _ => unreachable!(),
+        }
+    }
+}
+
+impl<R: gfx::Resources> PipelineStates<R> {
     /// Implementation of `PipelineStates::new`.
-    pub(crate) fn init(
+    pub(crate) fn init<F: gfx::Factory<R>>(
         src: &source::Set,
-        backend: &mut back::Factory,
+        backend: &mut F,
     ) -> Result<Self, PipelineCreationError> {
         let basic = backend.create_shader_set(&src.basic.vs, &src.basic.ps)?;
         let gouraud = backend.create_shader_set(&src.gouraud.vs, &src.gouraud.ps)?;
@@ -481,22 +499,6 @@ impl PipelineStates {
             skybox: pso_skybox,
         })
     }
-
-    pub(crate) fn pso_by_material<'a>(
-        &'a self,
-        material: &'a Material,
-    ) -> &'a BasicPipelineState {
-        match *material {
-            Material::Basic(_) => &self.mesh_basic_fill,
-            Material::CustomBasic(ref b) => &b.pipeline,
-            Material::Line(_) => &self.line_basic,
-            Material::Wireframe(_) => &self.mesh_basic_wireframe,
-            Material::Lambert(_) => &self.mesh_gouraud,
-            Material::Phong(_) => &self.mesh_phong,
-            Material::Sprite(_) => &self.sprite,
-            _ => unreachable!(),
-        }
-    }
 }
 
 /// Handle for additional viewport to render some relevant debug information.
@@ -521,7 +523,7 @@ pub struct Renderer {
     displacement_contributions_buf: gfx::handle::Buffer<back::Resources, DisplacementContribution>,
     default_joint_buffer_view: gfx::handle::ShaderResourceView<back::Resources, [f32; 4]>,
     default_displacement_buffer_view: gfx::handle::ShaderResourceView<back::Resources, [f32; 4]>,
-    pso: PipelineStates,
+    pso: PipelineStates<back::Resources>,
     map_default: Texture<[f32; 4]>,
     shadow_default: Texture<f32>,
     debug_quads: froggy::Storage<DebugQuad>,
@@ -641,7 +643,7 @@ impl Renderer {
     /// Reloads the shaders.
     pub fn reload(
         &mut self,
-        pipeline_states: PipelineStates,
+        pipeline_states: PipelineStates<back::Resources>,
     ) {
         self.pso = pipeline_states;
     }
@@ -1161,7 +1163,7 @@ impl Renderer {
         displacement_contributions_buf: h::Buffer<back::Resources, DisplacementContribution>,
         out_color: h::RenderTargetView<back::Resources, ColorFormat>,
         out_depth: h::DepthStencilView<back::Resources, DepthFormat>,
-        pso: &PipelineStates,
+        pso: &PipelineStates<back::Resources>,
         map_default: &Texture<[f32; 4]>,
         instances: &[Instance],
         vertex_buf: h::Buffer<back::Resources, Vertex>,
