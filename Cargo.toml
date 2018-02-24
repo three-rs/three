@@ -4,14 +4,13 @@ version = "0.3.0"
 authors = ["Three-rs Developers"]
 license = "MIT/Apache-2.0"
 description = "Three.js inspired 3D engine in Rust"
-categories = ["graphics", "game-engines"]
+categories = ["rendering", "game-engines"]
 keywords = ["gamedev", "graphics", "engine", "3D"]
 homepage = "https://github.com/three-rs/three"
 repository = "https://github.com/three-rs/three"
 documentation = "https://docs.rs/three/"
 build = "build.rs"
-include = ["./data/"]
-exclude = ["doc", "bors.toml", ".travis.yml", "test_data"]
+exclude = ["doc/*", "bors.toml", ".travis.yml", "test_data/*"]
 
 [lib]
 
