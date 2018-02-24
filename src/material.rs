@@ -7,6 +7,7 @@ use render::BasicPipelineState;
 use texture::Texture;
 use util;
 
+#[doc(inline)]
 pub use self::basic::Basic;
 
 /// Basic material API.
@@ -18,7 +19,7 @@ pub mod basic {
     /// Renders triangle meshes with a solid color or texture.
     #[derive(Clone, Hash, Debug, PartialEq, Eq)]
     pub struct Basic {
-        /// Solid color applied in the absense of `map`.
+        /// Solid color applied in the absence of `map`.
         ///
         /// Default: `WHITE`.
         pub color: Color,
@@ -45,13 +46,9 @@ pub mod basic {
     #[derive(Clone, Debug, PartialEq, Hash)]
     pub struct Custom {
         /// Solid color applied in the absense of `map`.
-        ///
-        /// Default: `WHITE`.
         pub color: Color,
 
         /// Texture applied using the mesh texture co-ordinates.
-        ///
-        /// Default: `None`.
         pub map: Option<Texture<[f32; 4]>>,
 
         /// The custom pipeline state object to be applied to the mesh.
@@ -287,49 +284,49 @@ pub enum Material {
 }
 
 impl From<Basic> for Material {
-    fn from(params: Basic) -> Material {
+    fn from(params: Basic) -> Self {
         Material::Basic(params)
     }
 }
 
 impl From<basic::Custom> for Material {
-    fn from(params: basic::Custom) -> Material {
+    fn from(params: basic::Custom) -> Self {
         Material::CustomBasic(params)
     }
 }
 
 impl From<Lambert> for Material {
-    fn from(params: Lambert) -> Material {
+    fn from(params: Lambert) -> Self {
         Material::Lambert(params)
     }
 }
 
 impl From<Line> for Material {
-    fn from(params: Line) -> Material {
+    fn from(params: Line) -> Self {
         Material::Line(params)
     }
 }
 
 impl From<Phong> for Material {
-    fn from(params: Phong) -> Material {
+    fn from(params: Phong) -> Self {
         Material::Phong(params)
     }
 }
 
 impl From<Pbr> for Material {
-    fn from(params: Pbr) -> Material {
+    fn from(params: Pbr) -> Self {
         Material::Pbr(params)
     }
 }
 
 impl From<Sprite> for Material {
-    fn from(params: Sprite) -> Material {
+    fn from(params: Sprite) -> Self {
         Material::Sprite(params)
     }
 }
 
 impl From<Wireframe> for Material {
-    fn from(params: Wireframe) -> Material {
+    fn from(params: Wireframe) -> Self {
         Material::Wireframe(params)
     }
 }

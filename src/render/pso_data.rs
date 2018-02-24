@@ -11,12 +11,13 @@ type MapParam = (
 );
 
 bitflags! {
-    struct PbrFlags: i32 {
+    pub struct PbrFlags: i32 {
         const BASE_COLOR_MAP         = 1 << 0;
         const NORMAL_MAP             = 1 << 1;
         const METALLIC_ROUGHNESS_MAP = 1 << 2;
         const EMISSIVE_MAP           = 1 << 3;
         const OCCLUSION_MAP          = 1 << 4;
+        const DISPLACEMENT_BUFFER    = 1 << 5;
     }
 }
 

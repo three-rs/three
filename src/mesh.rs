@@ -4,6 +4,7 @@ use geometry::Geometry;
 use hub::Operation;
 use material::Material;
 use render::DynamicData;
+use skeleton::Skeleton;
 
 use std::hash::{Hash, Hasher};
 
@@ -111,15 +112,22 @@ impl Mesh {
         &mut self,
         material: M,
     ) {
-        let msg = Operation::SetMaterial(material.into());
-        let _ = self.object.tx.send((self.object.node.downgrade(), msg));
+        self.as_ref().send(Operation::SetMaterial(material.into()));
+    }
+
+    /// Bind a skeleton to the mesh.
+    pub fn set_skeleton(
+        &mut self,
+        skeleton: Skeleton,
+    ) {
+        self.as_ref().send(Operation::SetSkeleton(skeleton));
     }
 }
 
 impl DynamicMesh {
     /// Returns the number of vertices of the geometry base shape.
     pub fn vertex_count(&self) -> usize {
-        self.geometry.base_shape.vertices.len()
+        self.geometry.base.vertices.len()
     }
 
     /// Set mesh material.
@@ -127,7 +135,6 @@ impl DynamicMesh {
         &mut self,
         material: M,
     ) {
-        let msg = Operation::SetMaterial(material.into());
-        let _ = self.object.tx.send((self.object.node.downgrade(), msg));
+        self.as_ref().send(Operation::SetMaterial(material.into()));
     }
 }

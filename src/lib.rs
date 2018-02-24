@@ -189,11 +189,6 @@
 //!     }
 //! }
 //!
-//! impl AsMut<three::object::Base> for MyObject {
-//!     fn as_mut(&mut self) -> &mut three::object::Base {
-//!         self.group.as_mut()
-//!     }
-//! }
 //!
 //! impl Object for MyObject {}
 //!
@@ -251,6 +246,7 @@
 //! [`Scene`]: scene/struct.Scene.html
 //! [`Window`]: window/struct.Window.html
 
+extern crate arrayvec;
 #[macro_use]
 extern crate bitflags;
 extern crate cgmath;
@@ -280,7 +276,6 @@ extern crate phf;
 extern crate quick_error;
 extern crate rodio;
 extern crate vec_map;
-// OpenGL
 
 #[cfg(feature = "opengl")]
 extern crate gfx_device_gl;
@@ -300,7 +295,7 @@ pub mod controls;
 pub mod custom;
 mod data;
 mod factory;
-pub mod geometry;
+mod geometry;
 mod hub;
 mod input;
 pub mod light;
@@ -310,10 +305,12 @@ mod node;
 pub mod object;
 pub mod render;
 pub mod scene;
+pub mod skeleton;
 mod sprite;
 mod text;
 mod texture;
 mod util;
+
 #[cfg(feature = "opengl")]
 pub mod window;
 
@@ -334,11 +331,14 @@ pub use factory::Factory;
 pub use factory::Gltf;
 
 #[doc(inline)]
-pub use geometry::Geometry;
+pub use geometry::{Geometry, Joints, Shape};
 
 #[cfg(feature = "opengl")]
 #[doc(inline)]
 pub use glutin::VirtualKeyCode as Key;
+
+//#[doc(inline)]
+//pub use group::Group;
 
 #[doc(inline)]
 pub use material::Material;

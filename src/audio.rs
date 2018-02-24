@@ -1,5 +1,6 @@
 //! Primitives for audio playback.
 
+use hub;
 use object;
 use std::fmt;
 use std::io::Cursor;
@@ -8,8 +9,6 @@ use std::time::Duration;
 
 use rodio as r;
 use rodio::Source as _Source;
-
-use hub::Operation as HubOperation;
 
 /// Audio segment with sound effects.
 ///
@@ -128,7 +127,7 @@ impl Source {
         &self,
         clip: &Clip,
     ) {
-        let msg = HubOperation::SetAudio(Operation::Append(clip.clone()));
+        let msg = hub::Operation::SetAudio(Operation::Append(clip.clone()));
         let _ = self.object.tx.send((self.object.node.downgrade(), msg));
     }
 
@@ -136,19 +135,19 @@ impl Source {
     ///
     /// You can [`resume`](struct.Source.html#method.resume) playback.
     pub fn pause(&self) {
-        let msg = HubOperation::SetAudio(Operation::Pause);
+        let msg = hub::Operation::SetAudio(Operation::Pause);
         let _ = self.object.tx.send((self.object.node.downgrade(), msg));
     }
 
     /// Resume playback after [`pausing`](struct.Source.html#method.pause).
     pub fn resume(&self) {
-        let msg = HubOperation::SetAudio(Operation::Resume);
+        let msg = hub::Operation::SetAudio(Operation::Resume);
         let _ = self.object.tx.send((self.object.node.downgrade(), msg));
     }
 
     /// Stop the playback by emptying the queue.
     pub fn stop(&self) {
-        let msg = HubOperation::SetAudio(Operation::Stop);
+        let msg = hub::Operation::SetAudio(Operation::Stop);
         let _ = self.object.tx.send((self.object.node.downgrade(), msg));
     }
 
@@ -159,7 +158,7 @@ impl Source {
         &self,
         volume: f32,
     ) {
-        let msg = HubOperation::SetAudio(Operation::SetVolume(volume));
+        let msg = hub::Operation::SetAudio(Operation::SetVolume(volume));
         let _ = self.object.tx.send((self.object.node.downgrade(), msg));
     }
 }

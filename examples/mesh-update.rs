@@ -32,11 +32,11 @@ fn make_tetrahedron_geometry() -> three::Geometry {
     let faces = vec![[0, 1, 2], [0, 2, 3], [0, 3, 1], [1, 3, 2]];
     three::Geometry {
         faces,
-        base_shape: three::geometry::Shape {
+        base: three::Shape {
             vertices,
-            ..three::geometry::Shape::empty()
+            ..three::Shape::default()
         },
-        ..three::Geometry::empty()
+        ..three::Geometry::default()
     }
 }
 

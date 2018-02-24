@@ -7,36 +7,39 @@ use std::collections::hash_map::{Entry, HashMap};
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
-
-use cgmath::Vector3;
+use cgmath::{Vector3};
 use gfx;
 use gfx::format::I8Norm;
 use gfx::traits::{Factory as Factory_, FactoryExt};
+use hub;
 use image;
 use itertools::Either;
 use mint;
 use obj;
+#[cfg(feature = "gltf-loader")]
 use vec_map::VecMap;
 
-use animation;
+#[cfg(feature = "gltf-loader")]
+use animation::Clip;
 use audio;
 use camera::{Camera, Projection, ZRange};
 use color::{BLACK, Color};
-use geometry::{Geometry, Shape};
+use geometry::Geometry;
 use hub::{Hub, HubPtr, LightData, SubLight, SubNode};
 use light::{Ambient, Directional, Hemisphere, Point, ShadowMap};
 use material::{self, Material};
 use mesh::{DynamicMesh, Mesh};
-use object::Group;
+use object;
 use render::{basic_pipe,
-    BackendFactory, BackendResources, BasicPipelineState, DynamicData, GpuData,
-    Instance, InstanceCacheKey, PipelineCreationError, ShadowFormat, Source, Vertex,
+    BackendFactory, BackendResources, BasicPipelineState, DisplacementContribution,
+    DynamicData, GpuData, Instance, InstanceCacheKey, PipelineCreationError, ShadowFormat, Source, Vertex,
+    DEFAULT_VERTEX, VECS_PER_BONE, ZEROED_DISPLACEMENT_CONTRIBUTION,
 };
 use scene::{Background, Scene};
 use sprite::Sprite;
+use skeleton::{Bone, Skeleton};
 use text::{Font, Text, TextData};
 use texture::{CubeMap, CubeMapPath, FilterMethod, Sampler, Texture, WrapMode};
-
 
 const TANGENT_X: [I8Norm; 4] = [I8Norm(1), I8Norm(0), I8Norm(0), I8Norm(1)];
 const NORMAL_Z: [I8Norm; 4] = [I8Norm(0), I8Norm(0), I8Norm(1), I8Norm(0)];
@@ -45,26 +48,22 @@ const QUAD: [Vertex; 4] = [
     Vertex {
         pos: [-1.0, -1.0, 0.0, 1.0],
         uv: [0.0, 0.0],
-        normal: NORMAL_Z,
-        tangent: TANGENT_X,
+        .. DEFAULT_VERTEX
     },
     Vertex {
         pos: [1.0, -1.0, 0.0, 1.0],
         uv: [1.0, 0.0],
-        normal: NORMAL_Z,
-        tangent: TANGENT_X,
+        .. DEFAULT_VERTEX
     },
     Vertex {
         pos: [-1.0, 1.0, 0.0, 1.0],
         uv: [0.0, 1.0],
-        normal: NORMAL_Z,
-        tangent: TANGENT_X,
+        .. DEFAULT_VERTEX
     },
     Vertex {
         pos: [1.0, 1.0, 0.0, 1.0],
         uv: [1.0, 1.0],
-        normal: NORMAL_Z,
-        tangent: TANGENT_X,
+        .. DEFAULT_VERTEX
     },
 ];
 
@@ -90,19 +89,49 @@ pub struct Gltf {
     pub cameras: Vec<Camera>,
 
     /// Imported animation clips.
-    pub clips: Vec<animation::Clip>,
+    pub clips: Vec<Clip>,
 
-    /// Imported meshes.
+    /// The node heirarchy of the default scene.
     ///
-    /// Must be kept alive in order to be displayed.
+    /// If the `glTF` contained no default scene then this
+    /// container will be empty.
+    pub heirarchy: VecMap<object::Group>,
+
+    /// Imported mesh instances.
+    ///
+    /// ### Notes
+    ///
+    /// * Must be kept alive in order to be displayed.
+    pub instances: Vec<Mesh>,
+
+    /// Imported mesh materials.
+    pub materials: Vec<Material>,
+
+    /// Imported mesh templates.
     pub meshes: VecMap<Vec<Mesh>>,
 
-    /// The root nodes of the default scene.
+    /// The root node of the default scene.
     ///
-    /// If the glTF contained no default scene then this group will have no
-    /// children.
-    pub group: Group,
+    /// If the `glTF` contained no default scene then this group
+    /// will have no children.
+    pub root: object::Group,
+
+    /// Imported skeletons.
+    pub skeletons: Vec<Skeleton>,
+
+    /// Imported textures.
+    pub textures: Vec<Texture<[f32; 4]>>,
 }
+
+#[cfg(feature = "gltf-loader")]
+impl AsRef<object::Base> for Gltf {
+    fn as_ref(&self) -> &object::Base {
+        self.root.as_ref()
+    }
+}
+
+#[cfg(feature = "gltf-loader")]
+impl object::Object for Gltf {}
 
 fn f2i(x: f32) -> I8Norm {
     I8Norm(cmp::min(cmp::max((x * 127.0) as isize, -128), 127) as i8)
@@ -142,6 +171,46 @@ impl Factory {
             first_child: None,
             background,
         }
+    }
+
+    /// Create a new [`Bone`], one component of a [`Skeleton`].
+    ///
+    /// [`Bone`]: ../skeleton/struct.Bone.html
+    /// [`Skeleton`]: ../skeleton/struct.Skeleton.html
+    pub fn bone(
+        &mut self,
+        index: usize,
+        inverse_bind_matrix: mint::ColumnMatrix4<f32>,
+    ) -> Bone {
+        let data = SubNode::Bone { index, inverse_bind_matrix };
+        let object = self.hub.lock().unwrap().spawn(data);
+        Bone { object }
+    }
+
+    /// Create a new [`Skeleton`] from a set of [`Bone`] instances.
+    ///
+    /// * `bones` is the array of bones that form the skeleton.
+    /// * `inverses` is an optional array of inverse bind matrices for each bone.
+    /// [`Skeleton`]: ../skeleton/struct.Skeleton.html
+    /// [`Bone`]: ../skeleton/struct.Bone.html
+    pub fn skeleton(
+        &mut self,
+        bones: Vec<Bone>,
+    ) -> Skeleton {
+        let gpu_buffer = self.backend
+            .create_buffer(
+                bones.len() * VECS_PER_BONE,
+                gfx::buffer::Role::Constant,
+                gfx::memory::Usage::Dynamic,
+                gfx::memory::Bind::SHADER_RESOURCE,
+            )
+            .expect("create GPU target buffer");
+        let gpu_buffer_view = self.backend
+            .view_buffer_as_shader_resource(&gpu_buffer)
+            .expect("create shader resource view for GPU target buffer");
+        let data = hub::SkeletonData { bones, gpu_buffer, gpu_buffer_view };
+        let object = self.hub.lock().unwrap().spawn_skeleton(data);
+        Skeleton { object }
     }
 
     /// Create new [Orthographic] Camera.
@@ -195,46 +264,65 @@ impl Factory {
     }
 
     /// Create empty [`Group`](struct.Group.html).
-    pub fn group(&mut self) -> Group {
-        Group::new(&mut *self.hub.lock().unwrap())
+    pub fn group(&mut self) -> object::Group {
+        object::Group::new(&mut *self.hub.lock().unwrap())
     }
 
-    fn mesh_vertices(shape: &Shape) -> Vec<Vertex> {
-        let position_iter = shape.vertices.iter();
-        let normal_iter = if shape.normals.is_empty() {
+    fn mesh_vertices(geometry: &Geometry) -> Vec<Vertex> {
+        let position_iter = geometry.base.vertices.iter();
+        let normal_iter = if geometry.base.normals.is_empty() {
             Either::Left(iter::repeat(NORMAL_Z))
         } else {
             Either::Right(
-                shape
-                    .normals
+                geometry.base.normals
                     .iter()
                     .map(|n| [f2i(n.x), f2i(n.y), f2i(n.z), I8Norm(0)]),
             )
         };
-        let uv_iter = if shape.tex_coords.is_empty() {
+        let uv_iter = if geometry.tex_coords.is_empty() {
             Either::Left(iter::repeat([0.0, 0.0]))
         } else {
-            Either::Right(shape.tex_coords.iter().map(|uv| [uv.x, uv.y]))
+            Either::Right(geometry.tex_coords.iter().map(|uv| [uv.x, uv.y]))
         };
-        let tangent_iter = if shape.tangents.is_empty() {
-            // @alteous:
-            // TODO: Generate tangents if texture co-ordinates are provided.
+        let tangent_iter = if geometry.base.tangents.is_empty() {
+            // TODO: Generate tangents if texture coordinates are provided.
             // (Use mikktspace algorithm or otherwise.)
             Either::Left(iter::repeat(TANGENT_X))
         } else {
             Either::Right(
-                shape
-                    .tangents
+                geometry.base.tangents
                     .iter()
                     .map(|t| [f2i(t.x), f2i(t.y), f2i(t.z), f2i(t.w)]),
             )
         };
-        izip!(position_iter, normal_iter, tangent_iter, uv_iter)
-            .map(|(position, normal, tangent, tex_coord)| Vertex {
-                pos: [position.x, position.y, position.z, 1.0],
-                normal: normal,
-                uv: tex_coord,
-                tangent: tangent,
+        let joint_indices_iter = if geometry.joints.indices.is_empty() {
+            Either::Left(iter::repeat([0, 0, 0, 0]))
+        } else {
+            Either::Right(geometry.joints.indices.iter().cloned())
+        };
+        let joint_weights_iter = if geometry.joints.weights.is_empty() {
+            Either::Left(iter::repeat([1.0, 1.0, 1.0, 1.0]))
+        } else {
+            Either::Right(geometry.joints.weights.iter().cloned())
+        };
+
+        izip!(
+            position_iter,
+            normal_iter,
+            tangent_iter,
+            uv_iter,
+            joint_indices_iter,
+            joint_weights_iter,
+        )
+            .map(|(pos, normal, tangent, uv, joint_indices, joint_weights)| {
+                Vertex {
+                    pos: [pos.x, pos.y, pos.z, 1.0],
+                    normal,
+                    uv,
+                    tangent,
+                    joint_indices,
+                    joint_weights,
+                }
             })
             .collect()
     }
@@ -245,9 +333,8 @@ impl Factory {
         geometry: Geometry,
         material: M,
     ) -> Mesh {
-        let vertices = Self::mesh_vertices(&geometry.base_shape);
-        let instances = self.create_instance_buffer();
-        let (vertices, mut slice) = if geometry.faces.is_empty() {
+        let vertices = Self::mesh_vertices(&geometry);
+        let (vbuf, mut slice) = if geometry.faces.is_empty() {
             self.backend.create_vertex_buffer_with_slice(&vertices, ())
         } else {
             let faces: &[u32] = gfx::memory::cast_slice(&geometry.faces);
@@ -255,16 +342,64 @@ impl Factory {
                 .create_vertex_buffer_with_slice(&vertices, faces)
         };
         slice.instances = Some((1, 0));
+        let num_shapes = geometry.shapes.len();
+        let mut displacement_contributions = Vec::with_capacity(num_shapes);
+        let instances = self.create_instance_buffer();
+        let displacements = if num_shapes != 0 {
+            let num_vertices = geometry.base.vertices.len();
+            let mut contents = vec![[0.0; 4]; num_shapes * 3 * num_vertices];
+            for (content_chunk, shape) in contents.chunks_mut(3 * num_vertices).zip(&geometry.shapes) {
+                let mut contribution = DisplacementContribution::ZERO;
+                if !shape.vertices.is_empty() {
+                    contribution.position = 1.0;
+                    for (out, v) in content_chunk[0 * num_vertices .. 1 * num_vertices].iter_mut().zip(&shape.vertices) {
+                        *out = [v.x, v.y, v.z, 1.0];
+                    }
+                }
+                if !shape.normals.is_empty() {
+                    contribution.normal = 1.0;
+                    for (out, v) in content_chunk[1 * num_vertices .. 2 * num_vertices].iter_mut().zip(&shape.normals) {
+                        *out = [v.x, v.y, v.z, 0.0];
+                    }
+                }
+                if !shape.tangents.is_empty() {
+                    contribution.tangent = 1.0;
+                    for (out, &v) in content_chunk[2 * num_vertices .. 3 * num_vertices].iter_mut().zip(&shape.tangents) {
+                        *out = v.into();
+                    }
+                }
+                displacement_contributions.push(contribution);
+            }
+
+            let texture_and_view = self.backend
+                .create_texture_immutable::<[f32; 4]>(
+                    gfx::texture::Kind::D2(
+                        num_vertices as _,
+                        3 * num_shapes as gfx::texture::Size,
+                        gfx::texture::AaMode::Single,
+                    ),
+                    gfx::texture::Mipmap::Provided,
+                    &[gfx::memory::cast_slice(&contents)],
+                )
+                .unwrap();
+            Some(texture_and_view)
+        } else {
+            None
+        };
+
         Mesh {
             object: self.hub.lock().unwrap().spawn_visual(
                 material.into(),
                 GpuData {
                     slice,
-                    vertices,
+                    vertices: vbuf,
                     instances,
+                    displacements,
                     pending: None,
                     instance_cache_key: None,
+                    displacement_contributions,
                 },
+                None,
             ),
         }
     }
@@ -286,7 +421,7 @@ impl Factory {
             }
         };
         let (num_vertices, vertices, upload_buf) = {
-            let data = Self::mesh_vertices(&geometry.base_shape);
+            let data = Self::mesh_vertices(&geometry);
             let dest_buf = self.backend
                 .create_buffer_immutable(&data, gfx::buffer::Role::Vertex, gfx::memory::Bind::TRANSFER_DST)
                 .unwrap();
@@ -309,9 +444,12 @@ impl Factory {
                     slice,
                     vertices,
                     instances,
+                    displacements: None,
                     pending: None,
                     instance_cache_key: None,
+                    displacement_contributions: ZEROED_DISPLACEMENT_CONTRIBUTION.to_vec(),
                 },
+                None,
             ),
             geometry,
             dynamic: DynamicData {
@@ -331,7 +469,7 @@ impl Factory {
         let instances = self.create_instance_buffer();
         let mut hub = self.hub.lock().unwrap();
         let (material, gpu_data) = match hub[template].sub_node {
-            SubNode::Visual(ref mat, ref gpu) => {
+            SubNode::Visual(ref mat, ref gpu, _) => {
                 (mat.clone(), GpuData {
                     instances,
                     instance_cache_key: Some(InstanceCacheKey {
@@ -344,7 +482,7 @@ impl Factory {
             _ => unreachable!(),
         };
         Mesh {
-            object: hub.spawn_visual(material, gpu_data),
+            object: hub.spawn_visual(material, gpu_data, None),
         }
     }
 
@@ -359,7 +497,7 @@ impl Factory {
         let material = material.into();
         let mut hub = self.hub.lock().unwrap();
         let gpu_data = match hub[template].sub_node {
-            SubNode::Visual(_, ref gpu) => GpuData {
+            SubNode::Visual(_, ref gpu, _) => GpuData {
                 instances,
                 instance_cache_key: Some(InstanceCacheKey {
                     material: material.clone(),
@@ -370,7 +508,7 @@ impl Factory {
             _ => unreachable!(),
         };
         Mesh {
-            object: hub.spawn_visual(material, gpu_data),
+            object: hub.spawn_visual(material, gpu_data, None),
         }
     }
 
@@ -389,9 +527,12 @@ impl Factory {
                 slice,
                 vertices: self.quad_buf.clone(),
                 instances,
+                displacements: None,
                 pending: None,
                 instance_cache_key: None,
+                displacement_contributions: ZEROED_DISPLACEMENT_CONTRIBUTION.to_vec(),
             },
+            None,
         ))
     }
 
@@ -552,40 +693,27 @@ impl Factory {
     pub fn mix(
         &mut self,
         mesh: &DynamicMesh,
-        shapes: &[(&str, f32)],
+        shapes: &[(usize, f32)],
     ) {
-        let f2i = |x: f32| I8Norm(cmp::min(cmp::max((x * 127.) as isize, -128), 127) as i8);
-
         self.hub.lock().unwrap().update_mesh(mesh);
-        let shapes: Vec<_> = shapes
-            .iter()
-            .map(|&(name, k)| (&mesh.geometry.shapes[name], k))
-            .collect();
         let mut mapping = self.backend.write_mapping(&mesh.dynamic.buffer).unwrap();
 
-        for i in 0 .. mesh.geometry.base_shape.vertices.len() {
+        let n = mesh.geometry.base.vertices.len();
+        for i in 0 .. n {
             let (mut pos, ksum) = shapes.iter().fold(
                 (Vector3::new(0.0, 0.0, 0.0), 0.0),
-                |(pos, ksum), &(ref shape, k)| {
-                    let p: [f32; 3] = shape.vertices[i].into();
+                |(pos, ksum), &(idx, k)| {
+                    let p: [f32; 3] = mesh.geometry.shapes[idx].vertices[i].into();
                     (pos + k * Vector3::from(p), ksum + k)
                 },
             );
             if ksum != 1.0 {
-                let p: [f32; 3] = mesh.geometry.base_shape.vertices[i].into();
+                let p: [f32; 3] = mesh.geometry.base.vertices[i].into();
                 pos += (1.0 - ksum) * Vector3::from(p);
             }
-            let normal = if mesh.geometry.base_shape.normals.is_empty() {
-                NORMAL_Z
-            } else {
-                let n = mesh.geometry.base_shape.normals[i];
-                [f2i(n.x), f2i(n.y), f2i(n.z), I8Norm(0)]
-            };
             mapping[i] = Vertex {
                 pos: [pos.x, pos.y, pos.z, 1.0],
-                uv: [0.0, 0.0], //TODO
-                normal,
-                tangent: TANGENT_X, // @alteous: TODO: Provide tangent.
+                .. mapping[i]
             };
         }
     }
@@ -810,7 +938,7 @@ impl Factory {
     pub fn load_obj(
         &mut self,
         path_str: &str,
-    ) -> (HashMap<String, Group>, Vec<Mesh>) {
+    ) -> (HashMap<String, object::Group>, Vec<Mesh>) {
         use genmesh::{Indexer, LruIndexer, Polygon, Triangulate, Vertices};
 
         info!("Loading {}", path_str);
@@ -827,7 +955,7 @@ impl Factory {
         let mut indices = Vec::new();
 
         for object in &obj.objects {
-            let group = Group::new(&mut *hub);
+            let group = object::Group::new(&mut *hub);
             for gr in &object.groups {
                 let (mut num_normals, mut num_uvs) = (0, 0);
                 {
@@ -853,7 +981,7 @@ impl Factory {
                                 }
                                 None => [I8Norm(0), I8Norm(0), I8Norm(0x7f), I8Norm(0)],
                             },
-                            tangent: TANGENT_X, // TODO
+                            .. DEFAULT_VERTEX
                         });
                     });
 
@@ -899,9 +1027,12 @@ impl Factory {
                             slice,
                             vertices,
                             instances,
+                            displacements: None,
                             pending: None,
                             instance_cache_key: None,
+                            displacement_contributions: ZEROED_DISPLACEMENT_CONTRIBUTION.to_vec(),
                         },
+                        None,
                     ),
                 };
                 group.add(&mesh);

@@ -123,12 +123,6 @@ impl Scene {
 /// #     }
 /// # }
 /// #
-/// # impl AsMut<three::object::Base> for Enemy {
-/// #     fn as_mut(&mut self) -> &mut three::object::Base {
-/// #         self.mesh.as_mut()
-/// #     }
-/// # }
-/// #
 /// # fn main() {
 /// # use three::Object;
 /// # let mut win = three::Window::new("SyncGuard example");
@@ -194,7 +188,7 @@ impl<'a> SyncGuard<'a> {
             visible: wn.world_visible,
             transform: wn.world_transform.into(),
             material: match wn.node.sub_node {
-                SubNode::Visual(ref mat, _) => Some(mat.clone()),
+                SubNode::Visual(ref mat, _, _) => Some(mat.clone()),
                 _ => None,
             },
             _space: PhantomData,

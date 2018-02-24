@@ -22,6 +22,8 @@ pub(crate) struct NodeInternal {
     pub(crate) visible: bool,
     /// The transform relative to the node's parent.
     pub(crate) transform: TransformInternal,
+    /// The transform relative to the scene root.
+    pub(crate) world_transform: TransformInternal,
     /// Pointer to the next sibling.
     pub(crate) next_sibling: Option<NodePointer>,
     /// Context specific-data, for example, `UiText`, `Visual` or `Light`.
@@ -34,7 +36,7 @@ impl NodeInternal {
             transform: self.transform.into(),
             visible: self.visible,
             material: match self.sub_node {
-                SubNode::Visual(ref mat, _) => Some(mat.clone()),
+                SubNode::Visual(ref mat, _, _) => Some(mat.clone()),
                 _ => None,
             },
             _space: PhantomData,
@@ -47,6 +49,7 @@ impl From<SubNode> for NodeInternal {
         NodeInternal {
             visible: true,
             transform: cgmath::Transform::one(),
+            world_transform: cgmath::Transform::one(),
             next_sibling: None,
             sub_node: sub,
         }

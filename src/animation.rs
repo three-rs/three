@@ -1,4 +1,5 @@
 // TODO: Rewrite examples such that they don't rely on the gltf-loader feature.
+
 //! Animation system.
 //!
 //! ## Introduction
@@ -41,10 +42,10 @@
 //!
 //! Now, we load some clips from an animated glTF scene.
 //!
-//! ```rust,no_run
+//! ```rust,no_run,ignore
 //! # let mut window = three::Window::new("");
 //! let gltf = window.factory.load_gltf("AnimatedScene.gltf");
-//! window.scene.add(&gltf.group);
+//! window.scene.add(&gltf);
 //! ```
 //!
 //! ### Creating animation actions
@@ -55,12 +56,12 @@
 //! when calling [`Mixer::update`] the created actions will begin to be played back
 //! immediately.
 //!
-//! ```rust,no_run
+//! ```rust,no_run,ignore
 //! # use three::Object;
 //! # let mut window = three::Window::new("");
 //! # let mut mixer = three::animation::Mixer::new();
 //! # let gltf = window.factory.load_gltf("AnimatedScene.gltf");
-//! # window.scene.add(&gltf.group);
+//! # window.scene.add(&gltf);
 //! let actions: Vec<three::animation::Action> = gltf.clips
 //!     .into_iter()
 //!     .map(|clip| mixer.action(clip))
@@ -72,13 +73,13 @@
 //! Finally, we run the animation actions by updating their [`Mixer`] in the main
 //! game loop.
 //!
-//! ```rust,no_run
+//! ```rust,no_run,ignore
 //! # use three::Object;
 //! # let mut window = three::Window::new("");
 //! # let camera = unimplemented!();
 //! # let mut mixer = three::animation::Mixer::new();
 //! # let gltf = window.factory.load_gltf("AnimatedScene.gltf");
-//! # window.scene.add(&gltf.group);
+//! # window.scene.add(&gltf);
 //! # let actions: Vec<three::animation::Action> = gltf.clips
 //! #     .into_iter()
 //! #     .map(|clip| mixer.action(clip))
@@ -106,14 +107,14 @@
 use cgmath;
 use froggy;
 use mint;
-use object;
+use object::{Base, Object};
+
 use std::hash::{Hash, Hasher};
 use std::sync::mpsc;
 
-use mint::IntraXYZ as IntraXyz;
 
 /// A target of an animation.
-pub type Target = object::Base;
+pub type Target = Base;
 
 /// Describes the interpolation behaviour between keyframes.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -126,9 +127,6 @@ pub enum Interpolation {
 
     /// Smooth cubic interpolation between keyframe values.
     Cubic,
-
-    /// Smooth Catmull–Rom spline interpolation between keyframe values.
-    CatmullRom,
 }
 
 /// Describes the looping behaviour of an [`Action`].
@@ -180,9 +178,22 @@ pub enum Binding {
     ///
     /// The corresponding keyframe values must be [`Scalar`].
     ///
+    /// ## Note
+    ///
+    /// Only uniform scaling is supported, hence the glTF importer takes the
+    /// Y axis as the scaling direction, ignoring any scaling in the X and Z axes.
+    ///
     /// [`Object`]: ../object/trait.Object.html
     /// [`Scalar`]: enum.Values.html#variant.Scalar
     Scale,
+
+    /// Targets the weights property of an [`Object`].
+    ///
+    /// The corresponding keyframe values must be [`Scalar`].
+    ///
+    /// [`Object`]: ../object/trait.Object.html
+    /// [`Scalar`]: enum.Values.html#variant.Scalar
+    Weights,
 }
 
 /// An index into the frames of a track.
@@ -203,17 +214,12 @@ enum FrameRef {
 #[derive(Clone, Debug)]
 pub enum Values {
     /// Euler angle keyframes in radians.
-    Euler(Vec<mint::EulerAngles<f32, IntraXyz>>),
+    Euler(Vec<mint::EulerAngles<f32, mint::IntraXYZ>>),
 
     /// Quaternion keyframes.
     Quaternion(Vec<mint::Quaternion<f32>>),
 
     /// Scalar keyframes.
-    ///
-    /// ## Note
-    ///
-    /// Only uniform scaling is supported, hence the glTF importer takes the
-    /// Y axis as the scaling direction, ignoring any scaling in the X and Z axes.
     Scalar(Vec<f32>),
 
     /// 3D vector keyframes.
@@ -449,7 +455,7 @@ impl ActionData {
 
         self.local_time += delta_time * self.local_time_scale;
         let mut finish_count = 0;
-        for &mut (ref track, ref mut target) in self.clip.tracks.iter_mut() {
+        for &(ref track, ref target) in self.clip.tracks.iter() {
             let frame_index = match track.frame_at_time(self.local_time) {
                 FrameRef::Unstarted => continue,
                 FrameRef::Ended => {
@@ -504,6 +510,18 @@ impl ActionData {
                     let frame_end_value = values[frame_index + 1];
                     let update = frame_start_value * (1.0 - s) + frame_end_value * s;
                     target.set_scale(update);
+                }
+                (Binding::Weights, &Values::Scalar(ref values)) => {
+                    // values are: first all scalars for shape[0], then all scalars for shape[1], etc
+                    let update = values
+                        .chunks(track.times.len())
+                        .map(|chunk| {
+                            let start_value = chunk[frame_index];
+                            let end_value = chunk[frame_index + 1];
+                            start_value * (1.0 - s) + end_value * s
+                        })
+                        .collect();
+                    target.set_weights(update);
                 }
                 _ => panic!("Unsupported (binding, value) pair"),
             }

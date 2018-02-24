@@ -85,18 +85,6 @@ fn make_indices(meta: &[u16]) -> Vec<[u32; 3]> {
     data
 }
 
-fn make_geometry() -> three::Geometry {
-    three::Geometry {
-        base_shape: three::geometry::Shape {
-            vertices: make_vertices(VERTICES),
-            normals: Vec::new(),
-            ..three::geometry::Shape::empty()
-        },
-        faces: make_indices(INDICES),
-        ..three::Geometry::empty()
-    }
-}
-
 fn main() {
     let mut win = three::Window::new("Three-rs mesh blending example");
     let cam = win.factory.perspective_camera(60.0, 1.0 .. 1000.0);
@@ -106,43 +94,46 @@ fn main() {
         Some([0.0, 1.0, 0.0].into()),
     );
 
-    let mut geom = make_geometry();
-    for (i, &data) in V_FLY.iter().enumerate() {
-        let name = format!("fly{:02}", i);
-        geom.shapes.insert(
-            name,
-            three::geometry::Shape {
-                vertices: make_vertices(data),
-                normals: Vec::new(),
-                ..three::geometry::Shape::empty()
-            },
-        );
-    }
+    let geom = three::Geometry {
+        base: three::Shape {
+            vertices: make_vertices(VERTICES),
+            normals: Vec::new(),
+            ..three::Shape::default()
+        },
+        faces: make_indices(INDICES),
+        shapes: V_FLY
+            .iter()
+            .map(|data| {
+                three::Shape {
+                    vertices: make_vertices(data),
+                    .. three::Shape::default()
+                }
+            })
+            .collect(),
+        ..three::Geometry::default()
+    };
 
     let mesh = win.factory
         .mesh_dynamic(geom, three::material::Wireframe { color: 0xFFFFFF });
     win.scene.add(&mesh);
 
-    let mut shape = 0;
-    let (mut name0, mut name1) = ("fly00".to_string(), "fly01".to_string());
+    let (mut id0, mut id1) = (0, 1);
     let blend_time = 0.2f32;
     let mut timer = three::Timer::new();
 
     while win.update() && !win.input.hit(three::KEY_ESCAPE) {
         let kf = timer.elapsed() / blend_time;
-        win.factory.mix(&mesh, &[(&name1, kf), (&name0, 1.0 - kf)]);
+        win.factory.mix(&mesh, &[(id1, kf), (id0, 1.0 - kf)]);
         if kf > 1.0 {
-            shape += 1;
-            if shape == V_FLY.len() {
-                shape = 0;
+            id0 += 1;
+            if id0 == V_FLY.len() {
+                id0 = 0;
             }
-            let shape1 = if shape + 1 < V_FLY.len() {
-                shape + 1
+            id1 = if id0 + 1 < V_FLY.len() {
+                id0 + 1
             } else {
                 0
             };
-            name0 = format!("fly{:02}", shape);
-            name1 = format!("fly{:02}", shape1);
             timer.reset();
         }
         win.render(&cam);

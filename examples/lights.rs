@@ -7,9 +7,9 @@ fn main() {
     let cam = win.factory.perspective_camera(45.0, 1.0 .. 50.0);
     cam.look_at([-4.0, 15.0, 10.0], [0.0, 0.0, 2.0], None);
 
-    let mut hemisphere_light = win.factory.hemisphere_light(0xffffff, 0x8080ff, 0.5);
-    let mut ambient_light = win.factory.ambient_light(0xffffffff, 0.5);
-    let mut point_light = win.factory.point_light(0xffffff, 0.9);
+    let hemisphere_light = win.factory.hemisphere_light(0xffffff, 0x8080ff, 0.5);
+    let ambient_light = win.factory.ambient_light(0xffffffff, 0.5);
+    let point_light = win.factory.point_light(0xffffff, 0.9);
     point_light.set_position([15.0, 35.0, 35.0]);
 
     let mut dir_light = win.factory.directional_light(0xffffff, 0.9);
@@ -19,13 +19,13 @@ fn main() {
         .debug_shadow_quad(&shadow_map, 1, [10, 10], [256, 256]);
     dir_light.set_shadow(shadow_map, 40.0, 1.0 .. 200.0);
 
-    let mut lights: [&mut three::object::Base; 4] = [
-        hemisphere_light.as_mut(),
-        ambient_light.as_mut(),
-        point_light.as_mut(),
-        dir_light.as_mut(),
+    let lights: [&three::object::Base; 4] = [
+        hemisphere_light.as_ref(),
+        ambient_light.as_ref(),
+        point_light.as_ref(),
+        dir_light.as_ref(),
     ];
-    for l in lights.iter_mut() {
+    for l in &lights {
         l.set_visible(false);
         win.scene.add(l);
     }

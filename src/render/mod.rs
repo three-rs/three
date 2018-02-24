@@ -1,11 +1,12 @@
 //! The renderer.
 
-use cgmath::{Matrix4, SquareMatrix, Transform as Transform_, Vector3};
+use cgmath::{Matrix as Matrix_, Matrix4, SquareMatrix, Transform as Transform_, Vector3};
 use froggy;
 use gfx;
+use gfx::format::I8Norm;
 use gfx::handle as h;
 use gfx::memory::Typed;
-use gfx::traits::{Device, Factory as Factory_, FactoryExt};
+use gfx::traits::{Factory as Factory_, FactoryExt};
 #[cfg(feature = "opengl")]
 use gfx_device_gl as back;
 #[cfg(feature = "opengl")]
@@ -28,7 +29,7 @@ pub use self::back::Factory as BackendFactory;
 pub use self::back::Resources as BackendResources;
 pub use self::source::Source;
 
-use self::pso_data::PsoData;
+use self::pso_data::{PbrFlags, PsoData};
 use camera::Camera;
 use factory::Factory;
 use hub::{SubLight, SubNode};
@@ -47,7 +48,9 @@ pub type ShadowFormat = gfx::format::Depth32F;
 /// The concrete type of a basic pipeline.
 pub type BasicPipelineState = gfx::PipelineState<back::Resources, basic_pipe::Meta>;
 
-const MAX_LIGHTS: usize = 4;
+pub(crate) const MAX_LIGHTS: usize = 4;
+pub(crate) const MAX_TARGETS: usize = 8;
+pub(crate) const VECS_PER_BONE: usize = 3;
 
 const STENCIL_SIDE: gfx::state::StencilSide = gfx::state::StencilSide {
     fun: gfx::state::Comparison::Always,
@@ -89,6 +92,35 @@ quick_error! {
     }
 }
 
+/// Default values for type `Vertex`.
+pub const DEFAULT_VERTEX: Vertex = Vertex {
+    pos: [0.0, 0.0, 0.0, 1.0],
+    uv: [0.0, 0.0],
+    normal: [I8Norm(0), I8Norm(127), I8Norm(0), I8Norm(0)],
+    tangent: [I8Norm(127), I8Norm(0), I8Norm(0), I8Norm(0)],
+    joint_indices: [0, 0, 0, 0],
+    joint_weights: [1.0, 1.0, 1.0, 1.0],
+};
+
+impl Default for Vertex {
+    fn default() -> Self {
+        DEFAULT_VERTEX
+    }
+}
+
+/// Set of zero valued displacement contribution which cause vertex attributes
+/// to be unchanged by morph targets.
+pub const ZEROED_DISPLACEMENT_CONTRIBUTION: [DisplacementContribution; MAX_TARGETS] = [
+    DisplacementContribution::ZERO,
+    DisplacementContribution::ZERO,
+    DisplacementContribution::ZERO,
+    DisplacementContribution::ZERO,
+    DisplacementContribution::ZERO,
+    DisplacementContribution::ZERO,
+    DisplacementContribution::ZERO,
+    DisplacementContribution::ZERO,
+];
+
 #[cfg_attr(rustfmt, rustfmt_skip)]
 gfx_defines! {
     vertex Vertex {
@@ -96,6 +128,8 @@ gfx_defines! {
         uv: [f32; 2] = "a_TexCoord",
         normal: [gfx::format::I8Norm; 4] = "a_Normal",
         tangent: [gfx::format::I8Norm; 4] = "a_Tangent",
+        joint_indices: [i32; 4] = "a_JointIndices",
+        joint_weights: [f32; 4] = "a_JointWeights",
     }
 
     vertex Instance {
@@ -176,6 +210,13 @@ gfx_defines! {
         pbr_flags: i32 = "u_PbrFlags",
     }
 
+    constant DisplacementContribution {
+        position: f32 = "position",
+        normal: f32 = "normal",
+        tangent: f32 = "tangent",
+        weight: f32 = "weight",
+    }
+
     pipeline pbr_pipe {
         vbuf: gfx::VertexBuffer<Vertex> = (),
         inst_buf: gfx::InstanceBuffer<Instance> = (),
@@ -183,7 +224,9 @@ gfx_defines! {
         globals: gfx::ConstantBuffer<Globals> = "b_Globals",
         params: gfx::ConstantBuffer<PbrParams> = "b_PbrParams",
         lights: gfx::ConstantBuffer<LightParam> = "b_Lights",
-
+        displacement_contributions: gfx::ConstantBuffer<DisplacementContribution> = "b_DisplacementContributions",
+        joint_transforms: gfx::ShaderResource<[f32; 4]> = "b_JointTransforms",
+        displacements: gfx::TextureSampler<[f32; 4]> = "u_Displacements",
         base_color_map: gfx::TextureSampler<[f32; 4]> = "u_BaseColorSampler",
 
         normal_map: gfx::TextureSampler<[f32; 4]> = "u_NormalSampler",
@@ -240,14 +283,25 @@ impl Instance {
     }
 }
 
+impl DisplacementContribution {
+    /// Zero displacement contribution.
+    pub const ZERO: Self = DisplacementContribution { position: 0.0, normal: 0.0, tangent: 0.0, weight: 0.0 };
+}
+
 //TODO: private fields?
 #[derive(Clone, Debug)]
 pub(crate) struct GpuData {
     pub slice: gfx::Slice<back::Resources>,
     pub vertices: h::Buffer<back::Resources, Vertex>,
     pub instances: h::Buffer<back::Resources, Instance>,
+    pub displacements: Option<(
+        h::Texture<back::Resources,
+        gfx::format::R32_G32_B32_A32>,
+        h::ShaderResourceView<back::Resources, [f32; 4]>,
+    )>,
     pub pending: Option<DynamicData>,
     pub instance_cache_key: Option<InstanceCacheKey>,
+    pub displacement_contributions: Vec<DisplacementContribution>,
 }
 
 #[derive(Clone, Debug)]
@@ -281,39 +335,39 @@ struct DebugQuad {
 }
 
 /// All pipeline state objects used by the `three` renderer.
-pub struct PipelineStates {
+pub struct PipelineStates<R: gfx::Resources> {
     /// Corresponds to `Material::Basic`.
-    mesh_basic_fill: BasicPipelineState,
+    mesh_basic_fill: gfx::PipelineState<R, basic_pipe::Meta>,
 
     /// Corresponds to `Material::Line`.
-    line_basic: BasicPipelineState,
+    line_basic: gfx::PipelineState<R, basic_pipe::Meta>,
 
     /// Corresponds to `Material::Wireframe`.
-    mesh_basic_wireframe: BasicPipelineState,
+    mesh_basic_wireframe: gfx::PipelineState<R, basic_pipe::Meta>,
 
     /// Corresponds to `Material::Gouraud`.
-    mesh_gouraud: BasicPipelineState,
+    mesh_gouraud: gfx::PipelineState<R, basic_pipe::Meta>,
 
     /// Corresponds to `Material::Phong`.
-    mesh_phong: BasicPipelineState,
+    mesh_phong: gfx::PipelineState<R, basic_pipe::Meta>,
 
     /// Corresponds to `Material::Sprite`.
-    sprite: BasicPipelineState,
+    sprite: gfx::PipelineState<R, basic_pipe::Meta>,
 
     /// Used internally for shadow casting.
-    shadow: gfx::PipelineState<back::Resources, shadow_pipe::Meta>,
+    shadow: gfx::PipelineState<R, shadow_pipe::Meta>,
 
     /// Used internally for rendering sprites.
-    quad: gfx::PipelineState<back::Resources, quad_pipe::Meta>,
+    quad: gfx::PipelineState<R, quad_pipe::Meta>,
 
     /// Corresponds to `Material::Pbr`.
-    pbr: gfx::PipelineState<back::Resources, pbr_pipe::Meta>,
+    pbr: gfx::PipelineState<R, pbr_pipe::Meta>,
 
     /// Used internally for rendering `Background::Skybox`.
-    skybox: gfx::PipelineState<back::Resources, quad_pipe::Meta>,
+    skybox: gfx::PipelineState<R, quad_pipe::Meta>,
 }
 
-impl PipelineStates {
+impl PipelineStates<back::Resources> {
     /// Creates the set of pipeline states needed by the `three` renderer.
     pub fn new(
         src: &source::Set,
@@ -322,10 +376,28 @@ impl PipelineStates {
         Self::init(src, &mut factory.backend)
     }
 
+    pub(crate) fn pso_by_material<'a>(
+        &'a self,
+        material: &'a Material,
+    ) -> &'a BasicPipelineState {
+        match *material {
+            Material::Basic(_) => &self.mesh_basic_fill,
+            Material::CustomBasic(ref b) => &b.pipeline,
+            Material::Line(_) => &self.line_basic,
+            Material::Wireframe(_) => &self.mesh_basic_wireframe,
+            Material::Lambert(_) => &self.mesh_gouraud,
+            Material::Phong(_) => &self.mesh_phong,
+            Material::Sprite(_) => &self.sprite,
+            _ => unreachable!(),
+        }
+    }
+}
+
+impl<R: gfx::Resources> PipelineStates<R> {
     /// Implementation of `PipelineStates::new`.
-    pub(crate) fn init(
+    pub(crate) fn init<F: gfx::Factory<R>>(
         src: &source::Set,
-        backend: &mut back::Factory,
+        backend: &mut F,
     ) -> Result<Self, PipelineCreationError> {
         let basic = backend.create_shader_set(&src.basic.vs, &src.basic.ps)?;
         let gouraud = backend.create_shader_set(&src.gouraud.vs, &src.gouraud.ps)?;
@@ -427,22 +499,6 @@ impl PipelineStates {
             skybox: pso_skybox,
         })
     }
-
-    pub(crate) fn pso_by_material<'a>(
-        &'a self,
-        material: &'a Material,
-    ) -> &'a BasicPipelineState {
-        match *material {
-            Material::Basic(_) => &self.mesh_basic_fill,
-            Material::CustomBasic(ref b) => &b.pipeline,
-            Material::Line(_) => &self.line_basic,
-            Material::Wireframe(_) => &self.mesh_basic_wireframe,
-            Material::Lambert(_) => &self.mesh_gouraud,
-            Material::Phong(_) => &self.mesh_phong,
-            Material::Sprite(_) => &self.sprite,
-            _ => unreachable!(),
-        }
-    }
 }
 
 /// Handle for additional viewport to render some relevant debug information.
@@ -464,7 +520,10 @@ pub struct Renderer {
     pbr_buf: h::Buffer<back::Resources, PbrParams>,
     out_color: h::RenderTargetView<back::Resources, ColorFormat>,
     out_depth: h::DepthStencilView<back::Resources, DepthFormat>,
-    pso: PipelineStates,
+    displacement_contributions_buf: gfx::handle::Buffer<back::Resources, DisplacementContribution>,
+    default_joint_buffer_view: gfx::handle::ShaderResourceView<back::Resources, [f32; 4]>,
+    default_displacement_buffer_view: gfx::handle::ShaderResourceView<back::Resources, [f32; 4]>,
+    pso: PipelineStates<back::Resources>,
     map_default: Texture<[f32; 4]>,
     shadow_default: Texture<f32>,
     debug_quads: froggy::Storage<DebugQuad>,
@@ -484,6 +543,7 @@ impl Renderer {
         source: &source::Set,
     ) -> (Self, glutin::GlWindow, Factory) {
         use gfx::texture as t;
+
         let (window, device, mut gl_factory, out_color, out_depth) = gfx_window_glutin::init(builder, context, event_loop);
         let (_, srv_white) = gl_factory
             .create_texture_immutable::<gfx::format::Rgba8>(
@@ -503,6 +563,40 @@ impl Renderer {
             border: t::PackedColor(!0), // clamp to 1.0
             ..t::SamplerInfo::new(t::FilterMethod::Bilinear, t::WrapMode::Border)
         });
+        let default_joint_buffer = gl_factory
+            .create_buffer_immutable(
+                &[
+                    [1.0, 0.0, 0.0, 0.0],
+                    [0.0, 1.0, 0.0, 0.0],
+                    [0.0, 0.0, 1.0, 0.0],
+                    [0.0, 0.0, 0.0, 1.0],
+                ],
+                gfx::buffer::Role::Constant,
+                gfx::memory::Bind::SHADER_RESOURCE,
+            )
+            .unwrap();
+        let default_joint_buffer_view = gl_factory
+            .view_buffer_as_shader_resource(&default_joint_buffer)
+            .unwrap();
+        let default_displacement_buffer = gl_factory
+            .create_buffer_immutable(
+                &[
+                    [0.0, 0.0, 0.0, 0.0],
+                    [0.0, 0.0, 0.0, 0.0],
+                    [0.0, 0.0, 0.0, 0.0],
+                    [0.0, 0.0, 0.0, 0.0],
+                    [0.0, 0.0, 0.0, 0.0],
+                    [0.0, 0.0, 0.0, 0.0],
+                    [0.0, 0.0, 0.0, 0.0],
+                    [0.0, 0.0, 0.0, 0.0],
+                ],
+                gfx::buffer::Role::Constant,
+                gfx::memory::Bind::SHADER_RESOURCE,
+            )
+            .unwrap();
+        let default_displacement_buffer_view = gl_factory
+            .view_buffer_as_shader_resource(&default_displacement_buffer)
+            .unwrap();
         let encoder = gl_factory.create_command_buffer().into();
         let const_buf = gl_factory.create_constant_buffer(1);
         let quad_buf = gl_factory.create_constant_buffer(1);
@@ -516,7 +610,9 @@ impl Renderer {
                 gfx::memory::Bind::TRANSFER_DST,
             )
             .unwrap();
+        let displacement_contributions_buf = gl_factory.create_constant_buffer(MAX_TARGETS);
         let pso = PipelineStates::init(source, &mut gl_factory).unwrap();
+
         let renderer = Renderer {
             device,
             factory: gl_factory.clone(),
@@ -526,9 +622,12 @@ impl Renderer {
             light_buf,
             inst_buf,
             pbr_buf,
+            displacement_contributions_buf,
             out_color,
             out_depth,
             pso,
+            default_joint_buffer_view,
+            default_displacement_buffer_view,
             map_default: Texture::new(srv_white, sampler, [1, 1]),
             shadow_default: Texture::new(srv_shadow, sampler_shadow, [1, 1]),
             instance_cache: HashMap::new(),
@@ -544,7 +643,7 @@ impl Renderer {
     /// Reloads the shaders.
     pub fn reload(
         &mut self,
-        pipeline_states: PipelineStates,
+        pipeline_states: PipelineStates<back::Resources>,
     ) {
         self.pso = pipeline_states;
     }
@@ -590,9 +689,56 @@ impl Renderer {
         scene: &Scene,
         camera: &Camera,
     ) {
+        {
+            use gfx::Device;
+            self.device.cleanup();
+        }
+
         let mut hub = scene.hub.lock().unwrap();
         hub.process_messages();
-        self.device.cleanup();
+        // update joint transforms of skeletons
+        {
+            use node::TransformInternal;
+
+            struct SkeletonTemp {
+                inverse_world_transform: TransformInternal,
+                cpu_buffer: Vec<[f32; 4]>,
+                gpu_buffer: gfx::handle::Buffer<BackendResources, [f32; 4]>,
+            }
+
+            let mut skeletons = Vec::new();
+            for w in hub.walk(&scene.first_child) {
+                match w.node.sub_node {
+                    SubNode::Skeleton(ref skeleton) => {
+                        skeletons.push(SkeletonTemp {
+                            inverse_world_transform: w.world_transform.inverse_transform().unwrap(),
+                            cpu_buffer: vec![[0.0; 4]; skeleton.bones.len() * VECS_PER_BONE],
+                            gpu_buffer: skeleton.gpu_buffer.clone(),
+                        });
+                    }
+                    SubNode::Bone { index, inverse_bind_matrix } => {
+                        let skel = skeletons.last_mut().unwrap();
+                        let mx_base = Matrix4::from(skel.inverse_world_transform.concat(&w.world_transform));
+                        let mx = (mx_base * Matrix4::from(inverse_bind_matrix)).transpose();
+                        let buf = &mut skel.cpu_buffer[index * VECS_PER_BONE .. (index + 1) * VECS_PER_BONE];
+                        buf[0] = mx.x.into();
+                        buf[1] = mx.y.into();
+                        buf[2] = mx.z.into();
+                    }
+                    _ => {}
+                }
+            }
+
+            for skel in skeletons {
+                self.encoder
+                    .update_buffer(
+                        &skel.gpu_buffer,
+                        &skel.cpu_buffer,
+                        0,
+                    )
+                    .expect("upload to GPU target buffer");
+            }
+        }
 
         // update dynamic meshes
         // Note: mutable node access here
@@ -601,7 +747,7 @@ impl Renderer {
                 continue;
             }
             match node.sub_node {
-                SubNode::Visual(_, ref mut gpu_data) => {
+                SubNode::Visual(_, ref mut gpu_data, _) => {
                     if let Some(dynamic) = gpu_data.pending.take() {
                         self.encoder
                             .copy_buffer(
@@ -729,7 +875,7 @@ impl Renderer {
 
             for w in hub.walk(&scene.first_child) {
                 let gpu_data = match w.node.sub_node {
-                    SubNode::Visual(_, ref data) => data,
+                    SubNode::Visual(_, ref data, _) => data,
                     _ => continue,
                 };
                 let mx_world: mint::ColumnMatrix4<_> = Matrix4::from(w.world_transform).into();
@@ -789,8 +935,10 @@ impl Renderer {
         }
 
         for w in hub.walk(&scene.first_child) {
-            let (material, gpu_data) = match w.node.sub_node {
-                SubNode::Visual(ref mat, ref data) => (mat, data),
+            let (material, gpu_data, skeleton) = match w.node.sub_node {
+                SubNode::Visual(ref material, ref gpu_data, ref skeleton) => {
+                    (material, gpu_data, skeleton)
+                }
                 _ => continue,
             };
 
@@ -798,30 +946,26 @@ impl Renderer {
             let pso_data = material.to_pso_data();
 
             if let Some(ref key) = gpu_data.instance_cache_key {
-                let (color, mat_param, uv_range) = match pso_data {
-                    PsoData::Basic { color, param0, ref map } => {
-                        let uv_range = if let Some(ref texture) = *map {
-                            texture.uv_range()
-                        } else {
-                            [0.0; 4]
-                        };
-                        (color, param0, uv_range)
-                    },
-                    PsoData::Pbr { .. } => (!0, 0.0, [0.0; 4]),
+                let uv_range = [0.0; 4];
+                match pso_data {
+                    PsoData::Basic { color, param0, .. } => {
+                        let vec = self.instance_cache.entry(key.clone()).or_insert((
+                            InstanceData {
+                                slice: gpu_data.slice.clone(),
+                                vertices: gpu_data.vertices.clone(),
+                                pso_data: pso_data.clone(),
+                                material: material.clone(),
+                            },
+                            Vec::new(),
+                        ));
+                        vec.1.push(Instance::basic(mx_world.into(), color, uv_range, param0));
+                        // Create a new instance and defer the draw call.
+                        continue;
+                    }
+                    _ => {}
                 };
-                let vec = self.instance_cache.entry(key.clone()).or_insert((
-                    InstanceData {
-                        slice: gpu_data.slice.clone(),
-                        vertices: gpu_data.vertices.clone(),
-                        pso_data: pso_data.clone(),
-                        material: material.clone(),
-                    },
-                    Vec::new(),
-                ));
-                vec.1
-                    .push(Instance::basic(mx_world.into(), color, uv_range, mat_param));
-                continue;
             }
+
             let instance = match pso_data {
                 PsoData::Basic { color, map, param0 } => {
                     let uv_range = match map {
@@ -830,7 +974,23 @@ impl Renderer {
                     };
                     Instance::basic(mx_world.into(), color, uv_range, param0)
                 }
-                PsoData::Pbr { .. } => Instance::pbr(mx_world.into()),
+                PsoData::Pbr { .. } => {
+                    Instance::pbr(mx_world.into())
+                }
+            };
+            let joint_buffer_view = if let Some(ref ptr) = *skeleton {
+                match hub[ptr].sub_node {
+                    SubNode::Skeleton(ref skeleton_data) => {
+                        skeleton_data.gpu_buffer_view.clone()
+                    }
+                    _ => unreachable!()
+                }
+            } else {
+                self.default_joint_buffer_view.clone()
+            };
+            let displacement_view = match gpu_data.displacements {
+                Some((_, ref view)) => view.clone(),
+                None => self.default_displacement_buffer_view.clone(),
             };
 
             Self::render_mesh(
@@ -839,6 +999,7 @@ impl Renderer {
                 gpu_data.instances.clone(),
                 self.light_buf.clone(),
                 self.pbr_buf.clone(),
+                self.displacement_contributions_buf.clone(),
                 self.out_color.clone(),
                 self.out_depth.clone(),
                 &self.pso,
@@ -850,6 +1011,10 @@ impl Renderer {
                 &shadow_sampler,
                 &shadow0,
                 &shadow1,
+                &gpu_data.displacement_contributions,
+                (displacement_view, self.map_default.to_param().1),
+                joint_buffer_view,
+                gpu_data.displacements.is_some(),
             );
         }
 
@@ -872,6 +1037,7 @@ impl Renderer {
                 self.inst_buf.clone(),
                 self.light_buf.clone(),
                 self.pbr_buf.clone(),
+                self.displacement_contributions_buf.clone(),
                 self.out_color.clone(),
                 self.out_depth.clone(),
                 &self.pso,
@@ -883,6 +1049,10 @@ impl Renderer {
                 &shadow_sampler,
                 &shadow0,
                 &shadow1,
+                &ZEROED_DISPLACEMENT_CONTRIBUTION,
+                (self.default_displacement_buffer_view.clone(), self.map_default.to_param().1),
+                self.default_joint_buffer_view.clone(),
+                false,
             );
         }
 
@@ -982,6 +1152,7 @@ impl Renderer {
         self.encoder.flush(&mut self.device);
     }
 
+    //TODO: make it generic over `gfx::Resources`
     #[inline]
     fn render_mesh(
         encoder: &mut gfx::Encoder<back::Resources, back::CommandBuffer>,
@@ -989,9 +1160,10 @@ impl Renderer {
         inst_buf: h::Buffer<back::Resources, Instance>,
         light_buf: h::Buffer<back::Resources, LightParam>,
         pbr_buf: h::Buffer<back::Resources, PbrParams>,
+        displacement_contributions_buf: h::Buffer<back::Resources, DisplacementContribution>,
         out_color: h::RenderTargetView<back::Resources, ColorFormat>,
         out_depth: h::DepthStencilView<back::Resources, DepthFormat>,
-        pso: &PipelineStates,
+        pso: &PipelineStates<back::Resources>,
         map_default: &Texture<[f32; 4]>,
         instances: &[Instance],
         vertex_buf: h::Buffer<back::Resources, Vertex>,
@@ -1000,6 +1172,10 @@ impl Renderer {
         shadow_sampler: &h::Sampler<back::Resources>,
         shadow0: &h::ShaderResourceView<back::Resources, f32>,
         shadow1: &h::ShaderResourceView<back::Resources, f32>,
+        displacement_contributions: &[DisplacementContribution],
+        displacements: (h::ShaderResourceView<back::Resources, [f32; 4]>, h::Sampler<back::Resources>),
+        joint_transform_buffer_view: h::ShaderResourceView<back::Resources, [f32; 4]>,
+        displace: bool,
     ) {
         encoder.update_buffer(&inst_buf, instances, 0).unwrap();
 
@@ -1014,22 +1190,35 @@ impl Renderer {
 
         //TODO: batch per PSO
         match material.to_pso_data() {
-            PsoData::Pbr { maps, params } => {
+            PsoData::Pbr { maps, mut params } => {
+                if displace {
+                    let data = if displacement_contributions.len() > MAX_TARGETS {
+                        error!("Too many mesh targets ({})!", displacement_contributions.len());
+                        &displacement_contributions[.. MAX_TARGETS]
+                    } else {
+                        displacement_contributions
+                    };
+                    encoder.update_buffer(&displacement_contributions_buf, data, 0).unwrap();
+                    params.pbr_flags |= PbrFlags::DISPLACEMENT_BUFFER.bits();
+                }
                 encoder.update_constant_buffer(&pbr_buf, &params);
                 let map_params = maps.into_params(map_default);
                 let data = pbr_pipe::Data {
                     vbuf: vertex_buf,
-                    inst_buf: inst_buf,
-                    globals: const_buf.clone(),
-                    lights: light_buf.clone(),
-                    params: pbr_buf.clone(),
+                    inst_buf,
+                    globals: const_buf,
+                    lights: light_buf,
+                    params: pbr_buf,
                     base_color_map: map_params.base_color,
                     normal_map: map_params.normal,
                     emissive_map: map_params.emissive,
                     metallic_roughness_map: map_params.metallic_roughness,
                     occlusion_map: map_params.occlusion,
-                    color_target: out_color.clone(),
-                    depth_target: out_depth.clone(),
+                    color_target: out_color,
+                    depth_target: out_depth,
+                    displacement_contributions: displacement_contributions_buf,
+                    displacements,
+                    joint_transforms: joint_transform_buffer_view,
                 };
                 encoder.draw(&slice, &pso.pbr, &data);
             }
@@ -1037,14 +1226,14 @@ impl Renderer {
                 //TODO: avoid excessive cloning
                 let data = basic_pipe::Data {
                     vbuf: vertex_buf,
-                    inst_buf: inst_buf,
-                    cb_lights: light_buf.clone(),
+                    inst_buf,
+                    cb_lights: light_buf,
                     cb_globals: const_buf.clone(),
                     tex_map: map.unwrap_or(map_default.clone()).to_param(),
                     shadow_map0: (shadow0.clone(), shadow_sampler.clone()),
                     shadow_map1: (shadow1.clone(), shadow_sampler.clone()),
-                    out_color: out_color.clone(),
-                    out_depth: (out_depth.clone(), (0, 0)),
+                    out_color,
+                    out_depth: (out_depth, (0, 0)),
                 };
                 encoder.draw(&slice, pso.pso_by_material(&material), &data);
             }

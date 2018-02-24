@@ -22,7 +22,7 @@ fn create_cubes(
     levels: &[Level],
 ) -> Vec<Cube> {
     let mut geometry = three::Geometry::cuboid(2.0, 2.0, 2.0);
-    for v in geometry.base_shape.vertices.iter_mut() {
+    for v in geometry.base.vertices.iter_mut() {
         v.z += 1.0;
     }
 

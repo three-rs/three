@@ -5,11 +5,13 @@ use material::Material;
 use mesh::DynamicMesh;
 use node::{NodeInternal, NodePointer, TransformInternal};
 use object::Base;
-use render::GpuData;
+use render::{BackendResources, GpuData};
+use skeleton::{Bone, Skeleton};
 use text::{Operation as TextOperation, TextData};
 
 use cgmath::Transform;
 use froggy;
+use gfx;
 use mint;
 
 use std::{mem, ops};
@@ -27,13 +29,26 @@ pub(crate) enum SubLight {
 
 #[derive(Clone, Debug)]
 pub(crate) struct LightData {
-    pub(crate) color: Color,
-    pub(crate) intensity: f32,
-    pub(crate) sub_light: SubLight,
-    pub(crate) shadow: Option<(ShadowMap, ShadowProjection)>,
+    pub color: Color,
+    pub intensity: f32,
+    pub sub_light: SubLight,
+    pub shadow: Option<(ShadowMap, ShadowProjection)>,
 }
 
-/// A sub-node specifies and contains the context-specific data owned by a `Node`.
+#[derive(Clone, Debug)]
+pub(crate) struct SkeletonData {
+    pub bones: Vec<Bone>,
+    pub gpu_buffer_view: gfx::handle::ShaderResourceView<BackendResources, [f32; 4]>,
+    pub gpu_buffer: gfx::handle::Buffer<BackendResources, [f32; 4]>,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct VisualData {
+    pub material: Material,
+    pub gpu: GpuData,
+    pub skeleton: Option<Skeleton>,
+}
+
 #[derive(Debug)]
 pub(crate) enum SubNode {
     /// No extra data.
@@ -45,12 +60,17 @@ pub(crate) enum SubNode {
     /// Renderable text for 2D user interface.
     UiText(TextData),
     /// Renderable 3D content, such as a mesh.
-    Visual(Material, GpuData),
+    Visual(Material, GpuData, Option<Skeleton>),
     /// Lighting information for illumination and shadow casting.
     Light(LightData),
+    /// A single bone.
+    Bone { index: usize, inverse_bind_matrix: mint::ColumnMatrix4<f32> },
+    /// Skeleton root.
+    Skeleton(SkeletonData),
 }
 
 pub(crate) type Message = (froggy::WeakPointer<NodeInternal>, Operation);
+
 #[derive(Debug)]
 pub(crate) enum Operation {
     AddChild(NodePointer),
@@ -64,8 +84,10 @@ pub(crate) enum Operation {
         Option<f32>,
     ),
     SetMaterial(Material),
-    SetTexelRange(mint::Point2<i16>, mint::Vector2<u16>),
+    SetSkeleton(Skeleton),
     SetShadow(ShadowMap, ShadowProjection),
+    SetTexelRange(mint::Point2<i16>, mint::Vector2<u16>),
+    SetWeights(Vec<f32>),
 }
 
 pub(crate) type HubPtr = Arc<Mutex<Hub>>;
@@ -116,8 +138,9 @@ impl Hub {
         &mut self,
         mat: Material,
         gpu_data: GpuData,
+        skeleton: Option<Skeleton>,
     ) -> Base {
-        self.spawn(SubNode::Visual(mat, gpu_data))
+        self.spawn(SubNode::Visual(mat, gpu_data, skeleton))
     }
 
     pub(crate) fn spawn_light(
@@ -127,19 +150,32 @@ impl Hub {
         self.spawn(SubNode::Light(data))
     }
 
+    pub(crate) fn spawn_skeleton(
+        &mut self,
+        data: SkeletonData,
+    ) -> Base {
+        self.spawn(SubNode::Skeleton(data))
+    }
+
     pub(crate) fn process_messages(&mut self) {
-        while let Ok((pnode, operation)) = self.message_rx.try_recv() {
-            let ptr = match pnode.upgrade() {
+        while let Ok((weak_ptr, operation)) = self.message_rx.try_recv() {
+            let ptr = match weak_ptr.upgrade() {
                 Ok(ptr) => ptr,
                 Err(_) => continue,
             };
             match operation {
+                Operation::SetAudio(operation) => {
+                    if let SubNode::Audio(ref mut data) = self.nodes[&ptr].sub_node {
+                        Hub::process_audio(operation, data);
+                    }
+                },
                 Operation::SetVisible(visible) => {
                     self.nodes[&ptr].visible = visible;
                 }
                 Operation::SetTransform(pos, rot, scale) => {
                     let transform = &mut self.nodes[&ptr].transform;
                     if let Some(pos) = pos {
+
                         transform.disp = mint::Vector3::from(pos).into();
                     }
                     if let Some(rot) = rot {
@@ -192,14 +228,6 @@ impl Hub {
                         cur_ptr = node.next_sibling.clone(); //TODO: avoid clone
                     }
                 }
-                Operation::SetAudio(operation) => {
-                    match self.nodes[&ptr].sub_node {
-                        SubNode::Audio(ref mut data) => {
-                            Hub::process_audio(operation, data);
-                        }
-                        _ => unreachable!()
-                    }
-                }
                 Operation::SetText(operation) => {
                     match self.nodes[&ptr].sub_node {
                         SubNode::UiText(ref mut data) => {
@@ -208,31 +236,69 @@ impl Hub {
                         _ => unreachable!()
                     }
                 }
-                Operation::SetShadow(map, proj) => {
-                    match self.nodes[&ptr].sub_node {
-                        SubNode::Light(ref mut data) => {
-                            data.shadow = Some((map, proj));
-                        }
-                        _ => unreachable!()
-                    }
-                }
                 Operation::SetMaterial(material) => {
                     match self.nodes[&ptr].sub_node {
-                        SubNode::Visual(ref mut mat, _) => {
+                        SubNode::Visual(ref mut mat, _, _) => {
                             *mat = material;
                         }
                         _ => unreachable!()
                     }
                 }
+                Operation::SetSkeleton(sleketon) => {
+                    match self.nodes[&ptr].sub_node {
+                        SubNode::Visual(_, _, ref mut skel) => {
+                            *skel = Some(sleketon);
+                        }
+                        _ => unreachable!()
+                    }
+                }
+                Operation::SetShadow(map, proj) => {
+                    match self.nodes[&ptr].sub_node {
+                        SubNode::Light(ref mut data) => {
+                            data.shadow = Some((map, proj));
+                        },
+                    _ => unreachable!()
+                    }
+                }
                 Operation::SetTexelRange(base, size) => {
                     match self.nodes[&ptr].sub_node {
-                        SubNode::Visual(Material::Sprite(ref mut params), _) => {
+                        SubNode::Visual(Material::Sprite(ref mut params), _, _) => {
                             params.map.set_texel_range(base, size);
                         }
                         _ => unreachable!()
                     }
                 }
-            };
+                Operation::SetWeights(weights) => {
+                    fn set_weights(
+                        gpu_data: &mut GpuData,
+                        weights: &[f32],
+                    ) {
+                        use std::iter::repeat;
+                        for (out, input) in gpu_data.displacement_contributions
+                            .iter_mut()
+                            .zip(weights.iter().chain(repeat(&0.0)))
+                        {
+                            out.weight = *input;
+                        }
+                    }
+
+                    let mut x = match self.nodes[&ptr].sub_node {
+                        SubNode::Visual(_, ref mut gpu_data, _) => {
+                            set_weights(gpu_data, &weights);
+                            continue;
+                        }
+                        SubNode::Group { ref first_child } => first_child.clone(),
+                        _ => continue,
+                    };
+
+                    while let Some(ptr) = x {
+                        if let SubNode::Visual(_, ref mut gpu_data, _) = self.nodes[&ptr].sub_node {
+                            set_weights(gpu_data, &weights);
+                        }
+                        x = self.nodes[&ptr].next_sibling.clone();
+                    }
+                }
+            }
         }
 
         self.nodes.sync_pending();
@@ -277,7 +343,7 @@ impl Hub {
         mesh: &DynamicMesh,
     ) {
         match self[mesh].sub_node {
-            SubNode::Visual(_, ref mut gpu_data) => gpu_data.pending = Some(mesh.dynamic.clone()),
+            SubNode::Visual(_, ref mut gpu_data, _) => gpu_data.pending = Some(mesh.dynamic.clone()),
             _ => unreachable!(),
         }
     }

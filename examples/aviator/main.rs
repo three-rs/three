@@ -19,7 +19,7 @@ const COLOR_BROWN_DARK: three::Color = 0x23190f;
 const COLOR_BLUE: three::Color = 0x68c3c0;
 
 fn main() {
-    env_logger::init().unwrap();
+    env_logger::init();
     let mut rng = rand::thread_rng();
 
     let mut win = three::Window::new("Three-rs Aviator demo");
