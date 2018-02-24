@@ -480,8 +480,12 @@ impl Delta for axis::Key {
         &self,
         input: &Input,
     ) -> Option<TimerDuration> {
-        self.delta(input)
-            .map(|delta| delta as TimerDuration * input.delta_time())
+        match (self.pos.hit(input), self.neg.hit(input)) {
+            (true, true) => Some(0),
+            (true, false) => Some(1),
+            (false, true) => Some(-1),
+            (false, false) => None,
+        }.map(|delta| delta as TimerDuration * input.delta_time())
     }
 }
 
