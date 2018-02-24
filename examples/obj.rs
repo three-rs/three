@@ -8,7 +8,7 @@ fn main() {
     let obj_path = concat!(env!("CARGO_MANIFEST_DIR"), "/test_data/car.obj");
     let path = args.nth(1).unwrap_or(obj_path.into());
     let mut win = three::Window::new("Three-rs obj loading example");
-    let cam = win.factory.perspective_camera(60.0, 1.0 .. 10.0);
+    let cam = win.factory.perspective_camera(60.0, 1.0 .. 1000.0);
     let mut controls = three::controls::Orbit::builder(&cam)
         .position([0.0, 2.0, -5.0])
         .target([0.0, 0.0, 0.0])

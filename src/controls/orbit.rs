@@ -122,27 +122,25 @@ impl Orbit {
         &mut self,
         input: &Input,
     ) {
-        if !input.hit(self.button) && input.mouse_wheel().abs() < 1e-6 {
-            return;
-        }
-
-        if input.mouse_movements().len() > 0 {
-            let mouse_delta = input.mouse_delta_ndc();
-            let pre = Decomposed {
-                disp: -self.target.to_vec(),
-                ..Decomposed::one()
-            };
-            let q_ver = Quaternion::from_angle_y(Rad(self.speed * (mouse_delta.x)));
-            let axis = self.transform.rot * Vector3::unit_x();
-            let q_hor = Quaternion::from_axis_angle(axis, Rad(self.speed * (mouse_delta.y)));
-            let post = Decomposed {
-                scale: 1.0 + input.mouse_wheel() / 1000.0,
-                rot: q_hor * q_ver,
-                disp: self.target.to_vec(),
-            };
-            self.transform = post.concat(&pre.concat(&self.transform));
-            let pf: mint::Vector3<f32> = self.transform.disp.into();
-            self.object.set_transform(pf, self.transform.rot, 1.0);
-        }
+        let mouse_delta = if input.hit(self.button) {
+            input.mouse_delta_ndc()
+        } else {
+            [0.0, 0.0].into()
+        };
+        let pre = Decomposed {
+            disp: -self.target.to_vec(),
+            ..Decomposed::one()
+        };
+        let q_ver = Quaternion::from_angle_y(Rad(self.speed * (mouse_delta.x)));
+        let axis = self.transform.rot * Vector3::unit_x();
+        let q_hor = Quaternion::from_axis_angle(axis, Rad(self.speed * (mouse_delta.y)));
+        let post = Decomposed {
+            scale: 1.0 + input.mouse_wheel() / 1000.0,
+            rot: q_hor * q_ver,
+            disp: self.target.to_vec(),
+        };
+        self.transform = post.concat(&pre.concat(&self.transform));
+        let pf: mint::Vector3<f32> = self.transform.disp.into();
+        self.object.set_transform(pf, self.transform.rot, 1.0);
     }
 }
