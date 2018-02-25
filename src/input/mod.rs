@@ -188,8 +188,10 @@ impl Input {
     ) {
         match state {
             ElementState::Pressed => {
-                self.state.keys_pressed.insert(key);
-                self.delta.keys_hit.push(key);
+                if !self.state.keys_pressed.contains(&key) {
+                    self.state.keys_pressed.insert(key);
+                    self.delta.keys_hit.push(key);
+                }
             }
             ElementState::Released => {
                 self.state.keys_pressed.remove(&key);
