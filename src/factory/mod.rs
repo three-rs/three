@@ -536,6 +536,30 @@ impl Factory {
         ))
     }
 
+    /// Create a `Sprite` sharing the material with another one.
+    /// Rendering a sequence of instanced sprites is much faster.
+    pub fn sprite_instance(
+        &mut self,
+        template: &Sprite,
+    ) -> Sprite {
+        let instances = self.create_instance_buffer();
+        let mut hub = self.hub.lock().unwrap();
+        let (material, gpu_data) = match hub[template].sub_node {
+            SubNode::Visual(ref mat, ref gpu, _) => {
+                (mat.clone(), GpuData {
+                    instances,
+                    instance_cache_key: Some(InstanceCacheKey {
+                        material: mat.clone(),
+                        geometry: self.quad_buf.clone(),
+                    }),
+                    ..gpu.clone()
+                })
+            }
+            _ => unreachable!(),
+        };
+        Sprite::new(hub.spawn_visual(material, gpu_data, None))
+    }
+
     /// Create new `AmbientLight`.
     pub fn ambient_light(
         &mut self,

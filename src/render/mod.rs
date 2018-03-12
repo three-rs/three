@@ -945,15 +945,18 @@ impl Renderer {
             let mx_world: mint::ColumnMatrix4<_> = Matrix4::from(w.world_transform).into();
             let pso_data = material.to_pso_data();
 
-            if let Some(ref key) = gpu_data.instance_cache_key {
-                let uv_range = [0.0; 4];
-                match pso_data {
-                    PsoData::Basic { color, param0, .. } => {
+            let instance = match pso_data {
+                PsoData::Basic { color, map, param0 } => {
+                    let uv_range = match map {
+                        Some(ref map) => map.uv_range(),
+                        None => [0.0; 4],
+                    };
+                    if let Some(ref key) = gpu_data.instance_cache_key {
                         let vec = self.instance_cache.entry(key.clone()).or_insert((
                             InstanceData {
                                 slice: gpu_data.slice.clone(),
                                 vertices: gpu_data.vertices.clone(),
-                                pso_data: pso_data.clone(),
+                                pso_data: PsoData::Basic { color, map, param0 },
                                 material: material.clone(),
                             },
                             Vec::new(),
@@ -962,16 +965,6 @@ impl Renderer {
                         // Create a new instance and defer the draw call.
                         continue;
                     }
-                    _ => {}
-                };
-            }
-
-            let instance = match pso_data {
-                PsoData::Basic { color, map, param0 } => {
-                    let uv_range = match map {
-                        Some(ref map) => map.uv_range(),
-                        None => [0.0; 4],
-                    };
                     Instance::basic(mx_world.into(), color, uv_range, param0)
                 }
                 PsoData::Pbr { .. } => {
