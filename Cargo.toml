@@ -1,6 +1,6 @@
 [package]
 name = "three"
-version = "0.3.0"
+version = "0.3.1"
 authors = ["Three-rs Developers"]
 license = "MIT/Apache-2.0"
 description = "Three.js inspired 3D engine in Rust"
@@ -20,7 +20,7 @@ gltf-loader = ["gltf", "gltf-importer", "gltf-utils"]
 opengl = ["gfx_device_gl", "gfx_window_glutin", "glutin"]
 
 [build-dependencies]
-includedir_codegen = "0.2.0"
+includedir_codegen = "0.3"
 
 [dependencies]
 arrayvec = "0.4"
@@ -35,7 +35,7 @@ gltf = { features = ["names"], optional = true, version = "0.9.3" }
 gltf-importer = { features = ["names"], optional = true, version = "0.9.3" }
 gltf-utils = { features = ["names"], optional = true, version = "0.9.3" }
 image = "0.18"
-includedir = "0.2"
+includedir = "0.3"
 itertools = "0.7"
 log = "0.4"
 obj = { version = "0.8.1", features = ["genmesh"] }
