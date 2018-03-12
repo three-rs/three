@@ -304,12 +304,12 @@ pub(crate) struct GpuData {
     pub displacement_contributions: Vec<DisplacementContribution>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 struct InstanceData {
-    pub slice: gfx::Slice<back::Resources>,
-    pub vertices: h::Buffer<back::Resources, Vertex>,
-    pub pso_data: PsoData,
-    pub material: Material,
+    slice: gfx::Slice<back::Resources>,
+    vertices: h::Buffer<back::Resources, Vertex>,
+    material: Material,
+    list: Vec<Instance>,
 }
 
 #[derive(Clone, Debug)]
@@ -529,7 +529,7 @@ pub struct Renderer {
     debug_quads: froggy::Storage<DebugQuad>,
     size: (u32, u32),
     font_cache: HashMap<PathBuf, Font>,
-    instance_cache: HashMap<InstanceCacheKey, (InstanceData, Vec<Instance>)>,
+    instance_cache: HashMap<InstanceCacheKey, InstanceData>,
     /// `ShadowType` of this `Renderer`.
     pub shadow: ShadowType,
 }
@@ -931,7 +931,7 @@ impl Renderer {
 
         // clear instance cache
         for instances in self.instance_cache.values_mut() {
-            instances.1.clear();
+            instances.list.clear();
         }
 
         for w in hub.walk(&scene.first_child) {
@@ -952,16 +952,15 @@ impl Renderer {
                         None => [0.0; 4],
                     };
                     if let Some(ref key) = gpu_data.instance_cache_key {
-                        let vec = self.instance_cache.entry(key.clone()).or_insert((
-                            InstanceData {
+                        let data = self.instance_cache
+                            .entry(key.clone())
+                            .or_insert_with(|| InstanceData {
                                 slice: gpu_data.slice.clone(),
                                 vertices: gpu_data.vertices.clone(),
-                                pso_data: PsoData::Basic { color, map, param0 },
                                 material: material.clone(),
-                            },
-                            Vec::new(),
-                        ));
-                        vec.1.push(Instance::basic(mx_world.into(), color, uv_range, param0));
+                                list: Vec::new(),
+                            });
+                        data.list.push(Instance::basic(mx_world.into(), color, uv_range, param0));
                         // Create a new instance and defer the draw call.
                         continue;
                     }
@@ -1012,11 +1011,11 @@ impl Renderer {
         }
 
         // render instanced meshes
-        for &(ref mesh_data, ref all_instances) in self.instance_cache.values() {
-            if all_instances.len() > self.inst_buf.len() {
+        for data in self.instance_cache.values() {
+            if data.list.len() > self.inst_buf.len() {
                 self.inst_buf = self.factory
                     .create_buffer(
-                        all_instances.len(),
+                        data.list.len(),
                         gfx::buffer::Role::Vertex,
                         gfx::memory::Usage::Dynamic,
                         gfx::memory::Bind::TRANSFER_DST,
@@ -1035,10 +1034,10 @@ impl Renderer {
                 self.out_depth.clone(),
                 &self.pso,
                 &self.map_default,
-                all_instances,
-                mesh_data.vertices.clone(),
-                mesh_data.slice.clone(),
-                &mesh_data.material,
+                &data.list,
+                data.vertices.clone(),
+                data.slice.clone(),
+                &data.material,
                 &shadow_sampler,
                 &shadow0,
                 &shadow1,
@@ -1160,7 +1159,7 @@ impl Renderer {
         map_default: &Texture<[f32; 4]>,
         instances: &[Instance],
         vertex_buf: h::Buffer<back::Resources, Vertex>,
-        slice: gfx::Slice<back::Resources>,
+        mut slice: gfx::Slice<back::Resources>,
         material: &Material,
         shadow_sampler: &h::Sampler<back::Resources>,
         shadow0: &h::ShaderResourceView<back::Resources, f32>,
@@ -1172,14 +1171,9 @@ impl Renderer {
     ) {
         encoder.update_buffer(&inst_buf, instances, 0).unwrap();
 
-        let slice = if instances.len() > 1 {
-            gfx::Slice {
-                instances: Some((instances.len() as u32, 0)),
-                ..slice
-            }
-        } else {
-            slice
-        };
+        if instances.len() > 1 {
+            slice.instances = Some((instances.len() as u32, 0));
+        }
 
         //TODO: batch per PSO
         match material.to_pso_data() {
