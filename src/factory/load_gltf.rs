@@ -15,7 +15,7 @@ use material;
 use mint;
 use std::{fs, io};
 
-use camera::Camera;
+use camera::{Camera, Orthographic, Perspective, Projection};
 use gltf_utils::AccessorIter;
 use object::Object;
 use skeleton::Skeleton;
@@ -78,6 +78,122 @@ impl AsRef<object::Base> for Gltf {
 }
 
 impl object::Object for Gltf {}
+
+/// Raw data loaded from a glTF file with [`Factory::load_gltf`].
+///
+/// This is the raw data used as a template to instantiate three objects in the scene. Entire
+/// glTF scenes can be instantiated using [`Factory::instantiate_gltf_scene`].
+///
+/// [`Factory::load_gltf`]: struct.Factory.html#method.load_gltf
+#[derive(Debug, Clone)]
+pub struct GltfDefinitions {
+    /// The materials loaded from the glTF file.
+    pub materials: Vec<Material>,
+
+    /// The camera projections defined in the glTF file.
+    pub cameras: Vec<Projection>,
+
+    /// The meshes loaded from the glTF file.
+    pub meshes: Vec<GltfMeshDefinition>,
+
+    /// The scene nodes loaded from the glTF file.
+    pub nodes: Vec<GltfNodeDefinition>,
+
+    /// The scenes described from the glTF file.
+    pub scenes: Vec<GltfSceneDefinition>,
+}
+
+/// A template for a glTF mesh instance.
+///
+/// Note that a glTF mesh doesn't map directly to three's concept of a [`Mesh`] (see
+/// [`GltfPrimitiveDefinition`] for a more direct analogy). Rather, `GltfMeshDefinition` can be instantated
+/// into a [`Group`] with one or more [`Mesh`] instances added to the group.
+#[derive(Debug, Clone)]
+pub struct GltfMeshDefinition {
+    /// The name of the mesh template.
+    pub name: Option<String>,
+
+    /// The primitives included in the mesh template.
+    ///
+    /// When the mesh template is instantiated, each primitive is instantiated as a [`Mesh`].
+    pub primitives: Vec<GltfPrimitiveDefinition>,
+}
+
+/// A template for a glTF mesh primitive.
+///
+/// A `GltfPrimitiveDefinition` can be converted directly into a [`Mesh`] using [`Factory::mesh`]. Note that
+/// to do this, the material must first be retrieved by index from the parent [`GltfDefinitions`].
+#[derive(Debug, Clone)]
+pub struct GltfPrimitiveDefinition {
+    /// The geometric data described by this primitive.
+    pub geometry: Geometry,
+
+    /// The index of the material associated with this mesh primitive, if any.
+    ///
+    /// The index can be used to lookup the material data from the `materials` map of the parent
+    /// [`GltfDefinitions`].
+    ///
+    /// If no material is specified, then the glTF default material (an unlit, flat black material)
+    /// will be used when instantiating the primitive.
+    pub material: Option<usize>,
+}
+
+/// The definition of a node used in a glTF file.
+///
+/// Nodes are composed to create a graph of elements in a glTF scene.
+#[derive(Debug, Clone)]
+pub struct GltfNodeDefinition {
+    /// The name of the node.
+    pub name: Option<String>,
+
+    /// The index of the mesh associated with this node, if any.
+    ///
+    /// The index can be used to lookup the associated mesh definition in the `meshes` map of the
+    /// parent [`GltfData`].
+    pub mesh: Option<usize>,
+
+    /// The index of the camera associated with this node, if any.
+    ///
+    /// The index can be used to lookup the associated camera projection in the `cameras` map of
+    /// the parent [`GltfData`].
+    pub camera: Option<usize>,
+
+    /// The indices of this node's children. A node may have zero or more children.
+    ///
+    /// Each index corresponds to a node in the `nodes` map of the parent [`GltfDefinitions`].
+    pub children: Vec<usize>,
+
+    /// The node's local translation.
+    ///
+    /// This translation is relative to its parent node when instantiated.
+    pub translation: mint::Point3<f32>,
+
+    /// The node's local orientation.
+    ///
+    /// This rotation is relative to its parent node when instantiated.
+    pub rotation: mint::Quaternion<f32>,
+
+    /// The node's local scale.
+    ///
+    /// This scale is relative to its parent node when instantiated.
+    pub scale: f32,
+}
+
+/// The definition of a scene from a glTF file.
+///
+/// A glTF scene is a hierarchy of nodes, begining with one or more root nodes. Note that glTF
+/// scenes are *not* the same as three [`Scene`]s, and must be explicity added to a [`Scene`]
+/// when instantiated.
+#[derive(Debug, Clone)]
+pub struct GltfSceneDefinition {
+    /// The name of the scene.
+    pub name: Option<String>,
+
+    /// The indices of the root nodes of the scene.
+    ///
+    /// These indices correspond to elements in the
+    pub roots: Vec<usize>,
+}
 
 fn build_scene_hierarchy(
     factory: &mut Factory,
@@ -377,7 +493,6 @@ fn load_meshes(
     }
     meshes
 }
-
 
 fn load_skeletons(
     factory: &mut Factory,
