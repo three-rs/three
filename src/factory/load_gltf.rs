@@ -99,8 +99,11 @@ pub struct GltfDefinitions {
     /// The scene nodes loaded from the glTF file.
     pub nodes: Vec<GltfNodeDefinition>,
 
-    /// The scenes described from the glTF file.
+    /// The scenes described in the glTF file.
     pub scenes: Vec<GltfSceneDefinition>,
+
+    /// The skinned skeltons loaded from the glTF file.
+    pub skins: Vec<GltfSkinDefinition>,
 }
 
 /// A template for a glTF mesh instance.
@@ -193,6 +196,29 @@ pub struct GltfSceneDefinition {
     ///
     /// These indices correspond to elements in the
     pub roots: Vec<usize>,
+}
+
+/// The definition for a skeleton used for vertex skinning in a glTF file.
+///
+/// When instantiated, this corresponds to a [`Skeleton`].
+#[derive(Debug, Clone)]
+pub struct GltfSkinDefinition {
+    /// The bones composing the skeleton.
+    pub bones: Vec<GltfBoneDefinition>,
+}
+
+/// The definition for a bone in a [`GltfSkinDefinition`].
+///
+/// When instantiated, this corresponds to a [`Bone`].
+#[derive(Debug, Clone)]
+pub struct GltfBoneDefinition {
+    /// The inverse bind matrix used to transform the mesh for this bone's joint.
+    pub inverse_bind_matrix: mint::ColumnMatrix4<f32>,
+
+    /// The index of the node that acts as the joint for this bone.
+    ///
+    /// This index corresponds to a node in the `nodes` list of the parent [`GltfDefinitions`].
+    pub joint: usize,
 }
 
 fn build_scene_hierarchy(
