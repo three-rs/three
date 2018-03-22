@@ -1,5 +1,5 @@
 #[cfg(feature = "gltf-loader")]
-mod load_gltf;
+pub(crate) mod load_gltf;
 
 use std::{cmp, fs, io, iter, ops};
 use std::borrow::Cow;
@@ -16,11 +16,7 @@ use image;
 use itertools::Either;
 use mint;
 use obj;
-#[cfg(feature = "gltf-loader")]
-use vec_map::VecMap;
 
-#[cfg(feature = "gltf-loader")]
-use animation::Clip;
 use audio;
 use camera::{Camera, Projection, ZRange};
 use color::{BLACK, Color};
@@ -78,60 +74,6 @@ pub struct Factory {
     texture_cache: HashMap<PathBuf, Texture<[f32; 4]>>,
     default_sampler: gfx::handle::Sampler<BackendResources>,
 }
-
-/// Loaded glTF 2.0 returned by [`Factory::load_gltf`].
-///
-/// [`Factory::load_gltf`]: struct.Factory.html#method.load_gltf
-#[cfg(feature = "gltf-loader")]
-#[derive(Debug, Clone)]
-pub struct Gltf {
-    /// Imported camera views.
-    pub cameras: Vec<Camera>,
-
-    /// Imported animation clips.
-    pub clips: Vec<Clip>,
-
-    /// The node heirarchy of the default scene.
-    ///
-    /// If the `glTF` contained no default scene then this
-    /// container will be empty.
-    pub heirarchy: VecMap<object::Group>,
-
-    /// Imported mesh instances.
-    ///
-    /// ### Notes
-    ///
-    /// * Must be kept alive in order to be displayed.
-    pub instances: Vec<Mesh>,
-
-    /// Imported mesh materials.
-    pub materials: Vec<Material>,
-
-    /// Imported mesh templates.
-    pub meshes: VecMap<Vec<Mesh>>,
-
-    /// The root node of the default scene.
-    ///
-    /// If the `glTF` contained no default scene then this group
-    /// will have no children.
-    pub root: object::Group,
-
-    /// Imported skeletons.
-    pub skeletons: Vec<Skeleton>,
-
-    /// Imported textures.
-    pub textures: Vec<Texture<[f32; 4]>>,
-}
-
-#[cfg(feature = "gltf-loader")]
-impl AsRef<object::Base> for Gltf {
-    fn as_ref(&self) -> &object::Base {
-        self.root.as_ref()
-    }
-}
-
-#[cfg(feature = "gltf-loader")]
-impl object::Object for Gltf {}
 
 fn f2i(x: f32) -> I8Norm {
     I8Norm(cmp::min(cmp::max((x * 127.0) as isize, -128), 127) as i8)
@@ -211,6 +153,19 @@ impl Factory {
         let data = hub::SkeletonData { bones, gpu_buffer, gpu_buffer_view };
         let object = self.hub.lock().unwrap().spawn_skeleton(data);
         Skeleton { object }
+    }
+
+    /// Create a new camera using the provided projection.
+    ///
+    /// This allows you to create a camera from a predefined projection, which is useful if you
+    /// e.g. load projection data from a file and don't necessarily know ahead of time what type
+    /// of projection the camera uses. If you're manually creating a camera, you should use
+    /// [`perspective_camera`] or [`orthographic_camera`].
+    pub fn camera<P: Into<Projection>>(&mut self, projection: P) -> Camera {
+        Camera::new(
+            &mut *self.hub.lock().unwrap(),
+            projection.into(),
+        )
     }
 
     /// Create new [Orthographic] Camera.
