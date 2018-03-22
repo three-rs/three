@@ -22,7 +22,7 @@ use skeleton::Skeleton;
 use std::path::{Path, PathBuf};
 use vec_map::VecMap;
 
-use animation::Clip;
+use animation::{Clip, Track};
 use {Group, Material, Mesh, Texture};
 use geometry::{Geometry, Shape};
 use object;
@@ -104,6 +104,9 @@ pub struct GltfDefinitions {
 
     /// The skinned skeltons loaded from the glTF file.
     pub skins: Vec<GltfSkinDefinition>,
+
+    /// The animation clips loaded from the glTF file.
+    pub animations: Vec<GltfAnimationDefinition>,
 }
 
 /// A template for a glTF mesh instance.
@@ -219,6 +222,22 @@ pub struct GltfBoneDefinition {
     ///
     /// This index corresponds to a node in the `nodes` list of the parent [`GltfDefinitions`].
     pub joint: usize,
+}
+
+/// The definition for an animation in a glTF file.
+///
+/// When instantiated, this corresponds to a [`Clip`].
+#[derive(Debug, Clone)]
+pub struct GltfAnimationDefinition {
+    /// The name of the animation.
+    pub name: Option<String>,
+
+    /// The tracks making up the animation.
+    ///
+    /// Each track is composed of a [`Track`] containing the data for the track, and an index
+    /// of the node that the track targets. The node is an index into the `nodes` list of the
+    /// parent [`GltfDefinitions`].
+    pub tracks: Vec<(Track, usize)>,
 }
 
 fn build_scene_hierarchy(
