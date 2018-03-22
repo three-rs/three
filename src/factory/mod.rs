@@ -1,5 +1,5 @@
 #[cfg(feature = "gltf-loader")]
-mod load_gltf;
+pub(crate) mod load_gltf;
 
 use std::{cmp, fs, io, iter, ops};
 use std::borrow::Cow;
@@ -36,9 +36,6 @@ use sprite::Sprite;
 use skeleton::{Bone, Skeleton};
 use text::{Font, Text, TextData};
 use texture::{CubeMap, CubeMapPath, FilterMethod, Sampler, Texture, WrapMode};
-
-#[cfg(feature = "gltf-loader")]
-pub use self::load_gltf::*;
 
 const TANGENT_X: [I8Norm; 4] = [I8Norm(1), I8Norm(0), I8Norm(0), I8Norm(1)];
 const NORMAL_Z: [I8Norm; 4] = [I8Norm(0), I8Norm(0), I8Norm(1), I8Norm(0)];
@@ -156,6 +153,19 @@ impl Factory {
         let data = hub::SkeletonData { bones, gpu_buffer, gpu_buffer_view };
         let object = self.hub.lock().unwrap().spawn_skeleton(data);
         Skeleton { object }
+    }
+
+    /// Create a new camera using the provided projection.
+    ///
+    /// This allows you to create a camera from a predefined projection, which is useful if you
+    /// e.g. load projection data from a file and don't necessarily know ahead of time what type
+    /// of projection the camera uses. If you're manually creating a camera, you should use
+    /// [`perspective_camera`] or [`orthographic_camera`].
+    pub fn camera<P: Into<Projection>>(&mut self, projection: P) -> Camera {
+        Camera::new(
+            &mut *self.hub.lock().unwrap(),
+            projection.into(),
+        )
     }
 
     /// Create new [Orthographic] Camera.

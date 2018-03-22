@@ -14,70 +14,85 @@ use image;
 use material;
 use mint;
 use std::{fs, io};
+use std::collections::HashMap;
 
 use camera::{Camera, Orthographic, Perspective, Projection};
 use gltf_utils::AccessorIter;
-use object::Object;
 use skeleton::Skeleton;
 use std::path::{Path, PathBuf};
-use vec_map::VecMap;
 
 use animation::{Clip, Track};
 use {Group, Material, Mesh, Texture};
 use geometry::{Geometry, Shape};
-use object;
+use object::{self, Object};
 use super::Factory;
 
-/// Loaded glTF 2.0 returned by [`Factory::load_gltf`].
+/// The contents of a scene defined in a glTF file, fully insantiated and ready to be added to
+/// a scene and rendered.
 ///
-/// [`Factory::load_gltf`]: struct.Factory.html#method.load_gltf
+/// # Notes
+///
+/// The various contents
 #[derive(Debug, Clone)]
-pub struct Gltf {
-    /// Imported camera views.
-    pub cameras: Vec<Camera>,
-
-    /// Imported animation clips.
-    pub clips: Vec<Clip>,
-
-    /// The node heirarchy of the default scene.
-    ///
-    /// If the `glTF` contained no default scene then this
-    /// container will be empty.
-    pub heirarchy: VecMap<object::Group>,
-
-    /// Imported mesh instances.
-    ///
-    /// ### Notes
-    ///
-    /// * Must be kept alive in order to be displayed.
-    pub instances: Vec<Mesh>,
-
-    /// Imported mesh materials.
-    pub materials: Vec<Material>,
-
-    /// Imported mesh templates.
-    pub meshes: VecMap<Vec<Mesh>>,
-
+pub struct GltfScene {
     /// The root node of the default scene.
     ///
-    /// If the `glTF` contained no default scene then this group
-    /// will have no children.
-    pub root: object::Group,
+    /// While the glTF format allows scenes to have an arbitrary number of root nodes, all scene
+    /// roots are added to a single root group to make it easier to manipulate the scene as a
+    /// whole. See `roots` for the full list of root nodes for the scene.
+    pub group: object::Group,
+
+    /// The indices of the root nodes of the scene.
+    ///
+    /// Each index corresponds to a node in `nodes`.
+    pub roots: Vec<usize>,
+
+    /// The nodes that are part of the scene.
+    ///
+    /// Node instances are stored in a [`HashMap`] where the key is the node's index in the source
+    /// [`GltfDefinitions::nodes`]. Note that a [`HashMap`] is used instead of a [`Vec`] because
+    /// the not all nodes in the source file are guaranteed to be used in the scene, and so node
+    /// indices in the scene instance may not be contiguous.
+    pub nodes: HashMap<usize, GltfNode>,
+
+    /// Imported animation clips.
+    pub clips: HashMap<usize, Clip>,
 
     /// Imported skeletons.
-    pub skeletons: Vec<Skeleton>,
-
-    /// Imported textures.
-    pub textures: Vec<Texture<[f32; 4]>>,
+    pub skeletons: HashMap<usize, Skeleton>,
 }
 
-impl AsRef<object::Base> for Gltf {
+impl AsRef<object::Base> for GltfScene {
     fn as_ref(&self) -> &object::Base {
-        self.root.as_ref()
+        self.group.as_ref()
     }
 }
 
-impl object::Object for Gltf {}
+impl object::Object for GltfScene {}
+
+/// A node in a scene from a glTF file that has been instantiated.
+#[derive(Debug, Clone)]
+pub struct GltfNode {
+    /// The group that represents this node.
+    pub group: Group,
+
+    /// The meshes associated with this node.
+    pub meshes: Vec<Mesh>,
+
+    /// The camera associated with this node.
+    pub camera: Option<Camera>,
+
+    /// The indices of the children of this node.
+    pub children: Vec<usize>,
+}
+
+impl AsRef<object::Base> for GltfNode {
+    fn as_ref(&self) -> &object::Base {
+        self.group.as_ref()
+    }
+}
+
+impl object::Object for GltfNode {}
 
 /// Raw data loaded from a glTF file with [`Factory::load_gltf`].
 ///
@@ -246,39 +261,6 @@ pub struct GltfAnimationDefinition {
     /// of the node that the track targets. The node is an index into the `nodes` list of the
     /// parent [`GltfDefinitions`].
     pub tracks: Vec<(Track, usize)>,
-}
-
-fn build_scene_hierarchy(
-    factory: &mut Factory,
-    gltf: &gltf::Gltf,
-    scene: &gltf::Scene,
-    root: &Group,
-    heirarchy: &mut VecMap<Group>,
-) {
-    struct Item<'a> {
-        group: Group,
-        node: gltf::Node<'a>,
-    }
-
-    let mut stack = Vec::with_capacity(gltf.nodes().len());
-
-    for node in scene.nodes() {
-        let group = factory.group();
-        root.add(&group);
-        stack.push(Item { group, node });
-    }
-
-    while let Some(Item { group, node }) = stack.pop() {
-        for child_node in node.children() {
-            let child_group = factory.group();
-            group.add(&child_group);
-            stack.push(Item {
-                group: child_group,
-                node: gltf.nodes().nth(child_node.index()).unwrap()
-            });
-        }
-        heirarchy.insert(node.index(), group);
-    }
 }
 
 fn load_camera<'a>(
@@ -697,15 +679,15 @@ fn load_node<'a>(node: gltf::Node<'a>) -> GltfNodeDefinition {
 fn bind_objects(
     factory: &mut Factory,
     gltf: &gltf::Gltf,
-    heirarchy: &VecMap<Group>,
-    meshes: &VecMap<Vec<Mesh>>,
+    heirarchy: &HashMap<usize, Group>,
+    meshes: &HashMap<usize, Vec<Mesh>>,
     skeletons: &[Skeleton],
 ) -> Vec<Mesh> {
     let mut instances = Vec::new();
     for node in gltf.nodes() {
-        if let Some(ref group) = heirarchy.get(node.index()) {
+        if let Some(ref group) = heirarchy.get(&node.index()) {
             if let Some(mesh) = node.mesh() {
-                let mut primitives = meshes[mesh.index()]
+                let mut primitives = meshes[&mesh.index()]
                     .iter()
                     .map(|template| factory.mesh_instance(template))
                     .collect::<Vec<Mesh>>();
@@ -728,8 +710,79 @@ fn bind_objects(
     instances
 }
 
+fn instantiate_node_hierarchy(
+    factory: &mut Factory,
+    gltf: &GltfDefinitions,
+    nodes: &mut HashMap<usize, GltfNode>,
+    parent: &Group,
+    node_index: usize,
+) {
+    let node = &gltf.nodes[node_index];
+
+    let group = factory.group();
+    parent.add(&group);
+
+    // Apply the node's transformations to the root group of the node.
+    group.set_position(node.translation);
+    group.set_scale(node.scale);
+    group.set_orientation(node.rotation);
+
+    let mut meshes = Vec::new();
+    let mut camera = None;
+    let children = node.children.clone();
+
+    // If the node has a mesh associated with it, instantiate each of the primitives as a mesh.
+    if let Some(mesh_index) = node.mesh {
+        let gltf_mesh = &gltf.meshes[mesh_index];
+        for primitive in &gltf_mesh.primitives {
+            let material = primitive
+                .material
+                .map(|index| gltf.materials[index].clone())
+                .unwrap_or(material::Basic {
+                    color: 0xFFFFFF,
+                    map: None,
+                }.into());
+            let mesh = factory.mesh(primitive.geometry.clone(), material);
+            group.add(&mesh);
+            meshes.push(mesh);
+        }
+    }
+
+    // If the node has a camera associated with it, create a camera instance.
+    if let Some(camera_index) = node.camera {
+        let projection = gltf.cameras[camera_index].clone();
+        let instance = match projection {
+            Projection::Perspective(Perspective { fov_y, zrange }) => {
+                factory.perspective_camera(fov_y, zrange)
+            }
+
+            Projection::Orthographic(Orthographic { center, extent_y, range }) => {
+                factory.orthographic_camera(center, extent_y, range)
+            }
+        };
+
+        // Add the camera to the group that represents the node.
+        group.add(&instance);
+
+        camera = Some(instance);
+    }
+
+    // Recursively instantiate the node's children.
+    for &child_index in &node.children {
+        instantiate_node_hierarchy(factory, gltf, nodes, &group, child_index);
+    }
+
+    let instance = GltfNode {
+        group,
+        meshes,
+        camera,
+        children,
+    };
+    nodes.insert(node_index, instance);
+}
+
 impl super::Factory {
-    /// Load definitions from a glTF 2.0 file.
+    /// Loads definitions from a glTF 2.0 file.
     ///
     /// The returned [`GltfDefinitions`] cannot be added to the scene directly, rather it
     /// contains definitions for meshes, node hierarchies, skinned skeletons, animations, and
@@ -782,6 +835,46 @@ impl super::Factory {
             skins,
             animations,
             textures,
+        }
+    }
+
+    /// Instantiates the contents of a scene defined in a glTF file.
+    pub fn instantiate_gltf_scene(
+        &mut self,
+        definitions: &GltfDefinitions,
+        scene: usize,
+    ) -> GltfScene {
+        // Get the scene definition.
+        //
+        // NOTE: We use `get` here (instead of indexing into the scenes list normally) so that
+        // we can panic with a more meaningful error message if the scene index is invalid.
+        let scene = definitions.scenes.get(scene).expect("Invalid scene index");
+
+        let group = self.group();
+        let roots = scene.roots.clone();
+
+        // Instantiate the node hiercharies beginning with each of the root nodes.
+        let mut nodes = HashMap::new();
+        for &node_index in &scene.roots {
+            instantiate_node_hierarchy(
+                self,
+                definitions,
+                &mut nodes,
+                &group,
+                node_index,
+            );
+        }
+
+        // TODO: Instantiate clips and skeletons.
+        let clips = HashMap::new();
+        let skeletons = HashMap::new();
+
+        GltfScene {
+            group,
+            nodes,
+            roots,
+            clips,
+            skeletons,
         }
     }
 }
