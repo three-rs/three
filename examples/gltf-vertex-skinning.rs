@@ -12,12 +12,14 @@ fn main() {
     let default = concat!(env!("CARGO_MANIFEST_DIR"), "/test_data/BrainStem/BrainStem.gltf");
     let path = std::env::args().nth(1).unwrap_or(default.into());
     let gltf = window.factory.load_gltf(&path);
-    // window.scene.add(&gltf);
+    let instance = window.factory.instantiate_gltf_scene(&gltf, 0);
+    window.scene.add(&instance);
 
     let mut mixer = three::animation::Mixer::new();
-    // for clip in gltf.clips {
-    //     mixer.action(clip);
-    // }
+    for anim_def in &gltf.animations {
+        let clip = window.factory.instantiate_gltf_animation(&instance, anim_def);
+        mixer.action(clip);
+    }
 
     let camera = window.factory.perspective_camera(45.0, 0.1 .. 100.0);
     window.scene.add(&camera);

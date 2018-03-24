@@ -883,4 +883,25 @@ impl super::Factory {
             roots,
         }
     }
+
+    /// Instantiate an animation from a glTF file and apply it to the contents of a glTF scene.
+    pub fn instantiate_gltf_animation(
+        &mut self,
+        scene: &GltfScene,
+        anim_def: &GltfAnimationDefinition,
+    ) -> Clip {
+        // Apply each track in the animation definition to its target node in the scene.
+        let mut tracks = Vec::with_capacity(anim_def.tracks.len());
+        for &(ref track, target_index) in &anim_def.tracks {
+            // TODO: What do if the target isn't in the scene?
+            let target = scene.nodes[&target_index].upcast();
+
+            tracks.push((track.clone(), target));
+        }
+
+        Clip {
+            name: anim_def.name.clone(),
+            tracks,
+        }
+    }
 }
