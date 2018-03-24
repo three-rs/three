@@ -35,7 +35,7 @@ use super::Factory;
 /// The various contents
 #[derive(Debug, Clone)]
 pub struct GltfScene {
-    /// The root node of the default scene.
+    /// A group containing all of the root nodes of the scene.
     ///
     /// While the glTF format allows scenes to have an arbitrary number of root nodes, all scene
     /// roots are added to a single root group to make it easier to manipulate the scene as a
@@ -54,12 +54,6 @@ pub struct GltfScene {
     /// the not all nodes in the source file are guaranteed to be used in the scene, and so node
     /// indices in the scene instance may not be contiguous.
     pub nodes: HashMap<usize, GltfNode>,
-
-    /// Imported animation clips.
-    pub clips: HashMap<usize, Clip>,
-
-    /// Imported skeletons.
-    pub skeletons: HashMap<usize, Skeleton>,
 }
 
 impl AsRef<object::Base> for GltfScene {
@@ -78,6 +72,11 @@ pub struct GltfNode {
 
     /// The meshes associated with this node.
     pub meshes: Vec<Mesh>,
+
+    /// The skeleton associated with this node.
+    ///
+    /// If `skeleton` has a value, then there will be at least one mesh in `meshes`.
+    pub skeleton: Option<Skeleton>,
 
     /// The camera associated with this node.
     pub camera: Option<Camera>,
@@ -178,14 +177,21 @@ pub struct GltfNodeDefinition {
     /// The index of the mesh associated with this node, if any.
     ///
     /// The index can be used to lookup the associated mesh definition in the `meshes` map of the
-    /// parent [`GltfData`].
+    /// parent [`GltfDefinitions`].
     pub mesh: Option<usize>,
 
     /// The index of the camera associated with this node, if any.
     ///
     /// The index can be used to lookup the associated camera projection in the `cameras` map of
-    /// the parent [`GltfData`].
+    /// the parent [`GltfDefinitions`].
     pub camera: Option<usize>,
+
+    /// The index of the skin attached to this node, if any.
+    ///
+    /// The index corresponds to a skin in the `skins` list of the parent [`GltfDefinitions`].
+    ///
+    /// Note that if `skin` has a value, then `mesh` will also have a value.
+    pub skin: Option<usize>,
 
     /// The indices of this node's children. A node may have zero or more children.
     ///
@@ -654,6 +660,7 @@ fn load_node<'a>(node: gltf::Node<'a>) -> GltfNodeDefinition {
 
     let mesh = node.mesh().map(|mesh| mesh.index());
     let camera = node.camera().map(|camera| camera.index());
+    let skin = node.skin().map(|skin| skin.index());
     let children = node.children().map(|node| node.index()).collect();
 
     // Decompose the transform to get the translation, rotation, and scale.
@@ -667,6 +674,7 @@ fn load_node<'a>(node: gltf::Node<'a>) -> GltfNodeDefinition {
         name,
 
         mesh,
+        skin,
         camera,
         children,
 
@@ -674,40 +682,6 @@ fn load_node<'a>(node: gltf::Node<'a>) -> GltfNodeDefinition {
         rotation: rotation.into(),
         scale,
     }
-}
-
-fn bind_objects(
-    factory: &mut Factory,
-    gltf: &gltf::Gltf,
-    heirarchy: &HashMap<usize, Group>,
-    meshes: &HashMap<usize, Vec<Mesh>>,
-    skeletons: &[Skeleton],
-) -> Vec<Mesh> {
-    let mut instances = Vec::new();
-    for node in gltf.nodes() {
-        if let Some(ref group) = heirarchy.get(&node.index()) {
-            if let Some(mesh) = node.mesh() {
-                let mut primitives = meshes[&mesh.index()]
-                    .iter()
-                    .map(|template| factory.mesh_instance(template))
-                    .collect::<Vec<Mesh>>();
-                for primitive in &primitives {
-                    group.add(primitive);
-                }
-                if let Some(skin) = node.skin() {
-                    let skeleton = &skeletons[skin.index()];
-                    group.add(skeleton);
-                    for primitive in &mut primitives {
-                        primitive.set_skeleton(skeleton.clone());
-                    }
-                }
-                for primitive in primitives {
-                    instances.push(primitive);
-                }
-            }
-        }
-    }
-    instances
 }
 
 fn instantiate_node_hierarchy(
@@ -775,6 +749,7 @@ fn instantiate_node_hierarchy(
     let instance = GltfNode {
         group,
         meshes,
+        skeleton: None,
         camera,
         children,
     };
@@ -865,16 +840,47 @@ impl super::Factory {
             );
         }
 
-        // TODO: Instantiate clips and skeletons.
-        let clips = HashMap::new();
-        let skeletons = HashMap::new();
+        // Instantiate the skeletons.
+        {
+            for (node_index, node_def) in definitions.nodes.iter().enumerate() {
+                // Ignore any nodes that aren't in the scene.
+                if !nodes.contains_key(&node_index) { continue; }
+
+                let skin_index = match node_def.skin {
+                    Some(index) => index,
+                    None => continue,
+                };
+
+                let skin = &definitions.skins[skin_index];
+                let mut bones = Vec::with_capacity(skin.bones.len());
+                for (bone_index, bone_def) in skin.bones.iter().enumerate() {
+                    // Instantiate the bone and add it to the corresponding node in the scene.
+                    let bone = self.bone(bone_index, bone_def.inverse_bind_matrix);
+                    nodes[&bone_def.joint].group.add(&bone);
+
+                    bones.push(bone);
+                }
+
+                // Create the skeleton from the bones.
+                let skeleton = self.skeleton(bones);
+
+                // Get the node and attach the skeleton to it.
+                let node = nodes.get_mut(&node_index).unwrap();
+                node.group.add(&skeleton);
+
+                // Set the skeleton for all the meshes on the node.
+                for mesh in &mut node.meshes {
+                    mesh.set_skeleton(skeleton.clone());
+                }
+
+                node.skeleton = Some(skeleton);
+            }
+        }
 
         GltfScene {
             group,
             nodes,
             roots,
-            clips,
-            skeletons,
         }
     }
 }
