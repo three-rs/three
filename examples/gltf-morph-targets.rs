@@ -12,12 +12,12 @@ fn main() {
     let default = concat!(env!("CARGO_MANIFEST_DIR"), "/test_data/AnimatedMorphCube/AnimatedMorphCube.gltf");
     let path = std::env::args().nth(1).unwrap_or(default.into());
     let gltf = window.factory.load_gltf(&path);
-    window.scene.add(&gltf);
+    // window.scene.add(&gltf);
 
     let mut mixer = three::animation::Mixer::new();
-    for clip in gltf.clips {
-        mixer.action(clip);
-    }
+    // for clip in gltf.clips {
+    //     mixer.action(clip);
+    // }
 
     let camera = window.factory.perspective_camera(60.0, 0.1 .. 20.0);
     camera.set_position([0.0, 1.0, 5.0]);
