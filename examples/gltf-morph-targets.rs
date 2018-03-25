@@ -26,11 +26,10 @@ fn main() {
     }
 
     let camera = window.factory.perspective_camera(60.0, 0.1 .. 20.0);
-    camera.set_position([0.0, 1.0, 5.0]);
 
     let mut controls = three::controls::Orbit::builder(&camera)
-        .position([-0.08, -0.05, 0.075])
-        .target([0.0, 0.0, 0.01])
+        .position([-3.0, 3.0, -3.0])
+        .up([0.0, 1.0, 0.0])
         .build();
 
     while window.update() && !window.input.hit(three::KEY_ESCAPE) {
