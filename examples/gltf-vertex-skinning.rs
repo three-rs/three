@@ -29,8 +29,9 @@ fn main() {
     window.scene.add(&camera);
 
     let mut controls = three::controls::Orbit::builder(&camera)
-        .position([0.0, -3.0, 3.0])
-        .target([0.0, 0.0, 1.0])
+        .position([0.0, 3.0, 3.0])
+        .target([0.0, 1.0, 0.0])
+        .up([0.0, 1.0, 0.0])
         .build();
 
     while window.update() && !window.input.hit(three::KEY_ESCAPE) {
