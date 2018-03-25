@@ -885,23 +885,30 @@ impl super::Factory {
     }
 
     /// Instantiate an animation from a glTF file and apply it to the contents of a glTF scene.
+    ///
+    /// Returns a [`Clip`] for the animation if it was successfully instantiated. If the the
+    /// animation references a node that is not in `scene`, then `Err(())` is returned.
     pub fn instantiate_gltf_animation(
         &mut self,
         scene: &GltfScene,
         anim_def: &GltfAnimationDefinition,
-    ) -> Clip {
+    ) -> Result<Clip, ()> {
         // Apply each track in the animation definition to its target node in the scene.
         let mut tracks = Vec::with_capacity(anim_def.tracks.len());
         for &(ref track, target_index) in &anim_def.tracks {
-            // TODO: What do if the target isn't in the scene?
-            let target = scene.nodes[&target_index].upcast();
+            match scene.nodes.get(&target_index) {
+                Some(node) => {
+                    let target = node.upcast();
+                    tracks.push((track.clone(), target));
+                }
 
-            tracks.push((track.clone(), target));
+                None => return Err(()),
+            }
         }
 
-        Clip {
+        Ok(Clip {
             name: anim_def.name.clone(),
             tracks,
-        }
+        })
     }
 }

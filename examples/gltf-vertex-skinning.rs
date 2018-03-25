@@ -15,9 +15,10 @@ fn main() {
     let instance = window.factory.instantiate_gltf_scene(&gltf, 0);
     window.scene.add(&instance);
 
+    // Instantiate all of the animations in the glTF file and start playing them.
     let mut mixer = three::animation::Mixer::new();
     for anim_def in &gltf.animations {
-        let clip = window.factory.instantiate_gltf_animation(&instance, anim_def);
+        let clip = window.factory.instantiate_gltf_animation(&instance, anim_def).unwrap();
         mixer.action(clip);
     }
 
