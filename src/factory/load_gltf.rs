@@ -56,6 +56,29 @@ pub struct GltfScene {
     pub nodes: HashMap<usize, GltfNode>,
 }
 
+impl GltfScene {
+    /// Finds the first node in the scene with the specified name, using a [`GltfDefinitions`]
+    /// to lookup the name for each node.
+    ///
+    /// Name matching is case-sensitive. Returns the first node with a matching name, otherwise
+    /// returns `None`.
+    pub fn find_node_by_name(
+        &self,
+        name: &str,
+        definitions: &GltfDefinitions,
+    ) -> Option<&GltfNode> {
+        for (index, node) in &self.nodes {
+            if let Some(node_def) = definitions.nodes.get(*index) {
+                if node_def.name.as_ref().map(|node_name| node_name == name).unwrap_or(false) {
+                    return Some(node);
+                }
+            }
+        }
+
+        None
+    }
+}
+
 impl AsRef<object::Base> for GltfScene {
     fn as_ref(&self) -> &object::Base {
         self.group.as_ref()
