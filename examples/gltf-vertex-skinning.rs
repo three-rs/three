@@ -9,9 +9,12 @@ fn main() {
     window.scene.add(&light);
     window.scene.background = three::Background::Color(0xC6F0FF);
 
+    // Load the glTF file.
     let default = concat!(env!("CARGO_MANIFEST_DIR"), "/test_data/BrainStem/BrainStem.gltf");
     let path = std::env::args().nth(1).unwrap_or(default.into());
     let gltf = window.factory.load_gltf(&path);
+
+    // Instantiate the contents of the file.
     let instance = window.factory.instantiate_gltf_scene(&gltf, 0);
     window.scene.add(&instance);
 
