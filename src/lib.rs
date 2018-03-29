@@ -363,6 +363,9 @@ pub use scene::{Background, Scene};
 pub use sprite::Sprite;
 
 #[doc(inline)]
+pub use template::{Hierarchy, HierarchyNode};
+
+#[doc(inline)]
 pub use text::{Align, Font, Layout, Text};
 
 #[doc(inline)]
