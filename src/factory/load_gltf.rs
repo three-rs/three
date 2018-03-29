@@ -319,7 +319,7 @@ fn load_skin<'a>(
 
 fn load_animation<'a>(
     animation: gltf::Animation<'a>,
-    nodes: HashMap<usize, HierarchyNode>,
+    nodes: &HashMap<usize, HierarchyNode>,
     buffers: &gltf_importer::Buffers,
 ) -> Clip {
     use gltf::animation::InterpolationAlgorithm::*;
@@ -473,6 +473,7 @@ fn instantiate_node_hierarchy<'a>(
 fn load_scene<'a>(
     factory: &mut Factory,
     scene: gltf::Scene<'a>,
+    animations: gltf::gltf::Animations<'a>,
     buffers: &gltf_importer::Buffers,
     textures: &[Texture<[f32; 4]>],
 ) -> Hierarchy {
@@ -487,11 +488,15 @@ fn load_scene<'a>(
         .map(|node| node.index())
         .collect();
 
+    let animations = animations
+        .map(|anim| load_animation(anim, &nodes, buffers))
+        .collect();
+
     Hierarchy {
         group,
         roots,
         nodes,
-        animations: Vec::new(),
+        animations,
     }
 }
 
@@ -516,7 +521,7 @@ impl super::Factory {
 
         gltf
             .scenes()
-            .map(|scene| load_scene(self, scene, &buffers, &textures))
+            .map(|scene| load_scene(self, scene, gltf.animations(), &buffers, &textures))
             .collect()
     }
 }
