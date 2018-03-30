@@ -431,7 +431,7 @@ fn instantiate_node_hierarchy<'a>(
     group.set_scale(scale);
     group.set_orientation(rotation);
 
-    let meshes = node
+    let mut meshes = node
         .mesh()
         .map(|mesh| load_mesh(factory, mesh, buffers, textures))
         .unwrap_or_default();
@@ -457,6 +457,13 @@ fn instantiate_node_hierarchy<'a>(
     let skeleton = node
         .skin()
         .map(|skin| load_skin(factory, skin, buffers, nodes));
+
+    // Bind the skeleton to the node's meshes.
+    if let Some(ref skeleton) = skeleton {
+        for mesh in &mut meshes {
+            mesh.set_skeleton(skeleton.clone());
+        }
+    }
 
     let name = node.name().map(Into::into);
 
