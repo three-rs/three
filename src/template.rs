@@ -56,6 +56,7 @@ pub struct Hierarchy {
     /// [`GltfDefinitions::nodes`]: struct.GltfDefinitions.html#structfield.nodes
     pub nodes: HashMap<usize, HierarchyNode>,
 
+    /// Animations tied to this hierarchy.
     pub animations: Vec<animation::Clip>,
 }
 
@@ -65,7 +66,7 @@ impl Hierarchy {
     ///
     /// Name matching is case-sensitive. Returns the first node with a matching name, otherwise
     /// returns `None`.
-    pub fn find_node_by_name(
+    pub fn find_by_name(
         &self,
         name: &str,
     ) -> Option<&HierarchyNode> {
@@ -86,6 +87,9 @@ impl object::Object for Hierarchy {}
 /// A node in a scene from a glTF file that has been instantiated.
 #[derive(Debug, Clone)]
 pub struct HierarchyNode {
+    /// The name of the node.
+    ///
+    /// Names are not guaranteed to be unique, but can be used to help identify nodes.
     pub name: Option<String>,
 
     /// The group that represents this node.

@@ -24,6 +24,7 @@ use std::path::{Path, PathBuf};
 use {Group, Material, Mesh, Texture};
 use geometry::{Geometry, Shape};
 use object::Object;
+use skeleton::Skeleton;
 use super::Factory;
 use template::*;
 
@@ -202,6 +203,8 @@ fn load_primitive<'a>(
     use gltf_utils::PrimitiveIterators;
     use itertools::Itertools;
 
+    let material = load_material(primitive.material(), textures);
+
     let mut faces = vec![];
     if let Some(iter) = primitive.indices_u32(buffers) {
         faces.extend(iter.tuples().map(|(a, b, c)| [a, b, c]));
@@ -236,6 +239,7 @@ fn load_primitive<'a>(
     } else {
         Vec::new()
     };
+
     let shapes = load_morph_targets(primitive, buffers);
     let geometry = Geometry {
         base: Shape {
@@ -251,8 +255,6 @@ fn load_primitive<'a>(
             weights: joint_weights,
         },
     };
-
-    let material = load_material(primitive.material(), textures);
 
     factory.mesh(geometry, material)
 }
@@ -283,13 +285,14 @@ fn load_morph_targets<'a>(
 }
 
 fn load_skin<'a>(
+    factory: &mut Factory,
     skin: gltf::Skin<'a>,
     buffers: &gltf_importer::Buffers,
-) -> GltfSkinDefinition {
+    nodes: &HashMap<usize, HierarchyNode>,
+) -> Skeleton {
     use std::iter::repeat;
 
     let mut ibms = Vec::new();
-    let mut bones = Vec::new();
     if let Some(accessor) = skin.inverse_bind_matrices() {
         for ibm in AccessorIter::<[[f32; 4]; 4]>::new(accessor, buffers) {
             ibms.push(ibm.into());
@@ -304,17 +307,19 @@ fn load_skin<'a>(
     let ibm_iter = ibms.
         into_iter().
         chain(repeat(mx_id));
-    for (joint, inverse_bind_matrix) in skin.joints().zip(ibm_iter) {
-        let joint = joint.index();
-        bones.push(GltfBoneDefinition {
-            inverse_bind_matrix,
-            joint,
-        });
+
+    let mut bones = Vec::new();
+    for ((index, joint), inverse_bind_matrix) in skin.joints().enumerate().zip(ibm_iter) {
+        let bone = factory.bone(index, inverse_bind_matrix);
+
+        // Attach the bone to the corresponding node in the hierarchy.
+        let joint = &nodes[&joint.index()];
+        joint.group.add(&bone);
+
+        bones.push(bone);
     }
 
-    GltfSkinDefinition {
-        bones,
-    }
+    factory.skeleton(bones)
 }
 
 fn load_animation<'a>(
@@ -439,21 +444,19 @@ fn instantiate_node_hierarchy<'a>(
         .map(|child| child.index())
         .collect();
 
+    // Attach the various objects to the group.
     for mesh in &meshes { group.add(mesh); }
     if let Some(ref camera) = camera { group.add(camera); }
+
+    // Recursively instantiate all children.
     for child in node.children() {
-        instantiate_node_hierarchy(factory, node, nodes, &group, buffers, textures);
+        instantiate_node_hierarchy(factory, child, nodes, &group, buffers, textures);
     }
 
-    // If the node has a camera associated with it, create a camera instance.
-    if let Some(projection) = node.camera().map(load_camera) {
-        let instance = factory.camera(projection);
-
-        // Add the camera to the group that represents the node.
-        group.add(&instance);
-
-        camera = Some(instance);
-    }
+    // Once we've instantiated all child nodes, we can instantiate the skeleton, if any.
+    let skeleton = node
+        .skin()
+        .map(|skin| load_skin(factory, skin, buffers, nodes));
 
     let name = node.name().map(Into::into);
 
@@ -463,7 +466,7 @@ fn instantiate_node_hierarchy<'a>(
         group,
 
         meshes,
-        skeleton: None,
+        skeleton,
         camera,
         children,
     };
