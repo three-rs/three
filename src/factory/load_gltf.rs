@@ -460,6 +460,7 @@ fn instantiate_node_hierarchy<'a>(
 
     // Bind the skeleton to the node's meshes.
     if let Some(ref skeleton) = skeleton {
+        group.add(skeleton);
         for mesh in &mut meshes {
             mesh.set_skeleton(skeleton.clone());
         }
