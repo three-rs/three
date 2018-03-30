@@ -12,13 +12,12 @@ fn main() {
     let default = concat!(env!("CARGO_MANIFEST_DIR"), "/test_data/Lantern/Lantern.gltf");
     let path = std::env::args().nth(1).unwrap_or(default.into());
     println!("Loading {:?} (this may take a while)", path);
-    let gltf = win.factory.load_gltf(&path);
-    let instance = win.factory.instantiate_gltf_scene(&gltf, 0);
-    win.scene.add(&instance);
+    let gltf = win.factory.load_gltf(&path).pop().unwrap();
+    win.scene.add(&gltf);
 
     // If there is already a camera in the instantiated glTF scene, use that one.
     let mut cam = None;
-    for node in instance.nodes.values() {
+    for node in gltf.nodes.values() {
         if let Some(ref camera) = node.camera {
             cam = Some(camera.clone());
             break;
