@@ -25,7 +25,7 @@ use hub::{Hub, HubPtr, LightData, SubLight, SubNode};
 use light::{Ambient, Directional, Hemisphere, Point, ShadowMap};
 use material::{self, Material};
 use mesh::{DynamicMesh, Mesh};
-use object::{self, Group};
+use object::{self, Group, Object};
 use render::{basic_pipe,
     BackendFactory, BackendResources, BasicPipelineState, DisplacementContribution,
     DynamicData, GpuData, Instance, InstanceCacheKey, PipelineCreationError, ShadowFormat, Source, Vertex,
@@ -1049,12 +1049,11 @@ fn instantiate_hierarchy(
     // Retrieve the node that we're duplicating and its internal state data.
     let orig_node = &original.nodes[&current];
 
-    let group = {
-        let node = hub[&orig_node.group].shallow_clone(SubNode::Group { first_child: None });
-        Group {
-            object: hub.spawn(node),
-        }
-    };
+    // Create a new group for the current node and make its local transform match the original
+    // node's transform.
+    let group = Group::new(hub);
+    let transform = hub[&orig_node.group].to_node().transform;
+    group.set_transform(transform.position, transform.orientation, transform.scale);
 
     parent.add(&group);
 
@@ -1074,6 +1073,11 @@ fn instantiate_hierarchy(
 
     if let Some(ref camera) = camera {
         group.add(camera);
+    }
+
+    // Instantiate children recursively.
+    for &child_index in &orig_node.children {
+        instantiate_hierarchy(hub, backend, original, &group, nodes, child_index);
     }
 
     let node = HierarchyNode {
