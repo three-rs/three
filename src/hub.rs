@@ -124,12 +124,9 @@ impl Hub {
         Arc::new(Mutex::new(hub))
     }
 
-    pub(crate) fn spawn(
-        &mut self,
-        sub: SubNode,
-    ) -> Base {
+    pub(crate) fn spawn(&mut self, node: NodeInternal) -> Base {
         Base {
-            node: self.nodes.create(sub.into()),
+            node: self.nodes.create(node),
             tx: self.message_tx.clone(),
         }
     }
@@ -140,21 +137,21 @@ impl Hub {
         gpu_data: GpuData,
         skeleton: Option<Skeleton>,
     ) -> Base {
-        self.spawn(SubNode::Visual(mat, gpu_data, skeleton))
+        self.spawn(SubNode::Visual(mat, gpu_data, skeleton).into())
     }
 
     pub(crate) fn spawn_light(
         &mut self,
         data: LightData,
     ) -> Base {
-        self.spawn(SubNode::Light(data))
+        self.spawn(SubNode::Light(data).into())
     }
 
     pub(crate) fn spawn_skeleton(
         &mut self,
         data: SkeletonData,
     ) -> Base {
-        self.spawn(SubNode::Skeleton(data))
+        self.spawn(SubNode::Skeleton(data).into())
     }
 
     pub(crate) fn process_messages(&mut self) {

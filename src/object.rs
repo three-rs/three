@@ -173,7 +173,7 @@ impl Object for Base {}
 /// as with a single entity.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Group {
-    object: Base,
+    pub(crate) object: Base,
 }
 three_object!(Group::object);
 
@@ -181,7 +181,7 @@ impl Group {
     pub(crate) fn new(hub: &mut Hub) -> Self {
         let sub = SubNode::Group { first_child: None };
         Group {
-            object: hub.spawn(sub),
+            object: hub.spawn(sub.into()),
         }
     }
 

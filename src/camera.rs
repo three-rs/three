@@ -110,7 +110,7 @@ three_object!(Camera::object);
 impl Camera {
     pub(crate) fn new(hub: &mut Hub, projection: Projection) -> Self {
         Camera {
-            object: hub.spawn(SubNode::Empty),
+            object: hub.spawn(SubNode::Empty.into()),
             projection,
         }
     }

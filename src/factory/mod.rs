@@ -25,7 +25,7 @@ use hub::{Hub, HubPtr, LightData, SubLight, SubNode};
 use light::{Ambient, Directional, Hemisphere, Point, ShadowMap};
 use material::{self, Material};
 use mesh::{DynamicMesh, Mesh};
-use object;
+use object::{self, Group};
 use render::{basic_pipe,
     BackendFactory, BackendResources, BasicPipelineState, DisplacementContribution,
     DynamicData, GpuData, Instance, InstanceCacheKey, PipelineCreationError, ShadowFormat, Source, Vertex,
@@ -34,6 +34,7 @@ use render::{basic_pipe,
 use scene::{Background, Scene};
 use sprite::Sprite;
 use skeleton::{Bone, Skeleton};
+use template::{Hierarchy, HierarchyNode};
 use text::{Font, Text, TextData};
 use texture::{CubeMap, CubeMapPath, FilterMethod, Sampler, Texture, WrapMode};
 
@@ -80,18 +81,6 @@ fn f2i(x: f32) -> I8Norm {
 }
 
 impl Factory {
-    fn create_instance_buffer(&mut self) -> gfx::handle::Buffer<BackendResources, Instance> {
-        // TODO: Better error handling
-        self.backend
-            .create_buffer(
-                1,
-                gfx::buffer::Role::Vertex,
-                gfx::memory::Usage::Dynamic,
-                gfx::memory::Bind::TRANSFER_DST,
-            )
-            .unwrap()
-    }
-
     pub(crate) fn new(mut backend: BackendFactory) -> Self {
         let quad_buf = backend.create_vertex_buffer(&QUAD);
         let default_sampler = backend.create_sampler_linear();
@@ -125,7 +114,7 @@ impl Factory {
         inverse_bind_matrix: mint::ColumnMatrix4<f32>,
     ) -> Bone {
         let data = SubNode::Bone { index, inverse_bind_matrix };
-        let object = self.hub.lock().unwrap().spawn(data);
+        let object = self.hub.lock().unwrap().spawn(data.into());
         Bone { object }
     }
 
@@ -299,7 +288,7 @@ impl Factory {
         slice.instances = Some((1, 0));
         let num_shapes = geometry.shapes.len();
         let mut displacement_contributions = Vec::with_capacity(num_shapes);
-        let instances = self.create_instance_buffer();
+        let instances = create_instance_buffer(&mut self.backend);
         let displacements = if num_shapes != 0 {
             let num_vertices = geometry.base.vertices.len();
             let mut contents = vec![[0.0; 4]; num_shapes * 3 * num_vertices];
@@ -391,7 +380,7 @@ impl Factory {
             }
             (data.len(), dest_buf, upload_buf)
         };
-        let instances = self.create_instance_buffer();
+        let instances = create_instance_buffer(&mut self.backend);
         DynamicMesh {
             object: self.hub.lock().unwrap().spawn_visual(
                 material.into(),
@@ -421,24 +410,7 @@ impl Factory {
         &mut self,
         template: &Mesh,
     ) -> Mesh {
-        let instances = self.create_instance_buffer();
-        let mut hub = self.hub.lock().unwrap();
-        let (material, gpu_data) = match hub[template].sub_node {
-            SubNode::Visual(ref mat, ref gpu, _) => {
-                (mat.clone(), GpuData {
-                    instances,
-                    instance_cache_key: Some(InstanceCacheKey {
-                        material: mat.clone(),
-                        geometry: gpu.vertices.clone(),
-                    }),
-                    ..gpu.clone()
-                })
-            }
-            _ => unreachable!(),
-        };
-        Mesh {
-            object: hub.spawn_visual(material, gpu_data, None),
-        }
+        mesh_instance(&mut *self.hub.lock().unwrap(), &mut self.backend, template)
     }
 
     /// Create a `Mesh` sharing the geometry with another one but with a different material.
@@ -448,7 +420,7 @@ impl Factory {
         template: &Mesh,
         material: M,
     ) -> Mesh {
-        let instances = self.create_instance_buffer();
+        let instances = create_instance_buffer(&mut self.backend);
         let material = material.into();
         let mut hub = self.hub.lock().unwrap();
         let gpu_data = match hub[template].sub_node {
@@ -472,7 +444,7 @@ impl Factory {
         &mut self,
         material: material::Sprite,
     ) -> Sprite {
-        let instances = self.create_instance_buffer();
+        let instances = create_instance_buffer(&mut self.backend);
         let mut slice = gfx::Slice::new_match_vertex_buffer(&self.quad_buf);
         slice.instances = Some((1, 0));
         let material = Material::from(material);
@@ -497,7 +469,7 @@ impl Factory {
         &mut self,
         template: &Sprite,
     ) -> Sprite {
-        let instances = self.create_instance_buffer();
+        let instances = create_instance_buffer(&mut self.backend);
         let mut hub = self.hub.lock().unwrap();
         let (material, gpu_data) = match hub[template].sub_node {
             SubNode::Visual(ref mat, ref gpu, _) => {
@@ -648,14 +620,14 @@ impl Factory {
         text: S,
     ) -> Text {
         let sub = SubNode::UiText(TextData::new(font, text));
-        let object = self.hub.lock().unwrap().spawn(sub);
+        let object = self.hub.lock().unwrap().spawn(sub.into());
         Text::with_object(object)
     }
 
     /// Create new audio source.
     pub fn audio_source(&mut self) -> audio::Source {
         let sub = SubNode::Audio(audio::AudioData::new());
-        let object = self.hub.lock().unwrap().spawn(sub);
+        let object = self.hub.lock().unwrap().spawn(sub.into());
         audio::Source::with_object(object)
     }
 
@@ -1040,6 +1012,108 @@ impl Factory {
         ));
         audio::Clip::new(buffer)
     }
+
+    /// Creates a new instance of the provided [`Hierarchy`].
+    ///
+    /// The new hierarchy will consist of new objects that duplicate the current state of
+    /// `hierarchy`.
+    pub fn instantiate_hierarchy(&mut self, hierarchy: &Hierarchy) -> Hierarchy {
+        let mut hub = self.hub.lock().unwrap();
+
+        let group = Group::new(&mut *hub);
+
+        let mut nodes = HashMap::with_capacity(hierarchy.nodes.len());
+        for &root_index in &hierarchy.roots {
+            instantiate_hierarchy(&mut *hub, &mut self.backend, hierarchy, &group, &mut nodes, root_index);
+        }
+
+        unimplemented!("Finish instantiating hierarchy")
+    }
+}
+
+fn instantiate_hierarchy(
+    hub: &mut Hub,
+    backend: &mut BackendFactory,
+    original: &Hierarchy,
+    parent: &Group,
+    nodes: &mut HashMap<usize, HierarchyNode>,
+    current: usize,
+) {
+    // Retrieve the node that we're duplicating and its internal state data.
+    let orig_node = &original.nodes[&current];
+
+    let group = {
+        let node = hub[&orig_node.group].shallow_clone(SubNode::Group { first_child: None });
+        Group {
+            object: hub.spawn(node),
+        }
+    };
+
+    parent.add(&group);
+
+    // TODO: Preserve transforms when instantiating meshes.
+    let meshes = orig_node
+        .meshes
+        .iter()
+        .map(|mesh| mesh_instance(hub, backend, mesh))
+        .inspect(|mesh| group.add(mesh))
+        .collect();
+
+    // TODO: Preserve transforms when instantiating cameras.
+    let camera = orig_node
+        .camera
+        .as_ref()
+        .map(|camera| Camera::new(hub, camera.projection.clone()));
+
+    if let Some(ref camera) = camera {
+        group.add(camera);
+    }
+
+    let node = HierarchyNode {
+        group,
+        meshes,
+        camera,
+
+        name: orig_node.name.clone(),
+        children: orig_node.children.clone(),
+
+        // TODO: Instantiate the skeleton.
+        skeleton: None,
+    };
+
+    nodes.insert(current, node);
+}
+
+fn mesh_instance(hub: &mut Hub, backend: &mut BackendFactory, template: &Mesh) -> Mesh {
+    let instances = create_instance_buffer(backend);
+    let (material, gpu_data) = match hub[template].sub_node {
+        SubNode::Visual(ref mat, ref gpu, _) => {
+            (mat.clone(), GpuData {
+                instances,
+                instance_cache_key: Some(InstanceCacheKey {
+                    material: mat.clone(),
+                    geometry: gpu.vertices.clone(),
+                }),
+                ..gpu.clone()
+            })
+        }
+        _ => unreachable!(),
+    };
+    Mesh {
+        object: hub.spawn_visual(material, gpu_data, None),
+    }
+}
+
+fn create_instance_buffer(backend: &mut BackendFactory) -> gfx::handle::Buffer<BackendResources, Instance> {
+    // TODO: Better error handling
+    backend
+        .create_buffer(
+            1,
+            gfx::buffer::Role::Vertex,
+            gfx::memory::Usage::Dynamic,
+            gfx::memory::Bind::TRANSFER_DST,
+        )
+        .unwrap()
 }
 
 fn concat_path<'a>(
