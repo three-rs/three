@@ -1027,7 +1027,14 @@ impl Factory {
             instantiate_hierarchy(&mut *hub, &mut self.backend, hierarchy, &group, &mut nodes, root_index);
         }
 
-        unimplemented!("Finish instantiating hierarchy")
+        Hierarchy {
+            group,
+            roots: hierarchy.roots.clone(),
+            nodes,
+
+            // TODO: Instantiate the animations.
+            animations: Vec::new(),
+        }
     }
 }
 
