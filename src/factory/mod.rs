@@ -1020,6 +1020,12 @@ impl Factory {
     pub fn instantiate_hierarchy(&mut self, hierarchy: &Hierarchy) -> Hierarchy {
         let mut hub = self.hub.lock().unwrap();
 
+        // Make sure all nodes are up-to-date by processing any pending messages. This is
+        // mostly relevant for cases where the user tries to instantiate the hierarchy on the same
+        // frame that the original was created, in which case the messages setting up the
+        // original will need to be processed before creating the new instance.
+        hub.process_messages();
+
         let group = Group::new(&mut *hub);
 
         let mut nodes = HashMap::with_capacity(hierarchy.nodes.len());
