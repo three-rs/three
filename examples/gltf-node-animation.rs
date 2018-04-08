@@ -9,13 +9,15 @@ fn main() {
     window.scene.add(&light);
     window.scene.background = three::Background::Color(0xC6F0FF);
 
+    // Load the glTF file.
     let default = concat!(env!("CARGO_MANIFEST_DIR"), "/test_data/BoxAnimated/BoxAnimated.gltf");
     let path = std::env::args().nth(1).unwrap_or(default.into());
-    let gltf = window.factory.load_gltf(&path);
-    window.scene.add(&gltf);
+    let hierarchy = window.factory.load_gltf(&path).pop().unwrap();
+    window.scene.add(&hierarchy);
 
+    // Instantiate all of the animations in the glTF file and start playing them.
     let mut mixer = three::animation::Mixer::new();
-    for clip in gltf.clips {
+    for clip in hierarchy.animations {
         mixer.action(clip);
     }
 

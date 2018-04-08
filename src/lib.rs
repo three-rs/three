@@ -307,6 +307,7 @@ pub mod render;
 pub mod scene;
 pub mod skeleton;
 mod sprite;
+mod template;
 mod text;
 mod texture;
 mod util;
@@ -328,7 +329,7 @@ pub use factory::Factory;
 
 #[cfg(feature = "gltf-loader")]
 #[doc(inline)]
-pub use factory::Gltf;
+pub use factory::load_gltf::*;
 
 #[doc(inline)]
 pub use geometry::{Geometry, Joints, Shape};
@@ -360,6 +361,9 @@ pub use scene::{Background, Scene};
 
 #[doc(inline)]
 pub use sprite::Sprite;
+
+#[doc(inline)]
+pub use template::{Hierarchy, HierarchyNode};
 
 #[doc(inline)]
 pub use text::{Align, Font, Layout, Text};

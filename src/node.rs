@@ -42,6 +42,16 @@ impl NodeInternal {
             _space: PhantomData,
         }
     }
+
+    pub(crate) fn shallow_clone(&self, sub: SubNode) -> NodeInternal {
+        NodeInternal {
+            visible: true,
+            transform: self.transform,
+            world_transform: cgmath::Transform::one(),
+            next_sibling: None,
+            sub_node: sub,
+        }
+    }
 }
 
 impl From<SubNode> for NodeInternal {

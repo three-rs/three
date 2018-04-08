@@ -1,5 +1,5 @@
 #[cfg(feature = "gltf-loader")]
-mod load_gltf;
+pub(crate) mod load_gltf;
 
 use std::{cmp, fs, io, iter, ops};
 use std::borrow::Cow;
@@ -16,11 +16,7 @@ use image;
 use itertools::Either;
 use mint;
 use obj;
-#[cfg(feature = "gltf-loader")]
-use vec_map::VecMap;
 
-#[cfg(feature = "gltf-loader")]
-use animation::Clip;
 use audio;
 use camera::{Camera, Projection, ZRange};
 use color::{BLACK, Color};
@@ -29,7 +25,7 @@ use hub::{Hub, HubPtr, LightData, SubLight, SubNode};
 use light::{Ambient, Directional, Hemisphere, Point, ShadowMap};
 use material::{self, Material};
 use mesh::{DynamicMesh, Mesh};
-use object;
+use object::{self, Group, Object};
 use render::{basic_pipe,
     BackendFactory, BackendResources, BasicPipelineState, DisplacementContribution,
     DynamicData, GpuData, Instance, InstanceCacheKey, PipelineCreationError, ShadowFormat, Source, Vertex,
@@ -38,6 +34,7 @@ use render::{basic_pipe,
 use scene::{Background, Scene};
 use sprite::Sprite;
 use skeleton::{Bone, Skeleton};
+use template::{Hierarchy, HierarchyNode};
 use text::{Font, Text, TextData};
 use texture::{CubeMap, CubeMapPath, FilterMethod, Sampler, Texture, WrapMode};
 
@@ -79,77 +76,11 @@ pub struct Factory {
     default_sampler: gfx::handle::Sampler<BackendResources>,
 }
 
-/// Loaded glTF 2.0 returned by [`Factory::load_gltf`].
-///
-/// [`Factory::load_gltf`]: struct.Factory.html#method.load_gltf
-#[cfg(feature = "gltf-loader")]
-#[derive(Debug, Clone)]
-pub struct Gltf {
-    /// Imported camera views.
-    pub cameras: Vec<Camera>,
-
-    /// Imported animation clips.
-    pub clips: Vec<Clip>,
-
-    /// The node heirarchy of the default scene.
-    ///
-    /// If the `glTF` contained no default scene then this
-    /// container will be empty.
-    pub heirarchy: VecMap<object::Group>,
-
-    /// Imported mesh instances.
-    ///
-    /// ### Notes
-    ///
-    /// * Must be kept alive in order to be displayed.
-    pub instances: Vec<Mesh>,
-
-    /// Imported mesh materials.
-    pub materials: Vec<Material>,
-
-    /// Imported mesh templates.
-    pub meshes: VecMap<Vec<Mesh>>,
-
-    /// The root node of the default scene.
-    ///
-    /// If the `glTF` contained no default scene then this group
-    /// will have no children.
-    pub root: object::Group,
-
-    /// Imported skeletons.
-    pub skeletons: Vec<Skeleton>,
-
-    /// Imported textures.
-    pub textures: Vec<Texture<[f32; 4]>>,
-}
-
-#[cfg(feature = "gltf-loader")]
-impl AsRef<object::Base> for Gltf {
-    fn as_ref(&self) -> &object::Base {
-        self.root.as_ref()
-    }
-}
-
-#[cfg(feature = "gltf-loader")]
-impl object::Object for Gltf {}
-
 fn f2i(x: f32) -> I8Norm {
     I8Norm(cmp::min(cmp::max((x * 127.0) as isize, -128), 127) as i8)
 }
 
 impl Factory {
-    fn create_instance_buffer(&mut self) -> gfx::handle::Buffer<BackendResources, Instance> {
-        // TODO: Better error handling
-        self.backend
-            .create_buffer(
-                1,
-                gfx::buffer::Role::Vertex,
-                gfx::memory::Usage::Dynamic,
-                gfx::memory::Bind::TRANSFER_DST,
-            )
-            .unwrap()
-    }
-
     pub(crate) fn new(mut backend: BackendFactory) -> Self {
         let quad_buf = backend.create_vertex_buffer(&QUAD);
         let default_sampler = backend.create_sampler_linear();
@@ -183,7 +114,7 @@ impl Factory {
         inverse_bind_matrix: mint::ColumnMatrix4<f32>,
     ) -> Bone {
         let data = SubNode::Bone { index, inverse_bind_matrix };
-        let object = self.hub.lock().unwrap().spawn(data);
+        let object = self.hub.lock().unwrap().spawn(data.into());
         Bone { object }
     }
 
@@ -211,6 +142,19 @@ impl Factory {
         let data = hub::SkeletonData { bones, gpu_buffer, gpu_buffer_view };
         let object = self.hub.lock().unwrap().spawn_skeleton(data);
         Skeleton { object }
+    }
+
+    /// Create a new camera using the provided projection.
+    ///
+    /// This allows you to create a camera from a predefined projection, which is useful if you
+    /// e.g. load projection data from a file and don't necessarily know ahead of time what type
+    /// of projection the camera uses. If you're manually creating a camera, you should use
+    /// [`perspective_camera`] or [`orthographic_camera`].
+    pub fn camera<P: Into<Projection>>(&mut self, projection: P) -> Camera {
+        Camera::new(
+            &mut *self.hub.lock().unwrap(),
+            projection.into(),
+        )
     }
 
     /// Create new [Orthographic] Camera.
@@ -344,7 +288,7 @@ impl Factory {
         slice.instances = Some((1, 0));
         let num_shapes = geometry.shapes.len();
         let mut displacement_contributions = Vec::with_capacity(num_shapes);
-        let instances = self.create_instance_buffer();
+        let instances = create_instance_buffer(&mut self.backend);
         let displacements = if num_shapes != 0 {
             let num_vertices = geometry.base.vertices.len();
             let mut contents = vec![[0.0; 4]; num_shapes * 3 * num_vertices];
@@ -436,7 +380,7 @@ impl Factory {
             }
             (data.len(), dest_buf, upload_buf)
         };
-        let instances = self.create_instance_buffer();
+        let instances = create_instance_buffer(&mut self.backend);
         DynamicMesh {
             object: self.hub.lock().unwrap().spawn_visual(
                 material.into(),
@@ -466,24 +410,7 @@ impl Factory {
         &mut self,
         template: &Mesh,
     ) -> Mesh {
-        let instances = self.create_instance_buffer();
-        let mut hub = self.hub.lock().unwrap();
-        let (material, gpu_data) = match hub[template].sub_node {
-            SubNode::Visual(ref mat, ref gpu, _) => {
-                (mat.clone(), GpuData {
-                    instances,
-                    instance_cache_key: Some(InstanceCacheKey {
-                        material: mat.clone(),
-                        geometry: gpu.vertices.clone(),
-                    }),
-                    ..gpu.clone()
-                })
-            }
-            _ => unreachable!(),
-        };
-        Mesh {
-            object: hub.spawn_visual(material, gpu_data, None),
-        }
+        mesh_instance(&mut *self.hub.lock().unwrap(), &mut self.backend, template)
     }
 
     /// Create a `Mesh` sharing the geometry with another one but with a different material.
@@ -493,7 +420,7 @@ impl Factory {
         template: &Mesh,
         material: M,
     ) -> Mesh {
-        let instances = self.create_instance_buffer();
+        let instances = create_instance_buffer(&mut self.backend);
         let material = material.into();
         let mut hub = self.hub.lock().unwrap();
         let gpu_data = match hub[template].sub_node {
@@ -517,7 +444,7 @@ impl Factory {
         &mut self,
         material: material::Sprite,
     ) -> Sprite {
-        let instances = self.create_instance_buffer();
+        let instances = create_instance_buffer(&mut self.backend);
         let mut slice = gfx::Slice::new_match_vertex_buffer(&self.quad_buf);
         slice.instances = Some((1, 0));
         let material = Material::from(material);
@@ -542,7 +469,7 @@ impl Factory {
         &mut self,
         template: &Sprite,
     ) -> Sprite {
-        let instances = self.create_instance_buffer();
+        let instances = create_instance_buffer(&mut self.backend);
         let mut hub = self.hub.lock().unwrap();
         let (material, gpu_data) = match hub[template].sub_node {
             SubNode::Visual(ref mat, ref gpu, _) => {
@@ -693,14 +620,14 @@ impl Factory {
         text: S,
     ) -> Text {
         let sub = SubNode::UiText(TextData::new(font, text));
-        let object = self.hub.lock().unwrap().spawn(sub);
+        let object = self.hub.lock().unwrap().spawn(sub.into());
         Text::with_object(object)
     }
 
     /// Create new audio source.
     pub fn audio_source(&mut self) -> audio::Source {
         let sub = SubNode::Audio(audio::AudioData::new());
-        let object = self.hub.lock().unwrap().spawn(sub);
+        let object = self.hub.lock().unwrap().spawn(sub.into());
         audio::Source::with_object(object)
     }
 
@@ -1085,6 +1012,125 @@ impl Factory {
         ));
         audio::Clip::new(buffer)
     }
+
+    /// Creates a new instance of the provided [`Hierarchy`].
+    ///
+    /// The new hierarchy will consist of new objects that duplicate the current state of
+    /// `hierarchy`.
+    pub fn instantiate_hierarchy(&mut self, hierarchy: &Hierarchy) -> Hierarchy {
+        let mut hub = self.hub.lock().unwrap();
+
+        // Make sure all nodes are up-to-date by processing any pending messages. This is
+        // mostly relevant for cases where the user tries to instantiate the hierarchy on the same
+        // frame that the original was created, in which case the messages setting up the
+        // original will need to be processed before creating the new instance.
+        hub.process_messages();
+
+        let group = Group::new(&mut *hub);
+
+        let mut nodes = HashMap::with_capacity(hierarchy.nodes.len());
+        for &root_index in &hierarchy.roots {
+            instantiate_hierarchy(&mut *hub, &mut self.backend, hierarchy, &group, &mut nodes, root_index);
+        }
+
+        Hierarchy {
+            group,
+            roots: hierarchy.roots.clone(),
+            nodes,
+
+            // TODO: Instantiate the animations.
+            animations: Vec::new(),
+        }
+    }
+}
+
+fn instantiate_hierarchy(
+    hub: &mut Hub,
+    backend: &mut BackendFactory,
+    original: &Hierarchy,
+    parent: &Group,
+    nodes: &mut HashMap<usize, HierarchyNode>,
+    current: usize,
+) {
+    // Retrieve the node that we're duplicating and its internal state data.
+    let orig_node = &original.nodes[&current];
+
+    // Create a new group for the current node and make its local transform match the original
+    // node's transform.
+    let group = Group::new(hub);
+    let transform = hub[&orig_node.group].to_node().transform;
+    group.set_transform(transform.position, transform.orientation, transform.scale);
+
+    parent.add(&group);
+
+    // TODO: Preserve transforms when instantiating meshes.
+    let meshes = orig_node
+        .meshes
+        .iter()
+        .map(|mesh| mesh_instance(hub, backend, mesh))
+        .inspect(|mesh| group.add(mesh))
+        .collect();
+
+    // TODO: Preserve transforms when instantiating cameras.
+    let camera = orig_node
+        .camera
+        .as_ref()
+        .map(|camera| Camera::new(hub, camera.projection.clone()));
+
+    if let Some(ref camera) = camera {
+        group.add(camera);
+    }
+
+    // Instantiate children recursively.
+    for &child_index in &orig_node.children {
+        instantiate_hierarchy(hub, backend, original, &group, nodes, child_index);
+    }
+
+    let node = HierarchyNode {
+        group,
+        meshes,
+        camera,
+
+        name: orig_node.name.clone(),
+        children: orig_node.children.clone(),
+
+        // TODO: Instantiate the skeleton.
+        skeleton: None,
+    };
+
+    nodes.insert(current, node);
+}
+
+fn mesh_instance(hub: &mut Hub, backend: &mut BackendFactory, template: &Mesh) -> Mesh {
+    let instances = create_instance_buffer(backend);
+    let (material, gpu_data) = match hub[template].sub_node {
+        SubNode::Visual(ref mat, ref gpu, _) => {
+            (mat.clone(), GpuData {
+                instances,
+                instance_cache_key: Some(InstanceCacheKey {
+                    material: mat.clone(),
+                    geometry: gpu.vertices.clone(),
+                }),
+                ..gpu.clone()
+            })
+        }
+        _ => unreachable!(),
+    };
+    Mesh {
+        object: hub.spawn_visual(material, gpu_data, None),
+    }
+}
+
+fn create_instance_buffer(backend: &mut BackendFactory) -> gfx::handle::Buffer<BackendResources, Instance> {
+    // TODO: Better error handling
+    backend
+        .create_buffer(
+            1,
+            gfx::buffer::Role::Vertex,
+            gfx::memory::Usage::Dynamic,
+            gfx::memory::Bind::TRANSFER_DST,
+        )
+        .unwrap()
 }
 
 fn concat_path<'a>(

@@ -9,22 +9,23 @@ fn main() {
     window.scene.add(&light);
     window.scene.background = three::Background::Color(0xC6F0FF);
 
+    // Load the glTF file.
     let default = concat!(env!("CARGO_MANIFEST_DIR"), "/test_data/AnimatedMorphCube/AnimatedMorphCube.gltf");
     let path = std::env::args().nth(1).unwrap_or(default.into());
-    let gltf = window.factory.load_gltf(&path);
-    window.scene.add(&gltf);
+    let hierarchy = window.factory.load_gltf(&path).pop().unwrap();
+    window.scene.add(&hierarchy);
 
+    // Instantiate all of the animations in the glTF file and start playing them.
     let mut mixer = three::animation::Mixer::new();
-    for clip in gltf.clips {
+    for clip in hierarchy.animations {
         mixer.action(clip);
     }
 
     let camera = window.factory.perspective_camera(60.0, 0.1 .. 20.0);
-    camera.set_position([0.0, 1.0, 5.0]);
 
     let mut controls = three::controls::Orbit::builder(&camera)
-        .position([-0.08, -0.05, 0.075])
-        .target([0.0, 0.0, 0.01])
+        .position([-3.0, 3.0, -3.0])
+        .up([0.0, 1.0, 0.0])
         .build();
 
     while window.update() && !window.input.hit(three::KEY_ESCAPE) {
