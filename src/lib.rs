@@ -307,6 +307,7 @@ pub mod render;
 pub mod scene;
 pub mod skeleton;
 mod sprite;
+pub mod template;
 mod text;
 mod texture;
 mod util;

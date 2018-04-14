@@ -17,6 +17,7 @@ use itertools::Either;
 use mint;
 use obj;
 
+use animation;
 use audio;
 use camera::{Camera, Projection, ZRange};
 use color::{BLACK, Color};
@@ -25,7 +26,7 @@ use hub::{Hub, HubPtr, LightData, SubLight, SubNode};
 use light::{Ambient, Directional, Hemisphere, Point, ShadowMap};
 use material::{self, Material};
 use mesh::{DynamicMesh, Mesh};
-use object;
+use object::{self, Group};
 use render::{basic_pipe,
     BackendFactory, BackendResources, BasicPipelineState, DisplacementContribution,
     DynamicData, GpuData, Instance, InstanceCacheKey, PipelineCreationError, ShadowFormat, Source, Vertex,
@@ -34,6 +35,7 @@ use render::{basic_pipe,
 use scene::{Background, Scene};
 use sprite::Sprite;
 use skeleton::{Bone, Skeleton};
+use template::Template;
 use text::{Font, Text, TextData};
 use texture::{CubeMap, CubeMapPath, FilterMethod, Sampler, Texture, WrapMode};
 
@@ -113,6 +115,12 @@ impl Factory {
             first_child: None,
             background,
         }
+    }
+
+    /// Creates an instance of all the objects described in the template, returning the root
+    /// `Group` of the resulting hierarchy.
+    pub fn instantiate_template(&mut self, template: &Template) -> (Group, Vec<animation::Clip>) {
+        unimplemented!();
     }
 
     /// Create a new [`Bone`], one component of a [`Skeleton`].
