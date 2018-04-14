@@ -12,17 +12,16 @@ fn main() {
     // Load the glTF file.
     let default = concat!(env!("CARGO_MANIFEST_DIR"), "/test_data/AnimatedMorphCube/AnimatedMorphCube.gltf");
     let path = std::env::args().nth(1).unwrap_or(default.into());
-    let gltf = window.factory.load_gltf(&path);
+    let template = window.factory.load_gltf(&path).pop().unwrap();
 
     // Instantiate the contents of the file.
-    let instance = window.factory.instantiate_gltf_scene(&gltf, 0);
+    let (instance, animations) = window.factory.instantiate_template(&template);
     window.scene.add(&instance);
 
     // Instantiate all of the animations in the glTF file and start playing them.
     let mut mixer = three::animation::Mixer::new();
-    for anim_def in &gltf.animations {
-        let clip = window.factory.instantiate_gltf_animation(&instance, anim_def).unwrap();
-        mixer.action(clip);
+    for animation in animations {
+        mixer.action(animation);
     }
 
     let camera = window.factory.perspective_camera(60.0, 0.1 .. 20.0);

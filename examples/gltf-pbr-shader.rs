@@ -12,18 +12,18 @@ fn main() {
     let default = concat!(env!("CARGO_MANIFEST_DIR"), "/test_data/Lantern/Lantern.gltf");
     let path = std::env::args().nth(1).unwrap_or(default.into());
     println!("Loading {:?} (this may take a while)", path);
-    let gltf = win.factory.load_gltf(&path);
-    let instance = win.factory.instantiate_gltf_scene(&gltf, 0);
+    let template = win.factory.load_gltf(&path).pop().unwrap();
+    let (instance, _) = win.factory.instantiate_template(&template);
     win.scene.add(&instance);
 
-    // If there is already a camera in the instantiated glTF scene, use that one.
-    let mut cam = None;
-    for node in instance.nodes.values() {
-        if let Some(ref camera) = node.camera {
-            cam = Some(camera.clone());
-            break;
-        }
-    }
+    // TODO: Look for an existing camera within the glTF scene.
+    let cam = None;
+    // for node in instance.nodes.values() {
+    //     if let Some(ref camera) = node.camera {
+    //         cam = Some(camera.clone());
+    //         break;
+    //     }
+    // }
 
     // If we didn't find a camera in the glTF scene, create a default one to use.
     let cam = cam.unwrap_or_else(|| {

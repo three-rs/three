@@ -17,6 +17,7 @@ use itertools::Either;
 use mint;
 use obj;
 
+use animation;
 use audio;
 use camera::{Camera, Projection, ZRange};
 use color::{BLACK, Color};
@@ -25,7 +26,7 @@ use hub::{Hub, HubPtr, LightData, SubLight, SubNode};
 use light::{Ambient, Directional, Hemisphere, Point, ShadowMap};
 use material::{self, Material};
 use mesh::{DynamicMesh, Mesh};
-use object;
+use object::{self, Group, Object};
 use render::{basic_pipe,
     BackendFactory, BackendResources, BasicPipelineState, DisplacementContribution,
     DynamicData, GpuData, Instance, InstanceCacheKey, PipelineCreationError, ShadowFormat, Source, Vertex,
@@ -34,6 +35,7 @@ use render::{basic_pipe,
 use scene::{Background, Scene};
 use sprite::Sprite;
 use skeleton::{Bone, Skeleton};
+use template::{AnimationTemplate, SkeletonTemplate, Template};
 use text::{Font, Text, TextData};
 use texture::{CubeMap, CubeMapPath, FilterMethod, Sampler, Texture, WrapMode};
 
@@ -113,6 +115,91 @@ impl Factory {
             first_child: None,
             background,
         }
+    }
+
+    /// Creates an instance of all the objects described in the template, returning the root
+    /// `Group` of the resulting hierarchy.
+    pub fn instantiate_template(&mut self, template: &Template) -> (Group, Vec<animation::Clip>) {
+        let default_material: Material = material::Basic {
+            color: 0xFFFFFF,
+            map: None,
+        }.into();
+
+        // Create group to act as the root node of the instantiated hierarchy.
+        let root = self.group();
+
+        // Create a group for each node in the template.
+        let mut groups = Vec::with_capacity(template.nodes.len());
+        while groups.len() < template.nodes.len() {
+            groups.push(self.group());
+        }
+
+        // Instantiate all skeletons in the template.
+        let skeletons: Vec<_> = template
+            .skeletons
+            .iter()
+            .map(|skeleton| instantiate_skeleton(skeleton, self, &groups))
+            .collect();
+
+        // Instantiate all animation clips in the template.
+        let animations = template
+            .animations
+            .iter()
+            .map(|animation| instantiate_animation(animation, &groups))
+            .collect();
+
+        // For each of the root nodes, add the node's group to the root group.
+        for &root_index in &template.roots {
+            root.add(&groups[root_index]);
+        }
+
+        // For each of the nodes, instantiate an attach the various objects assoicated with
+        // the node.
+        for (index, node) in template.nodes.iter().enumerate() {
+            let group = &groups[index];
+
+            // Set the node's transform.
+            group.set_transform(node.translation, node.rotation, node.scale);
+
+            // Add the groups for the node's children.
+            for &child_index in &node.children {
+                group.add(&groups[child_index]);
+            }
+
+            // Instantiate and add meshes.
+            if let Some(mesh_index) = node.mesh {
+                let mesh_templates = &template.meshes[mesh_index];
+                for mesh_template in mesh_templates {
+                    let material = mesh_template
+                        .material
+                        .map(|index| template.materials[index].clone())
+                        .unwrap_or(default_material.clone());
+                    let mut mesh = self.mesh(mesh_template.geometry.clone(), material);
+                    group.add(&mesh);
+
+                    // Set skeletonf for mesh, if applicable.
+                    if let Some(skeleton_index) = node.skeleton {
+                        let skeleton = &skeletons[skeleton_index];
+                        mesh.set_skeleton(skeleton.clone());
+                    }
+                }
+            }
+
+            // Instantiate and add camera.
+            if let Some(camera_index) = node.camera {
+                let projection = template.cameras[camera_index].clone();
+                let camera = self.camera(projection);
+                group.add(&camera);
+            }
+
+            // Attach skeleton.
+            if let Some(skeleton_index) = node.skeleton {
+                let skeleton = &skeletons[skeleton_index];
+                group.add(skeleton);
+            }
+        }
+
+        (root, animations)
     }
 
     /// Create a new [`Bone`], one component of a [`Skeleton`].
@@ -1055,5 +1142,39 @@ fn concat_path<'a>(
     match base {
         Some(base) => Cow::Owned(base.join(name)),
         None => Cow::Borrowed(Path::new(name)),
+    }
+}
+
+fn instantiate_skeleton(
+    template: &SkeletonTemplate,
+    factory: &mut Factory,
+    groups: &[Group],
+) -> Skeleton {
+    let bones = template
+        .bones
+        .iter()
+        .enumerate()
+        .map(|(index, template)| {
+            let bone = factory.bone(index, template.inverse_bind_matrix);
+            groups[template.joint].add(&bone);
+            bone
+        })
+        .collect();
+    factory.skeleton(bones)
+}
+
+fn instantiate_animation(
+    template: &AnimationTemplate,
+    groups: &[Group],
+) -> animation::Clip {
+    let tracks = template
+        .tracks
+        .iter()
+        .map(|&(ref track, target_index)| (track.clone(), groups[target_index].upcast()))
+        .collect();
+
+    animation::Clip {
+        name: template.name.clone(),
+        tracks,
     }
 }
