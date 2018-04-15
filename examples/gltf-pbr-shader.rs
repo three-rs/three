@@ -16,8 +16,6 @@ fn main() {
     let (instance, _) = win.factory.instantiate_template(&template);
     win.scene.add(&instance);
 
-    println!("Created instance and added it to scene");
-
     // TODO: Look for an existing camera within the glTF scene.
     let cam = None;
     // for node in instance.nodes.values() {

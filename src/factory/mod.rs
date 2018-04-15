@@ -35,7 +35,7 @@ use render::{basic_pipe,
 use scene::{Background, Scene};
 use sprite::Sprite;
 use skeleton::{Bone, Skeleton};
-use template::Template;
+use template::{SkeletonTemplate, Template};
 use text::{Font, Text, TextData};
 use texture::{CubeMap, CubeMapPath, FilterMethod, Sampler, Texture, WrapMode};
 
@@ -134,6 +134,13 @@ impl Factory {
             groups.push(self.group());
         }
 
+        // Instantiate all skeletons in the template.
+        let skeletons: Vec<_> = template
+            .skeletons
+            .iter()
+            .map(|skeleton| instantiate_skeleton(skeleton, self, &groups))
+            .collect();
+
         // For each of the root nodes, add the node's group to the root group.
         for &root_index in &template.roots {
             root.add(&groups[root_index]);
@@ -160,8 +167,14 @@ impl Factory {
                         .material
                         .map(|index| template.materials[index].clone())
                         .unwrap_or(default_material.clone());
-                    let mesh = self.mesh(mesh_template.geometry.clone(), material);
+                    let mut mesh = self.mesh(mesh_template.geometry.clone(), material);
                     group.add(&mesh);
+
+                    // Set skeletonf for mesh, if applicable.
+                    if let Some(skeleton_index) = node.skeleton {
+                        let skeleton = &skeletons[skeleton_index];
+                        mesh.set_skeleton(skeleton.clone());
+                    }
                 }
             }
 
@@ -170,6 +183,12 @@ impl Factory {
                 let projection = template.cameras[camera_index].clone();
                 let camera = self.camera(projection);
                 group.add(&camera);
+            }
+
+            // Attach skeleton.
+            if let Some(skeleton_index) = node.skeleton {
+                let skeleton = &skeletons[skeleton_index];
+                group.add(skeleton);
             }
         }
 
@@ -1111,4 +1130,22 @@ fn concat_path<'a>(
         Some(base) => Cow::Owned(base.join(name)),
         None => Cow::Borrowed(Path::new(name)),
     }
+}
+
+fn instantiate_skeleton(
+    template: &SkeletonTemplate,
+    factory: &mut Factory,
+    groups: &[Group],
+) -> Skeleton {
+    let bones = template
+        .bones
+        .iter()
+        .enumerate()
+        .map(|(index, template)| {
+            let bone = factory.bone(index, template.inverse_bind_matrix);
+            groups[template.joint].add(&bone);
+            bone
+        })
+        .collect();
+    factory.skeleton(bones)
 }
