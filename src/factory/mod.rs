@@ -35,7 +35,7 @@ use render::{basic_pipe,
 use scene::{Background, Scene};
 use sprite::Sprite;
 use skeleton::{Bone, Skeleton};
-use template::{SkeletonTemplate, Template};
+use template::{AnimationTemplate, SkeletonTemplate, Template};
 use text::{Font, Text, TextData};
 use texture::{CubeMap, CubeMapPath, FilterMethod, Sampler, Texture, WrapMode};
 
@@ -141,6 +141,13 @@ impl Factory {
             .map(|skeleton| instantiate_skeleton(skeleton, self, &groups))
             .collect();
 
+        // Instantiate all animation clips in the template.
+        let animations = template
+            .animations
+            .iter()
+            .map(|animation| instantiate_animation(animation, &groups))
+            .collect();
+
         // For each of the root nodes, add the node's group to the root group.
         for &root_index in &template.roots {
             root.add(&groups[root_index]);
@@ -192,7 +199,7 @@ impl Factory {
             }
         }
 
-        (root, Vec::new())
+        (root, animations)
     }
 
     /// Create a new [`Bone`], one component of a [`Skeleton`].
@@ -1148,4 +1155,20 @@ fn instantiate_skeleton(
         })
         .collect();
     factory.skeleton(bones)
+}
+
+fn instantiate_animation(
+    template: &AnimationTemplate,
+    groups: &[Group],
+) -> animation::Clip {
+    let tracks = template
+        .tracks
+        .iter()
+        .map(|&(ref track, target_index)| (track.clone(), groups[target_index].upcast()))
+        .collect();
+
+    animation::Clip {
+        name: template.name.clone(),
+        tracks,
+    }
 }
