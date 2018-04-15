@@ -129,7 +129,10 @@ impl Factory {
         let root = self.group();
 
         // Create a group for each node in the template.
-        let groups = vec![self.group(); template.nodes.len()];
+        let mut groups = Vec::with_capacity(template.nodes.len());
+        while groups.len() < template.nodes.len() {
+            groups.push(self.group());
+        }
 
         // For each of the root nodes, add the node's group to the root group.
         for &root_index in &template.roots {
@@ -138,7 +141,9 @@ impl Factory {
 
         // For each of the nodes, instantiate an attach the various objects assoicated with
         // the node.
-        for (group, node) in groups.iter().zip(template.nodes.iter()) {
+        for (index, node) in template.nodes.iter().enumerate() {
+            let group = &groups[index];
+
             // Set the node's transform.
             group.set_transform(node.translation, node.rotation, node.scale);
 
