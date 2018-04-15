@@ -93,6 +93,7 @@ pub struct TemplateNode {
 #[derive(Debug, Clone)]
 pub struct MeshTemplate {
     /// The geometry used in the mesh.
+    // TODO: Use a shared GPU resource, rather than keeping the geometry data in CPU memory.
     pub geometry: Geometry,
 
     /// The index for the material to use in the mesh, if specified.

@@ -26,7 +26,7 @@ use hub::{Hub, HubPtr, LightData, SubLight, SubNode};
 use light::{Ambient, Directional, Hemisphere, Point, ShadowMap};
 use material::{self, Material};
 use mesh::{DynamicMesh, Mesh};
-use object::{self, Group};
+use object::{self, Group, Object};
 use render::{basic_pipe,
     BackendFactory, BackendResources, BasicPipelineState, DisplacementContribution,
     DynamicData, GpuData, Instance, InstanceCacheKey, PipelineCreationError, ShadowFormat, Source, Vertex,
@@ -120,7 +120,55 @@ impl Factory {
     /// Creates an instance of all the objects described in the template, returning the root
     /// `Group` of the resulting hierarchy.
     pub fn instantiate_template(&mut self, template: &Template) -> (Group, Vec<animation::Clip>) {
-        unimplemented!();
+        let default_material: Material = material::Basic {
+            color: 0xFFFFFF,
+            map: None,
+        }.into();
+
+        // Create group to act as the root node of the instantiated hierarchy.
+        let root = self.group();
+
+        // Create a group for each node in the template.
+        let groups = vec![self.group(); template.nodes.len()];
+
+        // For each of the root nodes, add the node's group to the root group.
+        for &root_index in &template.roots {
+            root.add(&groups[root_index]);
+        }
+
+        // For each of the nodes, instantiate an attach the various objects assoicated with
+        // the node.
+        for (group, node) in groups.iter().zip(template.nodes.iter()) {
+            // Set the node's transform.
+            group.set_transform(node.translation, node.rotation, node.scale);
+
+            // Add the groups for the node's children.
+            for &child_index in &node.children {
+                group.add(&groups[child_index]);
+            }
+
+            // Instantiate and add meshes.
+            if let Some(mesh_index) = node.mesh {
+                let mesh_templates = &template.meshes[mesh_index];
+                for mesh_template in mesh_templates {
+                    let material = mesh_template
+                        .material
+                        .map(|index| template.materials[index].clone())
+                        .unwrap_or(default_material.clone());
+                    let mesh = self.mesh(mesh_template.geometry.clone(), material);
+                    group.add(&mesh);
+                }
+            }
+
+            // Instantiate and add camera.
+            if let Some(camera_index) = node.camera {
+                let projection = template.cameras[camera_index].clone();
+                let camera = self.camera(projection);
+                group.add(&camera);
+            }
+        }
+
+        (root, Vec::new())
     }
 
     /// Create a new [`Bone`], one component of a [`Skeleton`].
