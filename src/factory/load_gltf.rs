@@ -439,6 +439,8 @@ impl super::Factory {
     /// contains definitions for meshes, node hierarchies, skinned skeletons, animations, and
     /// other things that can be instantiated and added to the scene. See the [`GltfDefinitions`]
     /// for more information on how to instantiate the various definitions in the glTF file.
+    // TODO: Reduce the contents loaded templates so that they only have templates for objects
+    // referenced in that scene.
     pub fn load_gltf(
         &mut self,
         path_str: &str,
