@@ -762,7 +762,13 @@ impl Factory {
                 "Can't read font file:\nFile: {}",
                 file_path.display()
             ));
-        Font::new(buffer, file_path.to_owned(), self.backend.clone())
+        Font::new(buffer, format!("path: {:?}", file_path), self.backend.clone())
+    }
+
+    /// Load the Karla font
+    pub fn load_font_karla(&mut self) -> Font {
+        let buffer = include_bytes!("../../data/fonts/Karla-Regular.ttf").to_vec();
+        Font::new(buffer, String::from("Embeded Karla-Regular.ttf"), self.backend.clone())
     }
 
     fn parse_texture_format(path: &Path) -> image::ImageFormat {

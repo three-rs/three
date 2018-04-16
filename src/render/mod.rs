@@ -22,7 +22,6 @@ use color;
 
 use std::{io, str};
 use std::collections::HashMap;
-use std::path::PathBuf;
 
 pub use self::back::CommandBuffer as BackendCommandBuffer;
 pub use self::back::Factory as BackendFactory;
@@ -528,7 +527,7 @@ pub struct Renderer {
     shadow_default: Texture<f32>,
     debug_quads: froggy::Storage<DebugQuad>,
     size: (u32, u32),
-    font_cache: HashMap<PathBuf, Font>,
+    font_cache: HashMap<String, Font>,
     instance_cache: HashMap<InstanceCacheKey, InstanceData>,
     /// `ShadowType` of this `Renderer`.
     pub shadow: ShadowType,
@@ -764,9 +763,9 @@ impl Renderer {
                 // We may want to make it scene-dependent at some point.
                 SubNode::UiText(ref text) => {
                     text.font.queue(&text.section);
-                    if !self.font_cache.contains_key(&text.font.path) {
+                    if !self.font_cache.contains_key(&text.font.id) {
                         self.font_cache
-                            .insert(text.font.path.clone(), text.font.clone());
+                            .insert(text.font.id.clone(), text.font.clone());
                     }
                 }
                 _ => {}
