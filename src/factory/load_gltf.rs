@@ -567,7 +567,7 @@ impl super::Factory {
             .map(|scene| {
                 let roots = scene
                     .nodes()
-                    .map(|node| node.index())
+                    .map(|node| node_map[&node.index()])
                     .collect();
                 let name = scene.name().map(Into::into);
 
