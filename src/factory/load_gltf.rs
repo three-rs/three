@@ -14,6 +14,7 @@ use image;
 use material;
 use mint;
 use std::{fs, io};
+use std::collections::HashMap;
 
 use camera::{Orthographic, Perspective, Projection};
 use gltf_utils::AccessorIter;
@@ -29,6 +30,7 @@ use template::{
     SkeletonTemplate,
     Template,
     TemplateNode,
+    TemplateNodeData,
 };
 
 fn load_camera<'a>(
@@ -403,13 +405,41 @@ fn load_animation<'a>(
     }
 }
 
-fn load_node<'a>(node: gltf::Node<'a>) -> TemplateNode {
+fn load_node<'a>(
+    node: gltf::Node<'a>,
+    nodes: &mut Vec<TemplateNode>,
+    node_map: &mut HashMap<usize, usize>,
+    mesh_map: &HashMap<usize, Vec<usize>>,
+) {
     let name = node.name().map(Into::into);
 
-    let mesh = node.mesh().map(|mesh| mesh.index());
-    let camera = node.camera().map(|camera| camera.index());
+    // Create a list of the children that are under the resulting template node. Note that this
+    // won't necessarily match the list of children in the original glTF document since meshes
+    // and cameras become separate nodes in the template.
+    let mut children = Vec::new();
+
+    // Create mesh/skinned mesh nodes for any meshes associated with this glTF node.
     let skeleton = node.skin().map(|skin| skin.index());
-    let children = node.children().map(|node| node.index()).collect();
+    if let Some(gltf_index) = node.mesh().map(|mesh| mesh.index()) {
+        for &mesh_index in &mesh_map[&gltf_index] {
+            children.push(nodes.len());
+
+            // The node will either be a mesh or a skinned mesh, depending on whether or not
+            // there's a skeleton associated with the glTF node.
+            let data = match skeleton {
+                Some(skeleton_index) => TemplateNodeData::SkinnedMesh(mesh_index, skeleton_index),
+                None => TemplateNodeData::Mesh(mesh_index),
+            };
+
+            nodes.push(TemplateNode::from_data(data));
+        }
+    }
+
+    // Create a camera node as a child if there's a camera associated with this glTF node.
+    if let Some(camera_index) = node.camera().map(|camera| camera.index()) {
+        children.push(nodes.len());
+        nodes.push(TemplateNode::from_data(TemplateNodeData::Camera(camera_index)));
+    }
 
     // Decompose the transform to get the translation, rotation, and scale.
     let (translation, rotation, scale) = node.transform().decomposed();
@@ -418,18 +448,23 @@ fn load_node<'a>(node: gltf::Node<'a>) -> TemplateNode {
     // scale factor in all directions.
     let scale = scale[1];
 
-    TemplateNode {
+    // Add an entry in the node map from the node's index in the glTF document to its index in the
+    // final template.
+    node_map.insert(node.index(), nodes.len());
+    nodes.push(TemplateNode {
         name,
-
-        mesh,
-        skeleton,
-        camera,
-        children,
 
         translation: translation.into(),
         rotation: rotation.into(),
         scale,
-    }
+
+        // NOTE: At this point the list of children only includes the nodes generated for any
+        // meshes and cameras attached to the original node. At this point we can't add the
+        // children declared in the original document because we don't know the indices that those
+        // nodes will have in the final template until we've created them all. Those children
+        // are added in a final pass after all glTF nodes have been added to the template.
+        data: TemplateNodeData::Group(children),
+    });
 }
 
 impl super::Factory {
@@ -439,8 +474,6 @@ impl super::Factory {
     /// contains definitions for meshes, node hierarchies, skinned skeletons, animations, and
     /// other things that can be instantiated and added to the scene. See the [`GltfDefinitions`]
     /// for more information on how to instantiate the various definitions in the glTF file.
-    // TODO: Reduce the contents loaded templates so that they only have templates for objects
-    // referenced in that scene.
     pub fn load_gltf(
         &mut self,
         path_str: &str,
@@ -459,12 +492,65 @@ impl super::Factory {
             .map(|material| load_material(material, &textures))
             .collect();
 
-        let meshes: Vec<_> = gltf
-            .meshes()
-            .map(|mesh| load_mesh(mesh, &buffers))
-            .collect();
+        // Flattened list of meshes loaded from the glTF file.
+        let mut meshes = Vec::new();
 
-        let nodes: Vec<_> = gltf.nodes().map(load_node).collect();
+        // Mapping that allow us to convert from indices in the glTF document to the indices in
+        // the resulting template, for objects where the two don't necessarily line up.
+        let mut mesh_map = HashMap::new();
+        let mut node_map = HashMap::new();
+
+        // Load the meshes declared in the glTF file. Each glTF mesh declaration can potentially
+        // result in multiple Three meshes, so in doing so we flatten them to a single list of
+        // meshes, populate `mesh_map` with information on how to lookup meshes in the flattened
+        // list given the index in the original glTF document.
+        for gltf_mesh in gltf.meshes() {
+            // Save the index within the glTF document so that we can add an entry to the mesh map.
+            let gltf_index = gltf_mesh.index();
+
+            // Add all of the meshes to the flattened list of meshes, and generate a list of new
+            // indices that can be used to map from the glTF index to the flattened indices.
+            let mut indices = Vec::new();
+            for mesh in load_mesh(gltf_mesh, &buffers) {
+                indices.push(meshes.len());
+                meshes.push(mesh);
+            }
+
+            // Add the list of mesh indices to the mesh map.
+            mesh_map.insert(gltf_index, indices);
+        }
+
+        let mut nodes = Vec::with_capacity(gltf.nodes().len());
+        for node in gltf.nodes() {
+            load_node(node, &mut nodes, &mut node_map, &mesh_map);
+        }
+
+        // Fix-up any group nodes in the template by adding their original children to their
+        // list of children.
+        for gltf_node in gltf.nodes() {
+            // Lookup the template node corresponding to this glTF node.
+            let template_node_index = node_map[&gltf_node.index()];
+            let template_node = &mut nodes[template_node_index];
+
+            // Get the list of children for this node.
+            // NOTE: We assume here that all glTF nodes will correspond to a group template, but
+            // we may implement optimizations in the future that will no longer make this true.
+            let children = match template_node.data {
+                TemplateNodeData::Group(ref mut children) => children,
+                _ => panic!(
+                    "Node corresponding to glTF node {} is not a group: {:?}",
+                    gltf_node.index(),
+                    template_node,
+                ),
+            };
+
+            // For each of the children originally declared, lookup the index of the node in the
+            // final template and add it to the group's list of children.
+            for gltf_index in gltf_node.children().map(|child| child.index()) {
+                let template_index = node_map[&gltf_index];
+                children.push(template_index);
+            }
+        }
 
         let animations: Vec<_> = gltf
             .animations()
@@ -485,6 +571,8 @@ impl super::Factory {
                     .collect();
                 let name = scene.name().map(Into::into);
 
+                // TODO: Reduce the contents loaded templates so that they only have templates
+                // for objects referenced in that scene.
                 Template {
                     name,
                     roots,

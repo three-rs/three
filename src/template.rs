@@ -71,6 +71,25 @@ pub struct TemplateNode {
     pub data: TemplateNodeData,
 }
 
+impl TemplateNode {
+    /// Creates a default `TemplateNode` with the provided node data.
+    ///
+    /// This is used by `Factory::load_gltf`, which needs to generate new nodes on the fly with
+    /// a default transform.
+    pub(crate) fn from_data(data: TemplateNodeData) -> TemplateNode {
+        TemplateNode {
+            name: None,
+
+            // Provide a default transformation with no translation, no rotation, and a scale of 1.
+            translation: [0.0, 0.0, 0.0].into(),
+            rotation: [0.0, 0.0, 0.0, 1.0].into(),
+            scale: 1.0,
+
+            data
+        }
+    }
+}
+
 /// The specific type of Three object that a `TemplateNode` will become when instantiated.
 #[derive(Debug, Clone)]
 pub enum TemplateNodeData {
