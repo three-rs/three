@@ -51,30 +51,6 @@ pub struct TemplateNode {
     /// The name of the node.
     pub name: Option<String>,
 
-    /// The index of the mesh associated with this node, if any.
-    ///
-    /// The index can be used to lookup the associated mesh definition in the `meshes` map of the
-    /// parent [`GltfDefinitions`].
-    pub mesh: Option<usize>,
-
-    /// The index of the camera associated with this node, if any.
-    ///
-    /// The index can be used to lookup the associated camera projection in the `cameras` map of
-    /// the parent [`GltfDefinitions`].
-    pub camera: Option<usize>,
-
-    /// The index of the skin attached to this node, if any.
-    ///
-    /// The index corresponds to a skin in the `skins` list of the parent [`GltfDefinitions`].
-    ///
-    /// Note that if `skin` has a value, then `mesh` will also have a value.
-    pub skeleton: Option<usize>,
-
-    /// The indices of this node's children. A node may have zero or more children.
-    ///
-    /// Each index corresponds to a node in the `nodes` map of the parent [`GltfDefinitions`].
-    pub children: Vec<usize>,
-
     /// The node's local translation.
     ///
     /// This translation is relative to its parent node when instantiated.
@@ -89,6 +65,40 @@ pub struct TemplateNode {
     ///
     /// This scale is relative to its parent node when instantiated.
     pub scale: f32,
+
+    /// The specific type of Three object that this node will be instantiated into, and its
+    /// associated data.
+    pub data: TemplateNodeData,
+}
+
+/// The specific type of Three object that a `TemplateNode` will become when instantiated.
+#[derive(Debug, Clone)]
+pub enum TemplateNodeData {
+    /// A node representing a [`Group`].
+    ///
+    /// Contains a list of the indices of the nodes that are in the group.
+    Group(Vec<usize>),
+
+    // TODO: Implement audio nodes.
+    Audio,
+
+    /// A node representing a [`Mesh`].
+    Mesh(usize),
+
+    /// A node representing a [`Mesh`] with an attached [`Skeleton`].
+    SkinnedMesh(usize, usize),
+
+    /// A node representing a [`Light`].
+    Light(usize),
+
+    /// A node representing a [`Bone`].
+    Bone(usize, mint::ColumnMatrix4<f32>),
+
+    /// A node representing a [`Skeleton`].
+    Skeleton(usize),
+
+    /// A node representing a [`Camera`].
+    Camera(usize),
 }
 
 /// Information describing a mesh.
