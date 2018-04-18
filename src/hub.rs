@@ -325,7 +325,7 @@ impl Hub {
         match operation {
             TextOperation::Color(color) => {
                 let rgb = color::to_linear_rgb(color);
-                data.section.text[0].color = [rgb[0], rgb[1], rgb[2], 0.0];
+                data.section.text[0].color = [rgb[0], rgb[1], rgb[2], 1.0];
             }
             TextOperation::Font(font) => data.font = font,
             TextOperation::Layout(layout) => data.layout = layout,

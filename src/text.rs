@@ -1,6 +1,5 @@
 use std::cell::RefCell;
 use std::fmt;
-use std::path::PathBuf;
 use std::rc::Rc;
 
 use gfx::Encoder;
@@ -88,20 +87,20 @@ impl From<Layout> for g::Layout<g::BuiltInLineBreaker> {
 #[derive(Clone)]
 pub struct Font {
     brush: Rc<RefCell<g::GlyphBrush<'static, BackendResources, BackendFactory>>>,
-    pub(crate) path: PathBuf,
+    pub(crate) id: String,
 }
 
 impl Font {
-    pub(crate) fn new(
-        buf: Vec<u8>,
-        path: PathBuf,
+    pub(crate) fn new<T: Into<g::SharedBytes<'static>>>(
+        buf: T,
+        id: String,
         factory: BackendFactory,
     ) -> Font {
         Font {
             brush: Rc::new(RefCell::new(
-                g::GlyphBrushBuilder::using_font(g::font(buf).unwrap()).build(factory),
+                g::GlyphBrushBuilder::using_font_bytes(buf).build(factory),
             )),
-            path: path,
+            id: id,
         }
     }
 
@@ -131,7 +130,7 @@ impl fmt::Debug for Font {
         &self,
         f: &mut fmt::Formatter,
     ) -> fmt::Result {
-        write!(f, "Font {{ path: {:?} }}", self.path)
+        write!(f, "Font {{ {} }}", self.id)
     }
 }
 
