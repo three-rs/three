@@ -5,6 +5,7 @@ use mint;
 use camera::{Projection};
 
 use {Material};
+use color::Color;
 use animation::Track;
 use geometry::Geometry;
 
@@ -29,18 +30,16 @@ pub struct Template {
     pub materials: Vec<Material>,
 
     /// The meshes defined in this template.
-    // TODO: Flatten this list. This structure mirrors the glTF format, but isn't necessary for
-    // a general-purpose template.
-    pub meshes: Vec<Vec<MeshTemplate>>,
+    pub meshes: Vec<MeshTemplate>,
 
     /// The scene nodes loaded from the glTF file.
     pub nodes: Vec<TemplateNode>,
 
-    /// The skinned skeltons loaded from the glTF file.
-    pub skeletons: Vec<SkeletonTemplate>,
-
     /// The animation clips loaded from the glTF file.
     pub animations: Vec<AnimationTemplate>,
+
+    /// Light templates to be used as part of the template.
+    pub lights: Vec<LightTemplate>,
 }
 
 /// The definition of a node used in a glTF file.
@@ -50,30 +49,6 @@ pub struct Template {
 pub struct TemplateNode {
     /// The name of the node.
     pub name: Option<String>,
-
-    /// The index of the mesh associated with this node, if any.
-    ///
-    /// The index can be used to lookup the associated mesh definition in the `meshes` map of the
-    /// parent [`GltfDefinitions`].
-    pub mesh: Option<usize>,
-
-    /// The index of the camera associated with this node, if any.
-    ///
-    /// The index can be used to lookup the associated camera projection in the `cameras` map of
-    /// the parent [`GltfDefinitions`].
-    pub camera: Option<usize>,
-
-    /// The index of the skin attached to this node, if any.
-    ///
-    /// The index corresponds to a skin in the `skins` list of the parent [`GltfDefinitions`].
-    ///
-    /// Note that if `skin` has a value, then `mesh` will also have a value.
-    pub skeleton: Option<usize>,
-
-    /// The indices of this node's children. A node may have zero or more children.
-    ///
-    /// Each index corresponds to a node in the `nodes` map of the parent [`GltfDefinitions`].
-    pub children: Vec<usize>,
 
     /// The node's local translation.
     ///
@@ -89,6 +64,69 @@ pub struct TemplateNode {
     ///
     /// This scale is relative to its parent node when instantiated.
     pub scale: f32,
+
+    /// The specific type of Three object that this node will be instantiated into, and its
+    /// associated data.
+    pub data: TemplateNodeData,
+}
+
+impl TemplateNode {
+    /// Creates a default `TemplateNode` with the provided node data.
+    ///
+    /// This is used by `Factory::load_gltf`, which needs to generate new nodes on the fly with
+    /// a default transform.
+    pub(crate) fn from_data(data: TemplateNodeData) -> TemplateNode {
+        TemplateNode {
+            name: None,
+
+            // Provide a default transformation with no translation, no rotation, and a scale of 1.
+            translation: [0.0, 0.0, 0.0].into(),
+            rotation: [0.0, 0.0, 0.0, 1.0].into(),
+            scale: 1.0,
+
+            data
+        }
+    }
+}
+
+/// The specific type of Three object that a `TemplateNode` will become when instantiated.
+#[derive(Debug, Clone)]
+pub enum TemplateNodeData {
+    /// A node representing a [`Group`].
+    ///
+    /// Contains a list of the indices of the nodes that are in the group.
+    Group(Vec<usize>),
+
+    /// A node representing a [`Mesh`].
+    ///
+    /// Contains the index of the mesh in [`meshes`].
+    Mesh(usize),
+
+    /// A node representing a [`Mesh`] with an attached [`Skeleton`].
+    ///
+    /// The first `usize` is the index of the mesh in [`meshes`], the second `usize` is the
+    /// index of the skeleton node in [`nodes`]. Note that the second index must reference a
+    /// node that has a [`TemplateNodeData::Skeleton`] for its [`data`] field.
+    SkinnedMesh(usize, usize),
+
+    /// A node representing a [`Light`].
+    Light(usize),
+
+    /// A node representing a [`Bone`].
+    ///
+    /// Contains the index of the bone within its skeleton, and the inverse bind matrix for
+    /// the bone.
+    Bone(usize, mint::ColumnMatrix4<f32>),
+
+    /// A node representing a [`Skeleton`].
+    ///
+    /// Contains the indices of the bones nodes in the scene that are the bones in this skeleton.
+    /// These indices correspond to elements in [`nodes`] in the parent [`Template`]. Note that
+    /// the nodes references must have a [`TemplateNodeData::Bone`] for their [`data`] field.
+    Skeleton(Vec<usize>),
+
+    /// A node representing a [`Camera`].
+    Camera(usize),
 }
 
 /// Information describing a mesh.
@@ -100,29 +138,6 @@ pub struct MeshTemplate {
 
     /// The index for the material to use in the mesh, if specified.
     pub material: Option<usize>,
-}
-
-/// The definition for a skeleton used for vertex skinning in a glTF file.
-///
-/// When instantiated, this corresponds to a [`Skeleton`].
-#[derive(Debug, Clone)]
-pub struct SkeletonTemplate {
-    /// The bones composing the skeleton.
-    pub bones: Vec<BoneTemplate>,
-}
-
-/// The definition for a bone in a [`GltfSkinDefinition`].
-///
-/// When instantiated, this corresponds to a [`Bone`].
-#[derive(Debug, Clone)]
-pub struct BoneTemplate {
-    /// The inverse bind matrix used to transform the mesh for this bone's joint.
-    pub inverse_bind_matrix: mint::ColumnMatrix4<f32>,
-
-    /// The index of the node that acts as the joint for this bone.
-    ///
-    /// This index corresponds to a node in the `nodes` list of the parent [`GltfDefinitions`].
-    pub joint: usize,
 }
 
 /// The definition for an animation in a glTF file.
@@ -139,4 +154,74 @@ pub struct AnimationTemplate {
     /// of the node that the track targets. The node is an index into the `nodes` list of the
     /// parent [`GltfDefinitions`].
     pub tracks: Vec<(Track, usize)>,
+}
+
+/// Template for a light in the scene.
+#[derive(Clone, Copy, Debug)]
+pub struct LightTemplate {
+    /// The base color of the light.
+    pub color: Color,
+
+    /// The intensity of the light.
+    pub intensity: f32,
+
+    /// The specific type of light represented by the template.
+    pub sub_light: SubLightTemplate,
+}
+
+impl LightTemplate {
+    /// Creates a new template for an ambient light.
+    pub fn ambient(color: Color, intensity: f32) -> LightTemplate {
+        LightTemplate {
+            color,
+            intensity,
+            sub_light: SubLightTemplate::Ambient,
+        }
+    }
+
+    /// Creates a new template for a directional light.
+    pub fn directional(color: Color, intensity: f32) -> LightTemplate {
+        LightTemplate {
+            color,
+            intensity,
+            sub_light: SubLightTemplate::Directional,
+        }
+    }
+
+    /// Creates a new template for a point light.
+    pub fn point(color: Color, intensity: f32) -> LightTemplate {
+        LightTemplate {
+            color,
+            intensity,
+            sub_light: SubLightTemplate::Point,
+        }
+    }
+
+    /// Creates a new template for a hemisphere light.
+    pub fn hemisphere(sky_color: Color, ground_color: Color, intensity: f32) -> LightTemplate {
+        LightTemplate {
+            color: sky_color,
+            intensity,
+            sub_light: SubLightTemplate::Hemisphere { ground: ground_color },
+        }
+    }
+}
+
+/// Template information about the different sub-types for light.
+#[derive(Clone, Copy, Debug)]
+pub enum SubLightTemplate {
+    /// Represents an ambient light.
+    Ambient,
+
+    /// Represents a directional light.
+    Directional,
+
+    /// Represents a hemisphere light.
+    Hemisphere {
+        /// The ground color for the light.
+        ground: Color,
+    },
+
+    /// Represents a point light.
+    Point,
 }
