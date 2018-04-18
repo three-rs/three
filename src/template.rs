@@ -31,7 +31,7 @@ pub struct Template {
     /// The meshes defined in this template.
     // TODO: Flatten this list. This structure mirrors the glTF format, but isn't necessary for
     // a general-purpose template.
-    pub meshes: Vec<Vec<MeshTemplate>>,
+    pub meshes: Vec<MeshTemplate>,
 
     /// The scene nodes loaded from the glTF file.
     pub nodes: Vec<TemplateNode>,

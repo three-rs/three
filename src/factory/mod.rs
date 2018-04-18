@@ -35,7 +35,7 @@ use render::{basic_pipe,
 use scene::{Background, Scene};
 use sprite::Sprite;
 use skeleton::{Bone, Skeleton};
-use template::{AnimationTemplate, SkeletonTemplate, Template};
+use template::{AnimationTemplate, SkeletonTemplate, Template, TemplateNodeData};
 use text::{Font, Text, TextData};
 use texture::{CubeMap, CubeMapPath, FilterMethod, Sampler, Texture, WrapMode};
 
@@ -129,77 +129,90 @@ impl Factory {
         let root = self.group();
 
         // Create a group for each node in the template.
-        let mut groups = Vec::with_capacity(template.nodes.len());
-        while groups.len() < template.nodes.len() {
-            groups.push(self.group());
-        }
-
-        // Instantiate all skeletons in the template.
-        let skeletons: Vec<_> = template
-            .skeletons
-            .iter()
-            .map(|skeleton| instantiate_skeleton(skeleton, self, &groups))
-            .collect();
-
-        // Instantiate all animation clips in the template.
-        let animations = template
-            .animations
-            .iter()
-            .map(|animation| instantiate_animation(animation, &groups))
-            .collect();
-
-        // For each of the root nodes, add the node's group to the root group.
-        for &root_index in &template.roots {
-            root.add(&groups[root_index]);
-        }
+        let mut nodes = Vec::with_capacity(template.nodes.len());
+        let mut groups = HashMap::new();
 
         // For each of the nodes, instantiate an attach the various objects assoicated with
         // the node.
         for (index, node) in template.nodes.iter().enumerate() {
-            let group = &groups[index];
-
-            // Set the node's transform.
-            group.set_transform(node.translation, node.rotation, node.scale);
-
-            // Add the groups for the node's children.
-            for &child_index in &node.children {
-                group.add(&groups[child_index]);
-            }
-
-            // Instantiate and add meshes.
-            if let Some(mesh_index) = node.mesh {
-                let mesh_templates = &template.meshes[mesh_index];
-                for mesh_template in mesh_templates {
+            let base = match node.data {
+                TemplateNodeData::Mesh(mesh_index) => {
+                    let mesh_template = &template.meshes[mesh_index];
                     let material = mesh_template
                         .material
                         .map(|index| template.materials[index].clone())
                         .unwrap_or(default_material.clone());
-                    let mut mesh = self.mesh(mesh_template.geometry.clone(), material);
-                    group.add(&mesh);
+                    let mesh = self.mesh(mesh_template.geometry.clone(), material);
+                    nodes.push(mesh.upcast());
 
-                    // Set skeletonf for mesh, if applicable.
-                    if let Some(skeleton_index) = node.skeleton {
-                        let skeleton = &skeletons[skeleton_index];
-                        mesh.set_skeleton(skeleton.clone());
-                    }
+                    mesh.upcast()
                 }
-            }
 
-            // Instantiate and add camera.
-            if let Some(camera_index) = node.camera {
-                let projection = template.cameras[camera_index].clone();
-                let camera = self.camera(projection);
-                group.add(&camera);
-            }
+                TemplateNodeData::Group(_) => {
+                    let group = self.group();
+                    nodes.push(group.upcast());
+                    groups.insert(index, group.clone());
 
-            // Attach skeleton.
-            if let Some(skeleton_index) = node.skeleton {
-                let skeleton = &skeletons[skeleton_index];
-                group.add(skeleton);
+                    group.upcast()
+                }
+
+                TemplateNodeData::Camera(camera_index) => {
+                    let projection = template.cameras[camera_index].clone();
+                    let camera = self.camera(projection);
+                    nodes.push(camera.upcast());
+
+                    camera.upcast()
+                }
+
+                _ => unimplemented!("Add support for remaining `TemplateNodeData` variants"),
+            };
+
+            // Set the node's transform.
+            base.set_transform(node.translation, node.rotation, node.scale);
+        }
+
+        // TODO: Implement skeletons and skinned meshes.
+        // // Instantiate all skeletons in the template.
+        // let skeletons: Vec<_> = template
+        //     .skeletons
+        //     .iter()
+        //     .map(|skeleton| instantiate_skeleton(skeleton, self, &nodes))
+        //     .collect();
+
+        // TODO: Implement animations.
+        // // Instantiate all animation clips in the template.
+        // let animations = template
+        //     .animations
+        //     .iter()
+        //     .map(|animation| instantiate_animation(animation, &nodes))
+        //     .collect();
+
+        // For each of the root nodes, add the node's group to the root group.
+        for &root_index in &template.roots {
+            root.add(&nodes[root_index]);
+        }
+
+        // Add children to their parents.
+        for (&index, group) in &groups {
+            // Retrieve the list of children from the template node.
+            let node = &template.nodes[index];
+            let children = match node.data {
+                TemplateNodeData::Group(ref children) => children,
+                _ => panic!(
+                    "Group with index {} does not correspond to a TemplateNodeData: {:?}",
+                    index,
+                    node.data,
+                ),
+            };
+
+            // Add the `Base` for the child object to the parent group.
+            for &child_index in children {
+                let child = &nodes[child_index];
+                group.add(child);
             }
         }
 
-        (root, animations)
+        (root, Vec::new())
     }
 
     /// Create a new [`Bone`], one component of a [`Skeleton`].
