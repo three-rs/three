@@ -767,8 +767,8 @@ impl Factory {
 
     /// Load the Karla font
     pub fn load_font_karla(&mut self) -> Font {
-        let buffer = include_bytes!("../../data/fonts/Karla-Regular.ttf").to_vec();
-        Font::new(buffer, String::from("Embeded Karla-Regular.ttf"), self.backend.clone())
+        let buffer: &'static [u8] = include_bytes!("../../data/fonts/Karla-Regular.ttf");
+        Font::new(buffer, String::from("Embedded Karla-Regular.ttf"), self.backend.clone())
     }
 
     fn parse_texture_format(path: &Path) -> image::ImageFormat {

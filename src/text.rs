@@ -91,14 +91,14 @@ pub struct Font {
 }
 
 impl Font {
-    pub(crate) fn new(
-        buf: Vec<u8>,
+    pub(crate) fn new<T: Into<g::SharedBytes<'static>>>(
+        buf: T,
         id: String,
         factory: BackendFactory,
     ) -> Font {
         Font {
             brush: Rc::new(RefCell::new(
-                g::GlyphBrushBuilder::using_font(g::font(buf).unwrap()).build(factory),
+                g::GlyphBrushBuilder::using_font_bytes(buf).build(factory),
             )),
             id: id,
         }
