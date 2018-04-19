@@ -16,6 +16,7 @@ use object::Object;
 pub struct Orbit {
     object: object::Base,
     transform: TransformInternal,
+    initial_transform: TransformInternal,
     target: Point3<f32>,
     button: Button,
     speed: f32,
@@ -96,14 +97,16 @@ impl Builder {
         let q = Quaternion::look_at(dir, up).invert();
         let object = self.object.clone();
         object.set_transform(self.position, q, 1.0);
+        let transform = Decomposed {
+            disp: mint::Vector3::from(self.position).into(),
+            rot: q,
+            scale: 1.0,
+        };
 
         Orbit {
             object,
-            transform: Decomposed {
-                disp: mint::Vector3::from(self.position).into(),
-                rot: q,
-                scale: 1.0,
-            },
+            transform,
+            initial_transform: transform,
             target: self.target.into(),
             button: self.button,
             speed: self.speed,
@@ -142,5 +145,10 @@ impl Orbit {
         self.transform = post.concat(&pre.concat(&self.transform));
         let pf: mint::Vector3<f32> = self.transform.disp.into();
         self.object.set_transform(pf, self.transform.rot, 1.0);
+    }
+
+    /// Reset the current position and orientation of the controlled object to their initial values.
+    pub fn reset(&mut self) {
+        self.transform = self.initial_transform;
     }
 }
