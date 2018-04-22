@@ -602,6 +602,13 @@ impl super::Factory {
         }
 
         // Make each skeleton a child of its root node.
+        // NOTE: This needs to happen last so that skeletons are always the last child to be
+        // added to their parent group. The way that Three handles rendering, it needs find the
+        // skeleton before it finds any of the skeleton's bones when traversing the scene. The
+        // renderer uses a depth-first traversal when walking the scene, so the skeleton needs
+        // to be an earlier child than any of the bones of sub-nodes of the skeleton. Since
+        // children are listed internally in the reverse order in which they are added, we need
+        // to make sure that the skeleton is the last child added for its parent.
         for (index, &root) in skeleton_roots.iter().enumerate() {
             if let Some(parent_index) = root {
                 match nodes[node_map[&parent_index]].data {
