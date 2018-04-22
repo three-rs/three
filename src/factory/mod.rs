@@ -35,7 +35,7 @@ use render::{basic_pipe,
 use scene::{Background, Scene};
 use sprite::Sprite;
 use skeleton::{Bone, Skeleton};
-use template::{AnimationTemplate, SkeletonTemplate, Template, TemplateNodeData};
+use template::{AnimationTemplate, Template, TemplateNodeData};
 use text::{Font, Text, TextData};
 use texture::{CubeMap, CubeMapPath, FilterMethod, Sampler, Texture, WrapMode};
 
@@ -129,8 +129,11 @@ impl Factory {
         let root = self.group();
 
         // Create a group for each node in the template.
-        let mut nodes = Vec::with_capacity(template.nodes.len());
+        let mut nodes = HashMap::with_capacity(template.nodes.len());
         let mut groups = HashMap::new();
+        let mut bones = HashMap::new();
+
+        let mut skinned_meshes = Vec::new();
 
         // For each of the nodes, instantiate an attach the various objects assoicated with
         // the node.
@@ -143,14 +146,24 @@ impl Factory {
                         .map(|index| template.materials[index].clone())
                         .unwrap_or(default_material.clone());
                     let mesh = self.mesh(mesh_template.geometry.clone(), material);
-                    nodes.push(mesh.upcast());
+
+                    mesh.upcast()
+                }
+
+                TemplateNodeData::SkinnedMesh(mesh_index, skeleton_index) => {
+                    let mesh_template = &template.meshes[mesh_index];
+                    let material = mesh_template
+                        .material
+                        .map(|index| template.materials[index].clone())
+                        .unwrap_or(default_material.clone());
+                    let mesh = self.mesh(mesh_template.geometry.clone(), material);
+                    skinned_meshes.push((mesh.clone(), skeleton_index));
 
                     mesh.upcast()
                 }
 
                 TemplateNodeData::Group(_) => {
                     let group = self.group();
-                    nodes.push(group.upcast());
                     groups.insert(index, group.clone());
 
                     group.upcast()
@@ -159,25 +172,52 @@ impl Factory {
                 TemplateNodeData::Camera(camera_index) => {
                     let projection = template.cameras[camera_index].clone();
                     let camera = self.camera(projection);
-                    nodes.push(camera.upcast());
 
                     camera.upcast()
                 }
+
+                TemplateNodeData::Bone(bone_index, inverse_bind_matrix) => {
+                    let bone = self.bone(bone_index, inverse_bind_matrix);
+                    bones.insert(index, bone.clone());
+
+                    bone.upcast()
+                }
+
+                // NOTE: We need to defer the creation of skeleton nodes until all other nodes
+                // have been created, because we need all of the skeleton's bones to have been
+                // instantiated before we can instantiate the skeleton.
+                TemplateNodeData::Skeleton(..) => { continue; }
 
                 _ => unimplemented!("Add support for remaining `TemplateNodeData` variants"),
             };
 
             // Set the node's transform.
             base.set_transform(node.translation, node.rotation, node.scale);
+
+            // Add the node to the list of nodes.
+            nodes.insert(index, base);
         }
 
-        // TODO: Implement skeletons and skinned meshes.
-        // // Instantiate all skeletons in the template.
-        // let skeletons: Vec<_> = template
-        //     .skeletons
-        //     .iter()
-        //     .map(|skeleton| instantiate_skeleton(skeleton, self, &nodes))
-        //     .collect();
+        // Instantiate skeleton nodes once all other nodes have been instantiated.
+        let mut skeletons = HashMap::new();
+        for (index, node) in template.nodes.iter().enumerate() {
+            if let TemplateNodeData::Skeleton(ref bone_indices) = node.data {
+                let bones = bone_indices
+                    .iter()
+                    .map(|index| bones[index].clone())
+                    .collect();
+                let skeleton = self.skeleton(bones);
+
+                skeleton.set_transform(node.translation, node.rotation, node.scale);
+
+                nodes.insert(index, skeleton.upcast());
+                skeletons.insert(index, skeleton);
+            }
+        }
+
+        for (mut mesh, skeleton_index) in skinned_meshes {
+            mesh.set_skeleton(skeletons[&skeleton_index].clone());
+        }
 
         // TODO: Implement animations.
         // // Instantiate all animation clips in the template.
@@ -188,7 +228,7 @@ impl Factory {
         //     .collect();
 
         // For each of the root nodes, add the node's group to the root group.
-        for &root_index in &template.roots {
+        for root_index in &template.roots {
             root.add(&nodes[root_index]);
         }
 
@@ -206,7 +246,7 @@ impl Factory {
             };
 
             // Add the `Base` for the child object to the parent group.
-            for &child_index in children {
+            for child_index in children {
                 let child = &nodes[child_index];
                 group.add(child);
             }
@@ -1152,32 +1192,14 @@ fn concat_path<'a>(
     }
 }
 
-fn instantiate_skeleton(
-    template: &SkeletonTemplate,
-    factory: &mut Factory,
-    groups: &[Group],
-) -> Skeleton {
-    let bones = template
-        .bones
-        .iter()
-        .enumerate()
-        .map(|(index, template)| {
-            let bone = factory.bone(index, template.inverse_bind_matrix);
-            groups[template.joint].add(&bone);
-            bone
-        })
-        .collect();
-    factory.skeleton(bones)
-}
-
 fn instantiate_animation(
     template: &AnimationTemplate,
-    groups: &[Group],
+    groups: &HashMap<usize, Group>,
 ) -> animation::Clip {
     let tracks = template
         .tracks
         .iter()
-        .map(|&(ref track, target_index)| (track.clone(), groups[target_index].upcast()))
+        .map(|&(ref track, target_index)| (track.clone(), groups[&target_index].upcast()))
         .collect();
 
     animation::Clip {

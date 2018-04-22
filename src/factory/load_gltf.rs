@@ -25,9 +25,7 @@ use geometry::{Geometry, Shape};
 use super::Factory;
 use template::{
     AnimationTemplate,
-    BoneTemplate,
     MeshTemplate,
-    SkeletonTemplate,
     Template,
     TemplateNode,
     TemplateNodeData,
@@ -287,10 +285,28 @@ fn load_primitive<'a>(
     }
 }
 
+/// Helper for binding bones to their parent node in the template.
+#[derive(Debug, Clone, Copy)]
+struct Joint {
+    /// The template index for the bone template for this joint.
+    node_index: usize,
+
+    /// The glTF index for the node that the joint targets.
+    joint_index: usize
+}
+
+/// Given a glTF skin definition, creates node templates for each of the joints in the skin.
+///
+/// Returns two values:
+///
+/// * The index of the template node created for the skeleton.
+/// * The index of the node used as the skeleton root (if any).
 fn load_skin<'a>(
     skin: gltf::Skin<'a>,
     buffers: &gltf_importer::Buffers,
-) -> SkeletonTemplate {
+    nodes: &mut Vec<TemplateNode>,
+    joints: &mut Vec<Joint>,
+) -> (usize, Option<usize>) {
     use std::iter::repeat;
 
     let mut ibms = Vec::new();
@@ -307,24 +323,32 @@ fn load_skin<'a>(
         [0., 0., 0., 1.],
     ]);
     let ibm_iter = ibms.
-        into_iter().
-        chain(repeat(mx_id));
-    for (joint, inverse_bind_matrix) in skin.joints().zip(ibm_iter) {
-        let joint = joint.index();
-        bones.push(BoneTemplate {
-            inverse_bind_matrix,
-            joint,
-        });
+        into_iter()
+        .chain(repeat(mx_id));
+
+    let joint_iter = skin
+        .joints()
+        .map(|joint| joint.index());
+    for (bone_index, (joint_index, inverse_bind_matrix)) in joint_iter.zip(ibm_iter).enumerate() {
+        // Create a bone node corresponding to the joint.
+        let node_index = nodes.len();
+        bones.push(node_index);
+        nodes.push(TemplateNode::from_data(
+            TemplateNodeData::Bone(bone_index, inverse_bind_matrix)),
+        );
+        joints.push(Joint { node_index, joint_index });
     }
 
-    SkeletonTemplate {
-        bones,
-    }
+    let skeleton_index = nodes.len();
+    nodes.push(TemplateNode::from_data(TemplateNodeData::Skeleton(bones)));
+
+    (skeleton_index, skin.skeleton().map(|node| node.index()))
 }
 
 fn load_animation<'a>(
     animation: gltf::Animation<'a>,
     buffers: &gltf_importer::Buffers,
+    node_map: &HashMap<usize, usize>,
 ) -> AnimationTemplate {
     use gltf::animation::InterpolationAlgorithm::*;
 
@@ -395,7 +419,7 @@ fn load_animation<'a>(
                 times,
                 values,
             },
-            node.index(),
+            node_map[&node.index()],
         ));
     }
 
@@ -410,6 +434,7 @@ fn load_node<'a>(
     nodes: &mut Vec<TemplateNode>,
     node_map: &mut HashMap<usize, usize>,
     mesh_map: &HashMap<usize, Vec<usize>>,
+    skeleton_map: &[usize],
 ) {
     let name = node.name().map(Into::into);
 
@@ -427,7 +452,11 @@ fn load_node<'a>(
             // The node will either be a mesh or a skinned mesh, depending on whether or not
             // there's a skeleton associated with the glTF node.
             let data = match skeleton {
-                Some(skeleton_index) => TemplateNodeData::SkinnedMesh(mesh_index, skeleton_index),
+                Some(skeleton_index) => TemplateNodeData::SkinnedMesh(
+                    mesh_index,
+                    skeleton_map[skeleton_index],
+                ),
+
                 None => TemplateNodeData::Mesh(mesh_index),
             };
 
@@ -495,10 +524,11 @@ impl super::Factory {
         // Flattened list of meshes loaded from the glTF file.
         let mut meshes = Vec::new();
 
-        // Mapping that allow us to convert from indices in the glTF document to the indices in
+        // Mappings that allow us to convert from indices in the glTF document to the indices in
         // the resulting template, for objects where the two don't necessarily line up.
         let mut mesh_map = HashMap::new();
         let mut node_map = HashMap::new();
+        let mut skeleton_map = Vec::with_capacity(gltf.skins().len());
 
         // Load the meshes declared in the glTF file. Each glTF mesh declaration can potentially
         // result in multiple Three meshes, so in doing so we flatten them to a single list of
@@ -521,8 +551,19 @@ impl super::Factory {
         }
 
         let mut nodes = Vec::with_capacity(gltf.nodes().len());
+
+        // Create a skeleton template for each of the skins in the glTF document. Since both
+        // bones and skeletons are treated as nodes within `Template`,
+        let mut skeleton_roots = Vec::with_capacity(gltf.skins().len());
+        let mut joints = Vec::new();
+        for skin in gltf.skins() {
+            let (skeleton_index, root) = load_skin(skin, &buffers, &mut nodes, &mut joints);
+            skeleton_map.push(skeleton_index);
+            skeleton_roots.push(root);
+        }
+
         for node in gltf.nodes() {
-            load_node(node, &mut nodes, &mut node_map, &mesh_map);
+            load_node(node, &mut nodes, &mut node_map, &mesh_map, &skeleton_map);
         }
 
         // Fix-up any group nodes in the template by adding their original children to their
@@ -552,23 +593,47 @@ impl super::Factory {
             }
         }
 
+        // Once all nodes have been created, make each bone a child of the joint it targets.
+        for Joint { node_index, joint_index } in joints {
+            match nodes[node_map[&joint_index]].data {
+                TemplateNodeData::Group(ref mut children) => children.push(node_index),
+                _ => panic!("Joint index referenced by skin did not point to a group template"),
+            }
+        }
+
+        // Make each skeleton a child of its root node.
+        for (index, &root) in skeleton_roots.iter().enumerate() {
+            if let Some(parent_index) = root {
+                match nodes[node_map[&parent_index]].data {
+                    TemplateNodeData::Group(ref mut children) => children.push(skeleton_map[index]),
+                    _ => panic!("Root node for skeleton wasn't a group"),
+                }
+            }
+        }
+
         let animations: Vec<_> = gltf
             .animations()
-            .map(|anim| load_animation(anim, &buffers))
-            .collect();
-
-        let skeletons: Vec<_> = gltf
-            .skins()
-            .map(|skin| load_skin(skin, &buffers))
+            .map(|anim| load_animation(anim, &buffers, &node_map))
             .collect();
 
         gltf
             .scenes()
             .map(|scene| {
-                let roots = scene
+                let mut roots: Vec<usize> = scene
                     .nodes()
                     .map(|node| node_map[&node.index()])
                     .collect();
+
+                // If there are any skeletons that don't have a root specified, then they become
+                // root nodes of the template.
+                // TODO: What if the node is already in `roots`? We should probably check before
+                // adding it again.
+                for (index, &root) in skeleton_roots.iter().enumerate() {
+                    if let None = root {
+                        roots.push(skeleton_map[index]);
+                    }
+                }
+
                 let name = scene.name().map(Into::into);
 
                 // TODO: Reduce the contents loaded templates so that they only have templates
@@ -580,7 +645,6 @@ impl super::Factory {
                     materials: materials.clone(),
                     meshes: meshes.clone(),
                     nodes: nodes.clone(),
-                    skeletons: skeletons.clone(),
                     animations: animations.clone(),
                 }
             })

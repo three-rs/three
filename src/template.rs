@@ -36,9 +36,6 @@ pub struct Template {
     /// The scene nodes loaded from the glTF file.
     pub nodes: Vec<TemplateNode>,
 
-    /// The skinned skeltons loaded from the glTF file.
-    pub skeletons: Vec<SkeletonTemplate>,
-
     /// The animation clips loaded from the glTF file.
     pub animations: Vec<AnimationTemplate>,
 }
@@ -102,19 +99,32 @@ pub enum TemplateNodeData {
     Audio,
 
     /// A node representing a [`Mesh`].
+    ///
+    /// Contains the index of the mesh in [`meshes`].
     Mesh(usize),
 
     /// A node representing a [`Mesh`] with an attached [`Skeleton`].
+    ///
+    /// The first `usize` is the index of the mesh in [`meshes`], the second `usize` is the
+    /// index of the skeleton node in [`nodes`]. Note that the second index must reference a
+    /// node that has a [`TemplateNodeData::Skeleton`] for its [`data`] field.
     SkinnedMesh(usize, usize),
 
     /// A node representing a [`Light`].
     Light(usize),
 
     /// A node representing a [`Bone`].
+    ///
+    /// Contains the index of the bone within its skeleton, and the inverse bind matrix for
+    /// the bone.
     Bone(usize, mint::ColumnMatrix4<f32>),
 
     /// A node representing a [`Skeleton`].
-    Skeleton(usize),
+    ///
+    /// Contains the indices of the bones nodes in the scene that are the bones in this skeleton.
+    /// These indices correspond to elements in [`nodes`] in the parent [`Template`]. Note that
+    /// the nodes references must have a [`TemplateNodeData::Bone`] for their [`data`] field.
+    Skeleton(Vec<usize>),
 
     /// A node representing a [`Camera`].
     Camera(usize),
@@ -129,29 +139,6 @@ pub struct MeshTemplate {
 
     /// The index for the material to use in the mesh, if specified.
     pub material: Option<usize>,
-}
-
-/// The definition for a skeleton used for vertex skinning in a glTF file.
-///
-/// When instantiated, this corresponds to a [`Skeleton`].
-#[derive(Debug, Clone)]
-pub struct SkeletonTemplate {
-    /// The bones composing the skeleton.
-    pub bones: Vec<BoneTemplate>,
-}
-
-/// The definition for a bone in a [`GltfSkinDefinition`].
-///
-/// When instantiated, this corresponds to a [`Bone`].
-#[derive(Debug, Clone)]
-pub struct BoneTemplate {
-    /// The inverse bind matrix used to transform the mesh for this bone's joint.
-    pub inverse_bind_matrix: mint::ColumnMatrix4<f32>,
-
-    /// The index of the node that acts as the joint for this bone.
-    ///
-    /// This index corresponds to a node in the `nodes` list of the parent [`GltfDefinitions`].
-    pub joint: usize,
 }
 
 /// The definition for an animation in a glTF file.
