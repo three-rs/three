@@ -26,7 +26,7 @@ use hub::{Hub, HubPtr, LightData, SubLight, SubNode};
 use light::{Ambient, Directional, Hemisphere, Point, ShadowMap};
 use material::{self, Material};
 use mesh::{DynamicMesh, Mesh};
-use object::{self, Group, Object};
+use object::{self, Base, Group, Object};
 use render::{basic_pipe,
     BackendFactory, BackendResources, BasicPipelineState, DisplacementContribution,
     DynamicData, GpuData, Instance, InstanceCacheKey, PipelineCreationError, ShadowFormat, Source, Vertex,
@@ -219,13 +219,12 @@ impl Factory {
             mesh.set_skeleton(skeletons[&skeleton_index].clone());
         }
 
-        // TODO: Implement animations.
-        // // Instantiate all animation clips in the template.
-        // let animations = template
-        //     .animations
-        //     .iter()
-        //     .map(|animation| instantiate_animation(animation, &nodes))
-        //     .collect();
+        // Instantiate all animation clips in the template.
+        let animations = template
+            .animations
+            .iter()
+            .map(|animation| instantiate_animation(animation, &nodes))
+            .collect();
 
         // For each of the root nodes, add the node's group to the root group.
         for root_index in &template.roots {
@@ -252,7 +251,7 @@ impl Factory {
             }
         }
 
-        (root, Vec::new())
+        (root, animations)
     }
 
     /// Create a new [`Bone`], one component of a [`Skeleton`].
@@ -1194,12 +1193,12 @@ fn concat_path<'a>(
 
 fn instantiate_animation(
     template: &AnimationTemplate,
-    groups: &HashMap<usize, Group>,
+    nodes: &HashMap<usize, Base>,
 ) -> animation::Clip {
     let tracks = template
         .tracks
         .iter()
-        .map(|&(ref track, target_index)| (track.clone(), groups[&target_index].upcast()))
+        .map(|&(ref track, target_index)| (track.clone(), nodes[&target_index].upcast()))
         .collect();
 
     animation::Clip {
