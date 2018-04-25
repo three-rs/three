@@ -7,7 +7,7 @@ use camera::{Projection};
 use {Material};
 use color::Color;
 use animation::Track;
-use geometry::Geometry;
+use render::GpuData;
 
 /// Raw data loaded from a glTF file with [`Factory::load_gltf`].
 ///
@@ -133,8 +133,7 @@ pub enum TemplateNodeData {
 #[derive(Debug, Clone)]
 pub struct MeshTemplate {
     /// The geometry used in the mesh.
-    // TODO: Use a shared GPU resource, rather than keeping the geometry data in CPU memory.
-    pub geometry: Geometry,
+    pub geometry: InstancedGeometry,
 
     /// The index for the material to use in the mesh, if specified.
     pub material: Option<usize>,
@@ -224,4 +223,13 @@ pub enum SubLightTemplate {
 
     /// Represents a point light.
     Point,
+}
+
+/// Geometry data that has been loaded to the GPU.
+///
+/// [`Mesh`] objects instanted with this data will share GPU resources, allowing for more
+/// efficient instanced rendering.
+#[derive(Debug, Clone)]
+pub struct InstancedGeometry {
+    pub(crate) gpu_data: GpuData,
 }
