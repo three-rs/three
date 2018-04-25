@@ -186,16 +186,18 @@ fn load_material<'a>(
 /// * A `glTF` mesh consists of one or more _primitives_, which are
 ///   equivalent to `three` meshes.
 fn load_mesh<'a>(
+    factory: &mut Factory,
     mesh: gltf::Mesh<'a>,
     buffers: &gltf_importer::Buffers,
 ) -> Vec<MeshTemplate> {
     mesh
         .primitives()
-        .map(|prim| load_primitive(prim, buffers))
+        .map(|prim| load_primitive(factory, prim, buffers))
         .collect()
 }
 
 fn load_primitive<'a>(
+    factory: &mut Factory,
     primitive: gltf::Primitive<'a>,
     buffers: &gltf_importer::Buffers,
 ) -> MeshTemplate {
@@ -277,6 +279,7 @@ fn load_primitive<'a>(
         },
     };
 
+    let geometry = factory.instanced_geometry(geometry);
     let material = primitive.material().index();
 
     MeshTemplate {
@@ -541,7 +544,7 @@ impl super::Factory {
             // Add all of the meshes to the flattened list of meshes, and generate a list of new
             // indices that can be used to map from the glTF index to the flattened indices.
             let mut indices = Vec::new();
-            for mesh in load_mesh(gltf_mesh, &buffers) {
+            for mesh in load_mesh(self, gltf_mesh, &buffers) {
                 indices.push(meshes.len());
                 meshes.push(mesh);
             }

@@ -35,7 +35,14 @@ use render::{basic_pipe,
 use scene::{Background, Scene};
 use sprite::Sprite;
 use skeleton::{Bone, Skeleton};
-use template::{AnimationTemplate, LightTemplate, SubLightTemplate, Template, TemplateNodeData};
+use template::{
+    AnimationTemplate,
+    InstancedGeometry,
+    LightTemplate,
+    SubLightTemplate,
+    Template,
+    TemplateNodeData,
+};
 use text::{Font, Text, TextData};
 use texture::{CubeMap, CubeMapPath, FilterMethod, Sampler, Texture, WrapMode};
 
@@ -94,6 +101,72 @@ impl Factory {
             .unwrap()
     }
 
+    fn create_gpu_data(&mut self, geometry: Geometry) -> GpuData {
+        let vertices = Self::mesh_vertices(&geometry);
+        let (vbuf, mut slice) = if geometry.faces.is_empty() {
+            self.backend.create_vertex_buffer_with_slice(&vertices, ())
+        } else {
+            let faces: &[u32] = gfx::memory::cast_slice(&geometry.faces);
+            self.backend
+                .create_vertex_buffer_with_slice(&vertices, faces)
+        };
+        slice.instances = Some((1, 0));
+        let num_shapes = geometry.shapes.len();
+        let mut displacement_contributions = Vec::with_capacity(num_shapes);
+        let instances = self.create_instance_buffer();
+        let displacements = if num_shapes != 0 {
+            let num_vertices = geometry.base.vertices.len();
+            let mut contents = vec![[0.0; 4]; num_shapes * 3 * num_vertices];
+            for (content_chunk, shape) in contents.chunks_mut(3 * num_vertices).zip(&geometry.shapes) {
+                let mut contribution = DisplacementContribution::ZERO;
+                if !shape.vertices.is_empty() {
+                    contribution.position = 1.0;
+                    for (out, v) in content_chunk[0 * num_vertices .. 1 * num_vertices].iter_mut().zip(&shape.vertices) {
+                        *out = [v.x, v.y, v.z, 1.0];
+                    }
+                }
+                if !shape.normals.is_empty() {
+                    contribution.normal = 1.0;
+                    for (out, v) in content_chunk[1 * num_vertices .. 2 * num_vertices].iter_mut().zip(&shape.normals) {
+                        *out = [v.x, v.y, v.z, 0.0];
+                    }
+                }
+                if !shape.tangents.is_empty() {
+                    contribution.tangent = 1.0;
+                    for (out, &v) in content_chunk[2 * num_vertices .. 3 * num_vertices].iter_mut().zip(&shape.tangents) {
+                        *out = v.into();
+                    }
+                }
+                displacement_contributions.push(contribution);
+            }
+
+            let texture_and_view = self.backend
+                .create_texture_immutable::<[f32; 4]>(
+                    gfx::texture::Kind::D2(
+                        num_vertices as _,
+                        3 * num_shapes as gfx::texture::Size,
+                        gfx::texture::AaMode::Single,
+                    ),
+                    gfx::texture::Mipmap::Provided,
+                    &[gfx::memory::cast_slice(&contents)],
+                )
+                .unwrap();
+            Some(texture_and_view)
+        } else {
+            None
+        };
+
+        GpuData {
+            slice,
+            vertices: vbuf,
+            instances,
+            displacements,
+            pending: None,
+            instance_cache_key: None,
+            displacement_contributions,
+        }
+    }
+
     pub(crate) fn new(mut backend: BackendFactory) -> Self {
         let quad_buf = backend.create_vertex_buffer(&QUAD);
         let default_sampler = backend.create_sampler_linear();
@@ -145,7 +218,7 @@ impl Factory {
                         .material
                         .map(|index| template.materials[index].clone())
                         .unwrap_or(default_material.clone());
-                    let mesh = self.mesh(mesh_template.geometry.clone(), material);
+                    let mesh = self.instanced_mesh(&mesh_template.geometry, material);
 
                     mesh.upcast()
                 }
@@ -156,7 +229,7 @@ impl Factory {
                         .material
                         .map(|index| template.materials[index].clone())
                         .unwrap_or(default_material.clone());
-                    let mesh = self.mesh(mesh_template.geometry.clone(), material);
+                    let mesh = self.instanced_mesh(&mesh_template.geometry, material);
                     skinned_meshes.push((mesh.clone(), skeleton_index));
 
                     mesh.upcast()
@@ -438,78 +511,55 @@ impl Factory {
             .collect()
     }
 
+    /// Load geometry data to the GPU so that it can be reused for instanced rendering.
+    pub fn instanced_geometry(
+        &mut self,
+        geometry: Geometry,
+    ) -> InstancedGeometry {
+        let gpu_data = self.create_gpu_data(geometry);
+        InstancedGeometry { gpu_data }
+    }
+
     /// Create new `Mesh` with desired `Geometry` and `Material`.
     pub fn mesh<M: Into<Material>>(
         &mut self,
         geometry: Geometry,
         material: M,
     ) -> Mesh {
-        let vertices = Self::mesh_vertices(&geometry);
-        let (vbuf, mut slice) = if geometry.faces.is_empty() {
-            self.backend.create_vertex_buffer_with_slice(&vertices, ())
-        } else {
-            let faces: &[u32] = gfx::memory::cast_slice(&geometry.faces);
-            self.backend
-                .create_vertex_buffer_with_slice(&vertices, faces)
-        };
-        slice.instances = Some((1, 0));
-        let num_shapes = geometry.shapes.len();
-        let mut displacement_contributions = Vec::with_capacity(num_shapes);
-        let instances = self.create_instance_buffer();
-        let displacements = if num_shapes != 0 {
-            let num_vertices = geometry.base.vertices.len();
-            let mut contents = vec![[0.0; 4]; num_shapes * 3 * num_vertices];
-            for (content_chunk, shape) in contents.chunks_mut(3 * num_vertices).zip(&geometry.shapes) {
-                let mut contribution = DisplacementContribution::ZERO;
-                if !shape.vertices.is_empty() {
-                    contribution.position = 1.0;
-                    for (out, v) in content_chunk[0 * num_vertices .. 1 * num_vertices].iter_mut().zip(&shape.vertices) {
-                        *out = [v.x, v.y, v.z, 1.0];
-                    }
-                }
-                if !shape.normals.is_empty() {
-                    contribution.normal = 1.0;
-                    for (out, v) in content_chunk[1 * num_vertices .. 2 * num_vertices].iter_mut().zip(&shape.normals) {
-                        *out = [v.x, v.y, v.z, 0.0];
-                    }
-                }
-                if !shape.tangents.is_empty() {
-                    contribution.tangent = 1.0;
-                    for (out, &v) in content_chunk[2 * num_vertices .. 3 * num_vertices].iter_mut().zip(&shape.tangents) {
-                        *out = v.into();
-                    }
-                }
-                displacement_contributions.push(contribution);
-            }
-
-            let texture_and_view = self.backend
-                .create_texture_immutable::<[f32; 4]>(
-                    gfx::texture::Kind::D2(
-                        num_vertices as _,
-                        3 * num_shapes as gfx::texture::Size,
-                        gfx::texture::AaMode::Single,
-                    ),
-                    gfx::texture::Mipmap::Provided,
-                    &[gfx::memory::cast_slice(&contents)],
-                )
-                .unwrap();
-            Some(texture_and_view)
-        } else {
-            None
-        };
+        let gpu_data = self.create_gpu_data(geometry);
 
         Mesh {
             object: self.hub.lock().unwrap().spawn_visual(
                 material.into(),
-                GpuData {
-                    slice,
-                    vertices: vbuf,
-                    instances,
-                    displacements,
-                    pending: None,
-                    instance_cache_key: None,
-                    displacement_contributions,
-                },
+                gpu_data,
+                None,
+            ),
+        }
+    }
+
+    /// Creates an instance of a mesh sharing GPU resources with other [`Mesh`] objects.
+    ///
+    /// Instanced meshes use less GPU memory than one-off meshes, and can be rendered more
+    /// efficiently if they use the same material.
+    pub fn instanced_mesh<M: Into<Material>>(
+        &mut self,
+        geometry: &InstancedGeometry,
+        material: M,
+    ) -> Mesh {
+        // Create a clone of the geometry for this mesh.
+        let mut gpu_data = geometry.gpu_data.clone();
+        let material = material.into();
+
+        // Setup the GPU data for instanced rendering.
+        gpu_data.instance_cache_key = Some(InstanceCacheKey {
+            geometry: gpu_data.vertices.clone(),
+            material: material.clone(),
+        });
+
+        Mesh {
+            object: self.hub.lock().unwrap().spawn_visual(
+                material,
+                gpu_data,
                 None,
             ),
         }
