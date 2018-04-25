@@ -86,6 +86,9 @@ name = "group"
 name = "anim"
 
 [[example]]
+name = "text"
+
+[[example]]
 name = "aviator"
 path = "examples/aviator/main.rs"
 
