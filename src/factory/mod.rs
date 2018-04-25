@@ -35,7 +35,7 @@ use render::{basic_pipe,
 use scene::{Background, Scene};
 use sprite::Sprite;
 use skeleton::{Bone, Skeleton};
-use template::{AnimationTemplate, Template, TemplateNodeData};
+use template::{AnimationTemplate, LightTemplate, SubLightTemplate, Template, TemplateNodeData};
 use text::{Font, Text, TextData};
 use texture::{CubeMap, CubeMapPath, FilterMethod, Sampler, Texture, WrapMode};
 
@@ -183,12 +183,29 @@ impl Factory {
                     bone.upcast()
                 }
 
+                TemplateNodeData::Light(light_template) => {
+                    let LightTemplate {
+                        color,
+                        intensity,
+                        sub_light,
+                    } = template.lights[light_template];
+
+                    match sub_light {
+                        SubLightTemplate::Ambient =>
+                            self.ambient_light(color, intensity).upcast(),
+                        SubLightTemplate::Directional =>
+                            self.directional_light(color, intensity).upcast(),
+                        SubLightTemplate::Hemisphere { ground } =>
+                            self.hemisphere_light(color, ground, intensity).upcast(),
+                        SubLightTemplate::Point =>
+                            self.point_light(color, intensity).upcast(),
+                    }
+                }
+
                 // NOTE: We need to defer the creation of skeleton nodes until all other nodes
                 // have been created, because we need all of the skeleton's bones to have been
                 // instantiated before we can instantiate the skeleton.
                 TemplateNodeData::Skeleton(..) => { continue; }
-
-                _ => unimplemented!("Add support for remaining `TemplateNodeData` variants"),
             };
 
             // Set the node's transform.

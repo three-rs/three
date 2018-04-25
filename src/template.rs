@@ -5,6 +5,7 @@ use mint;
 use camera::{Projection};
 
 use {Material};
+use color::Color;
 use animation::Track;
 use geometry::Geometry;
 
@@ -29,8 +30,6 @@ pub struct Template {
     pub materials: Vec<Material>,
 
     /// The meshes defined in this template.
-    // TODO: Flatten this list. This structure mirrors the glTF format, but isn't necessary for
-    // a general-purpose template.
     pub meshes: Vec<MeshTemplate>,
 
     /// The scene nodes loaded from the glTF file.
@@ -38,6 +37,9 @@ pub struct Template {
 
     /// The animation clips loaded from the glTF file.
     pub animations: Vec<AnimationTemplate>,
+
+    /// Light templates to be used as part of the template.
+    pub lights: Vec<LightTemplate>,
 }
 
 /// The definition of a node used in a glTF file.
@@ -94,9 +96,6 @@ pub enum TemplateNodeData {
     ///
     /// Contains a list of the indices of the nodes that are in the group.
     Group(Vec<usize>),
-
-    // TODO: Implement audio nodes.
-    Audio,
 
     /// A node representing a [`Mesh`].
     ///
@@ -155,4 +154,74 @@ pub struct AnimationTemplate {
     /// of the node that the track targets. The node is an index into the `nodes` list of the
     /// parent [`GltfDefinitions`].
     pub tracks: Vec<(Track, usize)>,
+}
+
+/// Template for a light in the scene.
+#[derive(Clone, Copy, Debug)]
+pub struct LightTemplate {
+    /// The base color of the light.
+    pub color: Color,
+
+    /// The intensity of the light.
+    pub intensity: f32,
+
+    /// The specific type of light represented by the template.
+    pub sub_light: SubLightTemplate,
+}
+
+impl LightTemplate {
+    /// Creates a new template for an ambient light.
+    pub fn ambient(color: Color, intensity: f32) -> LightTemplate {
+        LightTemplate {
+            color,
+            intensity,
+            sub_light: SubLightTemplate::Ambient,
+        }
+    }
+
+    /// Creates a new template for a directional light.
+    pub fn directional(color: Color, intensity: f32) -> LightTemplate {
+        LightTemplate {
+            color,
+            intensity,
+            sub_light: SubLightTemplate::Directional,
+        }
+    }
+
+    /// Creates a new template for a point light.
+    pub fn point(color: Color, intensity: f32) -> LightTemplate {
+        LightTemplate {
+            color,
+            intensity,
+            sub_light: SubLightTemplate::Point,
+        }
+    }
+
+    /// Creates a new template for a hemisphere light.
+    pub fn hemisphere(sky_color: Color, ground_color: Color, intensity: f32) -> LightTemplate {
+        LightTemplate {
+            color: sky_color,
+            intensity,
+            sub_light: SubLightTemplate::Hemisphere { ground: ground_color },
+        }
+    }
+}
+
+/// Template information about the different sub-types for light.
+#[derive(Clone, Copy, Debug)]
+pub enum SubLightTemplate {
+    /// Represents an ambient light.
+    Ambient,
+
+    /// Represents a directional light.
+    Directional,
+
+    /// Represents a hemisphere light.
+    Hemisphere {
+        /// The ground color for the light.
+        ground: Color,
+    },
+
+    /// Represents a point light.
+    Point,
 }

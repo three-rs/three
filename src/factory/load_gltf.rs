@@ -653,6 +653,7 @@ impl super::Factory {
                     meshes: meshes.clone(),
                     nodes: nodes.clone(),
                     animations: animations.clone(),
+                    lights: Vec::new(),
                 }
             })
             .collect()
