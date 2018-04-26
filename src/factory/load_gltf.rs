@@ -636,13 +636,19 @@ impl super::Factory {
 
                 // If there are any skeletons that don't have a root specified, then they become
                 // root nodes of the template.
-                // TODO: What if the node is already in `roots`? We should probably check before
-                // adding it again.
-                for (index, &root) in skeleton_roots.iter().enumerate() {
-                    if let None = root {
-                        roots.push(skeleton_map[index]);
-                    }
-                }
+                let root_skeletons = skeleton_roots
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(index, &root)| match root {
+                        Some(..) => None,
+                        None => Some(skeleton_map[index]),
+                    });
+                roots.extend(root_skeletons);
+
+                // It's possible that a skeleton node without a root was already marked as a root
+                // node by the glTF document, in which case we would have added a duplicate root
+                // node to `roots`. To handle that case, we remove any duplicates here.
+                roots.dedup();
 
                 let name = scene.name().map(Into::into);
 
