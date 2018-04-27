@@ -298,12 +298,16 @@ struct Joint {
     joint_index: usize
 }
 
-/// Given a glTF skin definition, creates node templates for each of the joints in the skin.
+/// Creates bone and skeleton templates from a glTF skin.
 ///
 /// Returns two values:
 ///
 /// * The index of the template node created for the skeleton.
-/// * The index of the node used as the skeleton root (if any).
+/// * The glTF index of the node used as the skeleton root (if any).
+///
+/// Additionally, this will add any newly created nodes to `nodes`, and will add any joints
+/// loaded to `joints`, allowing the bone node created to represent the joint to later be added
+/// as a child to the group that represents the original node.
 fn load_skin<'a>(
     skin: gltf::Skin<'a>,
     buffers: &gltf_importer::Buffers,
@@ -432,6 +436,26 @@ fn load_animation<'a>(
     }
 }
 
+/// Partially loads a single glTF node and creates template nodes from its data.
+///
+/// Adds a `Group` template node to `nodes`, which directly represents `node`. The following
+/// additional nodes may also be added:
+///
+/// * One `Mesh` template node will be added for each mesh primitive in the mesh referenced by
+///   `node`, if any.
+/// * One `Camera` template node will be added if `node` references a camera, using the
+///   projection data for the camera referenced.
+///
+/// Any additional nodes will be listed as children of the initial `Group` template node.
+///
+/// # Warning
+///
+/// The `Group` template node corresponding to `node` will *only* list the mesh and camera
+/// templates as its children, any children that `node` specifies will not be added by this
+/// function. We can't yet add the children declared in the original document because we don't
+/// know the indices that the corresponding template nodes will have until we've loaded and
+/// processed all nodes declared in the document. Those children are added in a final pass after
+/// all glTF nodes have been added to the template (see `Factory::load_gltf`).
 fn load_node<'a>(
     node: gltf::Node<'a>,
     nodes: &mut Vec<TemplateNode>,
@@ -447,7 +471,7 @@ fn load_node<'a>(
     let mut children = Vec::new();
 
     // Create mesh/skinned mesh nodes for any meshes associated with this glTF node.
-    let skeleton = node.skin().map(|skin| skin.index());
+    let skeleton = node.skin().map(|skin| skeleton_map[skin.index()]);
     if let Some(gltf_index) = node.mesh().map(|mesh| mesh.index()) {
         for &mesh_index in &mesh_map[&gltf_index] {
             children.push(nodes.len());
@@ -457,7 +481,7 @@ fn load_node<'a>(
             let data = match skeleton {
                 Some(skeleton_index) => TemplateNodeData::SkinnedMesh(
                     mesh_index,
-                    skeleton_map[skeleton_index],
+                    skeleton_index,
                 ),
 
                 None => TemplateNodeData::Mesh(mesh_index),
@@ -480,8 +504,14 @@ fn load_node<'a>(
     // scale factor in all directions.
     let scale = scale[1];
 
-    // Add an entry in the node map from the node's index in the glTF document to its index in the
-    // final template.
+    // Create a `Group` node to directly represent the original glTF node, listing any extra
+    // nodes we needed to create as its children.
+    //
+    // NOTE: At this point the list of children only includes the nodes generated for any
+    // meshes and cameras attached to the original node. We can't yet add the children declared
+    // in the original document because we don't know the indices that the corresponding
+    // template nodes will have until we've created them all. Those children are added in a
+    // final pass after all glTF nodes have been added to the template (see `Factory::load_gltf`).
     node_map.insert(node.index(), nodes.len());
     nodes.push(TemplateNode {
         name,
@@ -490,11 +520,6 @@ fn load_node<'a>(
         rotation: rotation.into(),
         scale,
 
-        // NOTE: At this point the list of children only includes the nodes generated for any
-        // meshes and cameras attached to the original node. At this point we can't add the
-        // children declared in the original document because we don't know the indices that those
-        // nodes will have in the final template until we've created them all. Those children
-        // are added in a final pass after all glTF nodes have been added to the template.
         data: TemplateNodeData::Group(children),
     });
 }
@@ -502,10 +527,13 @@ fn load_node<'a>(
 impl super::Factory {
     /// Loads templates from a glTF 2.0 file.
     ///
-    /// The returned [`GltfDefinitions`] cannot be added to the scene directly, rather it
-    /// contains definitions for meshes, node hierarchies, skinned skeletons, animations, and
-    /// other things that can be instantiated and added to the scene. See the [`GltfDefinitions`]
-    /// for more information on how to instantiate the various definitions in the glTF file.
+    /// The returned [`Template`] objects cannot be added to the scene directly, rather it
+    /// contains definitions for meshes, node hierarchies, skinned meshes and their skeletons,
+    /// animations, and other things that can be instantiated and added to the scene. See
+    /// [`Template`] for more information on how to instantiate the various objects in the
+    /// glTF file.
+    ///
+    /// [`Template`]: template/struct.Template.html
     pub fn load_gltf(
         &mut self,
         path_str: &str,
@@ -524,9 +552,6 @@ impl super::Factory {
             .map(|material| load_material(material, &textures))
             .collect();
 
-        // Flattened list of meshes loaded from the glTF file.
-        let mut meshes = Vec::new();
-
         // Mappings that allow us to convert from indices in the glTF document to the indices in
         // the resulting template, for objects where the two don't necessarily line up.
         let mut mesh_map = HashMap::new();
@@ -535,8 +560,9 @@ impl super::Factory {
 
         // Load the meshes declared in the glTF file. Each glTF mesh declaration can potentially
         // result in multiple Three meshes, so in doing so we flatten them to a single list of
-        // meshes, populate `mesh_map` with information on how to lookup meshes in the flattened
-        // list given the index in the original glTF document.
+        // meshes, and populate `mesh_map` with information on how to lookup meshes in the
+        // flattened list given the index in the original glTF document.
+        let mut meshes = Vec::new();
         for gltf_mesh in gltf.meshes() {
             // Save the index within the glTF document so that we can add an entry to the mesh map.
             let gltf_index = gltf_mesh.index();
@@ -553,10 +579,14 @@ impl super::Factory {
             mesh_map.insert(gltf_index, indices);
         }
 
+        // The full list of template nodes created from the glTF file. We know there will be at
+        // least as many template nodes as nodes in the original glTF file, but there will likely
+        // be many since many things in the glTF format end up as their own template nodes.
         let mut nodes = Vec::with_capacity(gltf.nodes().len());
 
         // Create a skeleton template for each of the skins in the glTF document. Since both
-        // bones and skeletons are treated as nodes within `Template`,
+        // bones and skeletons are treated as nodes within `Template`, we need to load these
+        // first so that we can reference the new nodes when loading the glTF nodes next.
         let mut skeleton_roots = Vec::with_capacity(gltf.skins().len());
         let mut joints = Vec::new();
         for skin in gltf.skins() {
@@ -565,6 +595,7 @@ impl super::Factory {
             skeleton_roots.push(root);
         }
 
+        // Create template nodes from each of the glTF nodes.
         for node in gltf.nodes() {
             load_node(node, &mut nodes, &mut node_map, &mesh_map, &skeleton_map);
         }
@@ -577,8 +608,6 @@ impl super::Factory {
             let template_node = &mut nodes[template_node_index];
 
             // Get the list of children for this node.
-            // NOTE: We assume here that all glTF nodes will correspond to a group template, but
-            // we may implement optimizations in the future that will no longer make this true.
             let children = match template_node.data {
                 TemplateNodeData::Group(ref mut children) => children,
                 _ => panic!(
@@ -621,6 +650,7 @@ impl super::Factory {
             }
         }
 
+        // Create an animation template from any animations in the glTF file.
         let animations: Vec<_> = gltf
             .animations()
             .map(|anim| load_animation(anim, &buffers, &node_map))
@@ -636,6 +666,11 @@ impl super::Factory {
 
                 // If there are any skeletons that don't have a root specified, then they become
                 // root nodes of the template.
+                //
+                // NOTE: It's possible that a skeleton node without a root was already marked as
+                // a root node by the glTF document, in which case we would have added a
+                // duplicate root node to `roots`. To handle that case, we call `dedup` after
+                // adding the root skeletons.
                 let root_skeletons = skeleton_roots
                     .iter()
                     .enumerate()
@@ -644,16 +679,18 @@ impl super::Factory {
                         None => Some(skeleton_map[index]),
                     });
                 roots.extend(root_skeletons);
-
-                // It's possible that a skeleton node without a root was already marked as a root
-                // node by the glTF document, in which case we would have added a duplicate root
-                // node to `roots`. To handle that case, we remove any duplicates here.
                 roots.dedup();
 
                 let name = scene.name().map(Into::into);
 
-                // TODO: Reduce the contents loaded templates so that they only have templates
-                // for objects referenced in that scene.
+                // TODO: Optimize template to only include objects that end up being instantiated.
+                // Each template currently gets a copy of all objects templates loaded from the
+                // source file, but may only use a subset of those depending on what the original
+                // glTF scene referenced. This is safe to do because any unused objects that get
+                // instantiated will immediately be destroyed, but that adds a potentially
+                // unnecessary cost each time the template is instantiated. To avoid this, we can
+                // optime the template ahead of time by reducing it to only objects that are
+                // referenced within that template.
                 Template {
                     name,
                     roots,

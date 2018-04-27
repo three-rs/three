@@ -75,7 +75,7 @@ impl TemplateNode {
     ///
     /// This is used by `Factory::load_gltf`, which needs to generate new nodes on the fly with
     /// a default transform.
-    pub(crate) fn from_data(data: TemplateNodeData) -> TemplateNode {
+    pub fn from_data(data: TemplateNodeData) -> TemplateNode {
         TemplateNode {
             name: None,
 
