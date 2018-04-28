@@ -26,7 +26,7 @@ use hub::{Hub, HubPtr, LightData, SubLight, SubNode};
 use light::{Ambient, Directional, Hemisphere, Point, ShadowMap};
 use material::{self, Material};
 use mesh::{DynamicMesh, Mesh};
-use object::{self, Base, Group, Object};
+use object::{self, Group, Object};
 use render::{basic_pipe,
     BackendFactory, BackendResources, BasicPipelineState, DisplacementContribution,
     DynamicData, GpuData, Instance, InstanceCacheKey, PipelineCreationError, ShadowFormat, Source, Vertex,
@@ -36,7 +36,6 @@ use scene::{Background, Scene};
 use sprite::Sprite;
 use skeleton::{Bone, Skeleton};
 use template::{
-    AnimationTemplate,
     InstancedGeometry,
     LightTemplate,
     SubLightTemplate,
@@ -190,26 +189,34 @@ impl Factory {
         }
     }
 
-    /// Creates an instance of all the objects described in the template, returning the root
-    /// `Group` of the resulting hierarchy.
+    /// Creates an instance of all the objects described in the template.
+    ///
+    /// Returns a [`Group`] that is the root object for all objects created from the template, as
+    /// well as a list of all animations instantiated from the template.
+    ///
+    /// [`Group`]: struct.Group.html
     pub fn instantiate_template(&mut self, template: &Template) -> (Group, Vec<animation::Clip>) {
-        let default_material: Material = material::Basic {
+        // TODO: We shouldn't need a default material for templates.
+        static DEFAULT_MATERIAL: Material = Material::Basic(material::Basic {
             color: 0xFFFFFF,
             map: None,
-        }.into();
+        });
 
         // Create group to act as the root node of the instantiated hierarchy.
         let root = self.group();
 
-        // Create a group for each node in the template.
+        // Create collections for different types of objects that will need to be re-used later.
+        // Since all nodes in the template are kept in a flat list, we must first instantiate all
+        // the objects, then we can later hook up any places where one object wants to reference
+        // another object.
         let mut nodes = HashMap::with_capacity(template.nodes.len());
         let mut groups = HashMap::new();
         let mut bones = HashMap::new();
-
         let mut skinned_meshes = Vec::new();
 
-        // For each of the nodes, instantiate an attach the various objects assoicated with
-        // the node.
+        // For each of the nodes, instantiate the correct type of object, add that object to the
+        // collection for its type, then set the local transform for the node and add it to the
+        // list of all nodes.
         for (index, node) in template.nodes.iter().enumerate() {
             let base = match node.data {
                 TemplateNodeData::Mesh(mesh_index) => {
@@ -217,7 +224,7 @@ impl Factory {
                     let material = mesh_template
                         .material
                         .map(|index| template.materials[index].clone())
-                        .unwrap_or(default_material.clone());
+                        .unwrap_or(DEFAULT_MATERIAL.clone());
                     let mesh = self.instanced_mesh(&mesh_template.geometry, material);
 
                     mesh.upcast()
@@ -228,7 +235,7 @@ impl Factory {
                     let material = mesh_template
                         .material
                         .map(|index| template.materials[index].clone())
-                        .unwrap_or(default_material.clone());
+                        .unwrap_or(DEFAULT_MATERIAL.clone());
                     let mesh = self.instanced_mesh(&mesh_template.geometry, material);
                     skinned_meshes.push((mesh.clone(), skeleton_index));
 
@@ -275,9 +282,12 @@ impl Factory {
                     }
                 }
 
-                // NOTE: We need to defer the creation of skeleton nodes until all other nodes
+                // NOTE: We defer the creation of skeleton nodes until all other nodes
                 // have been created, because we need all of the skeleton's bones to have been
-                // instantiated before we can instantiate the skeleton.
+                // instantiated before we can instantiate the skeleton. Skeletons are
+                // instantiated immediately following all other nodes, so they will still be
+                // created before anything tries to reference one (e.g. skinned meshes,
+                // animations, etc.).
                 TemplateNodeData::Skeleton(..) => { continue; }
             };
 
@@ -305,6 +315,7 @@ impl Factory {
             }
         }
 
+        // Once skeletons have been instantiated, setup each skinned mesh with its skeleton.
         for (mut mesh, skeleton_index) in skinned_meshes {
             mesh.set_skeleton(skeletons[&skeleton_index].clone());
         }
@@ -313,10 +324,21 @@ impl Factory {
         let animations = template
             .animations
             .iter()
-            .map(|animation| instantiate_animation(animation, &nodes))
+            .map(|animation| {
+                let tracks = animation
+                    .tracks
+                    .iter()
+                    .map(|&(ref track, target)| (track.clone(), nodes[&target].upcast()))
+                    .collect();
+
+                animation::Clip {
+                    name: template.name.clone(),
+                    tracks,
+                }
+            })
             .collect();
 
-        // For each of the root nodes, add the node's group to the root group.
+        // Add each of the root nodes to the root group.
         for root_index in &template.roots {
             root.add(&nodes[root_index]);
         }
@@ -328,13 +350,12 @@ impl Factory {
             let children = match node.data {
                 TemplateNodeData::Group(ref children) => children,
                 _ => panic!(
-                    "Group with index {} does not correspond to a TemplateNodeData: {:?}",
+                    "Node with index {} does not correspond to a `Group` node: {:?}",
                     index,
-                    node.data,
+                    node,
                 ),
             };
 
-            // Add the `Base` for the child object to the parent group.
             for child_index in children {
                 let child = &nodes[child_index];
                 group.add(child);
@@ -1261,21 +1282,5 @@ fn concat_path<'a>(
     match base {
         Some(base) => Cow::Owned(base.join(name)),
         None => Cow::Borrowed(Path::new(name)),
-    }
-}
-
-fn instantiate_animation(
-    template: &AnimationTemplate,
-    nodes: &HashMap<usize, Base>,
-) -> animation::Clip {
-    let tracks = template
-        .tracks
-        .iter()
-        .map(|&(ref track, target_index)| (track.clone(), nodes[&target_index].upcast()))
-        .collect();
-
-    animation::Clip {
-        name: template.name.clone(),
-        tracks,
     }
 }
