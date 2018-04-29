@@ -298,12 +298,12 @@ struct Joint {
     joint_index: usize
 }
 
-/// Given a glTF skin definition, creates node templates for each of the joints in the skin.
+/// Creates bone and skeleton templates from a glTF skin.
 ///
 /// Returns two values:
 ///
 /// * The index of the template node created for the skeleton.
-/// * The index of the node used as the skeleton root (if any).
+/// * The glTF index of the node used as the skeleton root (if any).
 ///
 /// Additionally, this will add any newly created nodes to `nodes`, and will add any joints
 /// loaded to `joints`, allowing the bone node created to represent the joint to later be added
@@ -436,6 +436,26 @@ fn load_animation<'a>(
     }
 }
 
+/// Partially loads a single glTF node and creates template nodes from its data.
+///
+/// Adds a `Group` template node to `nodes`, which directly represents `node`. The following
+/// additional nodes may also be added:
+///
+/// * One `Mesh` template node will be added for each mesh primitive in the mesh referenced by
+///   `node`, if any.
+/// * One `Camera` template node will be added if `node` references a camera, using the
+///   projection data for the camera referenced.
+///
+/// Any additional nodes will be listed as children of the initial `Group` template node.
+///
+/// # Warning
+///
+/// The `Group` template node corresponding to `node` will *only* list the mesh and camera
+/// templates as its children, any children that `node` specifies will not be added by this
+/// function. We can't yet add the children declared in the original document because we don't
+/// know the indices that the corresponding template nodes will have until we've loaded and
+/// processed all nodes declared in the document. Those children are added in a final pass after
+/// all glTF nodes have been added to the template (see `Factory::load_gltf`).
 fn load_node<'a>(
     node: gltf::Node<'a>,
     nodes: &mut Vec<TemplateNode>,
@@ -484,8 +504,14 @@ fn load_node<'a>(
     // scale factor in all directions.
     let scale = scale[1];
 
-    // Add an entry in the node map from the node's index in the glTF document to its index in the
-    // final template.
+    // Create a `Group` node to directly represent the original glTF node, listing any extra
+    // nodes we needed to create as its children.
+    //
+    // NOTE: At this point the list of children only includes the nodes generated for any
+    // meshes and cameras attached to the original node. We can't yet add the children declared
+    // in the original document because we don't know the indices that the corresponding
+    // template nodes will have until we've created them all. Those children are added in a
+    // final pass after all glTF nodes have been added to the template (see `Factory::load_gltf`).
     node_map.insert(node.index(), nodes.len());
     nodes.push(TemplateNode {
         name,
@@ -494,11 +520,6 @@ fn load_node<'a>(
         rotation: rotation.into(),
         scale,
 
-        // NOTE: At this point the list of children only includes the nodes generated for any
-        // meshes and cameras attached to the original node. At this point we can't add the
-        // children declared in the original document because we don't know the indices that those
-        // nodes will have in the final template until we've created them all. Those children
-        // are added in a final pass after all glTF nodes have been added to the template.
         data: TemplateNodeData::Group(children),
     });
 }
@@ -574,13 +595,7 @@ impl super::Factory {
             skeleton_roots.push(root);
         }
 
-        // Create template nodes from each of the glTF nodes. Note that we need to provide the
-        // mesh map and skeleton map, because glTF treats meshes and skeletons as single objects
-        // (referenced by a single index), but both meshes and skeletons get converted into
-        // multiple objects in the template, and we need to handle the conversion when creating
-        // the node templates. Note also that each glTF node may in turn be converted into
-        // multiple template nodes, so we pass a mutable reference to `nodes` to allow `load_node`
-        // to create as many template nodes as it needs.
+        // Create template nodes from each of the glTF nodes.
         for node in gltf.nodes() {
             load_node(node, &mut nodes, &mut node_map, &mesh_map, &skeleton_map);
         }
