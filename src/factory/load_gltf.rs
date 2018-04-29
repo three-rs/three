@@ -189,10 +189,11 @@ fn load_mesh<'a>(
     factory: &mut Factory,
     mesh: gltf::Mesh<'a>,
     buffers: &gltf_importer::Buffers,
+    default_material_index: usize,
 ) -> Vec<MeshTemplate> {
     mesh
         .primitives()
-        .map(|prim| load_primitive(factory, prim, buffers))
+        .map(|prim| load_primitive(factory, prim, buffers, default_material_index))
         .collect()
 }
 
@@ -200,6 +201,7 @@ fn load_primitive<'a>(
     factory: &mut Factory,
     primitive: gltf::Primitive<'a>,
     buffers: &gltf_importer::Buffers,
+    default_material_index: usize,
 ) -> MeshTemplate {
     use gltf_utils::PrimitiveIterators;
     use itertools::Itertools;
@@ -280,7 +282,7 @@ fn load_primitive<'a>(
     };
 
     let geometry = factory.instanced_geometry(geometry);
-    let material = primitive.material().index();
+    let material = primitive.material().index().unwrap_or(default_material_index);
 
     MeshTemplate {
         geometry,
@@ -547,10 +549,17 @@ impl super::Factory {
         let cameras: Vec<_> = gltf.cameras().map(load_camera).collect();
 
         let textures = load_textures(self, &gltf, base, &buffers);
-        let materials: Vec<_> = gltf
+        let mut materials: Vec<_> = gltf
             .materials()
             .map(|material| load_material(material, &textures))
             .collect();
+
+        // Create a material to represent the glTF default material.
+        let default_material_index = materials.len();
+        materials.push(material::Basic {
+            color: 0xFFFFFF,
+            map: None,
+        }.into());
 
         // Mappings that allow us to convert from indices in the glTF document to the indices in
         // the resulting template, for objects where the two don't necessarily line up.
@@ -570,7 +579,7 @@ impl super::Factory {
             // Add all of the meshes to the flattened list of meshes, and generate a list of new
             // indices that can be used to map from the glTF index to the flattened indices.
             let mut indices = Vec::new();
-            for mesh in load_mesh(self, gltf_mesh, &buffers) {
+            for mesh in load_mesh(self, gltf_mesh, &buffers, default_material_index) {
                 indices.push(meshes.len());
                 meshes.push(mesh);
             }

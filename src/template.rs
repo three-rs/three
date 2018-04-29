@@ -135,8 +135,8 @@ pub struct MeshTemplate {
     /// The geometry used in the mesh.
     pub geometry: InstancedGeometry,
 
-    /// The index for the material to use in the mesh, if specified.
-    pub material: Option<usize>,
+    /// The index for the material to use in the mesh.
+    pub material: usize,
 }
 
 /// The definition for an animation in a glTF file.
