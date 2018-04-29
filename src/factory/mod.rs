@@ -196,12 +196,6 @@ impl Factory {
     ///
     /// [`Group`]: struct.Group.html
     pub fn instantiate_template(&mut self, template: &Template) -> (Group, Vec<animation::Clip>) {
-        // TODO: We shouldn't need a default material for templates.
-        static DEFAULT_MATERIAL: Material = Material::Basic(material::Basic {
-            color: 0xFFFFFF,
-            map: None,
-        });
-
         // Create group to act as the root node of the instantiated hierarchy.
         let root = self.group();
 
@@ -221,10 +215,7 @@ impl Factory {
             let base = match node.data {
                 TemplateNodeData::Mesh(mesh_index) => {
                     let mesh_template = &template.meshes[mesh_index];
-                    let material = mesh_template
-                        .material
-                        .map(|index| template.materials[index].clone())
-                        .unwrap_or(DEFAULT_MATERIAL.clone());
+                    let material = template.materials[mesh_template.material].clone();
                     let mesh = self.instanced_mesh(&mesh_template.geometry, material);
 
                     mesh.upcast()
@@ -232,10 +223,7 @@ impl Factory {
 
                 TemplateNodeData::SkinnedMesh(mesh_index, skeleton_index) => {
                     let mesh_template = &template.meshes[mesh_index];
-                    let material = mesh_template
-                        .material
-                        .map(|index| template.materials[index].clone())
-                        .unwrap_or(DEFAULT_MATERIAL.clone());
+                    let material = template.materials[mesh_template.material].clone();
                     let mesh = self.instanced_mesh(&mesh_template.geometry, material);
                     skinned_meshes.push((mesh.clone(), skeleton_index));
 
