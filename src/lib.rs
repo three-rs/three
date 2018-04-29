@@ -327,10 +327,6 @@ pub use controls::{Button, MouseButton, Input, Timer};
 #[doc(inline)]
 pub use factory::Factory;
 
-#[cfg(feature = "gltf-loader")]
-#[doc(inline)]
-pub use factory::load_gltf::*;
-
 #[doc(inline)]
 pub use geometry::{Geometry, Joints, Shape};
 
