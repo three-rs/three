@@ -529,13 +529,14 @@ fn load_node<'a>(
 impl super::Factory {
     /// Loads templates from a glTF 2.0 file.
     ///
-    /// The returned [`Template`] objects cannot be added to the scene directly, rather it
-    /// contains definitions for meshes, node hierarchies, skinned meshes and their skeletons,
-    /// animations, and other things that can be instantiated and added to the scene. See
-    /// [`Template`] for more information on how to instantiate the various objects in the
-    /// glTF file.
+    /// The returned [`Template`] objects cannot be added to the scene directly, rather they
+    /// contain definitions for meshes, node hierarchies, skinned meshes and their skeletons,
+    /// animations, and other things that can be instantiated and added to the scene. Use
+    /// [`Factory::instantiate_template`] to create an instance of the template that can be
+    /// added to your scene.
     ///
     /// [`Template`]: template/struct.Template.html
+    /// [`Factory::instantiate_template`]: #method.instantiate_template
     pub fn load_gltf(
         &mut self,
         path_str: &str,

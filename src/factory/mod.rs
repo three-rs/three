@@ -192,7 +192,7 @@ impl Factory {
     /// Creates an instance of all the objects described in the template.
     ///
     /// Returns a [`Group`] that is the root object for all objects created from the template, as
-    /// well as a list of all animations instantiated from the template.
+    /// well as a list of all animation clips instantiated from the template.
     ///
     /// [`Group`]: struct.Group.html
     pub fn instantiate_template(&mut self, template: &Template) -> (Group, Vec<animation::Clip>) {
