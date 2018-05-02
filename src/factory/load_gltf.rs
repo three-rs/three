@@ -533,9 +533,34 @@ impl super::Factory {
     /// contain definitions for meshes, node hierarchies, skinned meshes and their skeletons,
     /// animations, and other things that can be instantiated and added to the scene. Use
     /// [`Factory::instantiate_template`] to create an instance of the template that can be
-    /// added to your scene.
+    /// added to your scene. See the module documentation for [`template`] for more information
+    /// on templates and how they are used.
     ///
-    /// [`Template`]: template/struct.Template.html
+    /// Each scene in the glTF file results in a separate [`Template`]. Any animations that
+    /// reference nodes in a scene will be included in that scene's [`Template`].
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use three::animation;
+    ///
+    /// # let mut window = three::Window::new("Three-rs");
+    /// // Load all templates from a glTF file.
+    /// let mut templates = window.factory.load_gltf("my-model.gltf");
+    ///
+    /// // Instantiate the first template loaded and add the root group to the scene.
+    /// let (root, animations) = window.factory.instantiate_template(&templates[0]);
+    /// window.scene.add(&root);
+    ///
+    /// // Start playing all the animations instantiated from the template.
+    /// let mut mixer = animation::Mixer::new();
+    /// for animation in animations {
+    ///     mixer.action(animation);
+    /// }
+    /// ```
+    ///
+    /// [`template`]: ./template/index.html
+    /// [`Template`]: ./template/struct.Template.html
     /// [`Factory::instantiate_template`]: #method.instantiate_template
     pub fn load_gltf(
         &mut self,

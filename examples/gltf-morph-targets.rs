@@ -14,13 +14,13 @@ fn main() {
 
     // Load the contents of the glTF files. Scenes loaded from the file are returned as
     // `Template` objects, which can be used to instantiate the actual objects for rendering.
-    let template = window.factory.load_gltf(&path).pop().unwrap();
+    let templates = window.factory.load_gltf(&path);
 
     // Instantiate the contents of the template, and then add it to the scene.
-    let (instance, animations) = window.factory.instantiate_template(&template);
+    let (instance, animations) = window.factory.instantiate_template(&templates[0]);
     window.scene.add(&instance);
 
-    // Begin playing all the animations assoicated with the template we instantiated.
+    // Begin playing all the animations instantiated from the template.
     let mut mixer = three::animation::Mixer::new();
     for animation in animations {
         mixer.action(animation);

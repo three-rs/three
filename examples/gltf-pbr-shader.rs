@@ -15,10 +15,10 @@ fn main() {
 
     // Load the contents of the glTF files. Scenes loaded from the file are returned as
     // `Template` objects, which can be used to instantiate the actual objects for rendering.
-    let template = win.factory.load_gltf(&path).pop().unwrap();
+    let templates = win.factory.load_gltf(&path);
 
     // Instantiate the contents of the template, and then add it to the scene.
-    let (instance, _) = win.factory.instantiate_template(&template);
+    let (instance, _) = win.factory.instantiate_template(&templates[0]);
     win.scene.add(&instance);
 
     // TODO: Look for an existing camera within the glTF scene. We'll need the ability to walk
