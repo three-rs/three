@@ -106,12 +106,16 @@ pub struct Template {
     pub animations: Vec<AnimationTemplate>,
 }
 
-/// The definition of a node used in a glTF file.
+/// An object with a transform that can be added to the scene or made the child of a [`Group`].
 ///
-/// Nodes are composed to create a graph of elements in a glTF scene.
+/// See the [module documentation] for more information on how template nodes are used to
+/// describe objects and build templates.
+///
+/// [`Group`]: ../struct.Group.html
+/// [module documentation]: ./index.html
 #[derive(Debug, Clone)]
 pub struct TemplateNode {
-    /// The name of the node.
+    /// An optional name for the node.
     pub name: Option<String>,
 
     /// The node's local translation.
@@ -129,8 +133,7 @@ pub struct TemplateNode {
     /// This scale is relative to its parent node when instantiated.
     pub scale: f32,
 
-    /// The specific type of Three object that this node will be instantiated into, and its
-    /// associated data.
+    /// The specific type of object that this node will be instantiated into.
     pub data: TemplateNodeData,
 }
 
@@ -139,6 +142,14 @@ impl TemplateNode {
     ///
     /// This is used by `Factory::load_gltf`, which needs to generate new nodes on the fly with
     /// a default transform.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use three::template::{TemplateNode, TemplateNodeData};
+    ///
+    /// let camera_node = TemplateNode::from_data(TemplateNodeData::Camera(0));
+    /// ```
     pub fn from_data(data: TemplateNodeData) -> TemplateNode {
         TemplateNode {
             name: None,
