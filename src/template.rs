@@ -41,10 +41,23 @@
 //! template. This allows for all animations for the template to be described once, while still
 //! allowing all instances of the template to be animated independently of each other.
 //!
+//! # Mesh Instancing
+//!
+//! When setting up a mesh in a template, you must first upload your [`Geometry`] to the GPU
+//! using [`Factory::instanced_geometry`]. This will give you an [`InstancedGeometry`] object
+//! that acts as a shared handle to the GPU resources for that geometry. By uploading the
+//! data to the GPU ahead of time, we can ensure that all mesh nodes that reference that
+//! geometry, and all [`Mesh`] instances created from the template, will share a single copy
+//! of the data on the GPU. This reduces GPU resource usage and, for any meshes that also share
+//! a material, allows three to render many objects at once.
+//!
 //! [`Factory::instantiate_template`]: ../struct.Factory.html#method.instantiate_template
 //! [`Factory::load_gltf`]: ../struct.Factory.html#method.load_gltf
+//! [`Factory::instanced_geometry`]: ../struct.Factory.html#method.instanced_geometry
 //! [`Object`]: ../trait.Object.html
 //! [`Group`]: ../struct.Group.html
+//! [`Geometry`]: ../struct.Geometry.html
+//! [`Mesh`]: ../struct.Mesh.html
 //! [`Template`]: ./struct.Template.html
 //! [`TemplateNode`]: ./struct.TemplateNode.html
 //! [`TemplateNodeData`]: ./enum.TemplateNodeData.html
@@ -53,6 +66,7 @@
 //! [`cameras`]: ./struct.Template.html#structfield.cameras
 //! [`meshes`]: ./struct.Template.html#structfield.meshes
 //! [`roots`]: ./struct.Template.html#structfield.roots
+//! [`InstancedGeometry`]: ./struct.InstancedGeometry.html
 
 use mint;
 
@@ -112,7 +126,7 @@ pub struct Template {
 /// describe objects and build templates.
 ///
 /// [`Group`]: ../struct.Group.html
-/// [module documentation]: ./index.html
+/// [module documentation]: ./index.html#node-templates
 #[derive(Debug, Clone)]
 pub struct TemplateNode {
     /// An optional name for the node.
@@ -171,7 +185,7 @@ impl TemplateNode {
 /// describe objects and build templates.
 ///
 /// [`TemplateNode`]: ./struct.TemplateNode.html
-/// [module documentation]: ./index.html
+/// [module documentation]: ./index.html#node-templates
 #[derive(Debug, Clone)]
 pub enum TemplateNodeData {
     /// The node represents a [`Group`].
@@ -258,13 +272,22 @@ pub enum TemplateNodeData {
     Camera(usize),
 }
 
-/// Information describing a mesh.
+/// Information for instantiating a [`Mesh`].
+///
+/// See the [module documentation] for more information on mesh instancing and how mesh
+/// data is setup for templates.
+///
+/// [`Mesh`]: ../struct.Mesh.html
+/// [module documentation]: ./index.html#mesh-instancing
 #[derive(Debug, Clone)]
 pub struct MeshTemplate {
     /// The geometry used in the mesh.
     pub geometry: InstancedGeometry,
 
-    /// The index for the material to use in the mesh.
+    /// The index of the material for the mesh in the [`meshes`] array of the parent [`Template`].
+    ///
+    /// [`Template`]: ./struct.Template.html
+    /// [`meshes`]: ./struct.Template.html#structfield.meshes
     pub material: usize,
 }
 
