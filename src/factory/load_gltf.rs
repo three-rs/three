@@ -481,10 +481,10 @@ fn load_node<'a>(
             // The node will either be a mesh or a skinned mesh, depending on whether or not
             // there's a skeleton associated with the glTF node.
             let data = match skeleton {
-                Some(skeleton_index) => TemplateNodeData::SkinnedMesh(
-                    mesh_index,
-                    skeleton_index,
-                ),
+                Some(skeleton_index) => TemplateNodeData::SkinnedMesh {
+                    mesh: mesh_index,
+                    skeleton: skeleton_index,
+                },
 
                 None => TemplateNodeData::Mesh(mesh_index),
             };

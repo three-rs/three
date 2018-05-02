@@ -221,11 +221,11 @@ impl Factory {
                     mesh.upcast()
                 }
 
-                TemplateNodeData::SkinnedMesh(mesh_index, skeleton_index) => {
-                    let mesh_template = &template.meshes[mesh_index];
+                TemplateNodeData::SkinnedMesh { mesh, skeleton } => {
+                    let mesh_template = &template.meshes[mesh];
                     let material = template.materials[mesh_template.material].clone();
                     let mesh = self.instanced_mesh(&mesh_template.geometry, material);
-                    skinned_meshes.push((mesh.clone(), skeleton_index));
+                    skinned_meshes.push((mesh.clone(), skeleton));
 
                     mesh.upcast()
                 }

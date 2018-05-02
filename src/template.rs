@@ -140,8 +140,7 @@ pub struct TemplateNode {
 impl TemplateNode {
     /// Creates a default `TemplateNode` with the provided node data.
     ///
-    /// This is used by `Factory::load_gltf`, which needs to generate new nodes on the fly with
-    /// a default transform.
+    /// The created [`Template`] node has no translation, no rotation, and a scale of 1.
     ///
     /// # Examples
     ///
@@ -150,6 +149,8 @@ impl TemplateNode {
     ///
     /// let camera_node = TemplateNode::from_data(TemplateNodeData::Camera(0));
     /// ```
+    ///
+    /// [`Template`]: ./struct.Template.html
     pub fn from_data(data: TemplateNodeData) -> TemplateNode {
         TemplateNode {
             name: None,
@@ -164,43 +165,96 @@ impl TemplateNode {
     }
 }
 
-/// The specific type of Three object that a `TemplateNode` will become when instantiated.
+/// Defines which type of object a [`TemplateNode`] will be instantiated into.
+///
+/// See the [module documentation] for more information on how template nodes are used to
+/// describe objects and build templates.
+///
+/// [`TemplateNode`]: ./struct.TemplateNode.html
+/// [module documentation]: ./index.html
 #[derive(Debug, Clone)]
 pub enum TemplateNodeData {
-    /// A node representing a [`Group`].
+    /// The node represents a [`Group`].
     ///
-    /// Contains a list of the indices of the nodes that are in the group.
+    /// Contains a list of nodes that will be added to the resulting group, given as indices into
+    /// the [`nodes`] array in the parent [`Template`].
+    ///
+    /// [`Group`]: ../struct.Group.html
+    /// [`nodes`]: ./struct.Template.html#structfield.nodes
+    /// [`Template`]: ./struct.Template.html
     Group(Vec<usize>),
 
-    /// A node representing a [`Mesh`].
+    /// The node represents a [`Mesh`].
     ///
-    /// Contains the index of the mesh in [`meshes`].
+    /// Specifies the index of the mesh data to be used in the [`meshes`] array of the parent
+    /// [`Template`].
+    ///
+    /// [`Mesh`]: ../struct.Mesh.html
+    /// [`meshes`]: ./struct.Template.html#structfield.meshes
+    /// [`Template`]: ./struct.Template.html
     Mesh(usize),
 
-    /// A node representing a [`Mesh`] with an attached [`Skeleton`].
+    /// The node represents a skinned [`Mesh`] with a [`Skeleton`] attached.
     ///
-    /// The first `usize` is the index of the mesh in [`meshes`], the second `usize` is the
-    /// index of the skeleton node in [`nodes`]. Note that the second index must reference a
-    /// node that has a [`TemplateNodeData::Skeleton`] for its [`data`] field.
-    SkinnedMesh(usize, usize),
+    /// [`Mesh`]: ../struct.Mesh.html
+    /// [`Skeleton`]: ../skeleton/struct.Skeleton.html
+    SkinnedMesh {
+        /// The index of the mesh in the [`meshes`] array of the parent [`Template`].
+        ///
+        /// [`meshes`]: ./struct.Template.html#structfield.meshes
+        /// [`Template`]: ./struct.Template.html
+        mesh: usize,
 
-    /// A node representing a [`Light`].
+        /// The index of the skeleton node in the [`nodes`] array of the parent [`Template`].
+        ///
+        /// Note that this index must reference a node that has a [`TemplateNodeData::Skeleton`]
+        /// for its [`data`] field.
+        ///
+        /// [`nodes`]: ./struct.Template.html#structfield.nodes
+        /// [`Template`]: ./struct.Template.html
+        /// [`data`]: ./struct.Template.html#structfield.data
+        /// [`TemplateNodeData::Skeleton`]: #variant.Skeleton
+        skeleton: usize,
+    },
+
+    /// The node represents one of the light types defined in the [`light`] module.
+    ///
+    /// Specifies the index of the light data in the [`lights`] array of the parent [`Template`].
+    ///
+    /// [`light`]: ../light/index.html
+    /// [`lights`]: ./struct.Template.html#structfield.lights
+    /// [`Template`]: ./struct.Template.html
     Light(usize),
 
-    /// A node representing a [`Bone`].
+    /// The node represents a [`Bone`].
     ///
-    /// Contains the index of the bone within its skeleton, and the inverse bind matrix for
-    /// the bone.
+    /// Contains the bone's index within its skeleton, and the inverse bind matrix for
+    /// the bone. See [`Factory::bone`] for more information on these parameters.
+    ///
+    /// [`Bone`]: ../skeleton/struct.Bone.html
+    /// [`Factory::bone`]: ../struct.Factory.html#method.bone
     Bone(usize, mint::ColumnMatrix4<f32>),
 
-    /// A node representing a [`Skeleton`].
+    /// The node represents a [`Skeleton`].
     ///
-    /// Contains the indices of the bones nodes in the scene that are the bones in this skeleton.
-    /// These indices correspond to elements in [`nodes`] in the parent [`Template`]. Note that
-    /// the nodes references must have a [`TemplateNodeData::Bone`] for their [`data`] field.
+    /// Contains a list of the indices of the bone nodes in the [`nodes`] array of the parent
+    /// [`Template`]. Note that the nodes referenced must have a [`TemplateNodeData::Bone`]
+    /// for their [`data`] field.
+    ///
+    /// [`Skeleton`]: ../skeleton/struct.Skeleton.html
+    /// [`nodes`]: ./struct.Template.html#structfield.nodes
+    /// [`Template`]: ./struct.Template.html
+    /// [`data`]: ./struct.Template.html#structfield.data
+    /// [`TemplateNodeData::Bone`]: #variant.Bone
     Skeleton(Vec<usize>),
 
-    /// A node representing a [`Camera`].
+    /// The node represents a [`Camera`].
+    ///
+    /// Specifies the index of the projection in the [`cameras`] array of the parent [`Template`].
+    ///
+    /// [`Camera`]: ../camera/struct.Camera.html
+    /// [`cameras`]: ./struct.Template.html#structfield.cameras
+    /// [`Template`]: ./struct.Template.html
     Camera(usize),
 }
 
