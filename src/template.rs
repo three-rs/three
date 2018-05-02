@@ -473,8 +473,18 @@ pub enum SubLightTemplate {
 
 /// Geometry data that has been loaded to the GPU.
 ///
-/// [`Mesh`] objects instanted with this data will share GPU resources, allowing for more
-/// efficient instanced rendering.
+/// [`Mesh`] objects instantiated with this data will share GPU resources, allowing for more
+/// efficient instanced rendering. Use [`Factory::instanced_geometry`] to upload [`Geometry`]
+/// to the GPU and get an `InstancedGeometry`. You can use an `InstancedGeometry` to create
+/// a [`MeshTemplate`] for use in a [`Template`], or you can use [`Factory::instanced_mesh`]
+/// to create a [`Mesh`] directly.
+///
+/// [`Factory::instanced_geometry`]: ../struct.Factory.html#method.instanced_geometry
+/// [`Factory::instanced_mesh`]: ../struct.Factory.html#method.instanced_mesh
+/// [`Mesh`]: ../struct.Mesh.html
+/// [`Geometry`]: ../struct.Geometry.html
+/// [`Template`]: ./struct.Template.html
+/// [`MeshTemplate`]: ./struct.MeshTemplate.html
 #[derive(Debug, Clone)]
 pub struct InstancedGeometry {
     pub(crate) gpu_data: GpuData,
