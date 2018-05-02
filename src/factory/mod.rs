@@ -194,7 +194,25 @@ impl Factory {
     /// Returns a [`Group`] that is the root object for all objects created from the template, as
     /// well as a list of all animation clips instantiated from the template.
     ///
-    /// [`Group`]: struct.Group.html
+    /// See the module documentation for [`template`] for more information on the template
+    /// system.
+    ///
+    /// # Examples
+    ///
+    /// Create an empty template and then instantiate it, effectively the most verbose way to
+    /// call [`Factory::group`]:
+    ///
+    /// ```no_run
+    /// use three::template::Template;
+    ///
+    /// # let mut window = three::Window::new("Three-rs");
+    /// let template = Template::new();
+    /// let (group, animations) = window.factory.instantiate_template(&template);
+    /// ```
+    ///
+    /// [`Group`]: ./struct.Group.html
+    /// [`template`]: ./template/index.html
+    /// [`Factory::group`]: #method.group
     pub fn instantiate_template(&mut self, template: &Template) -> (Group, Vec<animation::Clip>) {
         // Create group to act as the root node of the instantiated hierarchy.
         let root = self.group();
@@ -520,7 +538,39 @@ impl Factory {
             .collect()
     }
 
-    /// Load geometry data to the GPU so that it can be reused for instanced rendering.
+    /// Loads geometry data to the GPU so that it can be reused for instanced rendering.
+    ///
+    /// See the module documentation in [`template`] for information on mesh instancing and
+    /// its benefits.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use three::Geometry;
+    ///
+    /// # let mut window = three::Window::new("Three-rs");
+    /// // Create geometry for a triangle.
+    /// let vertices = vec![
+    ///     [-0.5, -0.5, -0.5].into(),
+    ///     [0.5, -0.5, -0.5].into(),
+    ///     [0.0, 0.5, -0.5].into(),
+    /// ];
+    /// let geometry = Geometry::with_vertices(vertices);
+    ///
+    /// // Upload the triangle data to the GPU.
+    /// let instanced_geometry = window.factory.instanced_geometry(geometry);
+    ///
+    /// // Create multiple meshes with the same GPU data and material.
+    /// let material = three::material::Basic {
+    ///     color: 0xFFFF00,
+    ///     map: None,
+    /// };
+    /// let first = window.factory.instanced_mesh(&instanced_geometry, material.clone());
+    /// let second = window.factory.instanced_mesh(&instanced_geometry, material.clone());
+    /// let third = window.factory.instanced_mesh(&instanced_geometry, material.clone());
+    /// ```
+    ///
+    /// [`template`]: ./template/index.html#mesh-instancing
     pub fn instanced_geometry(
         &mut self,
         geometry: Geometry,
@@ -546,10 +596,40 @@ impl Factory {
         }
     }
 
-    /// Creates an instance of a mesh sharing GPU resources with other [`Mesh`] objects.
+    /// Creates a [`Mesh`] using geometry that has already been loaded to the GPU.
     ///
-    /// Instanced meshes use less GPU memory than one-off meshes, and can be rendered more
-    /// efficiently if they use the same material.
+    /// See the module documentation in [`template`] for information on mesh instancing and
+    /// its benefits.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use three::Geometry;
+    ///
+    /// # let mut window = three::Window::new("Three-rs");
+    /// // Create geometry for a triangle.
+    /// let vertices = vec![
+    ///     [-0.5, -0.5, -0.5].into(),
+    ///     [0.5, -0.5, -0.5].into(),
+    ///     [0.0, 0.5, -0.5].into(),
+    /// ];
+    /// let geometry = Geometry::with_vertices(vertices);
+    ///
+    /// // Upload the triangle data to the GPU.
+    /// let instanced_geometry = window.factory.instanced_geometry(geometry);
+    ///
+    /// // Create multiple meshes with the same GPU data and material.
+    /// let material = three::material::Basic {
+    ///     color: 0xFFFF00,
+    ///     map: None,
+    /// };
+    /// let first = window.factory.instanced_mesh(&instanced_geometry, material.clone());
+    /// let second = window.factory.instanced_mesh(&instanced_geometry, material.clone());
+    /// let third = window.factory.instanced_mesh(&instanced_geometry, material.clone());
+    /// ```
+    ///
+    /// [`Mesh`]: ./struct.Mesh.html
+    /// [`template`]: ./template/index.html#mesh-instancing
     pub fn instanced_mesh<M: Into<Material>>(
         &mut self,
         geometry: &InstancedGeometry,

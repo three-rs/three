@@ -126,12 +126,12 @@ impl Template {
     /// # Examples
     ///
     /// Create an empty template and then instantiate it, effectively the most verbose way to
-    /// call [`Factory::group`].
+    /// call [`Factory::group`]:
     ///
     /// ```no_run
     /// use three::template::Template;
     ///
-    /// # let mut window = three::Window::new("Three-rs obj loading example");
+    /// # let mut window = three::Window::new("Three-rs");
     /// let template = Template::new();
     /// let (group, animations) = window.factory.instantiate_template(&template);
     /// ```
