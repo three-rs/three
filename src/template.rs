@@ -85,7 +85,7 @@ use render::GpuData;
 ///
 /// [`Factory::instantiate_template`]: ../struct.Factory.html#method.instantiate_template
 /// [module documentation]: ./index.html
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Template {
     /// An optional name for the template.
     pub name: Option<String>,
@@ -118,6 +118,26 @@ pub struct Template {
 
     /// Templates for animation clips that target objects instantiated from this template.
     pub animations: Vec<AnimationTemplate>,
+}
+
+impl Template {
+    /// Creates an empty template.
+    ///
+    /// # Examples
+    ///
+    /// Create an empty template and then instantiate it, effectively the most verbose way to
+    /// call [`Factory::group`].
+    ///
+    /// ```no_run
+    /// use three::template::Template;
+    ///
+    /// # let mut window = three::Window::new("Three-rs obj loading example");
+    /// let template = Template::new();
+    /// let (group, animations) = window.factory.instantiate_template(&template);
+    /// ```
+    ///
+    /// [`Factory::group`]: ../struct.Factory.html#method.group
+    pub fn new() -> Template { Default::default() }
 }
 
 /// An object with a transform that can be added to the scene or made the child of a [`Group`].
@@ -291,23 +311,36 @@ pub struct MeshTemplate {
     pub material: usize,
 }
 
-/// The definition for an animation in a glTF file.
+/// The definition for an animation in a glTF file, corresponds to an [`animation::Clip`].
 ///
-/// When instantiated, this corresponds to a [`Clip`].
+/// See the [module documentation] for more information on template animations and how they
+/// are used.
+///
+/// [`animation::Clip`]: ../animation/struct.Clip.html
+/// [module documentation]: ./index.html#animations
 #[derive(Debug, Clone)]
 pub struct AnimationTemplate {
-    /// The name of the animation.
+    /// An optional name for the animation.
     pub name: Option<String>,
 
     /// The tracks making up the animation.
     ///
-    /// Each track is composed of a [`Track`] containing the data for the track, and an index
-    /// of the node that the track targets. The node is an index into the `nodes` list of the
-    /// parent [`GltfDefinitions`].
+    /// Each track is composed of a [`Track`], containing the data for the track, and the node
+    /// that the track targetes, specified as an index into the [`nodes`] array of the
+    /// parent [`Template`].
+    ///
+    /// [`Track`]: ../animation/struct.Track.html
+    /// [`Template`]: ./struct.Template.html
+    /// [`nodes`]: ./struct.Template.html#structfield.nodes
     pub tracks: Vec<(Track, usize)>,
 }
 
-/// Template for a light in the scene.
+/// Common information for instantiating the various types of lights.
+///
+/// See the [module documentation] for information on how templates are setup and how objects
+/// are added to the template.
+///
+/// [module documentation]: ./index.html
 #[derive(Clone, Copy, Debug)]
 pub struct LightTemplate {
     /// The base color of the light.
@@ -321,7 +354,19 @@ pub struct LightTemplate {
 }
 
 impl LightTemplate {
-    /// Creates a new template for an ambient light.
+    /// Creates a new template for an ambient light, analogous to [`Factory::ambient_light`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use three::template::{LightTemplate, Template};
+    ///
+    /// let mut template = Template::new();
+    /// let light = LightTemplate::ambient(three::color::RED, 0.5);
+    /// template.lights.push(light);
+    /// ```
+    ///
+    /// [`Factory::ambient_light`]: ../struct.Factory.html#method.ambient_light
     pub fn ambient(color: Color, intensity: f32) -> LightTemplate {
         LightTemplate {
             color,
@@ -330,7 +375,19 @@ impl LightTemplate {
         }
     }
 
-    /// Creates a new template for a directional light.
+    /// Creates a new template for a directional light, analogous to [`Factory::directional_light`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use three::template::{LightTemplate, Template};
+    ///
+    /// let mut template = Template::new();
+    /// let light = LightTemplate::directional(three::color::RED, 0.5);
+    /// template.lights.push(light);
+    /// ```
+    ///
+    /// [`Factory::directional_light`]: ../struct.Factory.html#method.directional_light
     pub fn directional(color: Color, intensity: f32) -> LightTemplate {
         LightTemplate {
             color,
@@ -339,7 +396,19 @@ impl LightTemplate {
         }
     }
 
-    /// Creates a new template for a point light.
+    /// Creates a new template for a point light, analogous to [`Factory::point_light`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use three::template::{LightTemplate, Template};
+    ///
+    /// let mut template = Template::new();
+    /// let light = LightTemplate::point(three::color::RED, 0.5);
+    /// template.lights.push(light);
+    /// ```
+    ///
+    /// [`Factory::point_light`]: ../struct.Factory.html#method.point_light
     pub fn point(color: Color, intensity: f32) -> LightTemplate {
         LightTemplate {
             color,
@@ -348,7 +417,19 @@ impl LightTemplate {
         }
     }
 
-    /// Creates a new template for a hemisphere light.
+    /// Creates a new template for a hemisphere light, analogous to [`Factory::hemisphere_light`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use three::template::{LightTemplate, Template};
+    ///
+    /// let mut template = Template::new();
+    /// let light = LightTemplate::hemisphere(three::color::RED, three::color::BLUE, 0.5);
+    /// template.lights.push(light);
+    /// ```
+    ///
+    /// [`Factory::hemisphere_light`]: ../struct.Factory.html#method.hemisphere_light
     pub fn hemisphere(sky_color: Color, ground_color: Color, intensity: f32) -> LightTemplate {
         LightTemplate {
             color: sky_color,
@@ -359,21 +440,34 @@ impl LightTemplate {
 }
 
 /// Template information about the different sub-types for light.
+///
+/// See [`LightTemplate`] for more more information on settings up light templates, and
+/// utilities for doing so.
+///
+/// [`LightTemplate`]: ./struct.LightTemplate.html
 #[derive(Clone, Copy, Debug)]
 pub enum SubLightTemplate {
-    /// Represents an ambient light.
+    /// Represents an ambient light, instantiated as an [`Ambient`].
+    ///
+    /// [`Ambient`]: ../light/struct.Ambient.html
     Ambient,
 
-    /// Represents a directional light.
+    /// Represents a directional light, instantiated as a [`Directional`].
+    ///
+    /// [`Directional`]: ../light/struct.Directional.html
     Directional,
 
-    /// Represents a hemisphere light.
+    /// Represents a hemisphere light, instantiated as a [`Hemisphere`].
+    ///
+    /// [`Hemisphere`]: ../light/struct.Hemisphere.html
     Hemisphere {
         /// The ground color for the light.
         ground: Color,
     },
 
-    /// Represents a point light.
+    /// Represents a point light, instantiated as a [`Point`].
+    ///
+    /// [`Point`]: ../light/struct.Point.html
     Point,
 }
 
