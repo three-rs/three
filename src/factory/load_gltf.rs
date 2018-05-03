@@ -27,8 +27,8 @@ use template::{
     AnimationTemplate,
     MeshTemplate,
     Template,
-    TemplateNode,
-    TemplateNodeData,
+    NodeTemplate,
+    NodeTemplateData,
 };
 
 fn load_camera<'a>(
@@ -281,7 +281,7 @@ fn load_primitive<'a>(
         },
     };
 
-    let geometry = factory.instanced_geometry(geometry);
+    let geometry = factory.upload_geometry(geometry);
     let material = primitive.material().index().unwrap_or(default_material_index);
 
     MeshTemplate {
@@ -313,7 +313,7 @@ struct Joint {
 fn load_skin<'a>(
     skin: gltf::Skin<'a>,
     buffers: &gltf_importer::Buffers,
-    nodes: &mut Vec<TemplateNode>,
+    nodes: &mut Vec<NodeTemplate>,
     joints: &mut Vec<Joint>,
 ) -> (usize, Option<usize>) {
     use std::iter::repeat;
@@ -342,14 +342,14 @@ fn load_skin<'a>(
         // Create a bone node corresponding to the joint.
         let node_index = nodes.len();
         bones.push(node_index);
-        nodes.push(TemplateNode::from_data(
-            TemplateNodeData::Bone(bone_index, inverse_bind_matrix)),
+        nodes.push(NodeTemplate::from_data(
+            NodeTemplateData::Bone(bone_index, inverse_bind_matrix)),
         );
         joints.push(Joint { node_index, joint_index });
     }
 
     let skeleton_index = nodes.len();
-    nodes.push(TemplateNode::from_data(TemplateNodeData::Skeleton(bones)));
+    nodes.push(NodeTemplate::from_data(NodeTemplateData::Skeleton(bones)));
 
     (skeleton_index, skin.skeleton().map(|node| node.index()))
 }
@@ -460,7 +460,7 @@ fn load_animation<'a>(
 /// all glTF nodes have been added to the template (see `Factory::load_gltf`).
 fn load_node<'a>(
     node: gltf::Node<'a>,
-    nodes: &mut Vec<TemplateNode>,
+    nodes: &mut Vec<NodeTemplate>,
     node_map: &mut HashMap<usize, usize>,
     mesh_map: &HashMap<usize, Vec<usize>>,
     skeleton_map: &[usize],
@@ -481,22 +481,22 @@ fn load_node<'a>(
             // The node will either be a mesh or a skinned mesh, depending on whether or not
             // there's a skeleton associated with the glTF node.
             let data = match skeleton {
-                Some(skeleton_index) => TemplateNodeData::SkinnedMesh {
+                Some(skeleton_index) => NodeTemplateData::SkinnedMesh {
                     mesh: mesh_index,
                     skeleton: skeleton_index,
                 },
 
-                None => TemplateNodeData::Mesh(mesh_index),
+                None => NodeTemplateData::Mesh(mesh_index),
             };
 
-            nodes.push(TemplateNode::from_data(data));
+            nodes.push(NodeTemplate::from_data(data));
         }
     }
 
     // Create a camera node as a child if there's a camera associated with this glTF node.
     if let Some(camera_index) = node.camera().map(|camera| camera.index()) {
         children.push(nodes.len());
-        nodes.push(TemplateNode::from_data(TemplateNodeData::Camera(camera_index)));
+        nodes.push(NodeTemplate::from_data(NodeTemplateData::Camera(camera_index)));
     }
 
     // Decompose the transform to get the translation, rotation, and scale.
@@ -515,14 +515,14 @@ fn load_node<'a>(
     // template nodes will have until we've created them all. Those children are added in a
     // final pass after all glTF nodes have been added to the template (see `Factory::load_gltf`).
     node_map.insert(node.index(), nodes.len());
-    nodes.push(TemplateNode {
+    nodes.push(NodeTemplate {
         name,
 
         translation: translation.into(),
         rotation: rotation.into(),
         scale,
 
-        data: TemplateNodeData::Group(children),
+        data: NodeTemplateData::Group(children),
     });
 }
 
@@ -644,7 +644,7 @@ impl super::Factory {
 
             // Get the list of children for this node.
             let children = match template_node.data {
-                TemplateNodeData::Group(ref mut children) => children,
+                NodeTemplateData::Group(ref mut children) => children,
                 _ => panic!(
                     "Node corresponding to glTF node {} is not a group: {:?}",
                     gltf_node.index(),
@@ -663,7 +663,7 @@ impl super::Factory {
         // Once all nodes have been created, make each bone a child of the joint it targets.
         for Joint { node_index, joint_index } in joints {
             match nodes[node_map[&joint_index]].data {
-                TemplateNodeData::Group(ref mut children) => children.push(node_index),
+                NodeTemplateData::Group(ref mut children) => children.push(node_index),
                 _ => panic!("Joint index referenced by skin did not point to a group template"),
             }
         }
@@ -679,7 +679,7 @@ impl super::Factory {
         for (index, &root) in skeleton_roots.iter().enumerate() {
             if let Some(parent_index) = root {
                 match nodes[node_map[&parent_index]].data {
-                    TemplateNodeData::Group(ref mut children) => children.push(skeleton_map[index]),
+                    NodeTemplateData::Group(ref mut children) => children.push(skeleton_map[index]),
                     _ => panic!("Root node for skeleton wasn't a group"),
                 }
             }
