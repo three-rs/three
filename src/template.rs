@@ -1,8 +1,8 @@
 //! Utilites for creating reusable templates for scene objects.
 //!
 //! It is often the case that you will want to have multiple instances of the same model or
-//! hierarchy of object in your scene. While you could manually construct each instance yourself,
-//! three provides a templating system to allow you to describe your model's hierarchy ahead
+//! hierarchy of objects in your scene. While you could manually construct each instance yourself,
+//! three-rs provides a templating system to allow you to describe your model's hierarchy ahead
 //! of time, and then quickly create instances that three can efficiently batch render.
 //! [`Template`] describes the objects for a single model, and can be instantiated with
 //! [`Factory::instantiate_template`].
@@ -15,20 +15,20 @@
 //! Templates hold their data in flat array, and objects in the template reference each other
 //! using their respective indices. The base descriptions of all objects that can be added to the
 //! scene (i.e. that implement [`Object`] and have transforms) are represented in [`nodes`]. Each
-//! [`TemplateNode`] has a sub-type that determines which type of object it is instantiated as,
-//! and references the type-specific data for that object. See [`TemplateNodeData`] for
+//! [`NodeTemplate`] has a sub-type that determines which type of object it is instantiated as,
+//! and references the type-specific data for that object. See [`NodeTemplateData`] for
 //! information on the different node sub-types.
 //!
 //! Data for specific types of nodes are held in the other member arrays of [`Template`]. For
 //! example, [`cameras`] contains projections for the different cameras in the template, and
 //! [`meshes`] contains reusable GPU data for meshes. Note that this data is put into separate
-//! arrays, rather than held directly by the variants of [`TemplateNodeData`], so that multiple
+//! arrays, rather than held directly by the variants of [`NodeTemplateData`], so that multiple
 //! nodes can share the same data (e.g. all cameras defined in the template can easily reuse
 //! the same projection without having to have separate copies of the projection).
 //!
 //! The nodes in the template create a hierarchy when nodes with the sub-type
-//! [`TemplateNodeData::Group`] list other nodes as their children. Only
-//! [`TemplateNodeData::Group`] is able to have children, and it does not carry any other data.
+//! [`NodeTemplateData::Group`] list other nodes as their children. Only
+//! [`NodeTemplateData::Group`] is able to have children, and it does not carry any other data.
 //!
 //! The root nodes of the template are specified in [`roots`]. The nodes specified by [`roots`]
 //! will be the direct children of the [`Group`] returned from [`Factory::instantiate_template`],
@@ -44,7 +44,7 @@
 //! # Mesh Instancing
 //!
 //! When setting up a mesh in a template, you must first upload your [`Geometry`] to the GPU
-//! using [`Factory::instanced_geometry`]. This will give you an [`InstancedGeometry`] object
+//! using [`Factory::upload_geometry`]. This will give you an [`InstancedGeometry`] object
 //! that acts as a shared handle to the GPU resources for that geometry. By uploading the
 //! data to the GPU ahead of time, we can ensure that all mesh nodes that reference that
 //! geometry, and all [`Mesh`] instances created from the template, will share a single copy
@@ -53,15 +53,15 @@
 //!
 //! [`Factory::instantiate_template`]: ../struct.Factory.html#method.instantiate_template
 //! [`Factory::load_gltf`]: ../struct.Factory.html#method.load_gltf
-//! [`Factory::instanced_geometry`]: ../struct.Factory.html#method.instanced_geometry
+//! [`Factory::upload_geometry`]: ../struct.Factory.html#method.upload_geometry
 //! [`Object`]: ../trait.Object.html
 //! [`Group`]: ../struct.Group.html
 //! [`Geometry`]: ../struct.Geometry.html
 //! [`Mesh`]: ../struct.Mesh.html
 //! [`Template`]: ./struct.Template.html
-//! [`TemplateNode`]: ./struct.TemplateNode.html
-//! [`TemplateNodeData`]: ./enum.TemplateNodeData.html
-//! [`TemplateNodeData::Group`]: ./enum.TemplateNodeData.html#variant.Group
+//! [`NodeTemplate`]: ./struct.NodeTemplate.html
+//! [`NodeTemplateData`]: ./enum.NodeTemplateData.html
+//! [`NodeTemplateData::Group`]: ./enum.NodeTemplateData.html#variant.Group
 //! [`nodes`]: ./struct.Template.html#structfield.nodes
 //! [`cameras`]: ./struct.Template.html#structfield.cameras
 //! [`meshes`]: ./struct.Template.html#structfield.meshes
@@ -111,7 +111,7 @@ pub struct Template {
     pub meshes: Vec<MeshTemplate>,
 
     /// All objects defined by this template.
-    pub nodes: Vec<TemplateNode>,
+    pub nodes: Vec<NodeTemplate>,
 
     /// Data for the lights described by this template.
     pub lights: Vec<LightTemplate>,
@@ -148,7 +148,7 @@ impl Template {
 /// [`Group`]: ../struct.Group.html
 /// [module documentation]: ./index.html#node-templates
 #[derive(Debug, Clone)]
-pub struct TemplateNode {
+pub struct NodeTemplate {
     /// An optional name for the node.
     pub name: Option<String>,
 
@@ -168,25 +168,25 @@ pub struct TemplateNode {
     pub scale: f32,
 
     /// The specific type of object that this node will be instantiated into.
-    pub data: TemplateNodeData,
+    pub data: NodeTemplateData,
 }
 
-impl TemplateNode {
-    /// Creates a default `TemplateNode` with the provided node data.
+impl NodeTemplate {
+    /// Creates a default `NodeTemplate` with the provided node data.
     ///
     /// The created [`Template`] node has no translation, no rotation, and a scale of 1.
     ///
     /// # Examples
     ///
     /// ```
-    /// use three::template::{TemplateNode, TemplateNodeData};
+    /// use three::template::{NodeTemplate, NodeTemplateData};
     ///
-    /// let camera_node = TemplateNode::from_data(TemplateNodeData::Camera(0));
+    /// let camera_node = NodeTemplate::from_data(NodeTemplateData::Camera(0));
     /// ```
     ///
     /// [`Template`]: ./struct.Template.html
-    pub fn from_data(data: TemplateNodeData) -> TemplateNode {
-        TemplateNode {
+    pub fn from_data(data: NodeTemplateData) -> NodeTemplate {
+        NodeTemplate {
             name: None,
 
             // Provide a default transformation with no translation, no rotation, and a scale of 1.
@@ -199,15 +199,15 @@ impl TemplateNode {
     }
 }
 
-/// Defines which type of object a [`TemplateNode`] will be instantiated into.
+/// Defines which type of object a [`NodeTemplate`] will be instantiated into.
 ///
 /// See the [module documentation] for more information on how template nodes are used to
 /// describe objects and build templates.
 ///
-/// [`TemplateNode`]: ./struct.TemplateNode.html
+/// [`NodeTemplate`]: ./struct.NodeTemplate.html
 /// [module documentation]: ./index.html#node-templates
 #[derive(Debug, Clone)]
-pub enum TemplateNodeData {
+pub enum NodeTemplateData {
     /// The node represents a [`Group`].
     ///
     /// Contains a list of nodes that will be added to the resulting group, given as indices into
@@ -241,13 +241,13 @@ pub enum TemplateNodeData {
 
         /// The index of the skeleton node in the [`nodes`] array of the parent [`Template`].
         ///
-        /// Note that this index must reference a node that has a [`TemplateNodeData::Skeleton`]
+        /// Note that this index must reference a node that has a [`NodeTemplateData::Skeleton`]
         /// for its [`data`] field.
         ///
         /// [`nodes`]: ./struct.Template.html#structfield.nodes
         /// [`Template`]: ./struct.Template.html
         /// [`data`]: ./struct.Template.html#structfield.data
-        /// [`TemplateNodeData::Skeleton`]: #variant.Skeleton
+        /// [`NodeTemplateData::Skeleton`]: #variant.Skeleton
         skeleton: usize,
     },
 
@@ -272,14 +272,14 @@ pub enum TemplateNodeData {
     /// The node represents a [`Skeleton`].
     ///
     /// Contains a list of the indices of the bone nodes in the [`nodes`] array of the parent
-    /// [`Template`]. Note that the nodes referenced must have a [`TemplateNodeData::Bone`]
+    /// [`Template`]. Note that the nodes referenced must have a [`NodeTemplateData::Bone`]
     /// for their [`data`] field.
     ///
     /// [`Skeleton`]: ../skeleton/struct.Skeleton.html
     /// [`nodes`]: ./struct.Template.html#structfield.nodes
     /// [`Template`]: ./struct.Template.html
     /// [`data`]: ./struct.Template.html#structfield.data
-    /// [`TemplateNodeData::Bone`]: #variant.Bone
+    /// [`NodeTemplateData::Bone`]: #variant.Bone
     Skeleton(Vec<usize>),
 
     /// The node represents a [`Camera`].
@@ -474,13 +474,13 @@ pub enum SubLightTemplate {
 /// Geometry data that has been loaded to the GPU.
 ///
 /// [`Mesh`] objects instantiated with this data will share GPU resources, allowing for more
-/// efficient instanced rendering. Use [`Factory::instanced_geometry`] to upload [`Geometry`]
+/// efficient instanced rendering. Use [`Factory::upload_geometry`] to upload [`Geometry`]
 /// to the GPU and get an `InstancedGeometry`. You can use an `InstancedGeometry` to create
-/// a [`MeshTemplate`] for use in a [`Template`], or you can use [`Factory::instanced_mesh`]
+/// a [`MeshTemplate`] for use in a [`Template`], or you can use [`Factory::create_instanced_mesh`]
 /// to create a [`Mesh`] directly.
 ///
-/// [`Factory::instanced_geometry`]: ../struct.Factory.html#method.instanced_geometry
-/// [`Factory::instanced_mesh`]: ../struct.Factory.html#method.instanced_mesh
+/// [`Factory::upload_geometry`]: ../struct.Factory.html#method.upload_geometry
+/// [`Factory::create_instanced_mesh`]: ../struct.Factory.html#method.create_instanced_mesh
 /// [`Mesh`]: ../struct.Mesh.html
 /// [`Geometry`]: ../struct.Geometry.html
 /// [`Template`]: ./struct.Template.html

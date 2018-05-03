@@ -40,7 +40,7 @@ use template::{
     LightTemplate,
     SubLightTemplate,
     Template,
-    TemplateNodeData,
+    NodeTemplateData,
 };
 use text::{Font, Text, TextData};
 use texture::{CubeMap, CubeMapPath, FilterMethod, Sampler, Texture, WrapMode};
@@ -231,45 +231,45 @@ impl Factory {
         // list of all nodes.
         for (index, node) in template.nodes.iter().enumerate() {
             let base = match node.data {
-                TemplateNodeData::Mesh(mesh_index) => {
+                NodeTemplateData::Mesh(mesh_index) => {
                     let mesh_template = &template.meshes[mesh_index];
                     let material = template.materials[mesh_template.material].clone();
-                    let mesh = self.instanced_mesh(&mesh_template.geometry, material);
+                    let mesh = self.create_instanced_mesh(&mesh_template.geometry, material);
 
                     mesh.upcast()
                 }
 
-                TemplateNodeData::SkinnedMesh { mesh, skeleton } => {
+                NodeTemplateData::SkinnedMesh { mesh, skeleton } => {
                     let mesh_template = &template.meshes[mesh];
                     let material = template.materials[mesh_template.material].clone();
-                    let mesh = self.instanced_mesh(&mesh_template.geometry, material);
+                    let mesh = self.create_instanced_mesh(&mesh_template.geometry, material);
                     skinned_meshes.push((mesh.clone(), skeleton));
 
                     mesh.upcast()
                 }
 
-                TemplateNodeData::Group(_) => {
+                NodeTemplateData::Group(_) => {
                     let group = self.group();
                     groups.insert(index, group.clone());
 
                     group.upcast()
                 }
 
-                TemplateNodeData::Camera(camera_index) => {
+                NodeTemplateData::Camera(camera_index) => {
                     let projection = template.cameras[camera_index].clone();
                     let camera = self.camera(projection);
 
                     camera.upcast()
                 }
 
-                TemplateNodeData::Bone(bone_index, inverse_bind_matrix) => {
+                NodeTemplateData::Bone(bone_index, inverse_bind_matrix) => {
                     let bone = self.bone(bone_index, inverse_bind_matrix);
                     bones.insert(index, bone.clone());
 
                     bone.upcast()
                 }
 
-                TemplateNodeData::Light(light_template) => {
+                NodeTemplateData::Light(light_template) => {
                     let LightTemplate {
                         color,
                         intensity,
@@ -294,7 +294,7 @@ impl Factory {
                 // instantiated immediately following all other nodes, so they will still be
                 // created before anything tries to reference one (e.g. skinned meshes,
                 // animations, etc.).
-                TemplateNodeData::Skeleton(..) => { continue; }
+                NodeTemplateData::Skeleton(..) => { continue; }
             };
 
             // Set the node's transform.
@@ -307,7 +307,7 @@ impl Factory {
         // Instantiate skeleton nodes once all other nodes have been instantiated.
         let mut skeletons = HashMap::new();
         for (index, node) in template.nodes.iter().enumerate() {
-            if let TemplateNodeData::Skeleton(ref bone_indices) = node.data {
+            if let NodeTemplateData::Skeleton(ref bone_indices) = node.data {
                 let bones = bone_indices
                     .iter()
                     .map(|index| bones[index].clone())
@@ -354,7 +354,7 @@ impl Factory {
             // Retrieve the list of children from the template node.
             let node = &template.nodes[index];
             let children = match node.data {
-                TemplateNodeData::Group(ref children) => children,
+                NodeTemplateData::Group(ref children) => children,
                 _ => panic!(
                     "Node with index {} does not correspond to a `Group` node: {:?}",
                     index,
@@ -538,7 +538,7 @@ impl Factory {
             .collect()
     }
 
-    /// Loads geometry data to the GPU so that it can be reused for instanced rendering.
+    /// Uploads geometry data to the GPU so that it can be reused for instanced rendering.
     ///
     /// See the module documentation in [`template`] for information on mesh instancing and
     /// its benefits.
@@ -558,20 +558,20 @@ impl Factory {
     /// let geometry = Geometry::with_vertices(vertices);
     ///
     /// // Upload the triangle data to the GPU.
-    /// let instanced_geometry = window.factory.instanced_geometry(geometry);
+    /// let upload_geometry = window.factory.upload_geometry(geometry);
     ///
     /// // Create multiple meshes with the same GPU data and material.
     /// let material = three::material::Basic {
     ///     color: 0xFFFF00,
     ///     map: None,
     /// };
-    /// let first = window.factory.instanced_mesh(&instanced_geometry, material.clone());
-    /// let second = window.factory.instanced_mesh(&instanced_geometry, material.clone());
-    /// let third = window.factory.instanced_mesh(&instanced_geometry, material.clone());
+    /// let first = window.factory.create_instanced_mesh(&upload_geometry, material.clone());
+    /// let second = window.factory.create_instanced_mesh(&upload_geometry, material.clone());
+    /// let third = window.factory.create_instanced_mesh(&upload_geometry, material.clone());
     /// ```
     ///
     /// [`template`]: ./template/index.html#mesh-instancing
-    pub fn instanced_geometry(
+    pub fn upload_geometry(
         &mut self,
         geometry: Geometry,
     ) -> InstancedGeometry {
@@ -616,21 +616,21 @@ impl Factory {
     /// let geometry = Geometry::with_vertices(vertices);
     ///
     /// // Upload the triangle data to the GPU.
-    /// let instanced_geometry = window.factory.instanced_geometry(geometry);
+    /// let upload_geometry = window.factory.upload_geometry(geometry);
     ///
     /// // Create multiple meshes with the same GPU data and material.
     /// let material = three::material::Basic {
     ///     color: 0xFFFF00,
     ///     map: None,
     /// };
-    /// let first = window.factory.instanced_mesh(&instanced_geometry, material.clone());
-    /// let second = window.factory.instanced_mesh(&instanced_geometry, material.clone());
-    /// let third = window.factory.instanced_mesh(&instanced_geometry, material.clone());
+    /// let first = window.factory.create_instanced_mesh(&upload_geometry, material.clone());
+    /// let second = window.factory.create_instanced_mesh(&upload_geometry, material.clone());
+    /// let third = window.factory.create_instanced_mesh(&upload_geometry, material.clone());
     /// ```
     ///
     /// [`Mesh`]: ./struct.Mesh.html
     /// [`template`]: ./template/index.html#mesh-instancing
-    pub fn instanced_mesh<M: Into<Material>>(
+    pub fn create_instanced_mesh<M: Into<Material>>(
         &mut self,
         geometry: &InstancedGeometry,
         material: M,
