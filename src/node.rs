@@ -67,6 +67,31 @@ pub struct Transform {
     pub scale: f32,
 }
 
+impl Transform {
+    /// Creates a new `Transform` with default position, orientation, and scale.
+    ///
+    /// * The default position is `(0, 0, 0)`, meaning the global origin when in world space, or
+    ///   meaning no translation relative to a parent in local space.
+    /// * The default orientation has no rotation, meaning the coordinate axes will match the
+    ///   global axes when the transform is in world space, or will match the axis of the parent
+    ///   when in local space.
+    /// * The default scale is 1, meaning no change from the object's natural dimensions, or
+    ///   no change relative to the parent's dimensions.
+    pub fn new() -> Transform {
+        Default::default()
+    }
+}
+
+impl Default for Transform {
+    fn default() -> Self {
+        Transform {
+            position: [0.0, 0.0, 0.0].into(),
+            orientation: [0.0, 0.0, 0.0, 1.0].into(),
+            scale: 1.0,
+        }
+    }
+}
+
 impl From<TransformInternal> for Transform {
     fn from(tf: TransformInternal) -> Self {
         let pos: mint::Vector3<f32> = tf.disp.into();
