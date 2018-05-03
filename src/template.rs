@@ -75,6 +75,7 @@ use camera::{Projection};
 use {Material};
 use color::Color;
 use animation::Track;
+use node::Transform;
 use render::GpuData;
 
 /// A template representing a hierarchy of objects.
@@ -152,20 +153,8 @@ pub struct NodeTemplate {
     /// An optional name for the node.
     pub name: Option<String>,
 
-    /// The node's local translation.
-    ///
-    /// This translation is relative to its parent node when instantiated.
-    pub translation: mint::Point3<f32>,
-
-    /// The node's local orientation.
-    ///
-    /// This rotation is relative to its parent node when instantiated.
-    pub rotation: mint::Quaternion<f32>,
-
-    /// The node's local scale.
-    ///
-    /// This scale is relative to its parent node when instantiated.
-    pub scale: f32,
+    /// The node's local transformation, relative to its parent node.
+    pub transform: Transform,
 
     /// The specific type of object that this node will be instantiated into.
     pub data: NodeTemplateData,
@@ -174,7 +163,7 @@ pub struct NodeTemplate {
 impl NodeTemplate {
     /// Creates a default `NodeTemplate` with the provided node data.
     ///
-    /// The created [`Template`] node has no translation, no rotation, and a scale of 1.
+    /// The created [`Template`] has no name and the default [`Transform`].
     ///
     /// # Examples
     ///
@@ -185,16 +174,12 @@ impl NodeTemplate {
     /// ```
     ///
     /// [`Template`]: ./struct.Template.html
+    /// [`Transform`]: ../struct.Transform.html
     pub fn from_data(data: NodeTemplateData) -> NodeTemplate {
         NodeTemplate {
             name: None,
-
-            // Provide a default transformation with no translation, no rotation, and a scale of 1.
-            translation: [0.0, 0.0, 0.0].into(),
-            rotation: [0.0, 0.0, 0.0, 1.0].into(),
-            scale: 1.0,
-
-            data
+            transform: Default::default(),
+            data,
         }
     }
 }

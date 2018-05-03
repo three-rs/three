@@ -22,6 +22,7 @@ use std::path::{Path, PathBuf};
 
 use {Material, Texture};
 use geometry::{Geometry, Shape};
+use node::Transform;
 use super::Factory;
 use template::{
     AnimationTemplate,
@@ -518,9 +519,11 @@ fn load_node<'a>(
     nodes.push(NodeTemplate {
         name,
 
-        translation: translation.into(),
-        rotation: rotation.into(),
-        scale,
+        transform: Transform {
+            position: translation.into(),
+            orientation: rotation.into(),
+            scale,
+        },
 
         data: NodeTemplateData::Group(children),
     });

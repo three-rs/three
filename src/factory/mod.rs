@@ -1,5 +1,5 @@
 #[cfg(feature = "gltf-loader")]
-pub(crate) mod load_gltf;
+mod load_gltf;
 
 use std::{cmp, fs, io, iter, ops};
 use std::borrow::Cow;
@@ -298,7 +298,11 @@ impl Factory {
             };
 
             // Set the node's transform.
-            base.set_transform(node.translation, node.rotation, node.scale);
+            base.set_transform(
+                node.transform.position,
+                node.transform.orientation,
+                node.transform.scale,
+            );
 
             // Add the node to the list of nodes.
             nodes.insert(index, base);
@@ -314,7 +318,11 @@ impl Factory {
                     .collect();
                 let skeleton = self.skeleton(bones);
 
-                skeleton.set_transform(node.translation, node.rotation, node.scale);
+                skeleton.set_transform(
+                    node.transform.position,
+                    node.transform.orientation,
+                    node.transform.scale,
+                );
 
                 nodes.insert(index, skeleton.upcast());
                 skeletons.insert(index, skeleton);
