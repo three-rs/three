@@ -1,5 +1,5 @@
 #[cfg(feature = "gltf-loader")]
-pub(crate) mod load_gltf;
+mod load_gltf;
 
 use std::{cmp, fs, io, iter, ops};
 use std::borrow::Cow;
