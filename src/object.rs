@@ -45,6 +45,14 @@ pub trait Object: AsRef<Base> {
         self.as_ref().send(Operation::SetVisible(visible));
     }
 
+    /// Sets the name of the object.
+    fn set_name<S: Into<String>>(
+        &self,
+        name: S,
+    ) {
+        self.as_ref().send(Operation::SetName(name.into()));
+    }
+
     /// Set both position, orientation and scale.
     fn set_transform<P, Q>(
         &self,

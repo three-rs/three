@@ -20,12 +20,22 @@ pub(crate) type TransformInternal = cgmath::Decomposed<cgmath::Vector3<f32>, cgm
 pub(crate) struct NodeInternal {
     /// `true` if this node (and its children) are visible to cameras.
     pub(crate) visible: bool,
+
+    /// A user-defined name for the node.
+    ///
+    /// Not used internally to implement functionality. This is used by users to identify nodes
+    /// programatically, and to act as a utility when debugging.
+    pub(crate) name: Option<String>,
+
     /// The transform relative to the node's parent.
     pub(crate) transform: TransformInternal,
+
     /// The transform relative to the scene root.
     pub(crate) world_transform: TransformInternal,
+
     /// Pointer to the next sibling.
     pub(crate) next_sibling: Option<NodePointer>,
+
     /// Context specific-data, for example, `UiText`, `Visual` or `Light`.
     pub(crate) sub_node: SubNode,
 }
@@ -35,6 +45,7 @@ impl NodeInternal {
         Node {
             transform: self.transform.into(),
             visible: self.visible,
+            name: self.name.clone(),
             material: match self.sub_node {
                 SubNode::Visual(ref mat, _, _) => Some(mat.clone()),
                 _ => None,
@@ -48,6 +59,7 @@ impl From<SubNode> for NodeInternal {
     fn from(sub: SubNode) -> Self {
         NodeInternal {
             visible: true,
+            name: None,
             transform: cgmath::Transform::one(),
             world_transform: cgmath::Transform::one(),
             next_sibling: None,
@@ -83,16 +95,22 @@ pub enum Local {}
 /// World space, defined relative to the scene root.
 pub enum World {}
 
-/// General information about scene `Node`.
+/// General information about an object in a scene.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Node<Space> {
     /// Is `Node` visible by cameras or not?
     pub visible: bool,
-    //Note: this really begs for `euclid`-style parametrized math types.
+
+    /// The name of the node, if any.
+    pub name: Option<String>,
+
     /// Transformation in `Space`.
+    // NOTE: this really begs for `euclid`-style parametrized math types.
     pub transform: Transform,
+
     /// Material in case this `Node` has it.
     pub material: Option<Material>,
+
     ///
     pub(crate) _space: PhantomData<Space>,
 }

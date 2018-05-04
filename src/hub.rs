@@ -88,6 +88,7 @@ pub(crate) enum Operation {
     SetShadow(ShadowMap, ShadowProjection),
     SetTexelRange(mint::Point2<i16>, mint::Vector2<u16>),
     SetWeights(Vec<f32>),
+    SetName(String),
 }
 
 pub(crate) type HubPtr = Arc<Mutex<Hub>>;
@@ -297,6 +298,9 @@ impl Hub {
                         }
                         x = self.nodes[&ptr].next_sibling.clone();
                     }
+                }
+                Operation::SetName(name) => {
+                    self.nodes[&ptr].name = Some(name);
                 }
             }
         }
