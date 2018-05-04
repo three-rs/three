@@ -186,6 +186,7 @@ impl<'a> SyncGuard<'a> {
             .expect("Unable to find objects for world resolve!");
         node::Node {
             visible: wn.world_visible,
+            name: wn.node.name.clone(),
             transform: wn.world_transform.into(),
             material: match wn.node.sub_node {
                 SubNode::Visual(ref mat, _, _) => Some(mat.clone()),
