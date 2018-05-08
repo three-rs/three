@@ -10,36 +10,35 @@
 //! The easiest way to create a template is to load one from a glTF file using
 //! [`Factory::load_gltf`].
 //!
-//! # Node Templates
+//! # Object Relations
 //!
-//! Templates hold their data in flat array, and objects in the template reference each other
-//! using their respective indices. The base descriptions of all objects that can be added to the
-//! scene (i.e. that implement [`Object`] and have transforms) are represented in [`nodes`]. Each
-//! [`NodeTemplate`] has a sub-type that determines which type of object it is instantiated as,
-//! and references the type-specific data for that object. See [`NodeTemplateData`] for
-//! information on the different node sub-types.
+//! Often, one object needs to reference another object in the template, e.g. a bone needs
+//! to specify which skeleton it belongs to, and any object can specify that it belongs to
+//! a group in the template. When doing so, objects reference each other by their index in
+//! their respective arrays in [`Template`]. When such indices are used, the documentation
+//! will specify which array the index refers to.
 //!
-//! Data for specific types of nodes are held in the other member arrays of [`Template`]. For
-//! example, [`cameras`] contains projections for the different cameras in the template, and
-//! [`meshes`] contains reusable GPU data for meshes. Note that this data is put into separate
-//! arrays, rather than held directly by the variants of [`NodeTemplateData`], so that multiple
-//! nodes can share the same data (e.g. all cameras defined in the template can easily reuse
-//! the same projection without having to have separate copies of the projection).
+//! # Object Templates
 //!
-//! The nodes in the template create a hierarchy when nodes with the sub-type
-//! [`NodeTemplateData::Group`] list other nodes as their children. Only
-//! [`NodeTemplateData::Group`] is able to have children, and it does not carry any other data.
+//! The [`objects`] field of [`Template`] provides a flattened, type-erased list of all objects
+//! defined in the template. Each type of object provides its type-specific data in that type's
+//! array, and then specifies the index of an [`ObjectTemplate`] in [`objects`]. Every object
+//! in the template must be represented in [`objects`] exactly once.
 //!
-//! The root nodes of the template are specified in [`roots`]. The nodes specified by [`roots`]
-//! will be the direct children of the [`Group`] returned from [`Factory::instantiate_template`],
-//! and all other nodes will be children of those nodes.
+//! The full, flattened list of objects is primarily used by [`AnimationTemplate`] to allow
+//! tracks in the animation to reference the object targeted by the track regardless of the
+//! target object's concrete type.
 //!
 //! # Animations
 //!
-//! Templates can also describe animations that apply to the objects described by the template.
+//! Templates can also describe animations that apply to the objects in a template.
 //! When instantiated, the resulting animation clips will be unique to that instance of of the
-//! template. This allows for all animations for the template to be described once, while still
-//! allowing all instances of the template to be animated independently of each other.
+//! template. This allows for instances of the template to be animated independently of each
+//! other, without requiring you to manually setup animations for each instance.
+//!
+//! An animation in a template can target any of the objects described in the template. It does
+//! this by specifying the index of the objects in [`objects`]. See
+//! [`AnimationTemplate::tracks`] for more information.
 //!
 //! # Mesh Instancing
 //!
@@ -59,24 +58,23 @@
 //! [`Geometry`]: ../struct.Geometry.html
 //! [`Mesh`]: ../struct.Mesh.html
 //! [`Template`]: ./struct.Template.html
-//! [`NodeTemplate`]: ./struct.NodeTemplate.html
-//! [`NodeTemplateData`]: ./enum.NodeTemplateData.html
-//! [`NodeTemplateData::Group`]: ./enum.NodeTemplateData.html#variant.Group
+//! [`ObjectTemplate`]: ./struct.ObjectTemplate.html
+//! [`AnimationTemplate`]: ./struct.AnimationTemplate.html
+//! [`AnimationTemplate::tracks`]: ./struct.AnimationTemplate.html#structfield.tracks
 //! [`nodes`]: ./struct.Template.html#structfield.nodes
 //! [`cameras`]: ./struct.Template.html#structfield.cameras
 //! [`meshes`]: ./struct.Template.html#structfield.meshes
 //! [`roots`]: ./struct.Template.html#structfield.roots
+//! [`objects`]: ./struct.Template.html#structfield.objects
 //! [`InstancedGeometry`]: ./struct.InstancedGeometry.html
 
-use mint;
-
-use camera::{Projection};
-
-use {Material};
-use color::Color;
 use animation::Track;
+use camera::Projection;
+use color::Color;
+use material::Material;
 use node::Transform;
 use render::GpuData;
+use skeleton::InverseBindMatrix;
 
 /// A template representing a hierarchy of objects.
 ///
@@ -91,31 +89,48 @@ pub struct Template {
     /// An optional name for the template.
     pub name: Option<String>,
 
-    /// The indices of the nodes in [`nodes`] that act as the root nodes of the template.
+    /// The base object data for all objects defined in the template.
     ///
-    /// When the template is instantiated, the indicated nodes will be the direct children of
-    /// the resulting [`Group`].
+    /// The index into this array is used to uniquely identify each object in the template. Each
+    /// object, regardless of its concrete type, will be represented in this array exactly once.
+    /// These indices are primarily used in [`AnimationTemplate`] to define the target of each
+    /// track of the animation.
     ///
-    /// [`nodes`]: #structfield.nodes
+    /// [`AnimationTemplate`]: ./struct.AnimationTemplate.html
+    pub objects: Vec<ObjectTemplate>,
+
+    /// Definitions for all [`Group`] objects in the template, given as indices into [`objects`].
+    ///
+    /// Groups carry no data beyond the common object data, so groups are defined soley by their
+    /// [`ObjectTemplate`].
+    ///
+    /// [`objects`]: #structfield.objects
     /// [`Group`]: ../struct.Group.html
-    pub roots: Vec<usize>,
+    /// [`ObjectTemplate`]: ./struct.ObjectTemplate.html
+    pub groups: Vec<usize>,
 
     /// Projection data used by cameras defined in the template.
-    pub cameras: Vec<Projection>,
-
-    /// The materials used by the meshes defined in [`meshes`].
-    ///
-    /// [`meshes`]: #structfield.meshes
-    pub materials: Vec<Material>,
+    pub cameras: Vec<CameraTemplate>,
 
     /// The meshes defined in this template.
     pub meshes: Vec<MeshTemplate>,
 
-    /// All objects defined by this template.
-    pub nodes: Vec<NodeTemplate>,
-
     /// Data for the lights described by this template.
     pub lights: Vec<LightTemplate>,
+
+    /// Data for the bones described by this template.
+    pub bones: Vec<BoneTemplate>,
+
+    /// Definitions for all [`Skeleton`] objects in the template, given as indices into
+    /// [`objects`].
+    ///
+    /// Skeletons carry no data beyond the common object data, so groups are defined soley by
+    /// their [`ObjectTemplate`].
+    ///
+    /// [`objects`]: #structfield.objects
+    /// [`Skeleton`]: ../skeleton/struct.Skeleton.html
+    /// [`ObjectTemplate`]: ./struct.ObjectTemplate.html
+    pub skeletons: Vec<usize>,
 
     /// Templates for animation clips that target objects instantiated from this template.
     pub animations: Vec<AnimationTemplate>,
@@ -141,140 +156,59 @@ impl Template {
     pub fn new() -> Template { Default::default() }
 }
 
-/// An object with a transform that can be added to the scene or made the child of a [`Group`].
+/// Common data used by all object types.
 ///
-/// See the [module documentation] for more information on how template nodes are used to
-/// describe objects and build templates.
+/// All objects (i.e. three-rs types that implement the [`Object`] trait) have common data
+/// that the user can set at runtime. `ObjectTemplate` encapsultes these fields, and the
+/// various template types have a way to reference an `ObjectTemplate` to specify the object
+/// data for that template.
 ///
-/// [`Group`]: ../struct.Group.html
-/// [module documentation]: ./index.html#node-templates
-#[derive(Debug, Clone)]
-pub struct NodeTemplate {
-    /// An optional name for the node.
+/// See the [module documentation] for more information on how object data is defined in
+/// templates.
+///
+/// [`Object`]: ../trait.Object.html
+/// [module documentation]: ./index.html#object-templates
+#[derive(Debug, Clone, Default)]
+pub struct ObjectTemplate {
+    /// An optional name for the object.
     pub name: Option<String>,
 
-    /// The node's local transformation, relative to its parent node.
-    pub transform: Transform,
+    /// The parent [`Group`] of the object, given as an index into the [`groups`] array of the
+    /// parent [`Template`].
+    ///
+    /// If `parent` is `None`, then the object is added to the root [`Group`] returned from
+    /// [`Factory::instantiate_template`].
+    ///
+    /// [`Group`]: ../struct.Group.html
+    /// [`Template`]: ./struct.Template.html
+    pub parent: Option<usize>,
 
-    /// The specific type of object that this node will be instantiated into.
-    pub data: NodeTemplateData,
+    /// The local transform for the object.
+    pub transform: Transform,
 }
 
-impl NodeTemplate {
-    /// Creates a default `NodeTemplate` with the provided node data.
+impl ObjectTemplate {
+    /// Creates a new `ObjectTemplate` with default values.
     ///
-    /// The created [`Template`] has no name and the default [`Transform`].
+    /// The new object template will have no name, no parent (i.e. it will be treated as a root
+    /// object of the template), and a default transform.
     ///
     /// # Examples
     ///
     /// ```
-    /// use three::template::{NodeTemplate, NodeTemplateData};
+    /// use three::template::{ObjectTemplate, Template};
     ///
-    /// let camera_node = NodeTemplate::from_data(NodeTemplateData::Camera(0));
+    /// let mut template = Template::new();
+    ///
+    /// let mut object = ObjectTemplate::new();
+    /// object.name = Some("My Node".into());
+    /// object.transform.position = [1.0, 2.0, 3.0].into();
+    ///
+    /// template.objects.push(object);
     /// ```
-    ///
-    /// [`Template`]: ./struct.Template.html
-    /// [`Transform`]: ../struct.Transform.html
-    pub fn from_data(data: NodeTemplateData) -> NodeTemplate {
-        NodeTemplate {
-            name: None,
-            transform: Default::default(),
-            data,
-        }
+    pub fn new() -> ObjectTemplate {
+        Default::default()
     }
-}
-
-/// Defines which type of object a [`NodeTemplate`] will be instantiated into.
-///
-/// See the [module documentation] for more information on how template nodes are used to
-/// describe objects and build templates.
-///
-/// [`NodeTemplate`]: ./struct.NodeTemplate.html
-/// [module documentation]: ./index.html#node-templates
-#[derive(Debug, Clone)]
-pub enum NodeTemplateData {
-    /// The node represents a [`Group`].
-    ///
-    /// Contains a list of nodes that will be added to the resulting group, given as indices into
-    /// the [`nodes`] array in the parent [`Template`].
-    ///
-    /// [`Group`]: ../struct.Group.html
-    /// [`nodes`]: ./struct.Template.html#structfield.nodes
-    /// [`Template`]: ./struct.Template.html
-    Group(Vec<usize>),
-
-    /// The node represents a [`Mesh`].
-    ///
-    /// Specifies the index of the mesh data to be used in the [`meshes`] array of the parent
-    /// [`Template`].
-    ///
-    /// [`Mesh`]: ../struct.Mesh.html
-    /// [`meshes`]: ./struct.Template.html#structfield.meshes
-    /// [`Template`]: ./struct.Template.html
-    Mesh(usize),
-
-    /// The node represents a skinned [`Mesh`] with a [`Skeleton`] attached.
-    ///
-    /// [`Mesh`]: ../struct.Mesh.html
-    /// [`Skeleton`]: ../skeleton/struct.Skeleton.html
-    SkinnedMesh {
-        /// The index of the mesh in the [`meshes`] array of the parent [`Template`].
-        ///
-        /// [`meshes`]: ./struct.Template.html#structfield.meshes
-        /// [`Template`]: ./struct.Template.html
-        mesh: usize,
-
-        /// The index of the skeleton node in the [`nodes`] array of the parent [`Template`].
-        ///
-        /// Note that this index must reference a node that has a [`NodeTemplateData::Skeleton`]
-        /// for its [`data`] field.
-        ///
-        /// [`nodes`]: ./struct.Template.html#structfield.nodes
-        /// [`Template`]: ./struct.Template.html
-        /// [`data`]: ./struct.Template.html#structfield.data
-        /// [`NodeTemplateData::Skeleton`]: #variant.Skeleton
-        skeleton: usize,
-    },
-
-    /// The node represents one of the light types defined in the [`light`] module.
-    ///
-    /// Specifies the index of the light data in the [`lights`] array of the parent [`Template`].
-    ///
-    /// [`light`]: ../light/index.html
-    /// [`lights`]: ./struct.Template.html#structfield.lights
-    /// [`Template`]: ./struct.Template.html
-    Light(usize),
-
-    /// The node represents a [`Bone`].
-    ///
-    /// Contains the bone's index within its skeleton, and the inverse bind matrix for
-    /// the bone. See [`Factory::bone`] for more information on these parameters.
-    ///
-    /// [`Bone`]: ../skeleton/struct.Bone.html
-    /// [`Factory::bone`]: ../struct.Factory.html#method.bone
-    Bone(usize, mint::ColumnMatrix4<f32>),
-
-    /// The node represents a [`Skeleton`].
-    ///
-    /// Contains a list of the indices of the bone nodes in the [`nodes`] array of the parent
-    /// [`Template`]. Note that the nodes referenced must have a [`NodeTemplateData::Bone`]
-    /// for their [`data`] field.
-    ///
-    /// [`Skeleton`]: ../skeleton/struct.Skeleton.html
-    /// [`nodes`]: ./struct.Template.html#structfield.nodes
-    /// [`Template`]: ./struct.Template.html
-    /// [`data`]: ./struct.Template.html#structfield.data
-    /// [`NodeTemplateData::Bone`]: #variant.Bone
-    Skeleton(Vec<usize>),
-
-    /// The node represents a [`Camera`].
-    ///
-    /// Specifies the index of the projection in the [`cameras`] array of the parent [`Template`].
-    ///
-    /// [`Camera`]: ../camera/struct.Camera.html
-    /// [`cameras`]: ./struct.Template.html#structfield.cameras
-    /// [`Template`]: ./struct.Template.html
-    Camera(usize),
 }
 
 /// Information for instantiating a [`Mesh`].
@@ -286,6 +220,13 @@ pub enum NodeTemplateData {
 /// [module documentation]: ./index.html#mesh-instancing
 #[derive(Debug, Clone)]
 pub struct MeshTemplate {
+    /// The object data for the mesh, given as an index in the [`objects`] array of the parent
+    /// [`Template`].
+    ///
+    /// [`Template`]: ./struct.Template.html
+    /// [`objects`]: ./struct.Template.html#structfield.objects
+    pub object: usize,
+
     /// The geometry used in the mesh.
     pub geometry: InstancedGeometry,
 
@@ -293,15 +234,63 @@ pub struct MeshTemplate {
     ///
     /// [`Template`]: ./struct.Template.html
     /// [`meshes`]: ./struct.Template.html#structfield.meshes
-    pub material: usize,
+    pub material: Material,
+
+    /// The skeleton used to render the mesh, if it's a skinned mesh.
+    pub skeleton: Option<usize>,
 }
 
-/// The definition for an animation in a glTF file, corresponds to an [`animation::Clip`].
+/// A template for a [`Camera`] object.
+///
+/// [`Camera`]: ../struct.Camera.html
+#[derive(Debug, Clone)]
+pub struct CameraTemplate {
+    /// The object data for the camera, given as an index in the [`objects`] array of the parent
+    /// [`Template`].
+    ///
+    /// [`Template`]: ./struct.Template.html
+    /// [`objects`]: ./struct.Template.html#structfield.objects
+    pub object: usize,
+
+    /// The projection used by the camera.
+    pub projection: Projection,
+}
+
+/// A template for a [`Bone`] object.
+///
+/// For more information about creating a [`Bone`], see [`Factory::bone`].
+///
+/// [`Bone`]: ../skeleton/struct.Bone.html
+/// [`Factory::bone`]: ../struct.Factory.html#method.bone
+#[derive(Debug, Clone)]
+pub struct BoneTemplate {
+    /// The object data for the bone, given as an index in the [`objects`] array of the parent
+    /// [`Template`].
+    ///
+    /// [`Template`]: ./struct.Template.html
+    /// [`objects`]: ./struct.Template.html#structfield.objects
+    pub object: usize,
+
+    /// The index of the bone within its skeleton.
+    pub index: usize,
+
+    /// The inverse bind matrix used to bind vertices of the mesh to the bone.
+    pub inverse_bind_matrix: InverseBindMatrix,
+
+    /// The skeleton that this bone is a part of, given as an index into the [`skeletons`]
+    /// array of the parent [`Template`].
+    ///
+    /// [`Template`]: ./struct.Template.html
+    /// [`skeletons`]: ./struct.Template.html#structfield.skeletons
+    pub skeleton: usize,
+}
+
+/// The definition for an animation targeting objects in a [`Template`].
 ///
 /// See the [module documentation] for more information on template animations and how they
 /// are used.
 ///
-/// [`animation::Clip`]: ../animation/struct.Clip.html
+/// [`Template`]: ./struct.Template.html
 /// [module documentation]: ./index.html#animations
 #[derive(Debug, Clone)]
 pub struct AnimationTemplate {
@@ -311,12 +300,12 @@ pub struct AnimationTemplate {
     /// The tracks making up the animation.
     ///
     /// Each track is composed of a [`Track`], containing the data for the track, and the node
-    /// that the track targetes, specified as an index into the [`nodes`] array of the
+    /// that the track targetes, specified as an index into the [`objects`] array of the
     /// parent [`Template`].
     ///
     /// [`Track`]: ../animation/struct.Track.html
     /// [`Template`]: ./struct.Template.html
-    /// [`nodes`]: ./struct.Template.html#structfield.nodes
+    /// [`objects`]: ./struct.Template.html#structfield.nodes
     pub tracks: Vec<(Track, usize)>,
 }
 
@@ -328,6 +317,13 @@ pub struct AnimationTemplate {
 /// [module documentation]: ./index.html
 #[derive(Clone, Copy, Debug)]
 pub struct LightTemplate {
+    /// The object data for the light, given as an index into the [`objects`] array of the parent
+    /// [`Template`].
+    ///
+    /// [`Template`]: ./struct.Template.html
+    /// [`objects`]: ./struct.Template.html#structfield.objects
+    pub object: usize,
+
     /// The base color of the light.
     pub color: Color,
 
@@ -344,16 +340,23 @@ impl LightTemplate {
     /// # Examples
     ///
     /// ```
-    /// use three::template::{LightTemplate, Template};
+    /// use three::template::{LightTemplate, ObjectTemplate, Template};
     ///
     /// let mut template = Template::new();
-    /// let light = LightTemplate::ambient(three::color::RED, 0.5);
+    /// template.objects.push(ObjectTemplate::new());
+    /// let light = LightTemplate::ambient(
+    ///     template.objects.len() - 1,
+    ///     three::color::RED,
+    ///     0.5,
+    /// );
     /// template.lights.push(light);
     /// ```
     ///
     /// [`Factory::ambient_light`]: ../struct.Factory.html#method.ambient_light
-    pub fn ambient(color: Color, intensity: f32) -> LightTemplate {
+    pub fn ambient(object: usize, color: Color, intensity: f32) -> LightTemplate {
         LightTemplate {
+            object,
+
             color,
             intensity,
             sub_light: SubLightTemplate::Ambient,
@@ -365,16 +368,23 @@ impl LightTemplate {
     /// # Examples
     ///
     /// ```
-    /// use three::template::{LightTemplate, Template};
+    /// use three::template::{LightTemplate, ObjectTemplate, Template};
     ///
     /// let mut template = Template::new();
-    /// let light = LightTemplate::directional(three::color::RED, 0.5);
+    /// template.objects.push(ObjectTemplate::new());
+    /// let light = LightTemplate::directional(
+    ///     template.objects.len() - 1,
+    ///     three::color::RED,
+    ///     0.5,
+    /// );
     /// template.lights.push(light);
     /// ```
     ///
     /// [`Factory::directional_light`]: ../struct.Factory.html#method.directional_light
-    pub fn directional(color: Color, intensity: f32) -> LightTemplate {
+    pub fn directional(object: usize, color: Color, intensity: f32) -> LightTemplate {
         LightTemplate {
+            object,
+
             color,
             intensity,
             sub_light: SubLightTemplate::Directional,
@@ -386,16 +396,23 @@ impl LightTemplate {
     /// # Examples
     ///
     /// ```
-    /// use three::template::{LightTemplate, Template};
+    /// use three::template::{LightTemplate, ObjectTemplate, Template};
     ///
     /// let mut template = Template::new();
-    /// let light = LightTemplate::point(three::color::RED, 0.5);
+    /// template.objects.push(ObjectTemplate::new());
+    /// let light = LightTemplate::point(
+    ///     template.objects.len() - 1,
+    ///     three::color::RED,
+    ///     0.5,
+    /// );
     /// template.lights.push(light);
     /// ```
     ///
     /// [`Factory::point_light`]: ../struct.Factory.html#method.point_light
-    pub fn point(color: Color, intensity: f32) -> LightTemplate {
+    pub fn point(object: usize, color: Color, intensity: f32) -> LightTemplate {
         LightTemplate {
+            object,
+
             color,
             intensity,
             sub_light: SubLightTemplate::Point,
@@ -407,16 +424,29 @@ impl LightTemplate {
     /// # Examples
     ///
     /// ```
-    /// use three::template::{LightTemplate, Template};
+    /// use three::template::{LightTemplate, ObjectTemplate, Template};
     ///
     /// let mut template = Template::new();
-    /// let light = LightTemplate::hemisphere(three::color::RED, three::color::BLUE, 0.5);
+    /// template.objects.push(ObjectTemplate::new());
+    /// let light = LightTemplate::hemisphere(
+    ///     template.objects.len() - 1,
+    ///     three::color::RED,
+    ///     three::color::BLUE,
+    ///     0.5,
+    /// );
     /// template.lights.push(light);
     /// ```
     ///
     /// [`Factory::hemisphere_light`]: ../struct.Factory.html#method.hemisphere_light
-    pub fn hemisphere(sky_color: Color, ground_color: Color, intensity: f32) -> LightTemplate {
+    pub fn hemisphere(
+        object: usize,
+        sky_color: Color,
+        ground_color: Color,
+        intensity: f32,
+    ) -> LightTemplate {
         LightTemplate {
+            object,
+
             color: sky_color,
             intensity,
             sub_light: SubLightTemplate::Hemisphere { ground: ground_color },

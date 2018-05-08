@@ -3,6 +3,7 @@ mod load_gltf;
 
 use std::{cmp, fs, io, iter, ops};
 use std::borrow::Cow;
+use std::collections::HashSet;
 use std::collections::hash_map::{Entry, HashMap};
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -34,13 +35,12 @@ use render::{basic_pipe,
 };
 use scene::{Background, Scene};
 use sprite::Sprite;
-use skeleton::{Bone, Skeleton};
+use skeleton::{Bone, InverseBindMatrix, Skeleton};
 use template::{
     InstancedGeometry,
     LightTemplate,
     SubLightTemplate,
     Template,
-    NodeTemplateData,
 };
 use text::{Font, Text, TextData};
 use texture::{CubeMap, CubeMapPath, FilterMethod, Sampler, Texture, WrapMode};
@@ -217,121 +217,129 @@ impl Factory {
         // Create group to act as the root node of the instantiated hierarchy.
         let root = self.group();
 
-        // Create collections for different types of objects that will need to be re-used later.
-        // Since all nodes in the template are kept in a flat list, we must first instantiate all
-        // the objects, then we can later hook up any places where one object wants to reference
-        // another object.
-        let mut nodes = HashMap::with_capacity(template.nodes.len());
-        let mut groups = HashMap::new();
-        let mut bones = HashMap::new();
-        let mut skinned_meshes = Vec::new();
+        let mut objects = HashMap::with_capacity(template.objects.len());
 
-        // For each of the nodes, instantiate the correct type of object, add that object to the
-        // collection for its type, then set the local transform for the node and add it to the
-        // list of all nodes.
-        for (index, node) in template.nodes.iter().enumerate() {
-            let base = match node.data {
-                NodeTemplateData::Mesh(mesh_index) => {
-                    let mesh_template = &template.meshes[mesh_index];
-                    let material = template.materials[mesh_template.material].clone();
-                    let mesh = self.create_instanced_mesh(&mesh_template.geometry, material);
+        // Create a group for every group template.
+        let groups: Vec<_> = template
+            .groups
+            .iter()
+            .map(|&object| {
+                let group = self.group();
+                objects.insert(object, group.upcast());
+                group
+            })
+            .collect();
 
-                    mesh.upcast()
-                }
+        let bones: Vec<_> = template
+            .bones
+            .iter()
+            .map(|template| {
+                let bone = self.bone(template.index, template.inverse_bind_matrix);
+                objects.insert(template.object, bone.upcast());
+                bone
+            })
+            .collect();
 
-                NodeTemplateData::SkinnedMesh { mesh, skeleton } => {
-                    let mesh_template = &template.meshes[mesh];
-                    let material = template.materials[mesh_template.material].clone();
-                    let mesh = self.create_instanced_mesh(&mesh_template.geometry, material);
-                    skinned_meshes.push((mesh.clone(), skeleton));
-
-                    mesh.upcast()
-                }
-
-                NodeTemplateData::Group(_) => {
-                    let group = self.group();
-                    groups.insert(index, group.clone());
-
-                    group.upcast()
-                }
-
-                NodeTemplateData::Camera(camera_index) => {
-                    let projection = template.cameras[camera_index].clone();
-                    let camera = self.camera(projection);
-
-                    camera.upcast()
-                }
-
-                NodeTemplateData::Bone(bone_index, inverse_bind_matrix) => {
-                    let bone = self.bone(bone_index, inverse_bind_matrix);
-                    bones.insert(index, bone.clone());
-
-                    bone.upcast()
-                }
-
-                NodeTemplateData::Light(light_template) => {
-                    let LightTemplate {
-                        color,
-                        intensity,
-                        sub_light,
-                    } = template.lights[light_template];
-
-                    match sub_light {
-                        SubLightTemplate::Ambient =>
-                            self.ambient_light(color, intensity).upcast(),
-                        SubLightTemplate::Directional =>
-                            self.directional_light(color, intensity).upcast(),
-                        SubLightTemplate::Hemisphere { ground } =>
-                            self.hemisphere_light(color, ground, intensity).upcast(),
-                        SubLightTemplate::Point =>
-                            self.point_light(color, intensity).upcast(),
-                    }
-                }
-
-                // NOTE: We defer the creation of skeleton nodes until all other nodes
-                // have been created, because we need all of the skeleton's bones to have been
-                // instantiated before we can instantiate the skeleton. Skeletons are
-                // instantiated immediately following all other nodes, so they will still be
-                // created before anything tries to reference one (e.g. skinned meshes,
-                // animations, etc.).
-                NodeTemplateData::Skeleton(..) => { continue; }
-            };
-
-            // Set the node's transform.
-            base.set_transform(
-                node.transform.position,
-                node.transform.orientation,
-                node.transform.scale,
-            );
-
-            // Add the node to the list of nodes.
-            nodes.insert(index, base);
-        }
-
-        // Instantiate skeleton nodes once all other nodes have been instantiated.
-        let mut skeletons = HashMap::new();
-        for (index, node) in template.nodes.iter().enumerate() {
-            if let NodeTemplateData::Skeleton(ref bone_indices) = node.data {
-                let bones = bone_indices
+        // HACK: Keep track of which base objects belong to a `Skeleton` so that we can defer
+        // adding them to their parent `Group` until after all other objects have been setup.
+        // This is to work around https://github.com/three-rs/three/issues/202, which causes
+        // a crash if the renderer walks to a `Bone` before walking to its `Skeleton`. Groups
+        // internally list their children in reverse the order in which they were added, so
+        // adding the `Skeletons` last ensure they're listed earlier than any of their bones and
+        // will be visited first by the renderer. Note that this only solves the case where a
+        // skeleton and its bones are direct siblings, it will not help the case where a skeleton
+        // is lower in the hierarchy than its bones.
+        let mut skeleton_objects = HashSet::with_capacity(template.skeletons.len());
+        let skeletons: Vec<_> = template
+            .skeletons
+            .iter()
+            .enumerate()
+            .map(|(index, &object)| {
+                let bones = template
+                    .bones
                     .iter()
-                    .map(|index| bones[index].clone())
+                    .zip(bones.iter())
+                    .filter_map(|(template, bone)| {
+                        if template.skeleton == index {
+                            Some(bone.clone())
+                        } else {
+                            None
+                        }
+                    })
                     .collect();
                 let skeleton = self.skeleton(bones);
+                objects.insert(object, skeleton.upcast());
+                skeleton_objects.insert(object);
+                skeleton
+            })
+            .collect();
 
-                skeleton.set_transform(
-                    node.transform.position,
-                    node.transform.orientation,
-                    node.transform.scale,
-                );
+        for template in &template.meshes {
+            let mesh = self.create_instanced_mesh(
+                &template.geometry,
+                template.material.clone(),
+            );
 
-                nodes.insert(index, skeleton.upcast());
-                skeletons.insert(index, skeleton);
+            if let Some(skeleton_index) = template.skeleton {
+                mesh.set_skeleton(skeletons[skeleton_index].clone())
+            }
+
+            objects.insert(template.object, mesh.upcast());
+        }
+
+        for template in &template.cameras {
+            let camera = self.camera(template.projection.clone());
+            objects.insert(template.object, camera.upcast());
+        }
+
+        for &template in &template.lights {
+            let LightTemplate { object, color, intensity, sub_light } = template;
+            let light = match sub_light {
+                SubLightTemplate::Ambient =>
+                    self.ambient_light(color, intensity).upcast(),
+                SubLightTemplate::Directional =>
+                    self.directional_light(color, intensity).upcast(),
+                SubLightTemplate::Hemisphere { ground } =>
+                    self.hemisphere_light(color, ground, intensity).upcast(),
+                SubLightTemplate::Point =>
+                    self.point_light(color, intensity).upcast(),
+            };
+            objects.insert(object, light.clone());
+        }
+
+        // Setup the underlying objects for the template.
+        for (&index, base) in &objects {
+            let template = &template.objects[index];
+
+            base.set_transform(
+                template.transform.position,
+                template.transform.orientation,
+                template.transform.scale,
+            );
+
+            if let Some(name) = template.name.clone() {
+                base.set_name(name);
+            }
+
+            // HACK: We need to add any `Skeleton` objects to their parent group *last*, so
+            // we skip them. See note above for more details.
+            if skeleton_objects.contains(&index) { continue; }
+
+            match template.parent {
+                Some(parent) => groups[parent].add(base),
+                None => root.add(base),
             }
         }
 
-        // Once skeletons have been instantiated, setup each skinned mesh with its skeleton.
-        for (mut mesh, skeleton_index) in skinned_meshes {
-            mesh.set_skeleton(skeletons[&skeleton_index].clone());
+        // HACK: Add `Skeleton` objects to their parent group after all other objects have been
+        // added to their parent groups. See note above for more details.
+        for index in skeleton_objects {
+            let base = &objects[&index];
+            let template = &template.objects[index];
+            match template.parent {
+                Some(parent) => groups[parent].add(base),
+                None => root.add(base),
+            }
         }
 
         // Instantiate all animation clips in the template.
@@ -342,7 +350,7 @@ impl Factory {
                 let tracks = animation
                     .tracks
                     .iter()
-                    .map(|&(ref track, target)| (track.clone(), nodes[&target].upcast()))
+                    .map(|&(ref track, target)| (track.clone(), objects[&target].clone()))
                     .collect();
 
                 animation::Clip {
@@ -351,30 +359,6 @@ impl Factory {
                 }
             })
             .collect();
-
-        // Add each of the root nodes to the root group.
-        for root_index in &template.roots {
-            root.add(&nodes[root_index]);
-        }
-
-        // Add children to their parents.
-        for (&index, group) in &groups {
-            // Retrieve the list of children from the template node.
-            let node = &template.nodes[index];
-            let children = match node.data {
-                NodeTemplateData::Group(ref children) => children,
-                _ => panic!(
-                    "Node with index {} does not correspond to a `Group` node: {:?}",
-                    index,
-                    node,
-                ),
-            };
-
-            for child_index in children {
-                let child = &nodes[child_index];
-                group.add(child);
-            }
-        }
 
         (root, animations)
     }
@@ -386,7 +370,7 @@ impl Factory {
     pub fn bone(
         &mut self,
         index: usize,
-        inverse_bind_matrix: mint::ColumnMatrix4<f32>,
+        inverse_bind_matrix: InverseBindMatrix,
     ) -> Bone {
         let data = SubNode::Bone { index, inverse_bind_matrix };
         let object = self.hub.lock().unwrap().spawn(data);

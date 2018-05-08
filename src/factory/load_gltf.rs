@@ -26,34 +26,13 @@ use node::Transform;
 use super::Factory;
 use template::{
     AnimationTemplate,
+    BoneTemplate,
+    CameraTemplate,
+    InstancedGeometry,
     MeshTemplate,
+    ObjectTemplate,
     Template,
-    NodeTemplate,
-    NodeTemplateData,
 };
-
-fn load_camera<'a>(
-    entry: gltf::Camera<'a>,
-) -> Projection {
-    match entry.projection() {
-        gltf::camera::Projection::Orthographic(values) => {
-            let center = mint::Point2::<f32>::from([0.0, 0.0]);
-            let extent_y = values.ymag();
-            let range = values.znear() .. values.zfar();
-            Projection::Orthographic(Orthographic { center, extent_y, range })
-        }
-
-        gltf::camera::Projection::Perspective(values) => {
-            let fov_y = values.yfov().to_degrees();
-            let near = values.znear();
-            let zrange = match values.zfar() {
-                Some(far) => (near .. far).into(),
-                None => (near ..).into(),
-            };
-            Projection::Perspective(Perspective { fov_y, zrange })
-        }
-    }
-}
 
 fn load_textures(
     factory: &mut Factory,
@@ -180,30 +159,12 @@ fn load_material<'a>(
     }
 }
 
-/// ### Implementation Notes
-///
-/// * Multiple 'sub-meshes' are returned since the concept of a
-///   mesh is different in `glTF` to `three`.
-/// * A `glTF` mesh consists of one or more _primitives_, which are
-///   equivalent to `three` meshes.
-fn load_mesh<'a>(
-    factory: &mut Factory,
-    mesh: gltf::Mesh<'a>,
-    buffers: &gltf_importer::Buffers,
-    default_material_index: usize,
-) -> Vec<MeshTemplate> {
-    mesh
-        .primitives()
-        .map(|prim| load_primitive(factory, prim, buffers, default_material_index))
-        .collect()
-}
-
 fn load_primitive<'a>(
     factory: &mut Factory,
     primitive: gltf::Primitive<'a>,
     buffers: &gltf_importer::Buffers,
-    default_material_index: usize,
-) -> MeshTemplate {
+    textures: &[Texture<[f32; 4]>],
+) -> (InstancedGeometry, Material) {
     use gltf_utils::PrimitiveIterators;
     use itertools::Itertools;
 
@@ -283,22 +244,8 @@ fn load_primitive<'a>(
     };
 
     let geometry = factory.upload_geometry(geometry);
-    let material = primitive.material().index().unwrap_or(default_material_index);
-
-    MeshTemplate {
-        geometry,
-        material,
-    }
-}
-
-/// Helper for binding bones to their parent node in the template.
-#[derive(Debug, Clone, Copy)]
-struct Joint {
-    /// The template index for the bone template for this joint.
-    node_index: usize,
-
-    /// The glTF index for the node that the joint targets.
-    joint_index: usize
+    let material = load_material(primitive.material(), textures);
+    (geometry, material)
 }
 
 /// Creates bone and skeleton templates from a glTF skin.
@@ -313,14 +260,13 @@ struct Joint {
 /// as a child to the group that represents the original node.
 fn load_skin<'a>(
     skin: gltf::Skin<'a>,
+    objects: &mut Vec<ObjectTemplate>,
+    bones: &mut Vec<BoneTemplate>,
     buffers: &gltf_importer::Buffers,
-    nodes: &mut Vec<NodeTemplate>,
-    joints: &mut Vec<Joint>,
-) -> (usize, Option<usize>) {
+) -> usize {
     use std::iter::repeat;
 
     let mut ibms = Vec::new();
-    let mut bones = Vec::new();
     if let Some(accessor) = skin.inverse_bind_matrices() {
         for ibm in AccessorIter::<[[f32; 4]; 4]>::new(accessor, buffers) {
             ibms.push(ibm.into());
@@ -339,26 +285,35 @@ fn load_skin<'a>(
     let joint_iter = skin
         .joints()
         .map(|joint| joint.index());
-    for (bone_index, (joint_index, inverse_bind_matrix)) in joint_iter.zip(ibm_iter).enumerate() {
+    for (index, (joint_index, inverse_bind_matrix)) in joint_iter.zip(ibm_iter).enumerate() {
         // Create a bone node corresponding to the joint.
-        let node_index = nodes.len();
-        bones.push(node_index);
-        nodes.push(NodeTemplate::from_data(
-            NodeTemplateData::Bone(bone_index, inverse_bind_matrix)),
-        );
-        joints.push(Joint { node_index, joint_index });
+        let object = objects.len();
+        objects.push(ObjectTemplate {
+            parent: Some(joint_index),
+            .. Default::default()
+        });
+        bones.push(BoneTemplate {
+            object,
+            index,
+            inverse_bind_matrix,
+            skeleton: skin.index(),
+        });
     }
 
-    let skeleton_index = nodes.len();
-    nodes.push(NodeTemplate::from_data(NodeTemplateData::Skeleton(bones)));
+    // Create a skeleton template (which is really just an object template) for the skin.
+    let object = objects.len();
+    objects.push(ObjectTemplate {
+        parent: skin.skeleton().map(|node| node.index()),
+        .. Default::default()
+    });
 
-    (skeleton_index, skin.skeleton().map(|node| node.index()))
+    object
 }
 
 fn load_animation<'a>(
     animation: gltf::Animation<'a>,
     buffers: &gltf_importer::Buffers,
-    node_map: &HashMap<usize, usize>,
+    groups: &[usize],
 ) -> AnimationTemplate {
     use gltf::animation::InterpolationAlgorithm::*;
 
@@ -429,7 +384,9 @@ fn load_animation<'a>(
                 times,
                 values,
             },
-            node_map[&node.index()],
+
+            // Target the object for the group that corresponds to the target node.
+            groups[node.index()],
         ));
     }
 
@@ -461,44 +418,13 @@ fn load_animation<'a>(
 /// all glTF nodes have been added to the template (see `Factory::load_gltf`).
 fn load_node<'a>(
     node: gltf::Node<'a>,
-    nodes: &mut Vec<NodeTemplate>,
-    node_map: &mut HashMap<usize, usize>,
+    objects: &mut Vec<ObjectTemplate>,
+    meshes: &mut Vec<MeshTemplate>,
+    cameras: &mut Vec<CameraTemplate>,
     mesh_map: &HashMap<usize, Vec<usize>>,
-    skeleton_map: &[usize],
-) {
+    primitives: &[(InstancedGeometry, Material)],
+) -> usize {
     let name = node.name().map(Into::into);
-
-    // Create a list of the children that are under the resulting template node. Note that this
-    // won't necessarily match the list of children in the original glTF document since meshes
-    // and cameras become separate nodes in the template.
-    let mut children = Vec::new();
-
-    // Create mesh/skinned mesh nodes for any meshes associated with this glTF node.
-    let skeleton = node.skin().map(|skin| skeleton_map[skin.index()]);
-    if let Some(gltf_index) = node.mesh().map(|mesh| mesh.index()) {
-        for &mesh_index in &mesh_map[&gltf_index] {
-            children.push(nodes.len());
-
-            // The node will either be a mesh or a skinned mesh, depending on whether or not
-            // there's a skeleton associated with the glTF node.
-            let data = match skeleton {
-                Some(skeleton_index) => NodeTemplateData::SkinnedMesh {
-                    mesh: mesh_index,
-                    skeleton: skeleton_index,
-                },
-
-                None => NodeTemplateData::Mesh(mesh_index),
-            };
-
-            nodes.push(NodeTemplate::from_data(data));
-        }
-    }
-
-    // Create a camera node as a child if there's a camera associated with this glTF node.
-    if let Some(camera_index) = node.camera().map(|camera| camera.index()) {
-        children.push(nodes.len());
-        nodes.push(NodeTemplate::from_data(NodeTemplateData::Camera(camera_index)));
-    }
 
     // Decompose the transform to get the translation, rotation, and scale.
     let (translation, rotation, scale) = node.transform().decomposed();
@@ -509,14 +435,8 @@ fn load_node<'a>(
 
     // Create a `Group` node to directly represent the original glTF node, listing any extra
     // nodes we needed to create as its children.
-    //
-    // NOTE: At this point the list of children only includes the nodes generated for any
-    // meshes and cameras attached to the original node. We can't yet add the children declared
-    // in the original document because we don't know the indices that the corresponding
-    // template nodes will have until we've created them all. Those children are added in a
-    // final pass after all glTF nodes have been added to the template (see `Factory::load_gltf`).
-    node_map.insert(node.index(), nodes.len());
-    nodes.push(NodeTemplate {
+    let object_index = objects.len();
+    objects.push(ObjectTemplate {
         name,
 
         transform: Transform {
@@ -525,8 +445,78 @@ fn load_node<'a>(
             scale,
         },
 
-        data: NodeTemplateData::Group(children),
+        // NOTE: Since glTF has parents list their children, and three-rs templates do the
+        // opposite, we wait to hook up parent/child relationships until all group templates
+        // have been created. Group templates are hooked up to their parent in a pass immediately
+        // following loading all nodes from the glTF data.
+        parent: None,
     });
+
+    // Create mesh/skinned mesh nodes for any meshes associated with this glTF node.
+    let skeleton = node.skin().map(|skin| skin.index());
+    if let Some(gltf_mesh) = node.mesh() {
+        for &geometry_index in &mesh_map[&gltf_mesh.index()] {
+            let (geometry, material) = primitives[geometry_index].clone();
+            let object = objects.len();
+            objects.push(ObjectTemplate {
+                parent: Some(node.index()),
+                .. Default::default()
+            });
+            meshes.push(MeshTemplate {
+                object,
+                geometry,
+                material,
+                skeleton,
+            });
+        }
+    }
+
+    // Create a camera node as a child if there's a camera associated with this glTF node.
+    if let Some(camera) = node.camera() {
+        let object = objects.len();
+        objects.push(ObjectTemplate {
+            parent: Some(node.index()),
+            .. Default::default()
+        });
+        cameras.push(CameraTemplate {
+            object,
+            projection: load_camera(camera),
+        })
+    }
+
+    object_index
+}
+
+fn load_camera<'a>(
+    entry: gltf::Camera<'a>,
+) -> Projection {
+    match entry.projection() {
+        gltf::camera::Projection::Orthographic(values) => {
+            let center = mint::Point2::<f32>::from([0.0, 0.0]);
+            let extent_y = values.ymag();
+            let range = values.znear() .. values.zfar();
+            Projection::Orthographic(Orthographic { center, extent_y, range })
+        }
+
+        gltf::camera::Projection::Perspective(values) => {
+            let fov_y = values.yfov().to_degrees();
+            let near = values.znear();
+            let zrange = match values.zfar() {
+                Some(far) => (near .. far).into(),
+                None => (near ..).into(),
+            };
+            Projection::Perspective(Perspective { fov_y, zrange })
+        }
+    }
+}
+
+fn load_scene<'a>(scene: gltf::Scene<'a>, raw: &Template) -> Template {
+    // TODO: Create a new template that just contains the objects for the specified scene.
+
+    Template {
+        name: scene.name().map(Into::into),
+        .. raw.clone()
+    }
 }
 
 impl super::Factory {
@@ -575,32 +565,17 @@ impl super::Factory {
         let base = path.parent().unwrap_or(&Path::new(""));
         let (gltf, buffers) = gltf_importer::import(path).expect("invalid glTF 2.0");
 
-        let cameras: Vec<_> = gltf.cameras().map(load_camera).collect();
-
         let textures = load_textures(self, &gltf, base, &buffers);
-        let mut materials: Vec<_> = gltf
-            .materials()
-            .map(|material| load_material(material, &textures))
-            .collect();
-
-        // Create a material to represent the glTF default material.
-        let default_material_index = materials.len();
-        materials.push(material::Basic {
-            color: 0xFFFFFF,
-            map: None,
-        }.into());
 
         // Mappings that allow us to convert from indices in the glTF document to the indices in
         // the resulting template, for objects where the two don't necessarily line up.
         let mut mesh_map = HashMap::new();
-        let mut node_map = HashMap::new();
-        let mut skeleton_map = Vec::with_capacity(gltf.skins().len());
 
         // Load the meshes declared in the glTF file. Each glTF mesh declaration can potentially
         // result in multiple Three meshes, so in doing so we flatten them to a single list of
         // meshes, and populate `mesh_map` with information on how to lookup meshes in the
         // flattened list given the index in the original glTF document.
-        let mut meshes = Vec::new();
+        let mut primitives = Vec::new();
         for gltf_mesh in gltf.meshes() {
             // Save the index within the glTF document so that we can add an entry to the mesh map.
             let gltf_index = gltf_mesh.index();
@@ -608,9 +583,12 @@ impl super::Factory {
             // Add all of the meshes to the flattened list of meshes, and generate a list of new
             // indices that can be used to map from the glTF index to the flattened indices.
             let mut indices = Vec::new();
-            for mesh in load_mesh(self, gltf_mesh, &buffers, default_material_index) {
-                indices.push(meshes.len());
-                meshes.push(mesh);
+            let prim_iter = gltf_mesh
+                .primitives()
+                .map(|prim| load_primitive(self, prim, &buffers, &textures));
+            for primitive in prim_iter {
+                indices.push(primitives.len());
+                primitives.push(primitive);
             }
 
             // Add the list of mesh indices to the mesh map.
@@ -620,126 +598,63 @@ impl super::Factory {
         // The full list of template nodes created from the glTF file. We know there will be at
         // least as many template nodes as nodes in the original glTF file, but there will likely
         // be many since many things in the glTF format end up as their own template nodes.
-        let mut nodes = Vec::with_capacity(gltf.nodes().len());
-
-        // Create a skeleton template for each of the skins in the glTF document. Since both
-        // bones and skeletons are treated as nodes within `Template`, we need to load these
-        // first so that we can reference the new nodes when loading the glTF nodes next.
-        let mut skeleton_roots = Vec::with_capacity(gltf.skins().len());
-        let mut joints = Vec::new();
-        for skin in gltf.skins() {
-            let (skeleton_index, root) = load_skin(skin, &buffers, &mut nodes, &mut joints);
-            skeleton_map.push(skeleton_index);
-            skeleton_roots.push(root);
-        }
+        let mut objects = Vec::with_capacity(gltf.nodes().len());
+        let mut meshes = Vec::new();
+        let mut cameras = Vec::new();
 
         // Create template nodes from each of the glTF nodes.
-        for node in gltf.nodes() {
-            load_node(node, &mut nodes, &mut node_map, &mesh_map, &skeleton_map);
-        }
+        let groups: Vec<_> = gltf
+            .nodes()
+            .map(|node| {
+                load_node(node, &mut objects, &mut meshes, &mut cameras, &mesh_map, &primitives)
+            })
+            .collect();
 
         // Fix-up any group nodes in the template by adding their original children to their
         // list of children.
         for gltf_node in gltf.nodes() {
-            // Lookup the template node corresponding to this glTF node.
-            let template_node_index = node_map[&gltf_node.index()];
-            let template_node = &mut nodes[template_node_index];
-
-            // Get the list of children for this node.
-            let children = match template_node.data {
-                NodeTemplateData::Group(ref mut children) => children,
-                _ => panic!(
-                    "Node corresponding to glTF node {} is not a group: {:?}",
-                    gltf_node.index(),
-                    template_node,
-                ),
-            };
-
             // For each of the children originally declared, lookup the index of the node in the
             // final template and add it to the group's list of children.
-            for gltf_index in gltf_node.children().map(|child| child.index()) {
-                let template_index = node_map[&gltf_index];
-                children.push(template_index);
+            for child_index in gltf_node.children().map(|child| child.index()) {
+                let object = &mut objects[groups[child_index]];
+
+                assert!(object.parent.is_none(), "Object template already had a parent specified");
+                object.parent = Some(gltf_node.index());
             }
         }
 
-        // Once all nodes have been created, make each bone a child of the joint it targets.
-        for Joint { node_index, joint_index } in joints {
-            match nodes[node_map[&joint_index]].data {
-                NodeTemplateData::Group(ref mut children) => children.push(node_index),
-                _ => panic!("Joint index referenced by skin did not point to a group template"),
-            }
-        }
-
-        // Make each skeleton a child of its root node.
-        // NOTE: This needs to happen last so that skeletons are always the last child to be
-        // added to their parent group. The way that Three handles rendering, it needs find the
-        // skeleton before it finds any of the skeleton's bones when traversing the scene. The
-        // renderer uses a depth-first traversal when walking the scene, so the skeleton needs
-        // to be an earlier child than any of the bones of sub-nodes of the skeleton. Since
-        // children are listed internally in the reverse order in which they are added, we need
-        // to make sure that the skeleton is the last child added for its parent.
-        for (index, &root) in skeleton_roots.iter().enumerate() {
-            if let Some(parent_index) = root {
-                match nodes[node_map[&parent_index]].data {
-                    NodeTemplateData::Group(ref mut children) => children.push(skeleton_map[index]),
-                    _ => panic!("Root node for skeleton wasn't a group"),
-                }
-            }
-        }
+        // Create a skeleton template for each of the skins in the glTF document.
+        let mut bones = Vec::new();
+        let skeletons = gltf
+            .skins()
+            .map(|skin| load_skin(skin, &mut objects, &mut bones, &buffers))
+            .collect();
 
         // Create an animation template from any animations in the glTF file.
-        let animations: Vec<_> = gltf
+        let animations = gltf
             .animations()
-            .map(|anim| load_animation(anim, &buffers, &node_map))
+            .map(|anim| load_animation(anim, &buffers, &groups))
             .collect();
+
+        let raw_template = Template {
+            name: None,
+            objects,
+            groups,
+            cameras,
+            meshes,
+            lights: Vec::new(),
+            bones,
+            skeletons,
+            animations,
+        };
+
+        if gltf.scenes().len() > 1 {
+            warn!("Mutliple scenes found in {}, glTF loading does not currently work correctly for glTF files with multiple scenes", path.display());
+        }
 
         gltf
             .scenes()
-            .map(|scene| {
-                let mut roots: Vec<usize> = scene
-                    .nodes()
-                    .map(|node| node_map[&node.index()])
-                    .collect();
-
-                // If there are any skeletons that don't have a root specified, then they become
-                // root nodes of the template.
-                //
-                // NOTE: It's possible that a skeleton node without a root was already marked as
-                // a root node by the glTF document, in which case we would have added a
-                // duplicate root node to `roots`. To handle that case, we call `dedup` after
-                // adding the root skeletons.
-                let root_skeletons = skeleton_roots
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(index, &root)| match root {
-                        Some(..) => None,
-                        None => Some(skeleton_map[index]),
-                    });
-                roots.extend(root_skeletons);
-                roots.dedup();
-
-                let name = scene.name().map(Into::into);
-
-                // TODO: Optimize template to only include objects that end up being instantiated.
-                // Each template currently gets a copy of all objects templates loaded from the
-                // source file, but may only use a subset of those depending on what the original
-                // glTF scene referenced. This is safe to do because any unused objects that get
-                // instantiated will immediately be destroyed, but that adds a potentially
-                // unnecessary cost each time the template is instantiated. To avoid this, we can
-                // optime the template ahead of time by reducing it to only objects that are
-                // referenced within that template.
-                Template {
-                    name,
-                    roots,
-                    cameras: cameras.clone(),
-                    materials: materials.clone(),
-                    meshes: meshes.clone(),
-                    nodes: nodes.clone(),
-                    animations: animations.clone(),
-                    lights: Vec::new(),
-                }
-            })
+            .map(|scene| load_scene(scene, &raw_template))
             .collect()
     }
 }
