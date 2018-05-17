@@ -3,6 +3,7 @@ mod load_gltf;
 
 use std::{cmp, fs, io, iter, ops};
 use std::borrow::Cow;
+use std::collections::HashSet;
 use std::collections::hash_map::{Entry, HashMap};
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -16,11 +17,8 @@ use image;
 use itertools::Either;
 use mint;
 use obj;
-#[cfg(feature = "gltf-loader")]
-use vec_map::VecMap;
 
-#[cfg(feature = "gltf-loader")]
-use animation::Clip;
+use animation;
 use audio;
 use camera::{Camera, Projection, ZRange};
 use color::{BLACK, Color};
@@ -29,7 +27,7 @@ use hub::{Hub, HubPtr, LightData, SubLight, SubNode};
 use light::{Ambient, Directional, Hemisphere, Point, ShadowMap};
 use material::{self, Material};
 use mesh::{DynamicMesh, Mesh};
-use object;
+use object::{self, Group, Object};
 use render::{basic_pipe,
     BackendFactory, BackendResources, BasicPipelineState, DisplacementContribution,
     DynamicData, GpuData, Instance, InstanceCacheKey, PipelineCreationError, ShadowFormat, Source, Vertex,
@@ -37,7 +35,13 @@ use render::{basic_pipe,
 };
 use scene::{Background, Scene};
 use sprite::Sprite;
-use skeleton::{Bone, Skeleton};
+use skeleton::{Bone, InverseBindMatrix, Skeleton};
+use template::{
+    InstancedGeometry,
+    LightTemplate,
+    SubLightTemplate,
+    Template,
+};
 use text::{Font, Text, TextData};
 use texture::{CubeMap, CubeMapPath, FilterMethod, Sampler, Texture, WrapMode};
 
@@ -79,64 +83,6 @@ pub struct Factory {
     default_sampler: gfx::handle::Sampler<BackendResources>,
 }
 
-/// Loaded glTF 2.0 returned by [`Factory::load_gltf`].
-///
-/// [`Factory::load_gltf`]: struct.Factory.html#method.load_gltf
-#[cfg(feature = "gltf-loader")]
-#[derive(Debug, Clone)]
-pub struct Gltf {
-    /// Imported camera views.
-    pub cameras: Vec<Camera>,
-
-    /// Imported animation clips.
-    pub clips: Vec<Clip>,
-
-    /// The node heirarchy of the default scene.
-    ///
-    /// If the `glTF` contained no default scene then this
-    /// container will be empty.
-    pub heirarchy: VecMap<object::Group>,
-
-    /// Imported mesh instances.
-    ///
-    /// ### Notes
-    ///
-    /// * Must be kept alive in order to be displayed.
-    pub instances: Vec<Mesh>,
-
-    /// Imported mesh materials.
-    pub materials: Vec<Material>,
-
-    /// Imported mesh templates.
-    pub meshes: VecMap<Vec<Mesh>>,
-
-    /// The root node of the default scene.
-    ///
-    /// If the `glTF` contained no default scene then this group
-    /// will have no children.
-    pub root: object::Group,
-
-    /// Imported skeletons.
-    pub skeletons: Vec<Skeleton>,
-
-    /// Imported textures.
-    pub textures: Vec<Texture<[f32; 4]>>,
-}
-
-#[cfg(feature = "gltf-loader")]
-impl AsRef<object::Base> for Gltf {
-    fn as_ref(&self) -> &object::Base {
-        self.root.as_ref()
-    }
-}
-
-#[cfg(feature = "gltf-loader")]
-impl object::Object for Gltf {
-    type Data = ();
-
-    fn resolve_data(&self, _: &mut ::scene::SyncGuard) -> Self::Data {}
-}
-
 fn f2i(x: f32) -> I8Norm {
     I8Norm(cmp::min(cmp::max((x * 127.0) as isize, -128), 127) as i8)
 }
@@ -152,6 +98,72 @@ impl Factory {
                 gfx::memory::Bind::TRANSFER_DST,
             )
             .unwrap()
+    }
+
+    fn create_gpu_data(&mut self, geometry: Geometry) -> GpuData {
+        let vertices = Self::mesh_vertices(&geometry);
+        let (vbuf, mut slice) = if geometry.faces.is_empty() {
+            self.backend.create_vertex_buffer_with_slice(&vertices, ())
+        } else {
+            let faces: &[u32] = gfx::memory::cast_slice(&geometry.faces);
+            self.backend
+                .create_vertex_buffer_with_slice(&vertices, faces)
+        };
+        slice.instances = Some((1, 0));
+        let num_shapes = geometry.shapes.len();
+        let mut displacement_contributions = Vec::with_capacity(num_shapes);
+        let instances = self.create_instance_buffer();
+        let displacements = if num_shapes != 0 {
+            let num_vertices = geometry.base.vertices.len();
+            let mut contents = vec![[0.0; 4]; num_shapes * 3 * num_vertices];
+            for (content_chunk, shape) in contents.chunks_mut(3 * num_vertices).zip(&geometry.shapes) {
+                let mut contribution = DisplacementContribution::ZERO;
+                if !shape.vertices.is_empty() {
+                    contribution.position = 1.0;
+                    for (out, v) in content_chunk[0 * num_vertices .. 1 * num_vertices].iter_mut().zip(&shape.vertices) {
+                        *out = [v.x, v.y, v.z, 1.0];
+                    }
+                }
+                if !shape.normals.is_empty() {
+                    contribution.normal = 1.0;
+                    for (out, v) in content_chunk[1 * num_vertices .. 2 * num_vertices].iter_mut().zip(&shape.normals) {
+                        *out = [v.x, v.y, v.z, 0.0];
+                    }
+                }
+                if !shape.tangents.is_empty() {
+                    contribution.tangent = 1.0;
+                    for (out, &v) in content_chunk[2 * num_vertices .. 3 * num_vertices].iter_mut().zip(&shape.tangents) {
+                        *out = v.into();
+                    }
+                }
+                displacement_contributions.push(contribution);
+            }
+
+            let texture_and_view = self.backend
+                .create_texture_immutable::<[f32; 4]>(
+                    gfx::texture::Kind::D2(
+                        num_vertices as _,
+                        3 * num_shapes as gfx::texture::Size,
+                        gfx::texture::AaMode::Single,
+                    ),
+                    gfx::texture::Mipmap::Provided,
+                    &[gfx::memory::cast_slice(&contents)],
+                )
+                .unwrap();
+            Some(texture_and_view)
+        } else {
+            None
+        };
+
+        GpuData {
+            slice,
+            vertices: vbuf,
+            instances,
+            displacements,
+            pending: None,
+            instance_cache_key: None,
+            displacement_contributions,
+        }
     }
 
     pub(crate) fn new(mut backend: BackendFactory) -> Self {
@@ -177,6 +189,180 @@ impl Factory {
         }
     }
 
+    /// Creates an instance of all the objects described in the template.
+    ///
+    /// Returns a [`Group`] that is the root object for all objects created from the template, as
+    /// well as a list of all animation clips instantiated from the template.
+    ///
+    /// See the module documentation for [`template`] for more information on the template
+    /// system.
+    ///
+    /// # Examples
+    ///
+    /// Create an empty template and then instantiate it, effectively the most verbose way to
+    /// call [`Factory::group`]:
+    ///
+    /// ```no_run
+    /// use three::template::Template;
+    ///
+    /// # let mut window = three::Window::new("Three-rs");
+    /// let template = Template::new();
+    /// let (group, animations) = window.factory.instantiate_template(&template);
+    /// ```
+    ///
+    /// [`Group`]: ./struct.Group.html
+    /// [`template`]: ./template/index.html
+    /// [`Factory::group`]: #method.group
+    pub fn instantiate_template(&mut self, template: &Template) -> (Group, Vec<animation::Clip>) {
+        // Create group to act as the root node of the instantiated hierarchy.
+        let root = self.group();
+
+        let mut objects = HashMap::with_capacity(template.objects.len());
+
+        // Create a group for every group template.
+        let groups: Vec<_> = template
+            .groups
+            .iter()
+            .map(|&object| {
+                let group = self.group();
+                objects.insert(object, group.upcast());
+                group
+            })
+            .collect();
+
+        let bones: Vec<_> = template
+            .bones
+            .iter()
+            .map(|template| {
+                let bone = self.bone(template.index, template.inverse_bind_matrix);
+                objects.insert(template.object, bone.upcast());
+                bone
+            })
+            .collect();
+
+        // HACK: Keep track of which base objects belong to a `Skeleton` so that we can defer
+        // adding them to their parent `Group` until after all other objects have been setup.
+        // This is to work around https://github.com/three-rs/three/issues/202, which causes
+        // a crash if the renderer walks to a `Bone` before walking to its `Skeleton`. Groups
+        // internally list their children in reverse the order in which they were added, so
+        // adding the `Skeletons` last ensure they're listed earlier than any of their bones and
+        // will be visited first by the renderer. Note that this only solves the case where a
+        // skeleton and its bones are direct siblings, it will not help the case where a skeleton
+        // is lower in the hierarchy than its bones.
+        let mut skeleton_objects = HashSet::with_capacity(template.skeletons.len());
+        let skeletons: Vec<_> = template
+            .skeletons
+            .iter()
+            .enumerate()
+            .map(|(index, &object)| {
+                let bones = template
+                    .bones
+                    .iter()
+                    .zip(bones.iter())
+                    .filter_map(|(template, bone)| {
+                        if template.skeleton == index {
+                            Some(bone.clone())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                let skeleton = self.skeleton(bones);
+                objects.insert(object, skeleton.upcast());
+                skeleton_objects.insert(object);
+                skeleton
+            })
+            .collect();
+
+        for template in &template.meshes {
+            let mesh = self.create_instanced_mesh(
+                &template.geometry,
+                template.material.clone(),
+            );
+
+            if let Some(skeleton_index) = template.skeleton {
+                mesh.set_skeleton(skeletons[skeleton_index].clone())
+            }
+
+            objects.insert(template.object, mesh.upcast());
+        }
+
+        for template in &template.cameras {
+            let camera = self.camera(template.projection.clone());
+            objects.insert(template.object, camera.upcast());
+        }
+
+        for &template in &template.lights {
+            let LightTemplate { object, color, intensity, sub_light } = template;
+            let light = match sub_light {
+                SubLightTemplate::Ambient =>
+                    self.ambient_light(color, intensity).upcast(),
+                SubLightTemplate::Directional =>
+                    self.directional_light(color, intensity).upcast(),
+                SubLightTemplate::Hemisphere { ground } =>
+                    self.hemisphere_light(color, ground, intensity).upcast(),
+                SubLightTemplate::Point =>
+                    self.point_light(color, intensity).upcast(),
+            };
+            objects.insert(object, light.clone());
+        }
+
+        // Setup the underlying objects for the template.
+        for (&index, base) in &objects {
+            let template = &template.objects[index];
+
+            base.set_transform(
+                template.transform.position,
+                template.transform.orientation,
+                template.transform.scale,
+            );
+
+            if let Some(name) = template.name.clone() {
+                base.set_name(name);
+            }
+
+            // HACK: We need to add any `Skeleton` objects to their parent group *last*, so
+            // we skip them. See note above for more details.
+            if skeleton_objects.contains(&index) { continue; }
+
+            match template.parent {
+                Some(parent) => groups[parent].add(base),
+                None => root.add(base),
+            }
+        }
+
+        // HACK: Add `Skeleton` objects to their parent group after all other objects have been
+        // added to their parent groups. See note above for more details.
+        for index in skeleton_objects {
+            let base = &objects[&index];
+            let template = &template.objects[index];
+            match template.parent {
+                Some(parent) => groups[parent].add(base),
+                None => root.add(base),
+            }
+        }
+
+        // Instantiate all animation clips in the template.
+        let animations = template
+            .animations
+            .iter()
+            .map(|animation| {
+                let tracks = animation
+                    .tracks
+                    .iter()
+                    .map(|&(ref track, target)| (track.clone(), objects[&target].clone()))
+                    .collect();
+
+                animation::Clip {
+                    name: template.name.clone(),
+                    tracks,
+                }
+            })
+            .collect();
+
+        (root, animations)
+    }
+
     /// Create a new [`Bone`], one component of a [`Skeleton`].
     ///
     /// [`Bone`]: ../skeleton/struct.Bone.html
@@ -184,7 +370,7 @@ impl Factory {
     pub fn bone(
         &mut self,
         index: usize,
-        inverse_bind_matrix: mint::ColumnMatrix4<f32>,
+        inverse_bind_matrix: InverseBindMatrix,
     ) -> Bone {
         let data = SubNode::Bone { index, inverse_bind_matrix };
         let object = self.hub.lock().unwrap().spawn(data);
@@ -215,6 +401,19 @@ impl Factory {
         let data = hub::SkeletonData { bones, gpu_buffer, gpu_buffer_view };
         let object = self.hub.lock().unwrap().spawn_skeleton(data);
         Skeleton { object }
+    }
+
+    /// Create a new camera using the provided projection.
+    ///
+    /// This allows you to create a camera from a predefined projection, which is useful if you
+    /// e.g. load projection data from a file and don't necessarily know ahead of time what type
+    /// of projection the camera uses. If you're manually creating a camera, you should use
+    /// [`perspective_camera`] or [`orthographic_camera`].
+    pub fn camera<P: Into<Projection>>(&mut self, projection: P) -> Camera {
+        Camera::new(
+            &mut *self.hub.lock().unwrap(),
+            projection.into(),
+        )
     }
 
     /// Create new [Orthographic] Camera.
@@ -331,78 +530,117 @@ impl Factory {
             .collect()
     }
 
+    /// Uploads geometry data to the GPU so that it can be reused for instanced rendering.
+    ///
+    /// See the module documentation in [`template`] for information on mesh instancing and
+    /// its benefits.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use three::Geometry;
+    ///
+    /// # let mut window = three::Window::new("Three-rs");
+    /// // Create geometry for a triangle.
+    /// let vertices = vec![
+    ///     [-0.5, -0.5, -0.5].into(),
+    ///     [0.5, -0.5, -0.5].into(),
+    ///     [0.0, 0.5, -0.5].into(),
+    /// ];
+    /// let geometry = Geometry::with_vertices(vertices);
+    ///
+    /// // Upload the triangle data to the GPU.
+    /// let upload_geometry = window.factory.upload_geometry(geometry);
+    ///
+    /// // Create multiple meshes with the same GPU data and material.
+    /// let material = three::material::Basic {
+    ///     color: 0xFFFF00,
+    ///     map: None,
+    /// };
+    /// let first = window.factory.create_instanced_mesh(&upload_geometry, material.clone());
+    /// let second = window.factory.create_instanced_mesh(&upload_geometry, material.clone());
+    /// let third = window.factory.create_instanced_mesh(&upload_geometry, material.clone());
+    /// ```
+    ///
+    /// [`template`]: ./template/index.html#mesh-instancing
+    pub fn upload_geometry(
+        &mut self,
+        geometry: Geometry,
+    ) -> InstancedGeometry {
+        let gpu_data = self.create_gpu_data(geometry);
+        InstancedGeometry { gpu_data }
+    }
+
     /// Create new `Mesh` with desired `Geometry` and `Material`.
     pub fn mesh<M: Into<Material>>(
         &mut self,
         geometry: Geometry,
         material: M,
     ) -> Mesh {
-        let vertices = Self::mesh_vertices(&geometry);
-        let (vbuf, mut slice) = if geometry.faces.is_empty() {
-            self.backend.create_vertex_buffer_with_slice(&vertices, ())
-        } else {
-            let faces: &[u32] = gfx::memory::cast_slice(&geometry.faces);
-            self.backend
-                .create_vertex_buffer_with_slice(&vertices, faces)
-        };
-        slice.instances = Some((1, 0));
-        let num_shapes = geometry.shapes.len();
-        let mut displacement_contributions = Vec::with_capacity(num_shapes);
-        let instances = self.create_instance_buffer();
-        let displacements = if num_shapes != 0 {
-            let num_vertices = geometry.base.vertices.len();
-            let mut contents = vec![[0.0; 4]; num_shapes * 3 * num_vertices];
-            for (content_chunk, shape) in contents.chunks_mut(3 * num_vertices).zip(&geometry.shapes) {
-                let mut contribution = DisplacementContribution::ZERO;
-                if !shape.vertices.is_empty() {
-                    contribution.position = 1.0;
-                    for (out, v) in content_chunk[0 * num_vertices .. 1 * num_vertices].iter_mut().zip(&shape.vertices) {
-                        *out = [v.x, v.y, v.z, 1.0];
-                    }
-                }
-                if !shape.normals.is_empty() {
-                    contribution.normal = 1.0;
-                    for (out, v) in content_chunk[1 * num_vertices .. 2 * num_vertices].iter_mut().zip(&shape.normals) {
-                        *out = [v.x, v.y, v.z, 0.0];
-                    }
-                }
-                if !shape.tangents.is_empty() {
-                    contribution.tangent = 1.0;
-                    for (out, &v) in content_chunk[2 * num_vertices .. 3 * num_vertices].iter_mut().zip(&shape.tangents) {
-                        *out = v.into();
-                    }
-                }
-                displacement_contributions.push(contribution);
-            }
-
-            let texture_and_view = self.backend
-                .create_texture_immutable::<[f32; 4]>(
-                    gfx::texture::Kind::D2(
-                        num_vertices as _,
-                        3 * num_shapes as gfx::texture::Size,
-                        gfx::texture::AaMode::Single,
-                    ),
-                    gfx::texture::Mipmap::Provided,
-                    &[gfx::memory::cast_slice(&contents)],
-                )
-                .unwrap();
-            Some(texture_and_view)
-        } else {
-            None
-        };
+        let gpu_data = self.create_gpu_data(geometry);
 
         Mesh {
             object: self.hub.lock().unwrap().spawn_visual(
                 material.into(),
-                GpuData {
-                    slice,
-                    vertices: vbuf,
-                    instances,
-                    displacements,
-                    pending: None,
-                    instance_cache_key: None,
-                    displacement_contributions,
-                },
+                gpu_data,
+                None,
+            ),
+        }
+    }
+
+    /// Creates a [`Mesh`] using geometry that has already been loaded to the GPU.
+    ///
+    /// See the module documentation in [`template`] for information on mesh instancing and
+    /// its benefits.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use three::Geometry;
+    ///
+    /// # let mut window = three::Window::new("Three-rs");
+    /// // Create geometry for a triangle.
+    /// let vertices = vec![
+    ///     [-0.5, -0.5, -0.5].into(),
+    ///     [0.5, -0.5, -0.5].into(),
+    ///     [0.0, 0.5, -0.5].into(),
+    /// ];
+    /// let geometry = Geometry::with_vertices(vertices);
+    ///
+    /// // Upload the triangle data to the GPU.
+    /// let upload_geometry = window.factory.upload_geometry(geometry);
+    ///
+    /// // Create multiple meshes with the same GPU data and material.
+    /// let material = three::material::Basic {
+    ///     color: 0xFFFF00,
+    ///     map: None,
+    /// };
+    /// let first = window.factory.create_instanced_mesh(&upload_geometry, material.clone());
+    /// let second = window.factory.create_instanced_mesh(&upload_geometry, material.clone());
+    /// let third = window.factory.create_instanced_mesh(&upload_geometry, material.clone());
+    /// ```
+    ///
+    /// [`Mesh`]: ./struct.Mesh.html
+    /// [`template`]: ./template/index.html#mesh-instancing
+    pub fn create_instanced_mesh<M: Into<Material>>(
+        &mut self,
+        geometry: &InstancedGeometry,
+        material: M,
+    ) -> Mesh {
+        // Create a clone of the geometry for this mesh.
+        let mut gpu_data = geometry.gpu_data.clone();
+        let material = material.into();
+
+        // Setup the GPU data for instanced rendering.
+        gpu_data.instance_cache_key = Some(InstanceCacheKey {
+            geometry: gpu_data.vertices.clone(),
+            material: material.clone(),
+        });
+
+        Mesh {
+            object: self.hub.lock().unwrap().spawn_visual(
+                material,
+                gpu_data,
                 None,
             ),
         }

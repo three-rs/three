@@ -14,80 +14,25 @@ use image;
 use material;
 use mint;
 use std::{fs, io};
+use std::collections::HashMap;
 
-use camera::Camera;
-use gltf::Gltf;
+use camera::{Orthographic, Perspective, Projection};
 use gltf_utils::AccessorIter;
-use object::Object;
-use skeleton::Skeleton;
 use std::path::{Path, PathBuf};
-use vec_map::VecMap;
 
-use {Group, Material, Mesh, Texture};
+use {Material, Texture};
 use geometry::{Geometry, Shape};
+use node::Transform;
 use super::Factory;
-
-fn build_scene_hierarchy(
-    factory: &mut Factory,
-    gltf: &gltf::Gltf,
-    scene: &gltf::Scene,
-    root: &Group,
-    heirarchy: &mut VecMap<Group>,
-) {
-    struct Item<'a> {
-        group: Group,
-        node: gltf::Node<'a>,
-    }
-
-    let mut stack = Vec::with_capacity(gltf.nodes().len());
-
-    for node in scene.nodes() {
-        let group = factory.group();
-        root.add(&group);
-        stack.push(Item { group, node });
-    }
-
-    while let Some(Item { group, node }) = stack.pop() {
-        for child_node in node.children() {
-            let child_group = factory.group();
-            group.add(&child_group);
-            stack.push(Item {
-                group: child_group,
-                node: gltf.nodes().nth(child_node.index()).unwrap()
-            });
-        }
-        heirarchy.insert(node.index(), group);
-    }
-}
-
-fn load_cameras(
-    factory: &mut Factory,
-    gltf: &gltf::Gltf,
-) -> Vec<Camera> {
-    let mut cameras = Vec::new();
-    for entry in gltf.cameras() {
-        match entry.projection() {
-            gltf::camera::Projection::Orthographic(values) => {
-                let center = mint::Point2::<f32>::from([0.0, 0.0]);
-                let yextent = values.ymag();
-                let range = values.znear() .. values.zfar();
-                let camera = factory.orthographic_camera(center, yextent, range);
-                cameras.push(camera);
-            }
-            gltf::camera::Projection::Perspective(values) => {
-                let yfov = values.yfov().to_degrees();
-                let near = values.znear();
-                let camera = if let Some(far) = values.zfar() {
-                    factory.perspective_camera(yfov, near .. far)
-                } else {
-                    factory.perspective_camera(yfov, near ..)
-                };
-                cameras.push(camera);
-            }
-        }
-    }
-    cameras
-}
+use template::{
+    AnimationTemplate,
+    BoneTemplate,
+    CameraTemplate,
+    InstancedGeometry,
+    MeshTemplate,
+    ObjectTemplate,
+    Template,
+};
 
 fn load_textures(
     factory: &mut Factory,
@@ -158,78 +103,71 @@ fn load_textures(
     textures
 }
 
-fn load_materials(
-    gltf: &Gltf,
+fn load_material<'a>(
+    mat: gltf::Material<'a>,
     textures: &[Texture<[f32; 4]>],
-) -> Vec<Material> {
-    let mut materials = Vec::new();
-    for mat in gltf.materials() {
-        let pbr = mat.pbr_metallic_roughness();
-        let mut is_basic_material = true;
-        let base_color_map = pbr.base_color_texture()
-            .map(|t| textures[t.as_ref().index()].clone());
-        let normal_map = mat.normal_texture().map(|t| {
-            is_basic_material = false;
-            textures[t.as_ref().index()].clone()
-        });
-        let emissive_map = mat.emissive_texture().map(|t| {
-            is_basic_material = false;
-            textures[t.as_ref().index()].clone()
-        });
-        let metallic_roughness_map = pbr.metallic_roughness_texture().map(|t| {
-            is_basic_material = false;
-            textures[t.as_ref().index()].clone()
-        });
-        let occlusion_map = mat.occlusion_texture().map(|t| {
-            is_basic_material = false;
-            textures[t.as_ref().index()].clone()
-        });
-        let (base_color_factor, base_color_alpha) = {
-            let x = pbr.base_color_factor();
-            (color::from_linear_rgb([x[0], x[1], x[2]]), x[3])
-        };
-        let material = if false {// is_basic_material {
-            material::Basic {
-                color: base_color_factor,
-                map: base_color_map,
-            }.into()
-        } else {
-            material::Pbr {
-                base_color_factor,
-                base_color_alpha,
-                metallic_factor: pbr.metallic_factor(),
-                roughness_factor: pbr.roughness_factor(),
-                occlusion_strength: mat.occlusion_texture().map_or(1.0, |t| {
-                    t.strength()
-                }),
-                emissive_factor: color::from_linear_rgb(mat.emissive_factor()),
-                normal_scale: mat.normal_texture().map_or(1.0, |t| {
-                    t.scale()
-                }),
-                base_color_map,
-                normal_map,
-                emissive_map,
-                metallic_roughness_map,
-                occlusion_map,
-            }.into()
-        };
-        materials.push(material);
+) -> Material {
+    let pbr = mat.pbr_metallic_roughness();
+    let mut is_basic_material = true;
+    let base_color_map = pbr.base_color_texture()
+        .map(|t| textures[t.as_ref().index()].clone());
+    let normal_map = mat.normal_texture().map(|t| {
+        is_basic_material = false;
+        textures[t.as_ref().index()].clone()
+    });
+    let emissive_map = mat.emissive_texture().map(|t| {
+        is_basic_material = false;
+        textures[t.as_ref().index()].clone()
+    });
+    let metallic_roughness_map = pbr.metallic_roughness_texture().map(|t| {
+        is_basic_material = false;
+        textures[t.as_ref().index()].clone()
+    });
+    let occlusion_map = mat.occlusion_texture().map(|t| {
+        is_basic_material = false;
+        textures[t.as_ref().index()].clone()
+    });
+    let (base_color_factor, base_color_alpha) = {
+        let x = pbr.base_color_factor();
+        (color::from_linear_rgb([x[0], x[1], x[2]]), x[3])
+    };
+
+    if false {// is_basic_material {
+        material::Basic {
+            color: base_color_factor,
+            map: base_color_map,
+        }.into()
+    } else {
+        material::Pbr {
+            base_color_factor,
+            base_color_alpha,
+            metallic_factor: pbr.metallic_factor(),
+            roughness_factor: pbr.roughness_factor(),
+            occlusion_strength: mat.occlusion_texture().map_or(1.0, |t| {
+                t.strength()
+            }),
+            emissive_factor: color::from_linear_rgb(mat.emissive_factor()),
+            normal_scale: mat.normal_texture().map_or(1.0, |t| {
+                t.scale()
+            }),
+            base_color_map,
+            normal_map,
+            emissive_map,
+            metallic_roughness_map,
+            occlusion_map,
+        }.into()
     }
-    materials
 }
 
-/// ### Implementation Notes
-///
-/// * Multiple 'sub-meshes' are returned since the concept of a
-///   mesh is different in `glTF` to `three`.
-/// * A `glTF` mesh consists of one or more _primitives_, which are
-///   equivalent to `three` meshes.
-fn load_meshes(
+fn load_primitive<'a>(
     factory: &mut Factory,
-    gltf: &gltf::Gltf,
-    materials: &[Material],
+    primitive: gltf::Primitive<'a>,
     buffers: &gltf_importer::Buffers,
-) -> VecMap<Vec<Mesh>> {
+    textures: &[Texture<[f32; 4]>],
+) -> (InstancedGeometry, Material) {
+    use gltf_utils::PrimitiveIterators;
+    use itertools::Itertools;
+
     fn load_morph_targets(
         primitive: &gltf::Primitive,
         buffers: &gltf_importer::Buffers,
@@ -255,272 +193,468 @@ fn load_meshes(
             .collect()
     }
 
-    let mut meshes = VecMap::new();
-    for mesh in gltf.meshes() {
-        let mut primitives = Vec::new();
-        for primitive in mesh.primitives() {
-            use gltf_utils::PrimitiveIterators;
-            use itertools::Itertools;
-            let mut faces = vec![];
-            if let Some(mut iter) = primitive.indices_u32(buffers) {
-                faces.extend(iter.tuples().map(|(a, b, c)| [a, b, c]));
-            }
-            let vertices: Vec<mint::Point3<f32>> = primitive
-                .positions(buffers)
-                .unwrap()
-                .map(|x| x.into())
-                .collect();
-            let normals = if let Some(iter) = primitive.normals(buffers) {
-                iter.map(|x| x.into()).collect()
-            } else {
-                Vec::new()
-            };
-            let tangents = if let Some(iter) = primitive.tangents(buffers) {
-                iter.map(|x| x.into()).collect()
-            } else {
-                Vec::new()
-            };
-            let tex_coords = if let Some(iter) = primitive.tex_coords_f32(0, buffers) {
-                iter.map(|x| x.into()).collect()
-            } else {
-                Vec::new()
-            };
-            let joint_indices = if let Some(iter) = primitive.joints_u16(0, buffers) {
-                iter.map(|x| [x[0] as i32, x[1] as i32, x[2] as i32, x[3] as i32]).collect()
-            } else {
-                Vec::new()
-            };
-            let joint_weights = if let Some(iter) = primitive.weights_f32(0, buffers) {
-                iter.collect()
-            } else {
-                Vec::new()
-            };
-            let shapes = load_morph_targets(&primitive, &buffers);
-            let geometry = Geometry {
-                base: Shape {
-                    vertices,
-                    normals,
-                    tangents,
-                },
-                tex_coords,
-                faces,
-                shapes,
-                joints: geometry::Joints {
-                    indices: joint_indices,
-                    weights: joint_weights,
-                },
-            };
-            let material = if let Some(index) = primitive.material().index() {
-                materials[index].clone()
-            } else {
-                material::Basic {
-                    color: 0xFFFFFF,
-                    map: None,
-                }.into()
-            };
-            let mesh = factory.mesh(geometry, material);
-            primitives.push(mesh);
-        }
-        meshes.insert(mesh.index(), primitives);
+    let mut faces = vec![];
+    if let Some(iter) = primitive.indices_u32(buffers) {
+        faces.extend(iter.tuples().map(|(a, b, c)| [a, b, c]));
     }
-    meshes
+    let vertices: Vec<mint::Point3<f32>> = primitive
+        .positions(buffers)
+        .unwrap()
+        .map(|x| x.into())
+        .collect();
+    let normals = if let Some(iter) = primitive.normals(buffers) {
+        iter.map(|x| x.into()).collect()
+    } else {
+        Vec::new()
+    };
+    let tangents = if let Some(iter) = primitive.tangents(buffers) {
+        iter.map(|x| x.into()).collect()
+    } else {
+        Vec::new()
+    };
+    let tex_coords = if let Some(iter) = primitive.tex_coords_f32(0, buffers) {
+        iter.map(|x| x.into()).collect()
+    } else {
+        Vec::new()
+    };
+    let joint_indices = if let Some(iter) = primitive.joints_u16(0, buffers) {
+        iter.map(|x| [x[0] as i32, x[1] as i32, x[2] as i32, x[3] as i32]).collect()
+    } else {
+        Vec::new()
+    };
+    let joint_weights = if let Some(iter) = primitive.weights_f32(0, buffers) {
+        iter.collect()
+    } else {
+        Vec::new()
+    };
+    let shapes = load_morph_targets(&primitive, &buffers);
+    let geometry = Geometry {
+        base: Shape {
+            vertices,
+            normals,
+            tangents,
+        },
+        tex_coords,
+        faces,
+        shapes,
+        joints: geometry::Joints {
+            indices: joint_indices,
+            weights: joint_weights,
+        },
+    };
+
+    let geometry = factory.upload_geometry(geometry);
+    let material = load_material(primitive.material(), textures);
+    (geometry, material)
 }
 
-
-fn load_skeletons(
-    factory: &mut Factory,
-    gltf: &Gltf,
-    heirarchy: &VecMap<Group>,
+/// Creates bone and skeleton templates from a glTF skin.
+///
+/// Returns two values:
+///
+/// * The index of the template node created for the skeleton.
+/// * The glTF index of the node used as the skeleton root (if any).
+///
+/// Additionally, this will add any newly created nodes to `nodes`, and will add any joints
+/// loaded to `joints`, allowing the bone node created to represent the joint to later be added
+/// as a child to the group that represents the original node.
+fn load_skin<'a>(
+    skin: gltf::Skin<'a>,
+    objects: &mut Vec<ObjectTemplate>,
+    bones: &mut Vec<BoneTemplate>,
     buffers: &gltf_importer::Buffers,
-) -> Vec<Skeleton> {
+) -> usize {
     use std::iter::repeat;
 
-    let mut skeletons = Vec::new();
-    for skin in gltf.skins() {
-        let mut ibms = Vec::new();
-        let mut bones = Vec::new();
-        if let Some(accessor) = skin.inverse_bind_matrices() {
-            for ibm in AccessorIter::<[[f32; 4]; 4]>::new(accessor, buffers) {
-                ibms.push(ibm.into());
-            }
+    let mut ibms = Vec::new();
+    if let Some(accessor) = skin.inverse_bind_matrices() {
+        for ibm in AccessorIter::<[[f32; 4]; 4]>::new(accessor, buffers) {
+            ibms.push(ibm.into());
         }
-        let mx_id = mint::ColumnMatrix4::from([
-            [1., 0., 0., 0.],
-            [0., 1., 0., 0.],
-            [0., 0., 1., 0.],
-            [0., 0., 0., 1.],
-        ]);
-        let ibm_iter = ibms.
-            into_iter().
-            chain(repeat(mx_id));
-        for (joint, ibm) in skin.joints().zip(ibm_iter) {
-            let bone = factory.bone(bones.len(), ibm);
-            heirarchy[&joint.index()].add(&bone);
-            bones.push(bone);
-        }
-        let skeleton = factory.skeleton(bones);
-        skeletons.push(skeleton);
     }
-    skeletons
+    let mx_id = mint::ColumnMatrix4::from([
+        [1., 0., 0., 0.],
+        [0., 1., 0., 0.],
+        [0., 0., 1., 0.],
+        [0., 0., 0., 1.],
+    ]);
+    let ibm_iter = ibms.
+        into_iter()
+        .chain(repeat(mx_id));
+
+    let joint_iter = skin
+        .joints()
+        .map(|joint| joint.index());
+    for (index, (joint_index, inverse_bind_matrix)) in joint_iter.zip(ibm_iter).enumerate() {
+        // Create a bone node corresponding to the joint.
+        let object = objects.len();
+        objects.push(ObjectTemplate {
+            parent: Some(joint_index),
+            .. Default::default()
+        });
+        bones.push(BoneTemplate {
+            object,
+            index,
+            inverse_bind_matrix,
+            skeleton: skin.index(),
+        });
+    }
+
+    // Create a skeleton template (which is really just an object template) for the skin.
+    let object = objects.len();
+    objects.push(ObjectTemplate {
+        parent: skin.skeleton().map(|node| node.index()),
+        .. Default::default()
+    });
+
+    object
 }
 
-fn load_clips(
-    gltf: &Gltf,
-    heirarchy: &VecMap<Group>,
+fn load_animation<'a>(
+    animation: gltf::Animation<'a>,
     buffers: &gltf_importer::Buffers,
-) -> Vec<animation::Clip> {
+    groups: &[usize],
+) -> AnimationTemplate {
     use gltf::animation::InterpolationAlgorithm::*;
-    let mut clips = Vec::new();
-    for animation in gltf.animations() {
-        let mut tracks = Vec::new();
-        let name = animation.name().map(str::to_string);
-        for channel in animation.channels() {
-            let sampler = channel.sampler();
-            let target = channel.target();
-            let node = target.node();
-            let object = match heirarchy.get(node.index()) {
-                Some(object) => object.upcast(),
-                // This animation does not correspond to any loaded node.
-                None => continue,
-            };
-            let input = sampler.input();
-            let output = sampler.output();
-            let interpolation = match sampler.interpolation() {
-                Linear => animation::Interpolation::Linear,
-                Step => animation::Interpolation::Discrete,
-                CubicSpline => animation::Interpolation::Cubic,
-                CatmullRomSpline => animation::Interpolation::Cubic,
-            };
-            use animation::{Binding, Track, Values};
-            let times: Vec<f32> = AccessorIter::new(input, buffers).collect();
-            let (binding, values) = match target.path() {
-                gltf::animation::TrsProperty::Translation => {
-                    let values = AccessorIter::<[f32; 3]>::new(output, buffers)
-                        .map(|v| mint::Vector3::from(v))
-                        .collect::<Vec<_>>();
-                    assert_eq!(values.len(), times.len());
-                    (Binding::Position, Values::Vector3(values))
-                }
-                gltf::animation::TrsProperty::Rotation => {
-                    let values = AccessorIter::<[f32; 4]>::new(output, buffers)
-                        .map(|r| mint::Quaternion::from(r))
-                        .collect::<Vec<_>>();
-                    assert_eq!(values.len(), times.len());
-                    (Binding::Orientation, Values::Quaternion(values))
-                }
-                gltf::animation::TrsProperty::Scale => {
-                    // TODO: Groups do not handle non-uniform scaling, so for now
-                    // we'll choose Y to be the scale factor in all directions.
-                    let values = AccessorIter::<[f32; 3]>::new(output, buffers)
-                        .map(|s| s[1])
-                        .collect::<Vec<_>>();
-                    assert_eq!(values.len(), times.len());
-                    (Binding::Scale, Values::Scalar(values))
-                }
-                gltf::animation::TrsProperty::Weights => {
-                    // write all values for target[0] first, then all values for target[1], etc
-                    let num_targets = node.mesh().unwrap().primitives().next().unwrap().morph_targets().len();
-                    let mut values = vec![0.0; times.len() * num_targets];
-                    let raw = AccessorIter::<f32>::new(output, buffers).collect::<Vec<_>>();
-                    for (i, chunk) in raw.chunks(num_targets).enumerate() {
-                        for (j, value) in chunk.iter().enumerate() {
-                            values[j * times.len() + i] = *value;
-                        }
+
+    let mut tracks = Vec::new();
+    let name = animation.name().map(str::to_string);
+    for channel in animation.channels() {
+        let sampler = channel.sampler();
+        let target = channel.target();
+        let node = target.node();
+        let input = sampler.input();
+        let output = sampler.output();
+        let interpolation = match sampler.interpolation() {
+            Linear => animation::Interpolation::Linear,
+            Step => animation::Interpolation::Discrete,
+            CubicSpline => animation::Interpolation::Cubic,
+            CatmullRomSpline => animation::Interpolation::Cubic,
+        };
+        use animation::{Binding, Track, Values};
+        let times: Vec<f32> = AccessorIter::new(input, buffers).collect();
+        let (binding, values) = match target.path() {
+            gltf::animation::TrsProperty::Translation => {
+                let values = AccessorIter::<[f32; 3]>::new(output, buffers)
+                    .map(|v| mint::Vector3::from(v))
+                    .collect::<Vec<_>>();
+                assert_eq!(values.len(), times.len());
+                (Binding::Position, Values::Vector3(values))
+            }
+            gltf::animation::TrsProperty::Rotation => {
+                let values = AccessorIter::<[f32; 4]>::new(output, buffers)
+                    .map(|r| mint::Quaternion::from(r))
+                    .collect::<Vec<_>>();
+                assert_eq!(values.len(), times.len());
+                (Binding::Orientation, Values::Quaternion(values))
+            }
+            gltf::animation::TrsProperty::Scale => {
+                // TODO: Groups do not handle non-uniform scaling, so for now
+                // we'll choose Y to be the scale factor in all directions.
+                let values = AccessorIter::<[f32; 3]>::new(output, buffers)
+                    .map(|s| s[1])
+                    .collect::<Vec<_>>();
+                assert_eq!(values.len(), times.len());
+                (Binding::Scale, Values::Scalar(values))
+            }
+            gltf::animation::TrsProperty::Weights => {
+                // Write all values for target[0] first, then all values for target[1], etc.
+                let num_targets = node
+                    .mesh()
+                    .unwrap()
+                    .primitives()
+                    .next()
+                    .unwrap()
+                    .morph_targets()
+                    .len();
+                let mut values = vec![0.0; times.len() * num_targets];
+                let raw = AccessorIter::<f32>::new(output, buffers).collect::<Vec<_>>();
+                for (i, chunk) in raw.chunks(num_targets).enumerate() {
+                    for (j, value) in chunk.iter().enumerate() {
+                        values[j * times.len() + i] = *value;
                     }
-                    (Binding::Weights, Values::Scalar(values))
                 }
-            };
-            tracks.push((
-                Track {
-                    binding,
-                    interpolation,
-                    times,
-                    values,
-                },
-                object,
-            ));
-        }
-        clips.push(animation::Clip { name, tracks });
+                (Binding::Weights, Values::Scalar(values))
+            }
+        };
+        tracks.push((
+            Track {
+                binding,
+                interpolation,
+                times,
+                values,
+            },
+
+            // Target the object for the group that corresponds to the target node.
+            groups[node.index()],
+        ));
     }
-    clips
+
+    AnimationTemplate {
+        name,
+        tracks,
+    }
 }
 
-fn bind_objects(
-    factory: &mut Factory,
-    gltf: &gltf::Gltf,
-    heirarchy: &VecMap<Group>,
-    meshes: &VecMap<Vec<Mesh>>,
-    skeletons: &[Skeleton],
-) -> Vec<Mesh> {
-    let mut instances = Vec::new();
-    for node in gltf.nodes() {
-        if let Some(ref group) = heirarchy.get(node.index()) {
-            if let Some(mesh) = node.mesh() {
-                let mut primitives = meshes[mesh.index()]
-                    .iter()
-                    .map(|template| factory.mesh_instance(template))
-                    .collect::<Vec<Mesh>>();
-                for primitive in &primitives {
-                    group.add(primitive);
-                }
-                if let Some(skin) = node.skin() {
-                    let skeleton = &skeletons[skin.index()];
-                    group.add(skeleton);
-                    for primitive in &mut primitives {
-                        primitive.set_skeleton(skeleton.clone());
-                    }
-                }
-                for primitive in primitives {
-                    instances.push(primitive);
-                }
-            }
+/// Partially loads a single glTF node and creates template nodes from its data.
+///
+/// Adds a `Group` template node to `nodes`, which directly represents `node`. The following
+/// additional nodes may also be added:
+///
+/// * One `Mesh` template node will be added for each mesh primitive in the mesh referenced by
+///   `node`, if any.
+/// * One `Camera` template node will be added if `node` references a camera, using the
+///   projection data for the camera referenced.
+///
+/// Any additional nodes will be listed as children of the initial `Group` template node.
+///
+/// # Warning
+///
+/// The `Group` template node corresponding to `node` will *only* list the mesh and camera
+/// templates as its children, any children that `node` specifies will not be added by this
+/// function. We can't yet add the children declared in the original document because we don't
+/// know the indices that the corresponding template nodes will have until we've loaded and
+/// processed all nodes declared in the document. Those children are added in a final pass after
+/// all glTF nodes have been added to the template (see `Factory::load_gltf`).
+fn load_node<'a>(
+    node: gltf::Node<'a>,
+    objects: &mut Vec<ObjectTemplate>,
+    meshes: &mut Vec<MeshTemplate>,
+    cameras: &mut Vec<CameraTemplate>,
+    mesh_map: &HashMap<usize, Vec<usize>>,
+    primitives: &[(InstancedGeometry, Material)],
+) -> usize {
+    let name = node.name().map(Into::into);
+
+    // Decompose the transform to get the translation, rotation, and scale.
+    let (translation, rotation, scale) = node.transform().decomposed();
+
+    // TODO: Groups do not handle non-uniform scaling, so for now we'll choose Y to be the
+    // scale factor in all directions.
+    let scale = scale[1];
+
+    // Create a `Group` node to directly represent the original glTF node, listing any extra
+    // nodes we needed to create as its children.
+    let object_index = objects.len();
+    objects.push(ObjectTemplate {
+        name,
+
+        transform: Transform {
+            position: translation.into(),
+            orientation: rotation.into(),
+            scale,
+        },
+
+        // NOTE: Since glTF has parents list their children, and three-rs templates do the
+        // opposite, we wait to hook up parent/child relationships until all group templates
+        // have been created. Group templates are hooked up to their parent in a pass immediately
+        // following loading all nodes from the glTF data.
+        parent: None,
+    });
+
+    // Create mesh/skinned mesh nodes for any meshes associated with this glTF node.
+    let skeleton = node.skin().map(|skin| skin.index());
+    if let Some(gltf_mesh) = node.mesh() {
+        for &geometry_index in &mesh_map[&gltf_mesh.index()] {
+            let (geometry, material) = primitives[geometry_index].clone();
+            let object = objects.len();
+            objects.push(ObjectTemplate {
+                parent: Some(node.index()),
+                .. Default::default()
+            });
+            meshes.push(MeshTemplate {
+                object,
+                geometry,
+                material,
+                skeleton,
+            });
         }
     }
-    instances
+
+    // Create a camera node as a child if there's a camera associated with this glTF node.
+    if let Some(camera) = node.camera() {
+        let object = objects.len();
+        objects.push(ObjectTemplate {
+            parent: Some(node.index()),
+            .. Default::default()
+        });
+        cameras.push(CameraTemplate {
+            object,
+            projection: load_camera(camera),
+        })
+    }
+
+    object_index
+}
+
+fn load_camera<'a>(
+    entry: gltf::Camera<'a>,
+) -> Projection {
+    match entry.projection() {
+        gltf::camera::Projection::Orthographic(values) => {
+            let center = mint::Point2::<f32>::from([0.0, 0.0]);
+            let extent_y = values.ymag();
+            let range = values.znear() .. values.zfar();
+            Projection::Orthographic(Orthographic { center, extent_y, range })
+        }
+
+        gltf::camera::Projection::Perspective(values) => {
+            let fov_y = values.yfov().to_degrees();
+            let near = values.znear();
+            let zrange = match values.zfar() {
+                Some(far) => (near .. far).into(),
+                None => (near ..).into(),
+            };
+            Projection::Perspective(Perspective { fov_y, zrange })
+        }
+    }
+}
+
+fn load_scene<'a>(scene: gltf::Scene<'a>, raw: &Template) -> Template {
+    // TODO: Create a new template that just contains the objects for the specified scene.
+
+    Template {
+        name: scene.name().map(Into::into),
+        .. raw.clone()
+    }
 }
 
 impl super::Factory {
-    /// Load a scene from glTF 2.0 format.
+    /// Loads templates from a glTF 2.0 file.
+    ///
+    /// The returned [`Template`] objects cannot be added to the scene directly, rather they
+    /// contain definitions for meshes, node hierarchies, skinned meshes and their skeletons,
+    /// animations, and other things that can be instantiated and added to the scene. Use
+    /// [`Factory::instantiate_template`] to create an instance of the template that can be
+    /// added to your scene. See the module documentation for [`template`] for more information
+    /// on templates and how they are used.
+    ///
+    /// Each scene in the glTF file results in a separate [`Template`]. Any animations that
+    /// reference nodes in a scene will be included in that scene's [`Template`].
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use three::animation;
+    ///
+    /// # let mut window = three::Window::new("Three-rs");
+    /// // Load all templates from a glTF file.
+    /// let mut templates = window.factory.load_gltf("my-model.gltf");
+    ///
+    /// // Instantiate the first template loaded and add the root group to the scene.
+    /// let (root, animations) = window.factory.instantiate_template(&templates[0]);
+    /// window.scene.add(&root);
+    ///
+    /// // Start playing all the animations instantiated from the template.
+    /// let mut mixer = animation::Mixer::new();
+    /// for animation in animations {
+    ///     mixer.action(animation);
+    /// }
+    /// ```
+    ///
+    /// [`template`]: ./template/index.html
+    /// [`Template`]: ./template/struct.Template.html
+    /// [`Factory::instantiate_template`]: #method.instantiate_template
     pub fn load_gltf(
         &mut self,
         path_str: &str,
-    ) -> super::Gltf {
-        info!("Loading {}", path_str);
+    ) -> Vec<Template> {
+        info!("Loading glTF file {}", path_str);
+
         let path = Path::new(path_str);
         let base = path.parent().unwrap_or(&Path::new(""));
         let (gltf, buffers) = gltf_importer::import(path).expect("invalid glTF 2.0");
 
+        let textures = load_textures(self, &gltf, base, &buffers);
+
+        // Mappings that allow us to convert from indices in the glTF document to the indices in
+        // the resulting template, for objects where the two don't necessarily line up.
+        let mut mesh_map = HashMap::new();
+
+        // Load the meshes declared in the glTF file. Each glTF mesh declaration can potentially
+        // result in multiple Three meshes, so in doing so we flatten them to a single list of
+        // meshes, and populate `mesh_map` with information on how to lookup meshes in the
+        // flattened list given the index in the original glTF document.
+        let mut primitives = Vec::new();
+        for gltf_mesh in gltf.meshes() {
+            // Save the index within the glTF document so that we can add an entry to the mesh map.
+            let gltf_index = gltf_mesh.index();
+
+            // Add all of the meshes to the flattened list of meshes, and generate a list of new
+            // indices that can be used to map from the glTF index to the flattened indices.
+            let mut indices = Vec::new();
+            let prim_iter = gltf_mesh
+                .primitives()
+                .map(|prim| load_primitive(self, prim, &buffers, &textures));
+            for primitive in prim_iter {
+                indices.push(primitives.len());
+                primitives.push(primitive);
+            }
+
+            // Add the list of mesh indices to the mesh map.
+            mesh_map.insert(gltf_index, indices);
+        }
+
+        // The full list of template nodes created from the glTF file. We know there will be at
+        // least as many template nodes as nodes in the original glTF file, but there will likely
+        // be many since many things in the glTF format end up as their own template nodes.
+        let mut objects = Vec::with_capacity(gltf.nodes().len());
+        let mut meshes = Vec::new();
         let mut cameras = Vec::new();
-        let mut clips = Vec::new();
-        let mut heirarchy = VecMap::new();
-        let mut instances = Vec::new();
-        let mut materials = Vec::new();
-        let mut meshes = VecMap::new();
-        let root = self.group();
-        let mut skeletons = Vec::new();
-        let mut textures = Vec::new();
 
-        if let Some(scene) = gltf.default_scene() {
-            build_scene_hierarchy(self, &gltf, &scene, &root, &mut heirarchy);
-            cameras = load_cameras(self, &gltf);
-            textures = load_textures(self, &gltf, base, &buffers);
-            materials = load_materials(&gltf, &textures);
-            meshes = load_meshes(self, &gltf, &materials, &buffers);
-            skeletons = load_skeletons(self, &gltf, &heirarchy, &buffers);
-            clips = load_clips(&gltf, &heirarchy, &buffers);
-            instances = bind_objects(self, &gltf, &heirarchy, &meshes, &skeletons);
+        // Create template nodes from each of the glTF nodes.
+        let groups: Vec<_> = gltf
+            .nodes()
+            .map(|node| {
+                load_node(node, &mut objects, &mut meshes, &mut cameras, &mesh_map, &primitives)
+            })
+            .collect();
+
+        // Fix-up any group nodes in the template by adding their original children to their
+        // list of children.
+        for gltf_node in gltf.nodes() {
+            // For each of the children originally declared, lookup the index of the node in the
+            // final template and add it to the group's list of children.
+            for child_index in gltf_node.children().map(|child| child.index()) {
+                let object = &mut objects[groups[child_index]];
+
+                assert!(object.parent.is_none(), "Object template already had a parent specified");
+                object.parent = Some(gltf_node.index());
+            }
         }
 
-        super::Gltf {
+        // Create a skeleton template for each of the skins in the glTF document.
+        let mut bones = Vec::new();
+        let skeletons = gltf
+            .skins()
+            .map(|skin| load_skin(skin, &mut objects, &mut bones, &buffers))
+            .collect();
+
+        // Create an animation template from any animations in the glTF file.
+        let animations = gltf
+            .animations()
+            .map(|anim| load_animation(anim, &buffers, &groups))
+            .collect();
+
+        let raw_template = Template {
+            name: None,
+            objects,
+            groups,
             cameras,
-            clips,
-            heirarchy,
-            instances,
-            materials,
             meshes,
-            root,
+            lights: Vec::new(),
+            bones,
             skeletons,
-            textures,
+            animations,
+        };
+
+        if gltf.scenes().len() > 1 {
+            warn!("Mutliple scenes found in {}, glTF loading does not currently work correctly for glTF files with multiple scenes", path.display());
         }
+
+        gltf
+            .scenes()
+            .map(|scene| load_scene(scene, &raw_template))
+            .collect()
     }
 }

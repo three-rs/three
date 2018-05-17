@@ -307,6 +307,7 @@ pub mod render;
 pub mod scene;
 pub mod skeleton;
 mod sprite;
+pub mod template;
 mod text;
 mod texture;
 mod util;
@@ -325,10 +326,6 @@ pub use controls::{Button, MouseButton, Input, Timer};
 
 #[doc(inline)]
 pub use factory::Factory;
-
-#[cfg(feature = "gltf-loader")]
-#[doc(inline)]
-pub use factory::Gltf;
 
 #[doc(inline)]
 pub use geometry::{Geometry, Joints, Shape};

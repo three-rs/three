@@ -1,5 +1,6 @@
 //! Mesh skinning.
 
+use mint;
 use object;
 
 /// Contains array of bones.
@@ -17,3 +18,6 @@ pub struct Bone {
     pub(crate) object: object::Base,
 }
 three_object!(Bone::object);
+
+/// A matrix defining how bind mesh nodes to a bone.
+pub type InverseBindMatrix = mint::ColumnMatrix4<f32>;

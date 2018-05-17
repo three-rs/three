@@ -109,7 +109,7 @@ impl Hash for DynamicMesh {
 impl Mesh {
     /// Set mesh material.
     pub fn set_material<M: Into<Material>>(
-        &mut self,
+        &self,
         material: M,
     ) {
         self.as_ref().send(Operation::SetMaterial(material.into()));
@@ -117,7 +117,7 @@ impl Mesh {
 
     /// Bind a skeleton to the mesh.
     pub fn set_skeleton(
-        &mut self,
+        &self,
         skeleton: Skeleton,
     ) {
         self.as_ref().send(Operation::SetSkeleton(skeleton));

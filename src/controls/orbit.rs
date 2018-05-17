@@ -27,6 +27,7 @@ pub struct Orbit {
 pub struct Builder {
     object: object::Base,
     position: mint::Point3<f32>,
+    up: mint::Vector3<f32>,
     target: mint::Point3<f32>,
     button: Button,
     speed: f32,
@@ -38,6 +39,7 @@ impl Builder {
         Builder {
             object: object.upcast(),
             position: [0.0, 0.0, 0.0].into(),
+            up: [0.0, 0.0, 1.0].into(),
             target: [0.0, 0.0, 0.0].into(),
             button: MOUSE_LEFT,
             speed: 1.0,
@@ -55,6 +57,20 @@ impl Builder {
         P: Into<mint::Point3<f32>>,
     {
         self.position = position.into();
+        self
+    }
+
+    /// Sets the initial up direction.
+    ///
+    /// Defaults to the unit z axis.
+    pub fn up<P>(
+        &mut self,
+        up: P,
+    ) -> &mut Self
+    where
+        P: Into<mint::Vector3<f32>>
+    {
+        self.up = up.into();
         self
     }
 
@@ -93,8 +109,8 @@ impl Builder {
     /// Finalize builder and create new `OrbitControls`.
     pub fn build(&mut self) -> Orbit {
         let dir = (Point3::from(self.position) - Point3::from(self.target)).normalize();
-        let up = Vector3::unit_z();
-        let q = Quaternion::look_at(dir, up).invert();
+        let up = self.up;
+        let q = Quaternion::look_at(dir, up.into()).invert();
         let object = self.object.clone();
         object.set_transform(self.position, q, 1.0);
         let transform = Decomposed {
