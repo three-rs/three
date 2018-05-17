@@ -42,6 +42,10 @@ macro_rules! three_object {
             }
         }
 
-        impl $crate::Object for $name {}
+        impl $crate::Object for $name {
+            type Data = ();
+
+            fn resolve_data(&self, _: &mut $crate::scene::SyncGuard) -> Self::Data {}
+        }
     };
 }

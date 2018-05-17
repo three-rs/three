@@ -131,7 +131,11 @@ impl AsRef<object::Base> for Gltf {
 }
 
 #[cfg(feature = "gltf-loader")]
-impl object::Object for Gltf {}
+impl object::Object for Gltf {
+    type Data = ();
+
+    fn resolve_data(&self, _: &mut ::scene::SyncGuard) -> Self::Data {}
+}
 
 fn f2i(x: f32) -> I8Norm {
     I8Norm(cmp::min(cmp::max((x * 127.0) as isize, -128), 127) as i8)

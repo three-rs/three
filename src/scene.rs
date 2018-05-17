@@ -150,8 +150,8 @@ impl Scene {
 ///
 /// [`object::Base::sync`]: ../object/struct.Base.html#method.sync
 pub struct SyncGuard<'a> {
-    scene: &'a Scene,
-    hub: MutexGuard<'a, Hub>,
+    pub(crate) scene: &'a Scene,
+    pub(crate) hub: MutexGuard<'a, Hub>,
 }
 
 impl<'a> SyncGuard<'a> {
@@ -194,6 +194,23 @@ impl<'a> SyncGuard<'a> {
             },
             _space: PhantomData,
         }
+    }
+
+    /// Obtains `object`'s internal data.
+    ///
+    /// Three-rs objects normally expose a write-only interface, making it possible to change
+    /// an object's internal values but not possible to read those values. `SyncGuard` allows
+    /// for that data to be read in a controlled way.
+    ///
+    /// Each object type has its own internal data, and not all object types can provide access
+    /// to meaningful data. The following types provide specific data you can use:
+    ///
+    /// * [`Base`]:
+    pub fn resolve_data<T: 'a + Object>(
+        &mut self,
+        object: &T,
+    ) -> T::Data {
+        object.resolve_data(self)
     }
 }
 

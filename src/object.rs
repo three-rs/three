@@ -6,8 +6,15 @@ use std::sync::mpsc;
 
 use mint;
 
-use hub::{Hub, Message, Operation, SubNode};
+use audio;
+use hub::{Hub, Message, Operation, SubLight, SubNode};
+use light;
+use mesh::Mesh;
 use node::NodePointer;
+use scene::SyncGuard;
+use skeleton::{Bone, Skeleton};
+use sprite::Sprite;
+use text::Text;
 
 //Note: no local state should be here, only remote links
 /// `Base` represents a concrete entity that can be added to the scene.
@@ -32,6 +39,23 @@ pub struct Base {
 
 /// Marks data structures that are able to added to the scene graph.
 pub trait Object: AsRef<Base> {
+    /// The internal data for the object.
+    ///
+    /// Three-rs objects normally expose a write-only interface, making it possible to change
+    /// an object's internal values but not possible to read those values.
+    /// [`SyncGuard::resolve_data`] allows for that data to be read in a controlled way, with.
+    /// the data for the specific object type determined by the `Data` trait member.
+    ///
+    /// Each object type has its own internal data, and not all object types can provide access
+    /// to meaningful data. Types that cannot provide user-facing data will specify `()`
+    /// for `Data`.
+    type Data;
+
+    /// Retrieves the internal data for the object.
+    ///
+    /// Prefer to use [`SyncGuard::resolve_data`] instead.
+    fn resolve_data(&self, sync_guard: &mut SyncGuard) -> Self::Data;
+
     /// Converts into the base type.
     fn upcast(&self) -> Base {
         self.as_ref().clone()
@@ -175,7 +199,101 @@ impl AsRef<Base> for Base {
         self
     }
 }
-impl Object for Base {}
+
+impl Object for Base {
+    type Data = ObjectType;
+
+    fn resolve_data(&self, sync_guard: &mut SyncGuard) -> Self::Data {
+        let node = &sync_guard.hub[self];
+        match &node.sub_node {
+            // TODO: Handle resolving cameras better (`Empty` is only used for cameras).
+            SubNode::Empty => unimplemented!("Cameras need to be changed my dude"),
+
+            SubNode::Group { .. } => ObjectType::Group(Group {
+                object: self.clone(),
+            }),
+
+            SubNode::Audio(..) => ObjectType::AudioSource(audio::Source {
+                object: self.clone(),
+            }),
+
+            SubNode::UiText(..) => ObjectType::Text(Text {
+                object: self.clone(),
+            }),
+
+            // TODO: Differentiate between `Mesh` and `DynamicMesh`.
+            SubNode::Visual(..) => ObjectType::Mesh(Mesh {
+                object: self.clone(),
+            }),
+
+            SubNode::Bone { .. } => ObjectType::Bone(Bone {
+                object: self.clone(),
+            }),
+
+            SubNode::Skeleton(..) => ObjectType::Skeleton(Skeleton {
+                object: self.clone(),
+            }),
+
+            SubNode::Light(light) => match light.sub_light {
+                SubLight::Ambient => ObjectType::AmbientLight(light::Ambient {
+                    object: self.clone(),
+                }),
+
+                SubLight::Directional => ObjectType::DirectionalLight(light::Directional {
+                    object: self.clone(),
+                    shadow: light.shadow.as_ref().map(|&(ref map, _)| map.clone()),
+                }),
+
+                SubLight::Point => ObjectType::PointLight(light::Point {
+                    object: self.clone(),
+                }),
+
+                SubLight::Hemisphere { .. } => ObjectType::HemisphereLight(light::Hemisphere {
+                    object: self.clone(),
+                }),
+            },
+        }
+    }
+}
+
+/// The possible concrete types that a [`Base`] can be resolved to.
+///
+/// When using [`SyncGuard::resolve_data`] with a [`Base`], it will resolve to the concrete
+/// object type that the base represents.
+pub enum ObjectType {
+    /// An audio source.
+    AudioSource(audio::Source),
+
+    /// An ambient light.
+    AmbientLight(light::Ambient),
+
+    /// A directional light.
+    DirectionalLight(light::Directional),
+
+    /// A hemisphere light.
+    HemisphereLight(light::Hemisphere),
+
+    /// A point light.
+    PointLight(light::Point),
+
+    /// A mesh.
+    Mesh(Mesh),
+
+    /// A group.
+    Group(Group),
+
+    /// A skeleton.
+    Skeleton(Skeleton),
+
+    /// A bone in a skeleton.
+    Bone(Bone),
+
+    /// A 2D sprite.
+    Sprite(Sprite),
+
+    /// A UI text object.
+    Text(Text),
+}
 
 /// Groups are used to combine several other objects or groups to work with them
 /// as with a single entity.
@@ -183,7 +301,35 @@ impl Object for Base {}
 pub struct Group {
     object: Base,
 }
-three_object!(Group::object);
+
+impl AsRef<Base> for Group {
+    fn as_ref(&self) -> &Base { &self.object }
+}
+
+impl Object for Group {
+    type Data = Vec<Base>;
+
+    fn resolve_data(&self, sync_guard: &mut SyncGuard) -> Vec<Base> {
+        let mut children = Vec::new();
+        let node = &sync_guard.hub[self];
+
+        let mut child = match node.sub_node {
+            SubNode::Group { ref first_child } => first_child.clone(),
+            _ => panic!("`Group` had a bad sub node type: {:?}", node.sub_node),
+        };
+
+        while let Some(child_pointer) = child {
+            child = sync_guard.hub.nodes[&child_pointer].next_sibling.clone();
+
+            children.push(Base {
+                node: child_pointer,
+                tx: sync_guard.hub.message_tx.clone(),
+            });
+        }
+
+        children
+    }
+}
 
 impl Group {
     pub(crate) fn new(hub: &mut Hub) -> Self {
