@@ -3,7 +3,7 @@
 use node;
 use color::Color;
 use hub::{Hub, HubPtr, SubNode};
-use object::{Base, Object};
+use object::{Base, Group, Object};
 use texture::{CubeMap, Texture};
 
 use std::mem;
@@ -211,6 +211,21 @@ impl<'a> SyncGuard<'a> {
         object: &T,
     ) -> T::Data {
         object.resolve_data(self)
+    }
+
+    /// Finds a node in a group, or any of its children, by name.
+    ///
+    /// Performs a depth-first search starting with `root` looking for an object with `name`.
+    /// Returns the [`Base`] for the first object found with a matching name, otherwise returns
+    /// `None` if no such object is found. Note that if more than one object exists in the
+    /// hierarchy, then only the first one discovered will be returned.
+    pub fn find_child(&mut self, root: &Group, name: &str) -> Option<Base> {
+        let root = root.as_ref().node.clone();
+        self
+            .hub
+            .walk_all(&Some(root))
+            .find(|walked| walked.node.name.as_ref().map(|node_name| node_name == name).unwrap_or(false))
+            .map(|walked| self.hub.upgrade_ptr(walked.node_ptr.clone()))
     }
 }
 
