@@ -158,6 +158,14 @@ impl Hub {
         self.spawn(SubNode::Skeleton(data))
     }
 
+    /// Upgrades a `NodePointer` to a `Base`.
+    pub(crate) fn upgrade_ptr(&self, ptr: NodePointer) -> Base {
+        Base {
+            node: ptr,
+            tx: self.message_tx.clone(),
+        }
+    }
+
     pub(crate) fn process_messages(&mut self) {
         while let Ok((weak_ptr, operation)) = self.message_rx.try_recv() {
             let ptr = match weak_ptr.upgrade() {
@@ -376,6 +384,7 @@ impl Hub {
 
 #[derive(Debug)]
 pub(crate) struct WalkedNode<'a> {
+    pub(crate) node_ptr: NodePointer,
     pub(crate) node: &'a NodeInternal,
     pub(crate) world_visible: bool,
     pub(crate) world_transform: TransformInternal,
@@ -389,18 +398,21 @@ pub(crate) struct TreeWalker<'a> {
 
 impl<'a> TreeWalker<'a> {
     fn descend(&mut self, base: &Option<NodePointer>) -> Option<&NodeInternal> {
+        let base = base.as_ref()?;
         // Note: this is a CPU hotspot, presumably for copying stuff around
         // TODO: profile carefully and optimize
-        let mut node = &self.hub.nodes[base.as_ref()?];
+        let mut node = &self.hub.nodes[base];
 
         loop {
             let wn = match self.stack.last() {
                 Some(parent) => WalkedNode {
+                    node_ptr: base.clone(),
                     node,
                     world_visible: parent.world_visible && node.visible,
                     world_transform: parent.world_transform.concat(&node.transform),
                 },
                 None => WalkedNode {
+                    node_ptr: base.clone(),
                     node,
                     world_visible: node.visible,
                     world_transform: node.transform,
