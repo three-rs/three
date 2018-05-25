@@ -3,7 +3,7 @@
 use node;
 use color::Color;
 use hub::{Hub, HubPtr, SubNode};
-use object::{Base, Group, Object};
+use object::{Base, DowncastObject, Group, Object};
 use texture::{CubeMap, Texture};
 
 use std::mem;
@@ -226,6 +226,23 @@ impl<'a> SyncGuard<'a> {
             .walk_all(&Some(root))
             .find(|walked| walked.node.name.as_ref().map(|node_name| node_name == name).unwrap_or(false))
             .map(|walked| self.hub.upgrade_ptr(walked.node_ptr.clone()))
+    }
+
+    /// Attempts to find an object of type `T` in the group or any of its children.
+    pub fn find_child_of_type<T: DowncastObject>(&mut self, root: &Group, name: &str) -> Option<T> {
+        // TODO: This implementation is not ideal because it will only attempt to downcast the
+        // first child with a matching name. If there are multiple children with a matching name
+        // all of them should be checked against `T` before returning `None`.
+        self.find_child(root, name).and_then(|base| self.downcast(&base))
+    }
+
+    /// Attempts to downcast a [`Base`] to its concrete object type.
+    ///
+    /// If the downcast succeeds, the concrete object is returned. Returns `None` if the
+    /// downcast fails.
+    pub fn downcast<T: DowncastObject>(&mut self, base: &Base) -> Option<T> {
+        let object_type = self.resolve_data(base);
+        T::downcast(object_type)
     }
 }
 
