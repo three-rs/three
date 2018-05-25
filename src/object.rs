@@ -7,6 +7,7 @@ use std::sync::mpsc;
 use mint;
 
 use audio;
+use camera::Camera;
 use hub::{Hub, Message, Operation, SubLight, SubNode};
 use light;
 use mesh::Mesh;
@@ -207,7 +208,9 @@ impl Object for Base {
         let node = &sync_guard.hub[self];
         match &node.sub_node {
             // TODO: Handle resolving cameras better (`Empty` is only used for cameras).
-            SubNode::Empty => unimplemented!("Cameras need to be changed my dude"),
+            SubNode::Camera(..) => ObjectType::Camera(Camera {
+                object: self.clone(),
+            }),
 
             SubNode::Group { .. } => ObjectType::Group(Group {
                 object: self.clone(),
@@ -293,6 +296,9 @@ pub enum ObjectType {
 
     /// A UI text object.
     Text(Text),
+
+    /// A camera.
+    Camera(Camera),
 }
 
 /// Marks an object type that can be downcast from a [`Base`].

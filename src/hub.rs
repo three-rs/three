@@ -1,4 +1,5 @@
 use audio::{AudioData, Operation as AudioOperation};
+use camera::Projection;
 use color::{self, Color};
 use light::{ShadowMap, ShadowProjection};
 use material::Material;
@@ -51,8 +52,8 @@ pub(crate) struct VisualData {
 
 #[derive(Debug)]
 pub(crate) enum SubNode {
-    /// No extra data.
-    Empty,
+    /// Camera for rendering a scene.
+    Camera(Projection),
     /// Group can be a parent to other objects.
     Group { first_child: Option<NodePointer> },
     /// Audio data.

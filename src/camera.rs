@@ -100,27 +100,15 @@ pub enum Projection {
 /// [`Projection`]: enum.Projection.html
 #[derive(Clone, Debug, PartialEq)]
 pub struct Camera {
-    object: object::Base,
-
-    /// Projection parameters of this camera.
-    pub projection: Projection,
+    pub(crate) object: object::Base,
 }
 three_object!(Camera::object);
 
 impl Camera {
     pub(crate) fn new(hub: &mut Hub, projection: Projection) -> Self {
         Camera {
-            object: hub.spawn(SubNode::Empty),
-            projection,
+            object: hub.spawn(SubNode::Camera(projection)),
         }
-    }
-
-    /// Computes the projection matrix representing the camera's projection.
-    pub fn matrix(
-        &self,
-        aspect_ratio: f32,
-    ) -> mint::ColumnMatrix4<f32> {
-        self.projection.matrix(aspect_ratio)
     }
 }
 
