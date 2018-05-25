@@ -60,7 +60,7 @@ use cgmath;
 use mint;
 
 use hub::{Hub, SubNode};
-use object;
+use object::{self, DowncastObject, ObjectType};
 
 use std::ops;
 
@@ -108,6 +108,15 @@ impl Camera {
     pub(crate) fn new(hub: &mut Hub, projection: Projection) -> Self {
         Camera {
             object: hub.spawn(SubNode::Camera(projection)),
+        }
+    }
+}
+
+impl DowncastObject for Camera {
+    fn downcast(object_type: ObjectType) -> Option<Camera> {
+        match object_type {
+            ObjectType::Camera(camera) => Some(camera),
+            _ => None,
         }
     }
 }
