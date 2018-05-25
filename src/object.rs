@@ -53,7 +53,7 @@ pub trait Object: AsRef<Base> {
 
     /// Retrieves the internal data for the object.
     ///
-    /// Prefer to use [`SyncGuard::resolve_data`] instead.
+    /// Prefer to use [`SyncGuard::resolve_data`] over calling this directly.
     fn resolve_data(&self, sync_guard: &mut SyncGuard) -> Self::Data;
 
     /// Converts into the base type.
@@ -295,6 +295,14 @@ pub enum ObjectType {
     Text(Text),
 }
 
+/// Marks an object type that can be downcast from a [`Base`].
+pub trait DowncastObject: Sized {
+    /// Attempts to extract the concrete type of the object from an [`ObjectType`].
+    ///
+    /// Prefer to use [`SyncGuard::downcast`] over calling this directly.
+    fn downcast(object: ObjectType) -> Option<Self>;
+}
+
 /// Groups are used to combine several other objects or groups to work with them
 /// as with a single entity.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -328,6 +336,15 @@ impl Object for Group {
         }
 
         children
+    }
+}
+
+impl DowncastObject for Group {
+    fn downcast(object: ObjectType) -> Option<Self> {
+        match object {
+            ObjectType::Group(group) => Some(group),
+            _ => None,
+        }
     }
 }
 
