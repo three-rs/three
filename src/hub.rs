@@ -399,21 +399,23 @@ pub(crate) struct TreeWalker<'a> {
 
 impl<'a> TreeWalker<'a> {
     fn descend(&mut self, base: &Option<NodePointer>) -> Option<&NodeInternal> {
-        let base = base.as_ref()?;
+        // Unwrap the base pointer, returning `None` if `base` is `None`.
+        let mut ptr = base.as_ref()?;
+
         // Note: this is a CPU hotspot, presumably for copying stuff around
         // TODO: profile carefully and optimize
-        let mut node = &self.hub.nodes[base];
+        let mut node = &self.hub.nodes[ptr];
 
         loop {
             let wn = match self.stack.last() {
                 Some(parent) => WalkedNode {
-                    node_ptr: base.clone(),
+                    node_ptr: ptr.clone(),
                     node,
                     world_visible: parent.world_visible && node.visible,
                     world_transform: parent.world_transform.concat(&node.transform),
                 },
                 None => WalkedNode {
-                    node_ptr: base.clone(),
+                    node_ptr: ptr.clone(),
                     node,
                     world_visible: node.visible,
                     world_transform: node.transform,
@@ -425,10 +427,13 @@ impl<'a> TreeWalker<'a> {
                 break;
             }
 
-            node = match node.sub_node {
-                SubNode::Group { first_child: Some(ref ptr) } => &self.hub.nodes[ptr],
+            match node.sub_node {
+                SubNode::Group { first_child: Some(ref child_ptr) } => {
+                    ptr = child_ptr;
+                    node = &self.hub.nodes[&ptr];
+                },
                 _ => break,
-            };
+            }
         }
 
         Some(node)
