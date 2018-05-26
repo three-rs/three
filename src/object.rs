@@ -263,6 +263,7 @@ impl Object for Base {
 ///
 /// When using [`SyncGuard::resolve_data`] with a [`Base`], it will resolve to the concrete
 /// object type that the base represents.
+#[derive(Debug, Clone)]
 pub enum ObjectType {
     /// An audio source.
     AudioSource(audio::Source),
