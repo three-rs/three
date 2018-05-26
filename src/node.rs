@@ -115,8 +115,11 @@ impl From<TransformInternal> for Transform {
 }
 
 /// Local space, defined relative to the parent node.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Local {}
+
 /// World space, defined relative to the scene root.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum World {}
 
 /// General information about an object in a scene.

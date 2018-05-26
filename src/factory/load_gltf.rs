@@ -481,7 +481,7 @@ fn load_node<'a>(
         cameras.push(CameraTemplate {
             object,
             projection: load_camera(camera),
-        })
+        });
     }
 
     object_index
