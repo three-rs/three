@@ -55,7 +55,7 @@ pub trait Object: AsRef<Base> {
     /// Retrieves the internal data for the object.
     ///
     /// Prefer to use [`SyncGuard::resolve_data`] over calling this directly.
-    fn resolve_data(&self, sync_guard: &mut SyncGuard) -> Self::Data;
+    fn resolve_data(&self, sync_guard: &SyncGuard) -> Self::Data;
 
     /// Converts into the base type.
     fn upcast(&self) -> Base {
@@ -204,7 +204,7 @@ impl AsRef<Base> for Base {
 impl Object for Base {
     type Data = ObjectType;
 
-    fn resolve_data(&self, sync_guard: &mut SyncGuard) -> Self::Data {
+    fn resolve_data(&self, sync_guard: &SyncGuard) -> Self::Data {
         let node = &sync_guard.hub[self];
         match &node.sub_node {
             // TODO: Handle resolving cameras better (`Empty` is only used for cameras).
@@ -324,7 +324,7 @@ impl AsRef<Base> for Group {
 impl Object for Group {
     type Data = Vec<Base>;
 
-    fn resolve_data(&self, sync_guard: &mut SyncGuard) -> Vec<Base> {
+    fn resolve_data(&self, sync_guard: &SyncGuard) -> Vec<Base> {
         let mut children = Vec::new();
         let node = &sync_guard.hub[self];
 
