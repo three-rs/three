@@ -374,11 +374,11 @@ impl Hub {
         walker
     }
 
-    pub(crate) fn walk(&self, base: &Option<NodePointer>) -> TreeWalker {
+    pub(crate) fn walk<'a>(&'a self, base: &Option<NodePointer>) -> TreeWalker<'a> {
         self.walk_impl(base, true)
     }
 
-    pub(crate) fn walk_all(&self, base: &Option<NodePointer>) -> TreeWalker {
+    pub(crate) fn walk_all<'a>(&'a self, base: &Option<NodePointer>) -> TreeWalker<'a> {
         self.walk_impl(base, false)
     }
 }

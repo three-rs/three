@@ -162,7 +162,7 @@ impl<'a> SyncGuard<'a> {
     ///
     /// [`Node`]: ../node/struct.Node.html
     pub fn resolve<T: 'a + Object>(
-        &mut self,
+        &self,
         object: &T,
     ) -> node::Node<node::Local> {
         self.hub[object].to_node()
@@ -176,7 +176,7 @@ impl<'a> SyncGuard<'a> {
     ///
     /// [`Node`]: ../node/struct.Node.html
     pub fn resolve_world<T: 'a + Object>(
-        &mut self,
+        &self,
         object: &T,
     ) -> node::Node<node::World> {
         let internal = &self.hub[object] as *const _;
@@ -207,7 +207,7 @@ impl<'a> SyncGuard<'a> {
     ///
     /// * [`Base`]:
     pub fn resolve_data<T: 'a + Object>(
-        &mut self,
+        &self,
         object: &T,
     ) -> T::Data {
         object.resolve_data(self)
@@ -219,7 +219,7 @@ impl<'a> SyncGuard<'a> {
     /// Returns the [`Base`] for the first object found with a matching name, otherwise returns
     /// `None` if no such object is found. Note that if more than one object exists in the
     /// hierarchy, then only the first one discovered will be returned.
-    pub fn find_child(&mut self, root: &Group, name: &str) -> Option<Base> {
+    pub fn find_child_by_name(&mut self, root: &Group, name: &str) -> Option<Base> {
         let root = root.as_ref().node.clone();
         self
             .hub
@@ -228,19 +228,51 @@ impl<'a> SyncGuard<'a> {
             .map(|walked| self.hub.upgrade_ptr(walked.node_ptr.clone()))
     }
 
+    /// Returns an iterator that walks all the children
+    pub fn find_children_by_name(&'a self, root: &Group, name: &'a str) -> impl Iterator<Item = Base> + 'a {
+        let root = root.as_ref().node.clone();
+        let hub = &self.hub;
+        self
+            .hub
+            .walk_all(&Some(root))
+            .filter(move |walked| walked.node.name.as_ref().map(|node_name| node_name == name).unwrap_or(false))
+            .map(move |walked| hub.upgrade_ptr(walked.node_ptr.clone()))
+    }
+
     /// Attempts to find an object of type `T` in the group or any of its children.
-    pub fn find_child_of_type<T: DowncastObject>(&mut self, root: &Group, name: &str) -> Option<T> {
-        // TODO: This implementation is not ideal because it will only attempt to downcast the
-        // first child with a matching name. If there are multiple children with a matching name
-        // all of them should be checked against `T` before returning `None`.
-        self.find_child(root, name).and_then(|base| self.downcast(&base))
+    pub fn find_child_of_type_by_name<T: DowncastObject>(&'a self, root: &Group, name: &'a str) -> Option<T> {
+        self.find_children_of_type_by_name(root, name).next()
+    }
+
+    /// Returns an iterator yielding all children of `root` of type `T` named `name`.
+    pub fn find_children_of_type_by_name<T: DowncastObject>(&'a self, root: &Group, name: &'a str) -> impl Iterator<Item = T> + 'a {
+        let guard = &*self;
+        self
+            .find_children_by_name(root, name)
+            .filter_map(move |base| guard.downcast(&base))
+    }
+
+    /// Returns an iterator yielding all children of `root` of type `T`.
+    pub fn find_children_of_type<T: DowncastObject>(&'a self, root: &Group) -> impl Iterator<Item = T> + 'a {
+        let root = root.as_ref().node.clone();
+        let guard = &*self;
+        self
+            .hub
+            .walk_all(&Some(root))
+            .map(move |walked| guard.hub.upgrade_ptr(walked.node_ptr.clone()))
+            .filter_map(move |base| guard.downcast(&base))
+    }
+
+    /// Returns the first child of `root` of type `T`.
+    pub fn find_child_of_type<T: DowncastObject>(&'a self, root: &Group) -> Option<T> {
+        self.find_children_of_type::<T>(root).next()
     }
 
     /// Attempts to downcast a [`Base`] to its concrete object type.
     ///
     /// If the downcast succeeds, the concrete object is returned. Returns `None` if the
     /// downcast fails.
-    pub fn downcast<T: DowncastObject>(&mut self, base: &Base) -> Option<T> {
+    pub fn downcast<T: DowncastObject>(&self, base: &Base) -> Option<T> {
         let object_type = self.resolve_data(base);
         T::downcast(object_type)
     }
