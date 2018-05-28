@@ -196,7 +196,7 @@ impl<'a> SyncGuard<'a> {
         }
     }
 
-    /// Obtains `object`'s internal data.
+    /// Obtains internal state data for `object`.
     ///
     /// Three-rs objects normally expose a write-only interface, making it possible to change
     /// an object's internal values but not possible to read those values. `SyncGuard` allows
@@ -205,7 +205,29 @@ impl<'a> SyncGuard<'a> {
     /// Each object type has its own internal data, and not all object types can provide access
     /// to meaningful data. The following types provide specific data you can use:
     ///
-    /// * [`Base`]:
+    /// * [`Base`]: Returns an [`ObjectType`], which provides access to the concrete object type
+    ///   for `object`.
+    /// * [`Group`]: Returns a list of the group's direct children.
+    /// * [`Camera`]: Returns the [`Projection`] for the camera.
+    /// * [`Ambient`]: Returns the [`LightData`] for the light.
+    /// * [`Point`]: Returns the [`LightData`] for the light.
+    /// * [`Directional`]: Returns the [`LightData`] for the light.
+    /// * [`Hemisphere`]: Returns the [`HemisphereLightData`] for the light.
+    ///
+    /// The other object types do not have a user-facing way to represent their internal data,
+    /// and so return `()`.
+    ///
+    /// [`Base`]: ../object/struct.Base.html
+    /// [`ObjectType`]: ../object/enum.ObjectType.html
+    /// [`Group`]: ../struct.Group.html
+    /// [`Camera`]: ../camera/struct.Camera.html
+    /// [`Projection`]: ../camera/enum.Projection.html
+    /// [`LightData`]: ../light/struct.LightData.html
+    /// [`Ambient`]: ../light/struct.Ambient.html
+    /// [`Point`]: ../light/struct.Point.html
+    /// [`Directional`]: ../light/struct.Directional.html
+    /// [`Hemisphere`]: ../light/struct.Hemisphere.html
+    /// [`HemisphereLightData`]: ../light/struct.HemisphereLightData.html
     pub fn resolve_data<T: 'a + Object>(
         &self,
         object: &T,
@@ -213,13 +235,32 @@ impl<'a> SyncGuard<'a> {
         object.resolve_data(self)
     }
 
+    /// Returns an iterator that walks all the objects in `root`'s hierarchy.
+    ///
+    /// Walks the children of `root`, recursively walking the children of any [`Group`] objects
+    /// found until all objects in the hierarchy have been visited. The hierarchy is walked
+    /// depth-first, and objects are yielded in the order they are visited.
+    ///
+    /// [`Group`]: ../struct.Group.html
+    pub fn walk_hierarchy(&'a self, root: &Group) -> impl Iterator<Item = Base> + 'a {
+        let root = root.as_ref().node.clone();
+        let guard = &*self;
+        self
+            .hub
+            .walk_all(&Some(root))
+            .map(move |walked| guard.hub.upgrade_ptr(walked.node_ptr.clone()))
+    }
+
     /// Finds a node in a group, or any of its children, by name.
     ///
     /// Performs a depth-first search starting with `root` looking for an object with `name`.
     /// Returns the [`Base`] for the first object found with a matching name, otherwise returns
-    /// `None` if no such object is found. Note that if more than one object exists in the
-    /// hierarchy, then only the first one discovered will be returned.
-    pub fn find_child_by_name(&mut self, root: &Group, name: &str) -> Option<Base> {
+    /// `None` if no such object is found. Note that if more than one such object exists in the
+    /// hierarchy, then only the first one discovered will be returned. Note, also, that if
+    /// `root` matches `name`, it will be returned.
+    ///
+    /// [`Base`]: ../object/struct.Base.html
+    pub fn find_child_by_name(&self, root: &Group, name: &str) -> Option<Base> {
         let root = root.as_ref().node.clone();
         self
             .hub
@@ -228,28 +269,39 @@ impl<'a> SyncGuard<'a> {
             .map(|walked| self.hub.upgrade_ptr(walked.node_ptr.clone()))
     }
 
-    /// Returns an iterator that walks all the children
-    pub fn find_children_by_name(&'a self, root: &Group, name: &'a str) -> impl Iterator<Item = Base> + 'a {
+    /// Returns an iterator of all objects under `root` with the specified name.
+    ///
+    /// Performs a depth-first search starting with `root`, yielding each object in the hierarchy
+    /// matching `name`. Note that if `root` matches `name`, then it will be the first object
+    /// yielded by the iterator.
+    pub fn find_children_by_name(
+        &'a self,
+        root: &Group,
+        name: &'a str,
+    ) -> impl Iterator<Item = Base> + 'a {
         let root = root.as_ref().node.clone();
-        let hub = &self.hub;
+        let guard = &*self;
         self
             .hub
             .walk_all(&Some(root))
-            .filter(move |walked| walked.node.name.as_ref().map(|node_name| node_name == name).unwrap_or(false))
-            .map(move |walked| hub.upgrade_ptr(walked.node_ptr.clone()))
+            .filter(move |walked| {
+                walked
+                    .node
+                    .name
+                    .as_ref()
+                    .map(|node_name| node_name == name)
+                    .unwrap_or(false)
+            })
+            .map(move |walked| guard.hub.upgrade_ptr(walked.node_ptr.clone()))
     }
 
-    /// Attempts to find an object of type `T` in the group or any of its children.
-    pub fn find_child_of_type_by_name<T: DowncastObject>(&'a self, root: &Group, name: &'a str) -> Option<T> {
-        self.find_children_of_type_by_name(root, name).next()
-    }
-
-    /// Returns an iterator yielding all children of `root` of type `T` named `name`.
-    pub fn find_children_of_type_by_name<T: DowncastObject>(&'a self, root: &Group, name: &'a str) -> impl Iterator<Item = T> + 'a {
-        let guard = &*self;
-        self
-            .find_children_by_name(root, name)
-            .filter_map(move |base| guard.downcast(&base))
+    /// Finds the first object in a group, or any of its children, of type `T`.
+    ///
+    /// Performs a depth-first search starting with `root`, recusively descending into any
+    /// [`Group`] objects found. Returns the first object of type `T` encountered in the
+    /// hierarchy. Note that if `T` is `Group`, then `root` will be returned.
+    pub fn find_child_of_type<T: DowncastObject>(&'a self, root: &Group) -> Option<T> {
+        self.find_children_of_type::<T>(root).next()
     }
 
     /// Returns an iterator yielding all children of `root` of type `T`.
@@ -263,9 +315,35 @@ impl<'a> SyncGuard<'a> {
             .filter_map(move |base| guard.downcast(&base))
     }
 
-    /// Returns the first child of `root` of type `T`.
-    pub fn find_child_of_type<T: DowncastObject>(&'a self, root: &Group) -> Option<T> {
-        self.find_children_of_type::<T>(root).next()
+    /// Attempts to find an object of type `T` in the group or any of its children.
+    ///
+    /// Performs a depth-first search starting with `root`, recursively searching [`Group`]
+    /// objects, until an object of type `T` that matches `name` is found. Note that if `T` is
+    /// [`Group`] and `root` matches `name`, then it will be returned.
+    ///
+    /// [`Group`]: ../struct.Group.html
+    pub fn find_child_of_type_by_name<T: DowncastObject>(
+        &'a self,
+        root: &Group,
+        name: &'a str,
+    ) -> Option<T> {
+        self.find_children_of_type_by_name(root, name).next()
+    }
+
+    /// Returns an iterator yielding all children of `root` of type `T` named `name`.
+    ///
+    /// Performs a depth-first search starting with `root`, recursively searching [`Group`]
+    /// objects, yielding any objects of `T` that match `name`. Note that if `T` is [`Group`]
+    /// and `root` matches `name`, then it will be the first object yielded by the iterator.
+    pub fn find_children_of_type_by_name<T: DowncastObject>(
+        &'a self,
+        root: &Group,
+        name: &'a str,
+    ) -> impl Iterator<Item = T> + 'a {
+        let guard = &*self;
+        self
+            .find_children_by_name(root, name)
+            .filter_map(move |base| guard.downcast(&base))
     }
 
     /// Attempts to downcast a [`Base`] to its concrete object type.
