@@ -172,7 +172,7 @@ impl<'a> SyncGuard<'a> {
     /// *Note*: this can be slow.
     ///
     /// # Panics
-    /// Panics if the doesn't have this `object::Base`.
+    /// Panics if the scene doesn't have this `object::Base`.
     ///
     /// [`Node`]: ../node/struct.Node.html
     pub fn resolve_world<T: 'a + Object>(
@@ -256,8 +256,7 @@ impl<'a> SyncGuard<'a> {
     /// Performs a depth-first search starting with `root` looking for an object with `name`.
     /// Returns the [`Base`] for the first object found with a matching name, otherwise returns
     /// `None` if no such object is found. Note that if more than one such object exists in the
-    /// hierarchy, then only the first one discovered will be returned. Note, also, that if
-    /// `root` matches `name`, it will be returned.
+    /// hierarchy, then only the first one discovered will be returned.
     ///
     /// [`Base`]: ../object/struct.Base.html
     pub fn find_child_by_name(&self, root: &Group, name: &str) -> Option<Base> {
@@ -272,8 +271,9 @@ impl<'a> SyncGuard<'a> {
     /// Returns an iterator of all objects under `root` with the specified name.
     ///
     /// Performs a depth-first search starting with `root`, yielding each object in the hierarchy
-    /// matching `name`. Note that if `root` matches `name`, then it will be the first object
-    /// yielded by the iterator.
+    /// matching `name`.
+    ///
+    /// [`Group`]: ../struct.Group.html
     pub fn find_children_by_name(
         &'a self,
         root: &Group,
@@ -299,13 +299,23 @@ impl<'a> SyncGuard<'a> {
     ///
     /// Performs a depth-first search starting with `root`, recusively descending into any
     /// [`Group`] objects found. Returns the first object of type `T` encountered in the
-    /// hierarchy. Note that if `T` is `Group`, then `root` will be returned.
+    /// hierarchy.
+    ///
+    /// [`Group`]: ../struct.Group.html
     pub fn find_child_of_type<T: DowncastObject>(&'a self, root: &Group) -> Option<T> {
         self.find_children_of_type::<T>(root).next()
     }
 
-    /// Returns an iterator yielding all children of `root` of type `T`.
-    pub fn find_children_of_type<T: DowncastObject>(&'a self, root: &Group) -> impl Iterator<Item = T> + 'a {
+    /// Returns an iterator yielding all objects in the hierarchy of `root` of type `T`.
+    ///
+    /// Performs a depth-first search starting with `root`, recursively descending into any
+    /// [`Group`] objects found, yielding each object of type `T` found in the hierarchy.
+    ///
+    /// [`Group`]: ../struct.Group.html
+    pub fn find_children_of_type<T: DowncastObject>(
+        &'a self,
+        root: &Group,
+    ) -> impl Iterator<Item = T> + 'a {
         let root = root.as_ref().node.clone();
         let guard = &*self;
         self
@@ -335,6 +345,8 @@ impl<'a> SyncGuard<'a> {
     /// Performs a depth-first search starting with `root`, recursively searching [`Group`]
     /// objects, yielding any objects of `T` that match `name`. Note that if `T` is [`Group`]
     /// and `root` matches `name`, then it will be the first object yielded by the iterator.
+    ///
+    /// [`Group`]: ../struct.Group.html
     pub fn find_children_of_type_by_name<T: DowncastObject>(
         &'a self,
         root: &Group,
@@ -350,6 +362,8 @@ impl<'a> SyncGuard<'a> {
     ///
     /// If the downcast succeeds, the concrete object is returned. Returns `None` if the
     /// downcast fails.
+    ///
+    /// [`Base`]: ../object/struct.Base.html
     pub fn downcast<T: DowncastObject>(&self, base: &Base) -> Option<T> {
         let object_type = self.resolve_data(base);
         T::downcast(object_type)
