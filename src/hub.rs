@@ -90,6 +90,7 @@ pub(crate) enum Operation {
     SetTexelRange(mint::Point2<i16>, mint::Vector2<u16>),
     SetWeights(Vec<f32>),
     SetName(String),
+    SetProjection(Projection),
 }
 
 pub(crate) type HubPtr = Arc<Mutex<Hub>>;
@@ -310,6 +311,14 @@ impl Hub {
                 }
                 Operation::SetName(name) => {
                     self.nodes[&ptr].name = Some(name);
+                }
+                Operation::SetProjection(projection) => {
+                    match self.nodes[&ptr].sub_node {
+                        SubNode::Camera(ref mut internal_projection) => {
+                            *internal_projection = projection;
+                        }
+                        _ => unreachable!()
+                    }
                 }
             }
         }

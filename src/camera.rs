@@ -59,7 +59,7 @@
 use cgmath;
 use mint;
 
-use hub::{Hub, SubNode};
+use hub::{Hub, Operation, SubNode};
 use object::{self, DowncastObject, Object, ObjectType};
 use scene::SyncGuard;
 
@@ -126,6 +126,11 @@ impl Camera {
         Camera {
             object: hub.spawn(SubNode::Camera(projection)),
         }
+    }
+
+    /// Sets the projection used by the camera.
+    pub fn set_projection<P: Into<Projection>>(&self, projection: P) {
+        self.as_ref().send(Operation::SetProjection(projection.into()));
     }
 }
 
