@@ -8,6 +8,7 @@ pub struct Sprite {
     pub(crate) object: object::Base,
 }
 three_object!(Sprite::object);
+derive_DowncastObject!(Sprite => object::ObjectType::Sprite);
 
 impl Sprite {
     pub(crate) fn new(object: object::Base) -> Self {

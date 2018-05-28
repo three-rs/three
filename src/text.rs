@@ -171,6 +171,7 @@ pub struct Text {
     pub(crate) object: object::Base,
 }
 three_object!(Text::object);
+derive_DowncastObject!(Text => object::ObjectType::Text);
 
 impl Text {
     pub(crate) fn with_object(object: object::Base) -> Self {

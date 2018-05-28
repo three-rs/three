@@ -244,7 +244,6 @@ impl Object for Base {
 
                 SubLight::Directional => ObjectType::DirectionalLight(light::Directional {
                     object: self.clone(),
-                    shadow: light.shadow.as_ref().map(|&(ref map, _)| map.clone()),
                 }),
 
                 SubLight::Point => ObjectType::PointLight(light::Point {
@@ -346,14 +345,7 @@ impl Object for Group {
     }
 }
 
-impl DowncastObject for Group {
-    fn downcast(object: ObjectType) -> Option<Self> {
-        match object {
-            ObjectType::Group(group) => Some(group),
-            _ => None,
-        }
-    }
-}
+derive_DowncastObject!(Group => ObjectType::Group);
 
 impl Group {
     pub(crate) fn new(hub: &mut Hub) -> Self {

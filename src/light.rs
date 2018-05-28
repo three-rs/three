@@ -1,12 +1,14 @@
 //! Contains different types of light sources.
 
 use gfx;
-use object;
+use object::{self, Object, ObjectType};
 use std::ops;
 
 use camera::Orthographic;
-use hub::Operation;
+use color::Color;
+use hub::{self, Operation, SubLight, SubNode};
 use render::{BackendResources, ShadowFormat};
+use scene::SyncGuard;
 
 /// `ShadowMap` is used to render shadows from [`PointLight`](struct.PointLight.html)
 /// and [`DirectionalLight`](struct.DirectionalLight.html).
@@ -37,7 +39,6 @@ impl ShadowMap {
 pub struct Ambient {
     pub(crate) object: object::Base,
 }
-three_object!(Ambient::object);
 
 impl Ambient {
     pub(crate) fn new(object: object::Base) -> Self {
@@ -45,30 +46,41 @@ impl Ambient {
     }
 }
 
+impl AsRef<object::Base> for Ambient {
+    fn as_ref(&self) -> &object::Base { &self.object }
+}
+
+impl Object for Ambient {
+    type Data = LightData;
+
+    fn resolve_data(&self, sync_guard: &SyncGuard) -> Self::Data {
+        let node = &sync_guard.hub[self];
+
+        match node.sub_node {
+            SubNode::Light(ref light_data) => light_data.into(),
+            _ => panic!("`Ambient` had a bad sub node type: {:?}", node.sub_node),
+        }
+    }
+}
+
+derive_DowncastObject!(Ambient => ObjectType::AmbientLight);
+
 /// The light source that illuminates all objects equally from a given direction,
 /// like an area light of infinite size and infinite distance from the scene;
 /// there is shading, but cannot be any distance falloff.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Directional {
     pub(crate) object: object::Base,
-    pub(crate) shadow: Option<ShadowMap>,
 }
-three_object!(Directional::object);
 
 impl Directional {
     pub(crate) fn new(object: object::Base) -> Self {
         Directional {
             object,
-            shadow: None,
         }
     }
 
-    /// Returns `true` if it has [`ShadowMap`](struct.ShadowMap.html), `false` otherwise.
-    pub fn has_shadow(&self) -> bool {
-        self.shadow.is_some()
-    }
-
-    /// Adds shadow map for this light source.
+    /// Adds or updates the shadow map for this light source.
     pub fn set_shadow(
         &mut self,
         map: ShadowMap,
@@ -80,11 +92,29 @@ impl Directional {
             extent_y,
             range,
         });
-        self.shadow = Some(map.clone());
         let msg = Operation::SetShadow(map, sp);
         let _ = self.object.tx.send((self.object.node.downgrade(), msg));
     }
 }
+
+impl AsRef<object::Base> for Directional {
+    fn as_ref(&self) -> &object::Base { &self.object }
+}
+
+impl Object for Directional {
+    type Data = LightData;
+
+    fn resolve_data(&self, sync_guard: &SyncGuard) -> Self::Data {
+        let node = &sync_guard.hub[self];
+
+        match node.sub_node {
+            SubNode::Light(ref light_data) => light_data.into(),
+            _ => panic!("`Directional` had a bad sub node type: {:?}", node.sub_node),
+        }
+    }
+}
+
+derive_DowncastObject!(Directional => ObjectType::DirectionalLight);
 
 /// `HemisphereLight` uses two different colors in opposite to
 /// [`Ambient`](struct.Ambient.html).
@@ -99,7 +129,6 @@ impl Directional {
 pub struct Hemisphere {
     pub(crate) object: object::Base,
 }
-three_object!(Hemisphere::object);
 
 impl Hemisphere {
     pub(crate) fn new(object: object::Base) -> Self {
@@ -107,15 +136,98 @@ impl Hemisphere {
     }
 }
 
+impl AsRef<object::Base> for Hemisphere {
+    fn as_ref(&self) -> &object::Base { &self.object }
+}
+
+impl Object for Hemisphere {
+    type Data = HemisphereLightData;
+
+    fn resolve_data(&self, sync_guard: &SyncGuard) -> Self::Data {
+        let node = &sync_guard.hub[self];
+
+        match node.sub_node {
+            SubNode::Light(ref light_data) => light_data.into(),
+            _ => panic!("`Hemisphere` had a bad sub node type: {:?}", node.sub_node),
+        }
+    }
+}
+
+derive_DowncastObject!(Hemisphere => ObjectType::HemisphereLight);
+
 /// Light originates from a single point, and spreads outward in all directions.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Point {
     pub(crate) object: object::Base,
 }
-three_object!(Point::object);
 
 impl Point {
     pub(crate) fn new(object: object::Base) -> Self {
         Point { object }
+    }
+}
+
+impl AsRef<object::Base> for Point {
+    fn as_ref(&self) -> &object::Base { &self.object }
+}
+
+impl Object for Point {
+    type Data = LightData;
+
+    fn resolve_data(&self, sync_guard: &SyncGuard) -> Self::Data {
+        let node = &sync_guard.hub[self];
+
+        match node.sub_node {
+            SubNode::Light(ref light_data) => light_data.into(),
+            _ => panic!("`Point` had a bad sub node type: {:?}", node.sub_node),
+        }
+    }
+}
+
+derive_DowncastObject!(Point => ObjectType::PointLight);
+
+/// Internal data for [`Ambient`], [`Directional`], and [`Point`] lights.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct LightData {
+    /// The color of the light.
+    pub color: Color,
+
+    /// The intensity of the light.
+    pub intensity: f32,
+}
+
+impl<'a> From<&'a hub::LightData> for LightData {
+    fn from(from: &'a hub::LightData) -> Self {
+        LightData {
+            color: from.color,
+            intensity: from.intensity,
+        }
+    }
+}
+
+/// Internal data for [`Hemisphere`] lights.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct HemisphereLightData {
+    /// The ground color of the light.
+    pub ground_color: Color,
+
+    /// The sky color of the light.
+    pub sky_color: Color,
+
+    /// The intensity of the light.
+    pub intensity: f32,
+}
+
+impl<'a> From<&'a hub::LightData> for HemisphereLightData {
+    fn from(from: &'a hub::LightData) -> Self {
+        let ground_color = match from.sub_light {
+            SubLight::Hemisphere { ground } => ground,
+            _ => panic!("Bad sub-light for `Hemisphere`: {:?}", from.sub_light),
+        };
+        HemisphereLightData {
+            sky_color: from.color,
+            ground_color,
+            intensity: from.intensity,
+        }
     }
 }
