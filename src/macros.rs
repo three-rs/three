@@ -49,3 +49,16 @@ macro_rules! three_object {
         }
     };
 }
+
+macro_rules! derive_DowncastObject {
+    ($type:ident => $pattern:path) => {
+        impl ::object::DowncastObject for $type {
+            fn downcast(object: ::object::ObjectType) -> Option<Self> {
+                match object {
+                    $pattern (inner) => Some(inner),
+                    _ => None,
+                }
+            }
+        }
+    }
+}

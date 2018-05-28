@@ -60,7 +60,8 @@ use cgmath;
 use mint;
 
 use hub::{Hub, SubNode};
-use object::{self, DowncastObject, ObjectType};
+use object::{self, DowncastObject, Object, ObjectType};
+use scene::SyncGuard;
 
 use std::ops;
 
@@ -102,7 +103,23 @@ pub enum Projection {
 pub struct Camera {
     pub(crate) object: object::Base,
 }
-three_object!(Camera::object);
+
+impl AsRef<object::Base> for Camera {
+    fn as_ref(&self) -> &object::Base { &self.object }
+}
+
+impl Object for Camera {
+    type Data = Projection;
+
+    fn resolve_data(&self, sync_guard: &SyncGuard) -> Self::Data {
+        let node = &sync_guard.hub[self];
+
+        match node.sub_node {
+            SubNode::Camera(ref projection) => projection.clone(),
+            _ => panic!("`Group` had a bad sub node type: {:?}", node.sub_node),
+        }
+    }
+}
 
 impl Camera {
     pub(crate) fn new(hub: &mut Hub, projection: Projection) -> Self {
@@ -113,7 +130,7 @@ impl Camera {
 }
 
 impl DowncastObject for Camera {
-    fn downcast(object_type: ObjectType) -> Option<Camera> {
+    fn downcast(object_type: ObjectType) -> Option<Self> {
         match object_type {
             ObjectType::Camera(camera) => Some(camera),
             _ => None,

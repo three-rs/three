@@ -1,7 +1,7 @@
 //! Primitives for audio playback.
 
 use hub;
-use object;
+use object::{self, DowncastObject, ObjectType};
 use std::fmt;
 use std::io::Cursor;
 use std::rc::Rc;
@@ -116,6 +116,15 @@ pub struct Source {
     pub(crate) object: object::Base,
 }
 three_object!(Source::object);
+
+impl DowncastObject for Source {
+    fn downcast(object_type: ObjectType) -> Option<Self> {
+        match object_type {
+            ObjectType::AudioSource(audio_source) => Some(audio_source),
+            _ => None,
+        }
+    }
+}
 
 impl Source {
     pub(crate) fn with_object(object: object::Base) -> Self {
