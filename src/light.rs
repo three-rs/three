@@ -187,6 +187,10 @@ impl Object for Point {
 derive_DowncastObject!(Point => ObjectType::PointLight);
 
 /// Internal data for [`Ambient`], [`Directional`], and [`Point`] lights.
+///
+/// [`Ambient`]: ./struct.Ambient.html
+/// [`Directional`]: ./struct.Directional.html
+/// [`Point`]: ./struct.Point.html
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct LightData {
     /// The color of the light.
@@ -206,6 +210,8 @@ impl<'a> From<&'a hub::LightData> for LightData {
 }
 
 /// Internal data for [`Hemisphere`] lights.
+///
+/// [`Hemisphere`]: ./struct.Hemisphere.html
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct HemisphereLightData {
     /// The ground color of the light.
