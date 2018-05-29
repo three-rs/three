@@ -314,7 +314,7 @@ pub enum ObjectType {
 ///
 /// [`Base`]: ./struct.Base.html
 /// [`SyncGuard::downcast`]: ../scene/struct.SyncGuard.html#method.downcast
-pub trait DowncastObject: Sized {
+pub trait DowncastObject: Object + Sized {
     /// Attempts to extract the concrete type of the object from an [`ObjectType`].
     ///
     /// Prefer to use [`SyncGuard::downcast`] over calling this directly.
