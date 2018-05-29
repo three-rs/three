@@ -50,11 +50,15 @@ pub trait Object: AsRef<Base> {
     /// Each object type has its own internal data, and not all object types can provide access
     /// to meaningful data. Types that cannot provide user-facing data will specify `()`
     /// for `Data`.
+    ///
+    /// [`SyncGuard::resolve_data`]: ./scene/struct.SyncGuard.html#method.resolve_data
     type Data;
 
     /// Retrieves the internal data for the object.
     ///
     /// Prefer to use [`SyncGuard::resolve_data`] over calling this directly.
+    ///
+    /// [`SyncGuard::resolve_data`]: ./scene/struct.SyncGuard.html#method.resolve_data
     fn resolve_data(&self, sync_guard: &SyncGuard) -> Self::Data;
 
     /// Converts into the base type.
@@ -260,8 +264,11 @@ impl Object for Base {
 
 /// The possible concrete types that a [`Base`] can be resolved to.
 ///
-/// When using [`SyncGuard::resolve_data`] with a [`Base`], it will resolve to the concrete
-/// object type that the base represents.
+/// When using [`SyncGuard::resolve_data`] with a [`Base`], it returns an `ObjectType`
+/// containing the concrete object for the [`Base`].
+///
+/// [`Base`]: ./struct.Base.html
+/// [`SyncGuard::resolve_data`]: ../scene/struct.SyncGuard.html#method.resolve_data
 #[derive(Debug, Clone)]
 pub enum ObjectType {
     /// An audio source.
@@ -302,10 +309,18 @@ pub enum ObjectType {
 }
 
 /// Marks an object type that can be downcast from a [`Base`].
+///
+/// See [`SyncGuard::downcast`] for information on how this trait is used.
+///
+/// [`Base`]: ./struct.Base.html
+/// [`SyncGuard::downcast`]: ../scene/struct.SyncGuard.html#method.downcast
 pub trait DowncastObject: Sized {
     /// Attempts to extract the concrete type of the object from an [`ObjectType`].
     ///
     /// Prefer to use [`SyncGuard::downcast`] over calling this directly.
+    ///
+    /// [`ObjectType`]: ./enum.ObjectType.html
+    /// [`SyncGuard::downcast`]: ../scene/struct.SyncGuard.html#method.downcast
     fn downcast(object: ObjectType) -> Option<Self>;
 }
 
