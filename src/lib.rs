@@ -171,7 +171,9 @@
 //!
 //! All three objects are marked by the [`Object`] trait which provides the
 //! library with the [`object::Base`] type. Users may implement this trait in
-//! order to add their own structs into the scene heirarchy.
+//! order to add their own structs into the scene heirarchy. Three-rs provides a helper
+//! macro [`three_object`] which provides a convenient way to implement [`Object`] for your
+//! types:
 //!
 //! ```rust,no_run
 //! #[macro_use]
@@ -183,14 +185,7 @@
 //!     group: three::Group,
 //! }
 //!
-//! impl AsRef<three::object::Base> for MyObject {
-//!     fn as_ref(&self) -> &three::object::Base {
-//!         self.group.as_ref()
-//!     }
-//! }
-//!
-//!
-//! impl Object for MyObject {}
+//! three_object!(MyObject::group);
 //!
 //! fn main() {
 //! #    let mut window = three::Window::new("");
@@ -245,6 +240,7 @@
 //! [`Renderer`]: struct.Renderer.html
 //! [`Scene`]: scene/struct.Scene.html
 //! [`Window`]: window/struct.Window.html
+//! [`three_object`]: macro.three_object.html
 
 extern crate arrayvec;
 #[macro_use]

@@ -34,11 +34,12 @@
 /// ```
 ///
 /// [`object::Base`]: object/struct.Base.html
+#[macro_export]
 macro_rules! three_object {
     ($name:ident::$field:ident) => {
         impl AsRef<$crate::object::Base> for $name {
             fn as_ref(&self) -> &$crate::object::Base {
-                &self.$field
+                &self.$field.as_ref()
             }
         }
 
@@ -48,6 +49,10 @@ macro_rules! three_object {
             fn resolve_data(&self, _: & $crate::scene::SyncGuard) -> Self::Data {}
         }
     };
+
+    ($name:ident) => {
+        three_object!($name ::object);
+    }
 }
 
 macro_rules! derive_DowncastObject {
