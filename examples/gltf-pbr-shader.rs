@@ -1,6 +1,9 @@
 extern crate three;
 
-use three::Object;
+use three::{
+    camera::Camera,
+    Object,
+};
 
 fn main() {
     let mut win = three::Window::new("Three-rs glTF example");
@@ -21,15 +24,12 @@ fn main() {
     let (instance, _) = win.factory.instantiate_template(&templates[0]);
     win.scene.add(&instance);
 
-    // TODO: Look for an existing camera within the glTF scene. We'll need the ability to walk
-    // the scene hierarchy before we can do this.
-    let cam = None;
-    // for node in instance.nodes.values() {
-    //     if let Some(ref camera) = node.camera {
-    //         cam = Some(camera.clone());
-    //         break;
-    //     }
-    // }
+    // Attempt to find a camera in the instantiated template to use as the perspective for
+    // rendering.
+    let cam = {
+        let guard = win.scene.sync_guard();
+        guard.find_child_of_type::<Camera>(&instance)
+    };
 
     // If we didn't find a camera in the glTF scene, create a default one to use.
     let cam = cam.unwrap_or_else(|| {

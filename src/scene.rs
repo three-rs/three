@@ -108,6 +108,7 @@ impl Scene {
 /// walk through every enemy in your game:
 ///
 /// ```rust,no_run
+/// # #[macro_use]
 /// # extern crate three;
 /// # #[derive(Clone)]
 /// # struct Enemy {
@@ -115,13 +116,7 @@ impl Scene {
 /// #     is_visible: bool,
 /// # }
 /// #
-/// # impl three::Object for Enemy {}
-/// #
-/// # impl AsRef<three::object::Base> for Enemy {
-/// #     fn as_ref(&self) -> &three::object::Base {
-/// #         self.mesh.as_ref()
-/// #     }
-/// # }
+/// # three_object!(Enemy::mesh);
 /// #
 /// # fn main() {
 /// # use three::Object;
