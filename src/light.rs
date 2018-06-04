@@ -1,7 +1,7 @@
 //! Contains different types of light sources.
 
 use gfx;
-use object::{self, Object, ObjectType};
+use object::{Base, Object, ObjectType};
 use std::ops;
 
 use camera::Orthographic;
@@ -37,28 +37,26 @@ impl ShadowMap {
 /// all objects in the scene equally.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Ambient {
-    pub(crate) object: object::Base,
+    pub(crate) object: Base,
 }
 
 impl Ambient {
-    pub(crate) fn new(object: object::Base) -> Self {
+    pub(crate) fn new(object: Base) -> Self {
         Ambient { object }
     }
 }
 
-impl AsRef<object::Base> for Ambient {
-    fn as_ref(&self) -> &object::Base { &self.object }
+impl AsRef<Base> for Ambient {
+    fn as_ref(&self) -> &Base { &self.object }
 }
 
 impl Object for Ambient {
     type Data = LightData;
 
     fn resolve_data(&self, sync_guard: &SyncGuard) -> Self::Data {
-        let node = &sync_guard.hub[self];
-
-        match node.sub_node {
+        match &sync_guard.hub[self].sub_node {
             SubNode::Light(ref light_data) => light_data.into(),
-            _ => panic!("`Ambient` had a bad sub node type: {:?}", node.sub_node),
+            sub_node @ _ => panic!("`Ambient` had a bad sub node type: {:?}", sub_node),
         }
     }
 }
@@ -70,11 +68,11 @@ derive_DowncastObject!(Ambient => ObjectType::AmbientLight);
 /// there is shading, but cannot be any distance falloff.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Directional {
-    pub(crate) object: object::Base,
+    pub(crate) object: Base,
 }
 
 impl Directional {
-    pub(crate) fn new(object: object::Base) -> Self {
+    pub(crate) fn new(object: Base) -> Self {
         Directional {
             object,
         }
@@ -97,19 +95,17 @@ impl Directional {
     }
 }
 
-impl AsRef<object::Base> for Directional {
-    fn as_ref(&self) -> &object::Base { &self.object }
+impl AsRef<Base> for Directional {
+    fn as_ref(&self) -> &Base { &self.object }
 }
 
 impl Object for Directional {
     type Data = LightData;
 
     fn resolve_data(&self, sync_guard: &SyncGuard) -> Self::Data {
-        let node = &sync_guard.hub[self];
-
-        match node.sub_node {
+        match &sync_guard.hub[self].sub_node {
             SubNode::Light(ref light_data) => light_data.into(),
-            _ => panic!("`Directional` had a bad sub node type: {:?}", node.sub_node),
+            sub_node @ _ => panic!("`Directional` had a bad sub node type: {:?}", sub_node),
         }
     }
 }
@@ -127,28 +123,26 @@ derive_DowncastObject!(Directional => ObjectType::DirectionalLight);
 /// how much the normal is oriented to the upper and the lower hemisphere.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Hemisphere {
-    pub(crate) object: object::Base,
+    pub(crate) object: Base,
 }
 
 impl Hemisphere {
-    pub(crate) fn new(object: object::Base) -> Self {
+    pub(crate) fn new(object: Base) -> Self {
         Hemisphere { object }
     }
 }
 
-impl AsRef<object::Base> for Hemisphere {
-    fn as_ref(&self) -> &object::Base { &self.object }
+impl AsRef<Base> for Hemisphere {
+    fn as_ref(&self) -> &Base { &self.object }
 }
 
 impl Object for Hemisphere {
     type Data = HemisphereLightData;
 
     fn resolve_data(&self, sync_guard: &SyncGuard) -> Self::Data {
-        let node = &sync_guard.hub[self];
-
-        match node.sub_node {
+        match &sync_guard.hub[self].sub_node {
             SubNode::Light(ref light_data) => light_data.into(),
-            _ => panic!("`Hemisphere` had a bad sub node type: {:?}", node.sub_node),
+            sub_node @ _ => panic!("`Hemisphere` had a bad sub node type: {:?}", sub_node),
         }
     }
 }
@@ -158,28 +152,26 @@ derive_DowncastObject!(Hemisphere => ObjectType::HemisphereLight);
 /// Light originates from a single point, and spreads outward in all directions.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Point {
-    pub(crate) object: object::Base,
+    pub(crate) object: Base,
 }
 
 impl Point {
-    pub(crate) fn new(object: object::Base) -> Self {
+    pub(crate) fn new(object: Base) -> Self {
         Point { object }
     }
 }
 
-impl AsRef<object::Base> for Point {
-    fn as_ref(&self) -> &object::Base { &self.object }
+impl AsRef<Base> for Point {
+    fn as_ref(&self) -> &Base { &self.object }
 }
 
 impl Object for Point {
     type Data = LightData;
 
     fn resolve_data(&self, sync_guard: &SyncGuard) -> Self::Data {
-        let node = &sync_guard.hub[self];
-
-        match node.sub_node {
+        match &sync_guard.hub[self].sub_node {
             SubNode::Light(ref light_data) => light_data.into(),
-            _ => panic!("`Point` had a bad sub node type: {:?}", node.sub_node),
+            sub_node @ _ => panic!("`Point` had a bad sub node type: {:?}", sub_node),
         }
     }
 }

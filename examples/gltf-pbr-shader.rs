@@ -26,10 +26,10 @@ fn main() {
 
     // Attempt to find a camera in the instantiated template to use as the perspective for
     // rendering.
-    let cam = {
-        let guard = win.scene.sync_guard();
-        guard.find_child_of_type::<Camera>(&instance)
-    };
+    let cam = win
+        .scene
+        .sync_guard()
+        .find_child_of_type::<Camera>(&instance);
 
     // If we didn't find a camera in the glTF scene, create a default one to use.
     let cam = cam.unwrap_or_else(|| {

@@ -209,9 +209,7 @@ impl Object for Base {
     type Data = ObjectType;
 
     fn resolve_data(&self, sync_guard: &SyncGuard) -> Self::Data {
-        let node = &sync_guard.hub[self];
-        match &node.sub_node {
-            // TODO: Handle resolving cameras better (`Empty` is only used for cameras).
+        match &sync_guard.hub[self].sub_node {
             SubNode::Camera(..) => ObjectType::Camera(Camera {
                 object: self.clone(),
             }),
@@ -340,11 +338,9 @@ impl Object for Group {
 
     fn resolve_data(&self, sync_guard: &SyncGuard) -> Vec<Base> {
         let mut children = Vec::new();
-        let node = &sync_guard.hub[self];
-
-        let mut child = match node.sub_node {
+        let mut child = match &sync_guard.hub[self].sub_node {
             SubNode::Group { ref first_child } => first_child.clone(),
-            _ => panic!("`Group` had a bad sub node type: {:?}", node.sub_node),
+            sub_node @ _ => panic!("`Group` had a bad sub node type: {:?}", sub_node),
         };
 
         while let Some(child_pointer) = child {
