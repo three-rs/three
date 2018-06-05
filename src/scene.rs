@@ -255,12 +255,7 @@ impl<'a> SyncGuard<'a> {
     ///
     /// [`Base`]: ../object/struct.Base.html
     pub fn find_child_by_name(&self, root: &Group, name: &str) -> Option<Base> {
-        let root = root.as_ref().node.clone();
-        self
-            .hub
-            .walk_all(&Some(root))
-            .find(|walked| walked.node.name.as_ref().map(|node_name| node_name == name).unwrap_or(false))
-            .map(|walked| self.hub.upgrade_ptr(walked.node_ptr.clone()))
+        self.find_children_by_name(root, name).next()
     }
 
     /// Returns an iterator of all objects under `root` with the specified name.
