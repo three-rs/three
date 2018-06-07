@@ -7,7 +7,6 @@ use material::Material;
 
 use std::marker::PhantomData;
 
-
 /// Pointer to a Node
 pub(crate) type NodePointer = froggy::Pointer<NodeInternal>;
 pub(crate) type TransformInternal = cgmath::Decomposed<cgmath::Vector3<f32>, cgmath::Quaternion<f32>>;
@@ -116,8 +115,11 @@ impl From<TransformInternal> for Transform {
 }
 
 /// Local space, defined relative to the parent node.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Local {}
+
 /// World space, defined relative to the scene root.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum World {}
 
 /// General information about an object in a scene.

@@ -59,8 +59,9 @@
 use cgmath;
 use mint;
 
-use hub::{Hub, SubNode};
-use object;
+use hub::{Hub, Operation, SubNode};
+use object::{Base, DowncastObject, Object, ObjectType};
+use scene::SyncGuard;
 
 use std::ops;
 
@@ -100,27 +101,43 @@ pub enum Projection {
 /// [`Projection`]: enum.Projection.html
 #[derive(Clone, Debug, PartialEq)]
 pub struct Camera {
-    object: object::Base,
-
-    /// Projection parameters of this camera.
-    pub projection: Projection,
+    pub(crate) object: Base,
 }
-three_object!(Camera::object);
+
+impl AsRef<Base> for Camera {
+    fn as_ref(&self) -> &Base { &self.object }
+}
+
+impl Object for Camera {
+    type Data = Projection;
+
+    fn resolve_data(&self, sync_guard: &SyncGuard) -> Self::Data {
+        match &sync_guard.hub[self].sub_node {
+            SubNode::Camera(ref projection) => projection.clone(),
+            sub_node @ _ => panic!("`Group` had a bad sub node type: {:?}", sub_node),
+        }
+    }
+}
 
 impl Camera {
     pub(crate) fn new(hub: &mut Hub, projection: Projection) -> Self {
         Camera {
-            object: hub.spawn(SubNode::Empty),
-            projection,
+            object: hub.spawn(SubNode::Camera(projection)),
         }
     }
 
-    /// Computes the projection matrix representing the camera's projection.
-    pub fn matrix(
-        &self,
-        aspect_ratio: f32,
-    ) -> mint::ColumnMatrix4<f32> {
-        self.projection.matrix(aspect_ratio)
+    /// Sets the projection used by the camera.
+    pub fn set_projection<P: Into<Projection>>(&self, projection: P) {
+        self.as_ref().send(Operation::SetProjection(projection.into()));
+    }
+}
+
+impl DowncastObject for Camera {
+    fn downcast(object_type: ObjectType) -> Option<Self> {
+        match object_type {
+            ObjectType::Camera(camera) => Some(camera),
+            _ => None,
+        }
     }
 }
 

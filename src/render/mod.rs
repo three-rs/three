@@ -894,7 +894,11 @@ impl Renderer {
 
         // prepare target and globals
         let mx_view = Matrix4::from(mx_camera_transform.inverse_transform().unwrap());
-        let mx_proj = Matrix4::from(camera.matrix(self.aspect_ratio()));
+        let projection = match hub[&camera].sub_node {
+            SubNode::Camera(ref projection) => projection.clone(),
+            _ => panic!("Camera had incorrect sub node")
+        };
+        let mx_proj = Matrix4::from(projection.matrix(self.aspect_ratio()));
         self.encoder.update_constant_buffer(
             &self.const_buf,
             &Globals {

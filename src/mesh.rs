@@ -1,8 +1,7 @@
-use object;
-
 use geometry::Geometry;
 use hub::Operation;
 use material::Material;
+use object::{self, DowncastObject, ObjectType};
 use render::DynamicData;
 use skeleton::Skeleton;
 
@@ -75,6 +74,15 @@ pub struct Mesh {
     pub(crate) object: object::Base,
 }
 three_object!(Mesh::object);
+
+impl DowncastObject for Mesh {
+    fn downcast(object_type: ObjectType) -> Option<Mesh> {
+        match object_type {
+            ObjectType::Mesh(mesh) => Some(mesh),
+            _ => None,
+        }
+    }
+}
 
 /// A dynamic version of a mesh allows changing the geometry on CPU side
 /// in order to animate the mesh.

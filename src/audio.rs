@@ -1,7 +1,7 @@
 //! Primitives for audio playback.
 
 use hub;
-use object;
+use object::{Base, ObjectType};
 use std::fmt;
 use std::io::Cursor;
 use std::rc::Rc;
@@ -113,12 +113,13 @@ impl AudioData {
 /// You may create several `Source`s to play sounds simultaneously.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Source {
-    pub(crate) object: object::Base,
+    pub(crate) object: Base,
 }
 three_object!(Source::object);
+derive_DowncastObject!(Source => ObjectType::AudioSource);
 
 impl Source {
-    pub(crate) fn with_object(object: object::Base) -> Self {
+    pub(crate) fn with_object(object: Base) -> Self {
         Source { object }
     }
 
