@@ -253,12 +253,8 @@ extern crate genmesh;
 #[macro_use]
 extern crate gfx;
 extern crate gfx_glyph;
-#[cfg(feature = "gltf-loader")]
+#[cfg(feature = "gltf")]
 extern crate gltf;
-#[cfg(feature = "gltf-loader")]
-extern crate gltf_importer;
-#[cfg(feature = "gltf-loader")]
-extern crate gltf_utils;
 extern crate image;
 extern crate includedir;
 #[macro_use]

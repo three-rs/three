@@ -1,4 +1,4 @@
-#[cfg(feature = "gltf-loader")]
+#[cfg(feature = "gltf")]
 mod load_gltf;
 
 use std::{cmp, fs, io, iter, ops};

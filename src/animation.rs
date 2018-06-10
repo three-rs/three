@@ -1,4 +1,4 @@
-// TODO: Rewrite examples such that they don't rely on the gltf-loader feature.
+// TODO: Rewrite examples such that they don't rely on the gltf feature.
 
 //! Animation system.
 //!

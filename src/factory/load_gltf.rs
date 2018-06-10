@@ -9,19 +9,16 @@ use animation;
 use color;
 use geometry;
 use gltf;
-use gltf_importer;
-use image;
 use material;
 use mint;
-use std::{fs, io};
 use std::collections::HashMap;
 
 use camera::{Orthographic, Perspective, Projection};
-use gltf_utils::AccessorIter;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use {Material, Texture};
 use geometry::{Geometry, Shape};
+use image::{DynamicImage, ImageBuffer};
 use node::Transform;
 use super::Factory;
 use template::{
@@ -36,47 +33,42 @@ use template::{
 
 fn load_textures(
     factory: &mut Factory,
-    gltf: &gltf::Gltf,
-    base: &Path,
-    buffers: &gltf_importer::Buffers,
+    document: &gltf::Document,
+    images: Vec<gltf::image::Data>,
 ) -> Vec<Texture<[f32; 4]>> {
     let mut textures = Vec::new();
-    for texture in gltf.textures() {
-        use image::ImageFormat::{JPEG as Jpeg, PNG as Png};
-        let image = match texture.source().data() {
-            gltf::image::Data::View { view, mime_type } => {
-                let format = match mime_type {
-                    "image/png" => Png,
-                    "image/jpeg" => Jpeg,
-                    _ => unreachable!(),
-                };
-                let data = buffers.view(&view).unwrap();
-                if data.starts_with(b"data:") {
-                    // Data URI decoding not yet implemented
-                    unimplemented!()
-                } else {
-                    image::load_from_memory_with_format(&data, format)
-                        .unwrap()
-                        .to_rgba()
-                }
-            }
-            gltf::image::Data::Uri { uri, mime_type } => {
-                let path: PathBuf = base.join(uri);
-                if let Some(ty) = mime_type {
-                    let format = match ty {
-                        "image/png" => Png,
-                        "image/jpeg" => Jpeg,
-                        _ => unreachable!(),
-                    };
-                    let file = fs::File::open(&path).unwrap();
-                    let reader = io::BufReader::new(file);
-                    image::load(reader, format).unwrap().to_rgba()
-                } else {
-                    image::open(&path).unwrap().to_rgba()
-                }
-            }
-        };
-        let (width, height) = (image.width() as u16, image.height() as u16);
+    for (texture, data) in document.textures().zip(images.into_iter()) {
+        let (width, height) = (data.width, data.height);
+        let image = match data.format {
+            gltf::image::Format::R8 => DynamicImage::ImageLuma8(
+                ImageBuffer::from_raw(
+                    width,
+                    height,
+                    data.pixels,
+                ).expect("incorrect image dimensions")
+            ),
+            gltf::image::Format::R8G8 => DynamicImage::ImageLumaA8(
+                ImageBuffer::from_raw(
+                    width,
+                    height,
+                    data.pixels,
+                ).expect("incorrect image dimensions")
+            ),
+            gltf::image::Format::R8G8B8 => DynamicImage::ImageRgb8(
+                ImageBuffer::from_raw(
+                    width,
+                    height,
+                    data.pixels,
+                ).expect("incorrect image dimensions")
+            ),
+            gltf::image::Format::R8G8B8A8 => DynamicImage::ImageRgba8(
+                ImageBuffer::from_raw(
+                    width,
+                    height,
+                    data.pixels,
+                ).unwrap()
+            ),
+        }.to_rgba();
         use {FilterMethod, WrapMode};
         use gltf::texture::{MagFilter, WrappingMode};
         let params = texture.sampler();
@@ -97,7 +89,7 @@ fn load_textures(
             WrappingMode::Repeat => WrapMode::Tile,
         };
         let sampler = factory.sampler(mag_filter, wrap_s, wrap_t);
-        let texture = factory.load_texture_from_memory(width, height, &image, sampler);
+        let texture = factory.load_texture_from_memory(width as u16, height as u16, &image, sampler);
         textures.push(texture);
     }
     textures
@@ -162,72 +154,67 @@ fn load_material<'a>(
 fn load_primitive<'a>(
     factory: &mut Factory,
     primitive: gltf::Primitive<'a>,
-    buffers: &gltf_importer::Buffers,
+    buffers: &[gltf::buffer::Data],
     textures: &[Texture<[f32; 4]>],
 ) -> (InstancedGeometry, Material) {
-    use gltf_utils::PrimitiveIterators;
     use itertools::Itertools;
 
-    fn load_morph_targets(
-        primitive: &gltf::Primitive,
-        buffers: &gltf_importer::Buffers,
-    ) -> Vec<Shape> {
-        primitive
-            .morph_targets()
-            .map(|target| {
+    let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()].0));
+
+    let mut faces = vec![];
+    if let Some(iter) = reader.read_indices() {
+        faces.extend(iter.into_u32().tuples().map(|(a, b, c)| [a, b, c]));
+    }
+    let vertices: Vec<mint::Point3<f32>> = reader
+        .read_positions()
+        .unwrap()
+        .map(|x| x.into())
+        .collect();
+    let normals = if let Some(iter) = reader.read_normals() {
+        iter.map(|x| x.into()).collect()
+    } else {
+        Vec::new()
+    };
+    let tangents = if let Some(iter) = reader.read_tangents() {
+        iter.map(|x| x.into()).collect()
+    } else {
+        Vec::new()
+    };
+    let tex_coords = if let Some(iter) = reader.read_tex_coords(0) {
+        iter.into_f32().map(|x| x.into()).collect()
+    } else {
+        Vec::new()
+    };
+    let joint_indices = if let Some(iter) = reader.read_joints(0) {
+        iter.into_u16()
+            .map(|x| [x[0] as i32, x[1] as i32, x[2] as i32, x[3] as i32])
+            .collect()
+    } else {
+        Vec::new()
+    };
+    let joint_weights = if let Some(iter) = reader.read_weights(0) {
+        iter.into_f32().collect()
+    } else {
+        Vec::new()
+    };
+    let shapes = {
+        reader
+            .read_morph_targets()
+            .map(|(positions, normals, tangents)| {
                 let mut shape = Shape::default();
-                if let Some(accessor) = target.positions() {
-                    let iter = AccessorIter::<[f32; 3]>::new(accessor, buffers);
+                if let Some(iter) = positions {
                     shape.vertices.extend(iter.map(mint::Point3::<f32>::from));
                 }
-                if let Some(accessor) = target.normals() {
-                    let iter = AccessorIter::<[f32; 3]>::new(accessor, buffers);
+                if let Some(iter) = normals {
                     shape.normals.extend(iter.map(mint::Vector3::<f32>::from));
                 }
-                if let Some(accessor) = target.tangents() {
-                    let iter = AccessorIter::<[f32; 3]>::new(accessor, buffers);
+                if let Some(iter) = tangents {
                     shape.tangents.extend(iter.map(|v| mint::Vector4{ x: v[0], y: v[1], z: v[2], w: 1.0 }));
                 }
                 shape
             })
             .collect()
-    }
-
-    let mut faces = vec![];
-    if let Some(iter) = primitive.indices_u32(buffers) {
-        faces.extend(iter.tuples().map(|(a, b, c)| [a, b, c]));
-    }
-    let vertices: Vec<mint::Point3<f32>> = primitive
-        .positions(buffers)
-        .unwrap()
-        .map(|x| x.into())
-        .collect();
-    let normals = if let Some(iter) = primitive.normals(buffers) {
-        iter.map(|x| x.into()).collect()
-    } else {
-        Vec::new()
     };
-    let tangents = if let Some(iter) = primitive.tangents(buffers) {
-        iter.map(|x| x.into()).collect()
-    } else {
-        Vec::new()
-    };
-    let tex_coords = if let Some(iter) = primitive.tex_coords_f32(0, buffers) {
-        iter.map(|x| x.into()).collect()
-    } else {
-        Vec::new()
-    };
-    let joint_indices = if let Some(iter) = primitive.joints_u16(0, buffers) {
-        iter.map(|x| [x[0] as i32, x[1] as i32, x[2] as i32, x[3] as i32]).collect()
-    } else {
-        Vec::new()
-    };
-    let joint_weights = if let Some(iter) = primitive.weights_f32(0, buffers) {
-        iter.collect()
-    } else {
-        Vec::new()
-    };
-    let shapes = load_morph_targets(&primitive, &buffers);
     let geometry = Geometry {
         base: Shape {
             vertices,
@@ -262,13 +249,15 @@ fn load_skin<'a>(
     skin: gltf::Skin<'a>,
     objects: &mut Vec<ObjectTemplate>,
     bones: &mut Vec<BoneTemplate>,
-    buffers: &gltf_importer::Buffers,
+    buffers: &[gltf::buffer::Data],
 ) -> usize {
     use std::iter::repeat;
 
+    let reader = skin.reader(|buffer| Some(&buffers[buffer.index()].0));
+    
     let mut ibms = Vec::new();
-    if let Some(accessor) = skin.inverse_bind_matrices() {
-        for ibm in AccessorIter::<[[f32; 4]; 4]>::new(accessor, buffers) {
+    if let Some(iter) = reader.read_inverse_bind_matrices() {
+        for ibm in iter {
             ibms.push(ibm.into());
         }
     }
@@ -312,10 +301,10 @@ fn load_skin<'a>(
 
 fn load_animation<'a>(
     animation: gltf::Animation<'a>,
-    buffers: &gltf_importer::Buffers,
+    buffers: &[gltf::buffer::Data],
     groups: &[usize],
 ) -> AnimationTemplate {
-    use gltf::animation::InterpolationAlgorithm::*;
+    use gltf::animation::Interpolation::*;
 
     let mut tracks = Vec::new();
     let name = animation.name().map(str::to_string);
@@ -323,8 +312,6 @@ fn load_animation<'a>(
         let sampler = channel.sampler();
         let target = channel.target();
         let node = target.node();
-        let input = sampler.input();
-        let output = sampler.output();
         let interpolation = match sampler.interpolation() {
             Linear => animation::Interpolation::Linear,
             Step => animation::Interpolation::Discrete,
@@ -332,32 +319,32 @@ fn load_animation<'a>(
             CatmullRomSpline => animation::Interpolation::Cubic,
         };
         use animation::{Binding, Track, Values};
-        let times: Vec<f32> = AccessorIter::new(input, buffers).collect();
-        let (binding, values) = match target.path() {
-            gltf::animation::TrsProperty::Translation => {
-                let values = AccessorIter::<[f32; 3]>::new(output, buffers)
+        let reader = channel.reader(|buffer| Some(&buffers[buffer.index()].0));
+        let times: Vec<f32> = reader.read_inputs().unwrap().collect();
+        let (binding, values) = match reader.read_outputs().unwrap() {
+            gltf::animation::util::ReadOutputs::Translations(iter) => {
+                let values = iter
                     .map(|v| mint::Vector3::from(v))
                     .collect::<Vec<_>>();
                 assert_eq!(values.len(), times.len());
                 (Binding::Position, Values::Vector3(values))
             }
-            gltf::animation::TrsProperty::Rotation => {
-                let values = AccessorIter::<[f32; 4]>::new(output, buffers)
+            gltf::animation::util::ReadOutputs::Rotations(rotations) => {
+                let values = rotations
+                    .into_f32()
                     .map(|r| mint::Quaternion::from(r))
                     .collect::<Vec<_>>();
                 assert_eq!(values.len(), times.len());
                 (Binding::Orientation, Values::Quaternion(values))
             }
-            gltf::animation::TrsProperty::Scale => {
+            gltf::animation::util::ReadOutputs::Scales(iter) => {
                 // TODO: Groups do not handle non-uniform scaling, so for now
                 // we'll choose Y to be the scale factor in all directions.
-                let values = AccessorIter::<[f32; 3]>::new(output, buffers)
-                    .map(|s| s[1])
-                    .collect::<Vec<_>>();
+                let values = iter.map(|s| s[1]).collect::<Vec<_>>();
                 assert_eq!(values.len(), times.len());
                 (Binding::Scale, Values::Scalar(values))
             }
-            gltf::animation::TrsProperty::Weights => {
+            gltf::animation::util::ReadOutputs::MorphTargetWeights(weights) => {
                 // Write all values for target[0] first, then all values for target[1], etc.
                 let num_targets = node
                     .mesh()
@@ -368,7 +355,7 @@ fn load_animation<'a>(
                     .morph_targets()
                     .len();
                 let mut values = vec![0.0; times.len() * num_targets];
-                let raw = AccessorIter::<f32>::new(output, buffers).collect::<Vec<_>>();
+                let raw = weights.into_f32().collect::<Vec<_>>();
                 for (i, chunk) in raw.chunks(num_targets).enumerate() {
                     for (j, value) in chunk.iter().enumerate() {
                         values[j * times.len() + i] = *value;
@@ -562,10 +549,10 @@ impl super::Factory {
         info!("Loading glTF file {}", path_str);
 
         let path = Path::new(path_str);
-        let base = path.parent().unwrap_or(&Path::new(""));
-        let (gltf, buffers) = gltf_importer::import(path).expect("invalid glTF 2.0");
+        let (gltf, buffers, images) = gltf::import(path)
+            .expect("invalid glTF 2.0");
 
-        let textures = load_textures(self, &gltf, base, &buffers);
+        let textures = load_textures(self, &gltf, images);
 
         // Mappings that allow us to convert from indices in the glTF document to the indices in
         // the resulting template, for objects where the two don't necessarily line up.
