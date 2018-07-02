@@ -239,17 +239,21 @@ impl Perspective {
                 range.end,
             ).into(),
             ZRange::Infinite(ref range) => {
-                let m00 = 1.0 / (aspect_ratio * f32::tan(0.5 * self.fov_y));
-                let m11 = 1.0 / f32::tan(0.5 * self.fov_y);
+                let f = 1.0 / (0.5 * self.fov_y.to_radians()).tan();
+
+                let m00 = f / aspect_ratio;
+                let m11 = f;
                 let m22 = -1.0;
-                let m23 = -2.0 * range.start;
-                let m32 = -1.0;
+                let m23 = -1.0;
+                let m32 = -2.0 * range.start;
+
                 let m = [
                     [m00, 0.0, 0.0, 0.0],
                     [0.0, m11, 0.0, 0.0],
                     [0.0, 0.0, m22, m23],
                     [0.0, 0.0, m32, 0.0],
                 ];
+
                 m.into()
             }
         }
