@@ -16,7 +16,6 @@ exclude = ["doc/*", "bors.toml", ".travis.yml", "test_data/*"]
 
 [features]
 default = ["opengl"]
-gltf-loader = ["gltf", "gltf-importer", "gltf-utils"]
 opengl = ["gfx_device_gl", "gfx_window_glutin", "glutin"]
 
 [build-dependencies]
@@ -31,9 +30,7 @@ froggy = "0.4.4"
 genmesh = "0.5"
 gfx = "0.17.1"
 gfx_glyph = "0.8"
-gltf = { features = ["names"], optional = true, version = "0.9.3" }
-gltf-importer = { features = ["names"], optional = true, version = "0.9.3" }
-gltf-utils = { features = ["names"], optional = true, version = "0.9.3" }
+gltf = { features = ["names", "utils", "import"], optional = true, version = "0.11.1" }
 image = "0.18"
 includedir = "0.3"
 itertools = "0.7"
@@ -94,16 +91,16 @@ path = "examples/aviator/main.rs"
 
 [[example]]
 name = "gltf-pbr-shader"
-required-features = ["gltf-loader"]
+required-features = ["gltf"]
 
 [[example]]
 name = "gltf-node-animation"
-required-features = ["gltf-loader"]
+required-features = ["gltf"]
 
 [[example]]
 name = "gltf-vertex-skinning"
-required-features = ["gltf-loader"]
+required-features = ["gltf"]
 
 [[example]]
 name = "gltf-morph-targets"
-required-features = ["gltf-loader"]
+required-features = ["gltf"]
