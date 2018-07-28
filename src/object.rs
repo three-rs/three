@@ -156,7 +156,8 @@ pub trait Object: AsRef<Base> {
             None => Vector3::unit_y(),
         };
         let q = Quaternion::look_at(dir, up).invert();
-        self.set_transform(p[0], q, 1.0);
+
+        self.as_ref().send(Operation::SetTransform(Some(p[0]), Some(q.into()), None));
     }
 }
 
