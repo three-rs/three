@@ -94,7 +94,7 @@ impl AudioData {
     pub(crate) fn new() -> Self {
         // TODO: Change to `r::default_endpoint()` in next `rodio` release.
         #[allow(deprecated)]
-        let endpoint = if let Some(endpoint) = r::get_default_endpoint() {
+        let endpoint = if let Some(endpoint) = r::default_output_device() {
             endpoint
         } else {
             // TODO: Better error handling
