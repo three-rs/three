@@ -33,6 +33,7 @@ pub struct Window {
     ///
     /// Defaults to `true`.
     pub reset_input: bool,
+    is_fullscreen: bool,
 }
 
 /// Builder for creating new [`Window`](struct.Window.html) with desired parameters.
@@ -102,6 +103,7 @@ impl Builder {
         } else {
             None
         };
+        let is_fullscreen = self.fullscreen;
 
         let builder = glutin::WindowBuilder::new()
             .with_fullscreen(monitor_id)
@@ -155,6 +157,7 @@ impl Builder {
             factory,
             scene,
             reset_input: true,
+            is_fullscreen,
         }
     }
 }
@@ -263,5 +266,33 @@ impl Window {
     #[cfg(feature = "opengl")]
     pub fn glutin_window(&self) -> &glutin::GlWindow {
         &self.window
+    }
+
+    /// Returns the current full screen mode.
+    pub fn is_fullscreen(&self) -> bool {
+        self.is_fullscreen
+    }
+
+    /// Sets the full screen mode.
+    /// If the window is already in full screen mode, does nothing.
+    pub fn set_fullscreen(&mut self, fullscreen: bool) {
+        if self.is_fullscreen == fullscreen {
+            return;
+        }
+        self.is_fullscreen = fullscreen;
+        let monitor = if fullscreen {
+            Some(self.event_loop.get_primary_monitor())
+        } else {
+            None
+        };
+        self.window.set_fullscreen(monitor);
+    }
+
+    /// Toggles the full screen mode.
+    /// Returns the new actual mode.
+    pub fn toggle_fullscreen(&mut self) -> bool {
+        let fullscreen = !self.is_fullscreen;
+        self.set_fullscreen(fullscreen);
+        fullscreen
     }
 }
