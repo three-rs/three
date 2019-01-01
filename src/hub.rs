@@ -350,7 +350,7 @@ impl Hub {
                 data.section.text[0].color = [rgb[0], rgb[1], rgb[2], 1.0];
             }
             TextOperation::Font(font) => data.font = font,
-            TextOperation::Layout(layout) => data.layout = layout,
+            TextOperation::Layout(layout) => data.section.layout = layout.into(),
             TextOperation::Opacity(opacity) => data.section.text[0].color[3] = opacity,
             TextOperation::Pos(point) => data.section.screen_position = (point.x, point.y),
             // TODO: somehow grab window::hdpi_factor and multiply size
