@@ -24,8 +24,8 @@ pub(crate) enum Operation {
     Layout(Layout),
 }
 
-/// Describes horizontal alignment preference for positioning & bounds.
-/// See [`gfx_glyph::HorizontalAlign`](https://docs.rs/gfx_glyph/0.3.0/gfx_glyph/enum.HorizontalAlign.html)
+/// Describes the horizontal alignment preference for positioning & bounds.
+/// See [`gfx_glyph::HorizontalAlign`](https://docs.rs/gfx_glyph/0.13.0/gfx_glyph/enum.HorizontalAlign.html)
 /// for more.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Align {
@@ -41,7 +41,7 @@ pub enum Align {
 }
 
 /// Describes text alignment & wrapping.
-/// See [`gfx_glyph::Layout`](https://docs.rs/gfx_glyph/0.3.0/gfx_glyph/enum.Layout.html).
+/// See [`gfx_glyph::Layout`](https://docs.rs/gfx_glyph/0.13.0/gfx_glyph/enum.Layout.html).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Layout {
     /// Renders a single line from left-to-right according to the inner alignment.
@@ -137,7 +137,6 @@ impl fmt::Debug for Font {
 #[derive(Debug, Clone)]
 pub(crate) struct TextData {
     pub(crate) section: g::OwnedVariedSection,
-    pub(crate) layout: Layout,
     pub(crate) font: Font,
 }
 
@@ -157,7 +156,6 @@ impl TextData {
                 ],
                 ..Default::default()
             },
-            layout: Default::default(),
             font: font.clone(),
         }
     }
@@ -175,7 +173,7 @@ derive_DowncastObject!(Text => object::ObjectType::Text);
 
 impl Text {
     pub(crate) fn with_object(object: object::Base) -> Self {
-        Text { object: object }
+        Text { object }
     }
 
     /// Change text.

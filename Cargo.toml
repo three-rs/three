@@ -29,7 +29,7 @@ derivative = "1.0"
 froggy = "0.4.4"
 genmesh = "0.5"
 gfx = "0.17.1"
-gfx_glyph = "0.8"
+gfx_glyph = "0.13"
 gltf = { features = ["names", "utils", "import"], optional = true, version = "0.11.1" }
 image = "0.18"
 includedir = "0.3"
