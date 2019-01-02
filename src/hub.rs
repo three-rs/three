@@ -1,7 +1,7 @@
 use audio::{AudioData, Operation as AudioOperation};
 use camera::Projection;
 use color::{self, Color};
-use light::{ShadowMap, ShadowProjection};
+use light::{LightOperation, ShadowMap, ShadowProjection};
 use material::Material;
 use mesh::DynamicMesh;
 use node::{NodeInternal, NodePointer, TransformInternal};
@@ -78,6 +78,7 @@ pub(crate) enum Operation {
     RemoveChild(NodePointer),
     SetAudio(AudioOperation),
     SetVisible(bool),
+    SetLight(LightOperation),
     SetText(TextOperation),
     SetTransform(
         Option<mint::Point3<f32>>,
@@ -239,6 +240,14 @@ impl Hub {
                         cur_ptr = node.next_sibling.clone(); //TODO: avoid clone
                     }
                 }
+                Operation::SetLight(operation) => {
+                    match self.nodes[&ptr].sub_node {
+                        SubNode::Light(ref mut data) => {
+                            Hub::process_light(operation, data);
+                        }
+                        _ => unreachable!()
+                    }
+                }
                 Operation::SetText(operation) => {
                     match self.nodes[&ptr].sub_node {
                         SubNode::UiText(ref mut data) => {
@@ -336,6 +345,16 @@ impl Hub {
             AudioOperation::Resume => data.source.resume(),
             AudioOperation::Stop => data.source.stop(),
             AudioOperation::SetVolume(volume) => data.source.set_volume(volume),
+        }
+    }
+
+    fn process_light(
+        operation: LightOperation,
+        data: &mut LightData,
+    ) {
+        match operation {
+            LightOperation::Color(color) => data.color = color,
+            LightOperation::Intensity(intensity) => data.intensity = intensity,
         }
     }
 

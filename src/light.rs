@@ -10,6 +10,38 @@ use hub::{self, Operation, SubLight, SubNode};
 use render::{BackendResources, ShadowFormat};
 use scene::SyncGuard;
 
+#[derive(Debug)]
+pub(crate) enum LightOperation {
+    Color(Color),
+    Intensity(f32),
+}
+
+/// Marks light sources and implements their common methods.
+pub trait Light: Object {
+    /// Change light color.
+    fn set_color(
+        &self,
+        color: Color,
+    ) {
+        let msg = Operation::SetLight(LightOperation::Color(color));
+        let _ = self.as_ref().tx.send((self.as_ref().node.downgrade(), msg));
+    }
+
+    /// Change light intensity.
+    fn set_intensity(
+        &self,
+        intensity: f32,
+    ) {
+        let msg = Operation::SetLight(LightOperation::Intensity(intensity));
+        let _ = self.as_ref().tx.send((self.as_ref().node.downgrade(), msg));
+    }
+}
+
+impl Light for Ambient {}
+impl Light for Directional {}
+impl Light for Hemisphere {}
+impl Light for Point {}
+
 /// `ShadowMap` is used to render shadows from [`PointLight`](struct.PointLight.html)
 /// and [`DirectionalLight`](struct.DirectionalLight.html).
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
