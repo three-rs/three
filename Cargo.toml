@@ -27,15 +27,15 @@ bitflags = "1"
 cgmath = { version = "0.16", features = ["mint"] }
 derivative = "1.0"
 froggy = "0.4.4"
-genmesh = "0.5"
+genmesh = "0.6"
 gfx = "0.17.1"
 gfx_glyph = "0.13"
 gltf = { features = ["names", "utils", "import"], optional = true, version = "0.11.1" }
-image = "0.18"
+image = "0.20"
 includedir = "0.5"
 itertools = "0.8"
 log = "0.4"
-obj = { version = "0.8.1", features = ["genmesh"] }
+obj = { version = "0.9", features = ["genmesh"] }
 phf = "0.7.12"
 quick-error = "1.2"
 rodio = "0.8"
