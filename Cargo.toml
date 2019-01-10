@@ -24,7 +24,7 @@ includedir_codegen = "0.5"
 [dependencies]
 arrayvec = "0.4"
 bitflags = "1"
-cgmath = { version = "0.15", features = ["mint"] }
+cgmath = { version = "0.16", features = ["mint"] }
 derivative = "1.0"
 froggy = "0.4.4"
 genmesh = "0.5"
@@ -50,7 +50,7 @@ glutin = { version = "0.12", optional = true }
 [dev-dependencies]
 env_logger = "0.6"
 notify = "4"
-rand = "0.3"
+rand = "0.6"
 
 [[example]]
 name = "lights"
