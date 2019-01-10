@@ -245,7 +245,7 @@ impl Input {
     ) {
         self.delta.mouse_wheel.push(match delta {
             MouseScrollDelta::LineDelta(_, y) => y * PIXELS_PER_LINE,
-            MouseScrollDelta::PixelDelta(_, y) => y,
+            MouseScrollDelta::PixelDelta(delta) => delta.y as f32,
         });
     }
 

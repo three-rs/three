@@ -44,8 +44,8 @@ vec_map = "0.8"
 
 # OpenGL
 gfx_device_gl = { version = "0.15", optional = true }
-gfx_window_glutin = { version = "0.20", optional = true }
-glutin = { version = "0.12", optional = true }
+gfx_window_glutin = { version = "0.28", optional = true }
+glutin = { version = "0.19", optional = true }
 
 [dev-dependencies]
 env_logger = "0.6"

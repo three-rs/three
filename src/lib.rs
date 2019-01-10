@@ -358,4 +358,4 @@ pub use texture::{CubeMap, CubeMapPath, FilterMethod, Sampler, Texture, WrapMode
 
 #[cfg(feature = "opengl")]
 #[doc(inline)]
-pub use window::{CursorState, Window};
+pub use window::Window;
