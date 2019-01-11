@@ -1,5 +1,9 @@
 ## Change Log
 
+### v0.4 (11 Jan 2019)
+  - glTF templates
+  - sprite instancing
+
 ### v0.3 (24 Feb 2018)
   - parent objects now hold children alive, not the other way around
   - PBR materials, custom pipelines
