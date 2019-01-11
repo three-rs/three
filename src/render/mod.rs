@@ -526,7 +526,8 @@ pub struct Renderer {
     map_default: Texture<[f32; 4]>,
     shadow_default: Texture<f32>,
     debug_quads: froggy::Storage<DebugQuad>,
-    size: (u32, u32),
+    size: glutin::dpi::LogicalSize,
+    dpi: f64,
     font_cache: HashMap<String, Font>,
     instance_cache: HashMap<InstanceCacheKey, InstanceData>,
     /// `ShadowType` of this `Renderer`.
@@ -543,7 +544,7 @@ impl Renderer {
     ) -> (Self, glutin::GlWindow, Factory) {
         use gfx::texture as t;
 
-        let (window, device, mut gl_factory, out_color, out_depth) = gfx_window_glutin::init(builder, context, event_loop);
+        let (window, device, mut gl_factory, out_color, out_depth) = gfx_window_glutin::init(builder, context, event_loop).unwrap();
         let (_, srv_white) = gl_factory
             .create_texture_immutable::<gfx::format::Rgba8>(
                 t::Kind::D2(1, 1, t::AaMode::Single),
@@ -634,6 +635,7 @@ impl Renderer {
             debug_quads: froggy::Storage::new(),
             font_cache: HashMap::new(),
             size: window.get_inner_size().unwrap(),
+            dpi: window.get_hidpi_factor(),
         };
         let factory = Factory::new(gl_factory);
         (renderer, window, factory)
@@ -650,12 +652,11 @@ impl Renderer {
     pub(crate) fn resize(
         &mut self,
         window: &glutin::GlWindow,
+        size: glutin::dpi::LogicalSize,
     ) {
-        let size = window.get_inner_size().unwrap();
-
         // skip updating view and self size if some
         // of the sides equals to zero (fixes crash on minimize on Windows machines)
-        if size.0 == 0 || size.1 == 0 {
+        if size.width == 0.0 || size.height == 0.0 {
             return;
         }
 
@@ -663,9 +664,18 @@ impl Renderer {
         gfx_window_glutin::update_views(window, &mut self.out_color, &mut self.out_depth);
     }
 
+    pub(crate) fn dpi_change(
+        &mut self,
+        window: &glutin::GlWindow,
+        dpi: f64,
+    ) {
+        self.dpi = dpi;
+        gfx_window_glutin::update_views(window, &mut self.out_color, &mut self.out_depth);
+    }
+
     /// Returns current viewport aspect ratio, i.e. width / height.
     pub fn aspect_ratio(&self) -> f32 {
-        self.size.0 as f32 / self.size.1 as f32
+        self.size.to_physical(self.dpi).width as f32 / self.size.to_physical(self.dpi).height as f32
     }
 
     /// Map screen pixel coordinates to Normalized Display Coordinates.
@@ -677,8 +687,8 @@ impl Renderer {
     ) -> mint::Point2<f32> {
         let point = point.into();
         mint::Point2 {
-            x: 2.0 * point.x / self.size.0 as f32 - 1.0,
-            y: 1.0 - 2.0 * point.y / self.size.1 as f32,
+            x: 2.0 * point.x / self.size.to_physical(self.dpi).width as f32 - 1.0,
+            y: 1.0 - 2.0 * point.y / self.size.to_physical(self.dpi).height as f32,
         }
     }
 
@@ -1113,12 +1123,12 @@ impl Renderer {
                 if quad.pos[0] >= 0 {
                     quad.pos[0]
                 } else {
-                    self.size.0 as i32 + quad.pos[0] - quad.size[0]
+                    self.size.to_physical(self.dpi).width as i32 + quad.pos[0] - quad.size[0]
                 },
                 if quad.pos[1] >= 0 {
                     quad.pos[1]
                 } else {
-                    self.size.1 as i32 + quad.pos[1] - quad.size[1]
+                    self.size.to_physical(self.dpi).height as i32 + quad.pos[1] - quad.size[1]
                 },
             ];
             let p0 = self.map_to_ndc([pos[0] as f32, pos[1] as f32]);

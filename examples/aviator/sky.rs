@@ -26,13 +26,13 @@ impl Sky {
         let template = factory.mesh(geo, material.clone());
         for i in 0i32 .. rng.gen_range(3, 6) {
             let m = factory.mesh_instance(&template);
-            let rot: cgmath::Quaternion<f32> = rng.gen();
+            let rot = cgmath::Quaternion::<f32>::new(rng.gen(), rng.gen(), rng.gen(), rng.gen());
             let q = rot.normalize();
             m.set_transform(
                 [
                     i as f32 * 15.0,
-                    rng.next_f32() * 10.0,
-                    rng.next_f32() * 10.0,
+                    rng.gen::<f32>() * 10.0,
+                    rng.gen::<f32>() * 10.0,
                 ],
                 q,
                 rng.gen_range(0.1, 1.0),

@@ -1,7 +1,6 @@
 //! Primitives for creating and controlling [`Window`](struct.Window.html).
 
 use glutin;
-use glutin::GlContext;
 use mint;
 use render;
 
@@ -12,8 +11,6 @@ use render::Renderer;
 use scene::Scene;
 use std::path::PathBuf;
 
-pub use glutin::CursorState;
-
 /// `Window` is the core entity of every `three-rs` application.
 ///
 /// It provides [user input](struct.Window.html#method.update),
@@ -21,6 +18,7 @@ pub use glutin::CursorState;
 pub struct Window {
     event_loop: glutin::EventsLoop,
     window: glutin::GlWindow,
+    dpi: f64,
     /// See [`Input`](struct.Input.html).
     pub input: Input,
     /// See [`Renderer`](struct.Renderer.html).
@@ -38,7 +36,7 @@ pub struct Window {
 /// Builder for creating new [`Window`](struct.Window.html) with desired parameters.
 #[derive(Debug, Clone)]
 pub struct Builder {
-    dimensions: (u32, u32),
+    dimensions: glutin::dpi::LogicalSize,
     fullscreen: bool,
     multisampling: u16,
     shader_directory: Option<PathBuf>,
@@ -47,13 +45,15 @@ pub struct Builder {
 }
 
 impl Builder {
-    /// Set the size of the viewport (the resolution) in pixels. Defaults to 1024x768.
+    /// Set the size of the viewport (the resolution) in logical pixels.
+    /// That is the dpi setting affects the amount of pixels used but the window will
+    /// take up the same amount of space regardless of dpi. Defaults to 1024x768.
     pub fn dimensions(
         &mut self,
-        width: u32,
-        height: u32,
+        width: f64,
+        height: f64,
     ) -> &mut Self {
-        self.dimensions = (width, height);
+        self.dimensions = glutin::dpi::LogicalSize::new(width, height);
         self
     }
 
@@ -105,7 +105,7 @@ impl Builder {
 
         let builder = glutin::WindowBuilder::new()
             .with_fullscreen(monitor_id)
-            .with_dimensions(self.dimensions.0, self.dimensions.1)
+            .with_dimensions(self.dimensions)
             .with_title(self.title.clone());
 
         let context = glutin::ContextBuilder::new()
@@ -146,10 +146,12 @@ impl Builder {
         }
 
         let (renderer, window, mut factory) = Renderer::new(builder, context, &event_loop, &source_set);
+        let dpi = window.get_hidpi_factor();
         let scene = factory.scene();
         Window {
             event_loop,
             window,
+            dpi,
             input: Input::new(),
             renderer,
             factory,
@@ -168,7 +170,7 @@ impl Window {
     /// Create new `Builder` with standard parameters.
     pub fn builder<T: Into<String>>(title: T) -> Builder {
         Builder {
-            dimensions: (1024, 768),
+            dimensions: glutin::dpi::LogicalSize::new(1024.0, 768.0),
             fullscreen: false,
             multisampling: 0,
             shader_directory: None,
@@ -188,15 +190,17 @@ impl Window {
 
         self.window.swap_buffers().unwrap();
         let window = &self.window;
+        let dpi = self.dpi;
 
         self.event_loop.poll_events(|event| {
-            use glutin::WindowEvent::{Closed, Focused, KeyboardInput, MouseInput, CursorMoved, MouseWheel, Resized};
+            use glutin::WindowEvent;
             match event {
                 glutin::Event::WindowEvent { event, .. } => match event {
-                    Resized(..) => renderer.resize(window),
-                    Focused(state) => input.window_focus(state),
-                    Closed => running = false,
-                    KeyboardInput {
+                    WindowEvent::Resized(size) => renderer.resize(window, size),
+                    WindowEvent::HiDpiFactorChanged(dpi) => renderer.dpi_change(window, dpi),
+                    WindowEvent::Focused(state) => input.window_focus(state),
+                    WindowEvent::CloseRequested | WindowEvent::Destroyed => running = false,
+                    WindowEvent::KeyboardInput {
                         input: glutin::KeyboardInput {
                             state,
                             virtual_keycode: Some(keycode),
@@ -204,14 +208,12 @@ impl Window {
                         },
                         ..
                     } => input.keyboard_input(state, keycode),
-                    MouseInput { state, button, .. } => input.mouse_input(state, button),
-                    CursorMoved {
-                        position: (x, y), ..
-                    } => input.mouse_moved(
-                        [x as f32, y as f32].into(),
-                        renderer.map_to_ndc([x as f32, y as f32]),
-                    ),
-                    MouseWheel { delta, .. } => input.mouse_wheel_input(delta),
+                    WindowEvent::MouseInput { state, button, .. } => input.mouse_input(state, button),
+                    WindowEvent::CursorMoved { position, .. } => {
+                        let pos = position.to_physical(dpi);
+                        input.mouse_moved([pos.x as f32, pos.y as f32].into(), renderer.map_to_ndc([pos.x as f32, pos.y as f32]));
+                    }
+                    WindowEvent::MouseWheel { delta, .. } => input.mouse_wheel_input(delta),
                     _ => {}
                 },
                 glutin::Event::DeviceEvent { event, .. } => match event {
@@ -239,24 +241,9 @@ impl Window {
     pub fn size(&self) -> mint::Vector2<f32> {
         let size = self.window
             .get_inner_size()
-            .expect("Can't get window size");
-        [size.0 as f32, size.1 as f32].into()
-    }
-
-    /// Sets how the cursor should be handled.
-    ///
-    /// See the documentation for [`CursorState`] for the possible cursor states.
-    ///
-    /// Note that if you use [`CursorState::Grab`], you should use [`Input::mouse_delta_raw`] for
-    /// detecting mouse movement, as [`Input::mouse_delta`] will only report movement of the cursor
-    /// within the window.
-    ///
-    /// [`CursorState`]: enum.CursorState.html
-    /// [`CursorState::Grab`]: enum.CursorState.html#variant.Grab
-    /// [`Input::mouse_delta_raw`]: struct.Input.html#method.mouse_delta_raw
-    /// [`Input::mouse_delta`]: struct.Input.html#method.mouse_delta_raw
-    pub fn set_cursor_state(&self, state: CursorState) {
-        let _ = self.window.set_cursor_state(state);
+            .expect("Can't get window size")
+            .to_physical(self.dpi);
+        [size.width as f32, size.height as f32].into()
     }
 
     /// Returns underlaying `glutin::GlWindow`.

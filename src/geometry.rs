@@ -158,7 +158,7 @@ impl Geometry {
     ) -> Self {
         Self::generate(
             generators::Plane::new(),
-            |GenVertex { pos, .. }| [pos[0] * 0.5 * width, pos[1] * 0.5 * height, 0.0].into(),
+            |GenVertex { pos, .. }| [pos.x * 0.5 * width, pos.y * 0.5 * height, 0.0].into(),
             |v| v.normal.into(),
         )
     }
@@ -188,9 +188,9 @@ impl Geometry {
             generators::Cube::new(),
             |GenVertex { pos, .. }| {
                 [
-                    pos[0] * 0.5 * width,
-                    pos[1] * 0.5 * height,
-                    pos[2] * 0.5 * depth,
+                    pos.x * 0.5 * width,
+                    pos.y * 0.5 * height,
+                    pos.z * 0.5 * depth,
                 ].into()
             },
             |v| v.normal.into(),
@@ -230,10 +230,10 @@ impl Geometry {
             generators::Cylinder::new(radius_segments),
             //Three.js has height along the Y axis for some reason
             |GenVertex { pos, .. }| {
-                let scale = (pos[2] + 1.0) * 0.5 * radius_top + (1.0 - pos[2]) * 0.5 * radius_bottom;
-                [pos[1] * scale, pos[2] * 0.5 * height, pos[0] * scale].into()
+                let scale = (pos.z + 1.0) * 0.5 * radius_top + (1.0 - pos.z) * 0.5 * radius_bottom;
+                [pos.y * scale, pos.z * 0.5 * height, pos.x * scale].into()
             },
-            |GenVertex { normal, .. }| [normal[1], normal[2], normal[0]].into(),
+            |GenVertex { normal, .. }| [normal.y, normal.z, normal.x].into(),
         )
     }
 
@@ -257,8 +257,8 @@ impl Geometry {
         meridional_segments: usize,
     ) -> Self {
         Self::generate(
-            generators::SphereUV::new(equatorial_segments, meridional_segments),
-            |GenVertex { pos, .. }| [pos[0] * radius, pos[1] * radius, pos[2] * radius].into(),
+            generators::SphereUv::new(equatorial_segments, meridional_segments),
+            |GenVertex { pos, .. }| [pos.x * radius, pos.y * radius, pos.z * radius].into(),
             |v| v.normal.into(),
         )
     }
