@@ -915,7 +915,6 @@ impl Factory {
         depth_state: gfx::state::Depth,
         stencil_state: gfx::state::Stencil,
     ) -> Result<BasicPipelineState, PipelineCreationError> {
-        use gfx::traits::FactoryExt;
         let vs = Source::user(&dir, name, "vs")?;
         let ps = Source::user(&dir, name, "ps")?;
         let shaders = self.backend
@@ -994,7 +993,6 @@ impl Factory {
         &mut self,
         file_path: P,
     ) -> Font {
-        use self::io::Read;
         let file_path = file_path.as_ref();
         let mut buffer = Vec::new();
         let file = fs::File::open(&file_path).expect(&format!(
