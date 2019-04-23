@@ -18,8 +18,10 @@ use itertools::Either;
 use mint;
 use obj;
 
-use animation;
+#[cfg(feature = "audio")]
 use audio;
+
+use animation;
 use camera::{Camera, Projection, ZRange};
 use color::{BLACK, Color};
 use geometry::Geometry;
@@ -913,7 +915,6 @@ impl Factory {
         depth_state: gfx::state::Depth,
         stencil_state: gfx::state::Stencil,
     ) -> Result<BasicPipelineState, PipelineCreationError> {
-        use gfx::traits::FactoryExt;
         let vs = Source::user(&dir, name, "vs")?;
         let ps = Source::user(&dir, name, "ps")?;
         let shaders = self.backend
@@ -939,6 +940,7 @@ impl Factory {
         Text::with_object(object)
     }
 
+    #[cfg(feature = "audio")]
     /// Create new audio source.
     pub fn audio_source(&mut self) -> audio::Source {
         let sub = SubNode::Audio(audio::AudioData::new());
@@ -991,7 +993,6 @@ impl Factory {
         &mut self,
         file_path: P,
     ) -> Font {
-        use self::io::Read;
         let file_path = file_path.as_ref();
         let mut buffer = Vec::new();
         let file = fs::File::open(&file_path).expect(&format!(
@@ -1317,6 +1318,7 @@ impl Factory {
         (groups, meshes)
     }
 
+    #[cfg(feature = "audio")]
     /// Load audio from file. Supported formats are Flac, Vorbis and WAV.
     pub fn load_audio<P: AsRef<Path>>(
         &self,

@@ -6,7 +6,9 @@ use std::sync::mpsc;
 
 use mint;
 
+#[cfg(feature = "audio")]
 use audio;
+
 use camera::Camera;
 use hub::{Hub, Message, Operation, SubLight, SubNode};
 use light;
@@ -219,6 +221,7 @@ impl Object for Base {
                 object: self.clone(),
             }),
 
+            #[cfg(feature = "audio")]
             SubNode::Audio(..) => ObjectType::AudioSource(audio::Source {
                 object: self.clone(),
             }),
@@ -270,6 +273,7 @@ impl Object for Base {
 /// [`SyncGuard::resolve_data`]: ../scene/struct.SyncGuard.html#method.resolve_data
 #[derive(Debug, Clone)]
 pub enum ObjectType {
+    #[cfg(feature = "audio")]
     /// An audio source.
     AudioSource(audio::Source),
 

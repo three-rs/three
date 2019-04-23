@@ -266,6 +266,7 @@ extern crate obj;
 extern crate phf;
 #[macro_use]
 extern crate quick_error;
+#[cfg(feature = "audio")]
 extern crate rodio;
 extern crate vec_map;
 
@@ -279,7 +280,9 @@ extern crate glutin;
 #[macro_use]
 mod macros;
 
+#[cfg(feature = "audio")]
 pub mod audio;
+
 pub mod animation;
 pub mod camera;
 pub mod color;

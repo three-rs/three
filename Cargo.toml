@@ -15,8 +15,9 @@ exclude = ["doc/*", "bors.toml", ".travis.yml", "test_data/*"]
 [lib]
 
 [features]
-default = ["opengl"]
+default = ["opengl", "audio"]
 opengl = ["gfx_device_gl", "gfx_window_glutin", "glutin"]
+audio = ["rodio"]
 
 [build-dependencies]
 includedir_codegen = "0.5"
@@ -38,7 +39,7 @@ log = "0.4"
 obj = { version = "0.9", features = ["genmesh"] }
 phf = "0.7.12"
 quick-error = "1.2"
-rodio = "0.8"
+rodio = { version = "0.8", optional = true }
 mint = "0.5"
 vec_map = "0.8"
 
