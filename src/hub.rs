@@ -1,4 +1,6 @@
+#[cfg(feature = "audio")]
 use audio::{AudioData, Operation as AudioOperation};
+
 use camera::Projection;
 use color::{self, Color};
 use light::{LightOperation, ShadowMap, ShadowProjection};
@@ -56,6 +58,7 @@ pub(crate) enum SubNode {
     Camera(Projection),
     /// Group can be a parent to other objects.
     Group { first_child: Option<NodePointer> },
+    #[cfg(feature = "audio")]
     /// Audio data.
     Audio(AudioData),
     /// Renderable text for 2D user interface.
@@ -76,6 +79,7 @@ pub(crate) type Message = (froggy::WeakPointer<NodeInternal>, Operation);
 pub(crate) enum Operation {
     AddChild(NodePointer),
     RemoveChild(NodePointer),
+    #[cfg(feature = "audio")]
     SetAudio(AudioOperation),
     SetVisible(bool),
     SetLight(LightOperation),
@@ -176,6 +180,7 @@ impl Hub {
                 Err(_) => continue,
             };
             match operation {
+                #[cfg(feature = "audio")]
                 Operation::SetAudio(operation) => {
                     if let SubNode::Audio(ref mut data) = self.nodes[&ptr].sub_node {
                         Hub::process_audio(operation, data);
@@ -335,6 +340,7 @@ impl Hub {
         self.nodes.sync_pending();
     }
 
+    #[cfg(feature = "audio")]
     fn process_audio(
         operation: AudioOperation,
         data: &mut AudioData,

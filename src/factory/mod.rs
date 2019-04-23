@@ -18,8 +18,10 @@ use itertools::Either;
 use mint;
 use obj;
 
-use animation;
+#[cfg(feature = "audio")]
 use audio;
+
+use animation;
 use camera::{Camera, Projection, ZRange};
 use color::{BLACK, Color};
 use geometry::Geometry;
@@ -939,6 +941,7 @@ impl Factory {
         Text::with_object(object)
     }
 
+    #[cfg(feature = "audio")]
     /// Create new audio source.
     pub fn audio_source(&mut self) -> audio::Source {
         let sub = SubNode::Audio(audio::AudioData::new());
@@ -1317,6 +1320,7 @@ impl Factory {
         (groups, meshes)
     }
 
+    #[cfg(feature = "audio")]
     /// Load audio from file. Supported formats are Flac, Vorbis and WAV.
     pub fn load_audio<P: AsRef<Path>>(
         &self,
