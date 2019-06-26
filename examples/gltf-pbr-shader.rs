@@ -1,9 +1,6 @@
 extern crate three;
 
-use three::{
-    camera::Camera,
-    Object,
-};
+use three::{camera::Camera, Object};
 
 fn main() {
     let mut win = three::Window::new("Three-rs glTF example");
@@ -26,10 +23,7 @@ fn main() {
 
     // Attempt to find a camera in the instantiated template to use as the perspective for
     // rendering.
-    let cam = win
-        .scene
-        .sync_guard()
-        .find_child_of_type::<Camera>(&instance);
+    let cam = win.scene.sync_guard().find_child_of_type::<Camera>(&instance);
 
     // If we didn't find a camera in the glTF scene, create a default one to use.
     let cam = cam.unwrap_or_else(|| {
@@ -39,29 +33,16 @@ fn main() {
     });
 
     // Create a skybox for the scene.
-    let skybox_path = three::CubeMapPath {
-        front: "test_data/skybox/posz.jpg",
-        back: "test_data/skybox/negz.jpg",
-        up: "test_data/skybox/posy.jpg",
-        down: "test_data/skybox/negy.jpg",
-        left: "test_data/skybox/negx.jpg",
-        right: "test_data/skybox/posx.jpg",
-    };
+    let skybox_path = three::CubeMapPath { front: "test_data/skybox/posz.jpg", back: "test_data/skybox/negz.jpg", up: "test_data/skybox/posy.jpg", down: "test_data/skybox/negy.jpg", left: "test_data/skybox/negx.jpg", right: "test_data/skybox/posx.jpg" };
     let skybox = win.factory.load_cubemap(&skybox_path);
     win.scene.background = three::Background::Skybox(skybox);
 
     // Determine the current position of the camera so that we can use it to initialize the
     // camera controller.
-    let init = win.scene
-        .sync_guard()
-        .resolve_world(&cam)
-        .transform;
+    let init = win.scene.sync_guard().resolve_world(&cam).transform;
 
     // Create a first person camera controller, starting at the camera's current position.
-    let mut controls = three::controls::FirstPerson::builder(&cam)
-        .position(init.position)
-        .move_speed(4.0)
-        .build();
+    let mut controls = three::controls::FirstPerson::builder(&cam).position(init.position).move_speed(4.0).build();
 
     // Run the main loop, updating the camera controller and rendering the scene every frame.
     while win.update() && !win.input.hit(three::KEY_ESCAPE) {

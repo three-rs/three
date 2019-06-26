@@ -61,7 +61,10 @@ pub trait Object: AsRef<Base> {
     /// Prefer to use [`SyncGuard::resolve_data`] over calling this directly.
     ///
     /// [`SyncGuard::resolve_data`]: ./scene/struct.SyncGuard.html#method.resolve_data
-    fn resolve_data(&self, sync_guard: &SyncGuard) -> Self::Data;
+    fn resolve_data(
+        &self,
+        sync_guard: &SyncGuard,
+    ) -> Self::Data;
 
     /// Converts into the base type.
     fn upcast(&self) -> Base {
@@ -211,54 +214,35 @@ impl AsRef<Base> for Base {
 impl Object for Base {
     type Data = ObjectType;
 
-    fn resolve_data(&self, sync_guard: &SyncGuard) -> Self::Data {
+    fn resolve_data(
+        &self,
+        sync_guard: &SyncGuard,
+    ) -> Self::Data {
         match &sync_guard.hub[self].sub_node {
-            SubNode::Camera(..) => ObjectType::Camera(Camera {
-                object: self.clone(),
-            }),
+            SubNode::Camera(..) => ObjectType::Camera(Camera { object: self.clone() }),
 
-            SubNode::Group { .. } => ObjectType::Group(Group {
-                object: self.clone(),
-            }),
+            SubNode::Group { .. } => ObjectType::Group(Group { object: self.clone() }),
 
             #[cfg(feature = "audio")]
-            SubNode::Audio(..) => ObjectType::AudioSource(audio::Source {
-                object: self.clone(),
-            }),
+            SubNode::Audio(..) => ObjectType::AudioSource(audio::Source { object: self.clone() }),
 
-            SubNode::UiText(..) => ObjectType::Text(Text {
-                object: self.clone(),
-            }),
+            SubNode::UiText(..) => ObjectType::Text(Text { object: self.clone() }),
 
             // TODO: Differentiate between `Mesh` and `DynamicMesh`.
-            SubNode::Visual(..) => ObjectType::Mesh(Mesh {
-                object: self.clone(),
-            }),
+            SubNode::Visual(..) => ObjectType::Mesh(Mesh { object: self.clone() }),
 
-            SubNode::Bone { .. } => ObjectType::Bone(Bone {
-                object: self.clone(),
-            }),
+            SubNode::Bone { .. } => ObjectType::Bone(Bone { object: self.clone() }),
 
-            SubNode::Skeleton(..) => ObjectType::Skeleton(Skeleton {
-                object: self.clone(),
-            }),
+            SubNode::Skeleton(..) => ObjectType::Skeleton(Skeleton { object: self.clone() }),
 
             SubNode::Light(light) => match light.sub_light {
-                SubLight::Ambient => ObjectType::AmbientLight(light::Ambient {
-                    object: self.clone(),
-                }),
+                SubLight::Ambient => ObjectType::AmbientLight(light::Ambient { object: self.clone() }),
 
-                SubLight::Directional => ObjectType::DirectionalLight(light::Directional {
-                    object: self.clone(),
-                }),
+                SubLight::Directional => ObjectType::DirectionalLight(light::Directional { object: self.clone() }),
 
-                SubLight::Point => ObjectType::PointLight(light::Point {
-                    object: self.clone(),
-                }),
+                SubLight::Point => ObjectType::PointLight(light::Point { object: self.clone() }),
 
-                SubLight::Hemisphere { .. } => ObjectType::HemisphereLight(light::Hemisphere {
-                    object: self.clone(),
-                }),
+                SubLight::Hemisphere { .. } => ObjectType::HemisphereLight(light::Hemisphere { object: self.clone() }),
             },
         }
     }
@@ -335,13 +319,18 @@ pub struct Group {
 }
 
 impl AsRef<Base> for Group {
-    fn as_ref(&self) -> &Base { &self.object }
+    fn as_ref(&self) -> &Base {
+        &self.object
+    }
 }
 
 impl Object for Group {
     type Data = Vec<Base>;
 
-    fn resolve_data(&self, sync_guard: &SyncGuard) -> Vec<Base> {
+    fn resolve_data(
+        &self,
+        sync_guard: &SyncGuard,
+    ) -> Vec<Base> {
         let mut children = Vec::new();
         let mut child = match &sync_guard.hub[self].sub_node {
             SubNode::Group { ref first_child } => first_child.clone(),
@@ -351,10 +340,7 @@ impl Object for Group {
         while let Some(child_pointer) = child {
             child = sync_guard.hub.nodes[&child_pointer].next_sibling.clone();
 
-            children.push(Base {
-                node: child_pointer,
-                tx: sync_guard.hub.message_tx.clone(),
-            });
+            children.push(Base { node: child_pointer, tx: sync_guard.hub.message_tx.clone() });
         }
 
         children
@@ -366,9 +352,7 @@ derive_DowncastObject!(Group => ObjectType::Group);
 impl Group {
     pub(crate) fn new(hub: &mut Hub) -> Self {
         let sub = SubNode::Group { first_child: None };
-        Group {
-            object: hub.spawn(sub),
-        }
+        Group { object: hub.spawn(sub) }
     }
 
     /// Add new [`Object`](trait.Object.html) to the group.

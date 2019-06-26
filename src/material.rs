@@ -32,10 +32,7 @@ pub mod basic {
 
     impl Default for Basic {
         fn default() -> Self {
-            Self {
-                color: color::WHITE,
-                map: None,
-            }
+            Self { color: color::WHITE, map: None }
         }
     }
 
@@ -76,10 +73,7 @@ pub struct Lambert {
 
 impl Default for Lambert {
     fn default() -> Self {
-        Self {
-            color: color::WHITE,
-            flat: false,
-        }
+        Self { color: color::WHITE, flat: false }
     }
 }
 
@@ -96,9 +90,7 @@ pub struct Line {
 
 impl Default for Line {
     fn default() -> Self {
-        Self {
-            color: color::WHITE,
-        }
+        Self { color: color::WHITE }
     }
 }
 
@@ -183,20 +175,7 @@ pub struct Pbr {
 
 impl Default for Pbr {
     fn default() -> Self {
-        Self {
-            base_color_factor: color::WHITE,
-            base_color_alpha: 1.0,
-            metallic_factor: 1.0,
-            roughness_factor: 1.0,
-            occlusion_strength: 1.0,
-            emissive_factor: color::BLACK,
-            normal_scale: 1.0,
-            base_color_map: None,
-            normal_map: None,
-            emissive_map: None,
-            metallic_roughness_map: None,
-            occlusion_map: None,
-        }
+        Self { base_color_factor: color::WHITE, base_color_alpha: 1.0, metallic_factor: 1.0, roughness_factor: 1.0, occlusion_strength: 1.0, emissive_factor: color::BLACK, normal_scale: 1.0, base_color_map: None, normal_map: None, emissive_map: None, metallic_roughness_map: None, occlusion_map: None }
     }
 }
 
@@ -222,10 +201,7 @@ pub struct Phong {
 
 impl Default for Phong {
     fn default() -> Self {
-        Self {
-            color: color::WHITE,
-            glossiness: 30.0,
-        }
+        Self { color: color::WHITE, glossiness: 30.0 }
     }
 }
 

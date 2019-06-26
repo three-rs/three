@@ -32,12 +32,7 @@ fn create_cubes(
         group.set_position([0.0, 0.0, 1.0]);
         group.set_scale(2.0);
         group.add(&mesh);
-        Cube {
-            group,
-            mesh,
-            level_id: 0,
-            orientation: Quaternion::one(),
-        }
+        Cube { group, mesh, level_id: 0, orientation: Quaternion::one() }
     };
     let mut list = vec![root];
 
@@ -46,54 +41,21 @@ fn create_cubes(
         mat_id: usize,
         lev_id: usize,
     }
-    let mut stack = vec![
-        Stack {
-            parent_id: 0,
-            mat_id: 1,
-            lev_id: 1,
-        },
-    ];
+    let mut stack = vec![Stack { parent_id: 0, mat_id: 1, lev_id: 1 }];
 
-    let axis = [
-        Vector3::unit_z(),
-        Vector3::unit_x(),
-        -Vector3::unit_x(),
-        Vector3::unit_y(),
-        -Vector3::unit_y(),
-    ];
-    let children: Vec<_> = axis.iter()
-        .map(|&axe| {
-            Decomposed {
-                disp: Vector3::new(0.0, 0.0, 1.0),
-                rot: Quaternion::from_axis_angle(axe, Rad::turn_div_4()),
-                scale: 1.0,
-            }.concat(&Decomposed {
-                disp: Vector3::new(0.0, 0.0, 1.0),
-                rot: Quaternion::one(),
-                scale: 0.4,
-            })
-        })
-        .collect();
+    let axis = [Vector3::unit_z(), Vector3::unit_x(), -Vector3::unit_x(), Vector3::unit_y(), -Vector3::unit_y()];
+    let children: Vec<_> = axis.iter().map(|&axe| Decomposed { disp: Vector3::new(0.0, 0.0, 1.0), rot: Quaternion::from_axis_angle(axe, Rad::turn_div_4()), scale: 1.0 }.concat(&Decomposed { disp: Vector3::new(0.0, 0.0, 1.0), rot: Quaternion::one(), scale: 0.4 })).collect();
 
     while let Some(next) = stack.pop() {
         for child in &children {
             let mat = materials[next.mat_id].clone();
-            let cube = Cube {
-                group: factory.group(),
-                mesh: factory.mesh_instance_with_material(&list[0].mesh, mat),
-                level_id: next.lev_id,
-                orientation: child.rot,
-            };
+            let cube = Cube { group: factory.group(), mesh: factory.mesh_instance_with_material(&list[0].mesh, mat), level_id: next.lev_id, orientation: child.rot };
             let p: mint::Vector3<f32> = child.disp.into();
             cube.group.set_transform(p, child.rot, child.scale);
             list[next.parent_id].group.add(&cube.group);
             cube.group.add(&cube.mesh);
             if next.mat_id + 1 < materials.len() && next.lev_id + 1 < levels.len() {
-                stack.push(Stack {
-                    parent_id: list.len(),
-                    mat_id: next.mat_id + 1,
-                    lev_id: next.lev_id + 1,
-                });
+                stack.push(Stack { parent_id: list.len(), mat_id: next.mat_id + 1, lev_id: next.lev_id + 1 });
             }
             list.push(cube);
         }
@@ -127,21 +89,12 @@ fn main() {
     light.set_position([0.0, -10.0, 10.0]);
     win.scene.add(&light);
 
-    let materials = LEVELS
-        .iter()
-        .map(|l| three::material::Lambert { color: l.color, flat: false })
-        .collect::<Vec<_>>();
-    let levels = LEVELS
-        .iter()
-        .map(|l| Level { speed: l.speed })
-        .collect::<Vec<_>>();
+    let materials = LEVELS.iter().map(|l| three::material::Lambert { color: l.color, flat: false }).collect::<Vec<_>>();
+    let levels = LEVELS.iter().map(|l| Level { speed: l.speed }).collect::<Vec<_>>();
     let mut cubes = create_cubes(&mut win.factory, &materials, &levels);
     win.scene.add(&cubes[0].group);
 
-    let font = win.factory.load_font(format!(
-        "{}/data/fonts/DejaVuSans.ttf",
-        env!("CARGO_MANIFEST_DIR")
-    ));
+    let font = win.factory.load_font(format!("{}/data/fonts/DejaVuSans.ttf", env!("CARGO_MANIFEST_DIR")));
     let mut fps_counter = win.factory.ui_text(&font, "FPS: 00");
 
     let timer = three::Timer::new();

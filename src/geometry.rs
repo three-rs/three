@@ -1,7 +1,7 @@
 //! Structures for creating and storing geometric primitives.
 
-use genmesh::{EmitTriangles, Triangulate, Vertex as GenVertex};
 use genmesh::generators::{self, IndexedPolygon, SharedVertex};
+use genmesh::{EmitTriangles, Triangulate, Vertex as GenVertex};
 use mint;
 
 /// A collection of vertices, their normals, and faces that defines the
@@ -101,13 +101,7 @@ impl Geometry {
     /// let geometry = three::Geometry::with_vertices(vertices);
     /// ```
     pub fn with_vertices(vertices: Vec<mint::Point3<f32>>) -> Self {
-        Geometry {
-            base: Shape {
-                vertices,
-                .. Shape::default()
-            },
-            .. Geometry::default()
-        }
+        Geometry { base: Shape { vertices, ..Shape::default() }, ..Geometry::default() }
     }
 
     fn generate<P, G, Fpos, Fnor>(
@@ -122,17 +116,10 @@ impl Geometry {
         Fnor: Fn(GenVertex) -> mint::Vector3<f32>,
     {
         Geometry {
-            base: Shape {
-                vertices: gen.shared_vertex_iter().map(fpos).collect(),
-                normals: gen.shared_vertex_iter().map(fnor).collect(),
-                .. Shape::default()
-            },
+            base: Shape { vertices: gen.shared_vertex_iter().map(fpos).collect(), normals: gen.shared_vertex_iter().map(fnor).collect(), ..Shape::default() },
             // TODO: Add similar functions for tangents and texture coords
-            faces: gen.indexed_polygon_iter()
-                .triangulate()
-                .map(|t| [t.x as u32, t.y as u32, t.z as u32])
-                .collect(),
-            .. Geometry::default()
+            faces: gen.indexed_polygon_iter().triangulate().map(|t| [t.x as u32, t.y as u32, t.z as u32]).collect(),
+            ..Geometry::default()
         }
     }
 
@@ -156,11 +143,7 @@ impl Geometry {
         width: f32,
         height: f32,
     ) -> Self {
-        Self::generate(
-            generators::Plane::new(),
-            |GenVertex { pos, .. }| [pos.x * 0.5 * width, pos.y * 0.5 * height, 0.0].into(),
-            |v| v.normal.into(),
-        )
+        Self::generate(generators::Plane::new(), |GenVertex { pos, .. }| [pos.x * 0.5 * width, pos.y * 0.5 * height, 0.0].into(), |v| v.normal.into())
     }
 
     /// Creates cuboidal geometry.
@@ -184,17 +167,7 @@ impl Geometry {
         height: f32,
         depth: f32,
     ) -> Self {
-        Self::generate(
-            generators::Cube::new(),
-            |GenVertex { pos, .. }| {
-                [
-                    pos.x * 0.5 * width,
-                    pos.y * 0.5 * height,
-                    pos.z * 0.5 * depth,
-                ].into()
-            },
-            |v| v.normal.into(),
-        )
+        Self::generate(generators::Cube::new(), |GenVertex { pos, .. }| [pos.x * 0.5 * width, pos.y * 0.5 * height, pos.z * 0.5 * depth].into(), |v| v.normal.into())
     }
 
     /// Creates cylindrial geometry.
@@ -256,10 +229,6 @@ impl Geometry {
         equatorial_segments: usize,
         meridional_segments: usize,
     ) -> Self {
-        Self::generate(
-            generators::SphereUv::new(equatorial_segments, meridional_segments),
-            |GenVertex { pos, .. }| [pos.x * radius, pos.y * radius, pos.z * radius].into(),
-            |v| v.normal.into(),
-        )
+        Self::generate(generators::SphereUv::new(equatorial_segments, meridional_segments), |GenVertex { pos, .. }| [pos.x * radius, pos.y * radius, pos.z * radius].into(), |v| v.normal.into())
     }
 }

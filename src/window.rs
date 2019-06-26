@@ -6,6 +6,7 @@ use render;
 
 use camera::Camera;
 use factory::Factory;
+use gui::GuiBackend;
 use input::Input;
 use render::Renderer;
 use scene::Scene;
@@ -15,7 +16,7 @@ use std::path::PathBuf;
 ///
 /// It provides [user input](struct.Window.html#method.update),
 /// [`Factory`](struct.Factory.html) and [`Renderer`](struct.Renderer.html).
-pub struct Window {
+pub struct Window<B: GuiBackend> {
     event_loop: glutin::EventsLoop,
     window: glutin::GlWindow,
     dpi: f64,
@@ -27,6 +28,8 @@ pub struct Window {
     pub factory: Factory,
     /// See [`Scene`](struct.Scene.html).
     pub scene: Scene,
+    /// See [`GuiBackend`](trait.Guibackend.html).
+    pub gui: B,
     /// Reset input on each frame? See [`Input::reset`](struct.Input.html#method.reset).
     ///
     /// Defaults to `true`.
@@ -35,7 +38,7 @@ pub struct Window {
 }
 
 /// Builder for creating new [`Window`](struct.Window.html) with desired parameters.
-#[derive(Debug, Clone)]
+//#[derive(Debug, Clone)]
 pub struct Builder {
     dimensions: glutin::dpi::LogicalSize,
     fullscreen: bool,
@@ -96,23 +99,16 @@ impl Builder {
     }
 
     /// Create new `Window` with desired parameters.
-    pub fn build(&mut self) -> Window {
+    /// The type parameter specifies which [`GuiBackend`](trait.Guibackend.html)
+    /// to use. The default is [`gui::NoBackend`](struct.NoBackend.html).
+    pub fn build<B: GuiBackend>(&mut self) -> Window<B> {
         let event_loop = glutin::EventsLoop::new();
-        let monitor_id = if self.fullscreen {
-            Some(event_loop.get_primary_monitor())
-        } else {
-            None
-        };
+        let monitor_id = if self.fullscreen { Some(event_loop.get_primary_monitor()) } else { None };
         let is_fullscreen = self.fullscreen;
 
-        let builder = glutin::WindowBuilder::new()
-            .with_fullscreen(monitor_id)
-            .with_dimensions(self.dimensions)
-            .with_title(self.title.clone());
+        let builder = glutin::WindowBuilder::new().with_fullscreen(monitor_id).with_dimensions(self.dimensions).with_title(self.title.clone());
 
-        let context = glutin::ContextBuilder::new()
-            .with_vsync(self.vsync)
-            .with_multisampling(self.multisampling);
+        let context = glutin::ContextBuilder::new().with_vsync(self.vsync).with_multisampling(self.multisampling);
 
         let mut source_set = render::source::Set::default();
         if let Some(path) = self.shader_directory.as_ref() {
@@ -147,39 +143,24 @@ impl Builder {
             try_override!(basic, gouraud, pbr, phong, quad, shadow, skybox, sprite,);
         }
 
-        let (renderer, window, mut factory) = Renderer::new(builder, context, &event_loop, &source_set);
+        let (renderer, window, mut factory, gui) = Renderer::new::<B>(builder, context, &event_loop, &source_set);
         let dpi = window.get_hidpi_factor();
         let scene = factory.scene();
-        Window {
-            event_loop,
-            window,
-            dpi,
-            input: Input::new(),
-            renderer,
-            factory,
-            scene,
-            reset_input: true,
-            is_fullscreen,
-        }
+        Window { event_loop, window, dpi, input: Input::new(), renderer, factory, scene, gui, reset_input: true, is_fullscreen }
     }
 }
 
-impl Window {
+impl<B: GuiBackend> Window<B> {
     /// Create a new window with default parameters.
-    pub fn new<T: Into<String>>(title: T) -> Self {
+    /// I don't even have a clue as to how one could structure this to allow backwards
+    /// compatibility, so I'll let that be done in the PR process.
+    pub fn new<T: Into<String>>(title: T) -> Window<B> {
         Self::builder(title).build()
     }
 
     /// Create new `Builder` with standard parameters.
     pub fn builder<T: Into<String>>(title: T) -> Builder {
-        Builder {
-            dimensions: glutin::dpi::LogicalSize::new(1024.0, 768.0),
-            fullscreen: false,
-            multisampling: 0,
-            shader_directory: None,
-            title: title.into(),
-            vsync: true,
-        }
+        Builder { dimensions: glutin::dpi::LogicalSize::new(1024.0, 768.0), fullscreen: false, multisampling: 0, shader_directory: None, title: title.into(), vsync: true }
     }
 
     /// `update` method returns `false` if the window was closed.
@@ -192,42 +173,43 @@ impl Window {
         }
 
         self.window.swap_buffers().unwrap();
+        let gui = &mut self.gui;
         let window = &self.window;
         let dpi = self.dpi;
 
+        let gui_captured_input = gui.captured_input();
+        gui.input_begin();
         self.event_loop.poll_events(|event| {
             use glutin::WindowEvent;
-            match event {
-                glutin::Event::WindowEvent { event, .. } => match event {
-                    WindowEvent::Resized(size) => renderer.resize(window, size),
-                    WindowEvent::HiDpiFactorChanged(dpi) => renderer.dpi_change(window, dpi),
-                    WindowEvent::Focused(state) => input.window_focus(state),
-                    WindowEvent::CloseRequested | WindowEvent::Destroyed => running = false,
-                    WindowEvent::KeyboardInput {
-                        input: glutin::KeyboardInput {
-                            state,
-                            virtual_keycode: Some(keycode),
-                            ..
-                        },
-                        ..
-                    } => input.keyboard_input(state, keycode),
-                    WindowEvent::MouseInput { state, button, .. } => input.mouse_input(state, button),
-                    WindowEvent::CursorMoved { position, .. } => {
-                        let pos = position.to_physical(dpi);
-                        input.mouse_moved([pos.x as f32, pos.y as f32].into(), renderer.map_to_ndc([pos.x as f32, pos.y as f32]));
-                    }
-                    WindowEvent::MouseWheel { delta, .. } => input.mouse_wheel_input(delta),
+            gui.process_event(&event);
+
+            if !gui_captured_input {
+                match event {
+                    glutin::Event::WindowEvent { event, .. } => match event {
+                        WindowEvent::Resized(size) => renderer.resize(window, size),
+                        WindowEvent::HiDpiFactorChanged(dpi) => renderer.dpi_change(window, dpi),
+                        WindowEvent::Focused(state) => input.window_focus(state),
+                        WindowEvent::CloseRequested | WindowEvent::Destroyed => running = false,
+                        WindowEvent::KeyboardInput { input: glutin::KeyboardInput { state, virtual_keycode: Some(keycode), .. }, .. } => input.keyboard_input(state, keycode),
+                        WindowEvent::MouseInput { state, button, .. } => input.mouse_input(state, button),
+                        WindowEvent::CursorMoved { position, .. } => {
+                            let pos = position.to_physical(dpi);
+                            input.mouse_moved([pos.x as f32, pos.y as f32].into(), renderer.map_to_ndc([pos.x as f32, pos.y as f32]));
+                        }
+                        WindowEvent::MouseWheel { delta, .. } => input.mouse_wheel_input(delta),
+                        _ => {}
+                    },
+                    glutin::Event::DeviceEvent { event, .. } => match event {
+                        glutin::DeviceEvent::Motion { axis, value } => {
+                            input.axis_moved_raw(axis as u8, value as f32);
+                        }
+                        _ => {}
+                    },
                     _ => {}
-                },
-                glutin::Event::DeviceEvent { event, .. } => match event {
-                    glutin::DeviceEvent::Motion { axis, value } => {
-                        input.axis_moved_raw(axis as u8, value as f32);
-                    }
-                    _ => {}
-                },
-                _ => {}
+                }
             }
         });
+        gui.input_end();
 
         running
     }
@@ -237,15 +219,12 @@ impl Window {
         &mut self,
         camera: &Camera,
     ) {
-        self.renderer.render(&self.scene, camera);
+        self.renderer.render(&self.scene, camera, &mut self.gui);
     }
 
     /// Get current window size in pixels.
     pub fn size(&self) -> mint::Vector2<f32> {
-        let size = self.window
-            .get_inner_size()
-            .expect("Can't get window size")
-            .to_physical(self.dpi);
+        let size = self.window.get_inner_size().expect("Can't get window size").to_physical(self.dpi);
         [size.width as f32, size.height as f32].into()
     }
 
@@ -262,16 +241,15 @@ impl Window {
 
     /// Sets the full screen mode.
     /// If the window is already in full screen mode, does nothing.
-    pub fn set_fullscreen(&mut self, fullscreen: bool) {
+    pub fn set_fullscreen(
+        &mut self,
+        fullscreen: bool,
+    ) {
         if self.is_fullscreen == fullscreen {
             return;
         }
         self.is_fullscreen = fullscreen;
-        let monitor = if fullscreen {
-            Some(self.event_loop.get_primary_monitor())
-        } else {
-            None
-        };
+        let monitor = if fullscreen { Some(self.event_loop.get_primary_monitor()) } else { None };
         self.window.set_fullscreen(monitor);
     }
 

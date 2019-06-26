@@ -105,13 +105,18 @@ pub struct Camera {
 }
 
 impl AsRef<Base> for Camera {
-    fn as_ref(&self) -> &Base { &self.object }
+    fn as_ref(&self) -> &Base {
+        &self.object
+    }
 }
 
 impl Object for Camera {
     type Data = Projection;
 
-    fn resolve_data(&self, sync_guard: &SyncGuard) -> Self::Data {
+    fn resolve_data(
+        &self,
+        sync_guard: &SyncGuard,
+    ) -> Self::Data {
         match &sync_guard.hub[self].sub_node {
             SubNode::Camera(ref projection) => projection.clone(),
             sub_node @ _ => panic!("`Group` had a bad sub node type: {:?}", sub_node),
@@ -120,14 +125,18 @@ impl Object for Camera {
 }
 
 impl Camera {
-    pub(crate) fn new(hub: &mut Hub, projection: Projection) -> Self {
-        Camera {
-            object: hub.spawn(SubNode::Camera(projection)),
-        }
+    pub(crate) fn new(
+        hub: &mut Hub,
+        projection: Projection,
+    ) -> Self {
+        Camera { object: hub.spawn(SubNode::Camera(projection)) }
     }
 
     /// Sets the projection used by the camera.
-    pub fn set_projection<P: Into<Projection>>(&self, projection: P) {
+    pub fn set_projection<P: Into<Projection>>(
+        &self,
+        projection: P,
+    ) {
         self.as_ref().send(Operation::SetProjection(projection.into()));
     }
 }
@@ -152,11 +161,7 @@ impl Projection {
         P: Into<mint::Point2<f32>>,
     {
         let center = center.into();
-        Projection::Orthographic(Orthographic {
-            center,
-            extent_y,
-            range,
-        })
+        Projection::Orthographic(Orthographic { center, extent_y, range })
     }
 
     /// Constructs a perspective projection.
@@ -167,10 +172,7 @@ impl Projection {
     where
         R: Into<ZRange>,
     {
-        Projection::Perspective(Perspective {
-            fov_y,
-            zrange: range.into(),
-        })
+        Projection::Perspective(Perspective { fov_y, zrange: range.into() })
     }
 
     /// Computes the projection matrix representing the camera's projection.
@@ -204,14 +206,7 @@ impl Orthographic {
         aspect_ratio: f32,
     ) -> mint::ColumnMatrix4<f32> {
         let extent_x = aspect_ratio * self.extent_y;
-        cgmath::ortho(
-            self.center.x - extent_x,
-            self.center.x + extent_x,
-            self.center.y - self.extent_y,
-            self.center.y + self.extent_y,
-            self.range.start,
-            self.range.end,
-        ).into()
+        cgmath::ortho(self.center.x - extent_x, self.center.x + extent_x, self.center.y - self.extent_y, self.center.y + self.extent_y, self.range.start, self.range.end).into()
     }
 }
 
@@ -232,12 +227,7 @@ impl Perspective {
         aspect_ratio: f32,
     ) -> mint::ColumnMatrix4<f32> {
         match self.zrange {
-            ZRange::Finite(ref range) => cgmath::perspective(
-                cgmath::Deg(self.fov_y),
-                aspect_ratio,
-                range.start,
-                range.end,
-            ).into(),
+            ZRange::Finite(ref range) => cgmath::perspective(cgmath::Deg(self.fov_y), aspect_ratio, range.start, range.end).into(),
             ZRange::Infinite(ref range) => {
                 let f = 1.0 / (0.5 * self.fov_y.to_radians()).tan();
 
@@ -247,12 +237,7 @@ impl Perspective {
                 let m23 = -1.0;
                 let m32 = -2.0 * range.start;
 
-                let m = [
-                    [m00, 0.0, 0.0, 0.0],
-                    [0.0, m11, 0.0, 0.0],
-                    [0.0, 0.0, m22, m23],
-                    [0.0, 0.0, m32, 0.0],
-                ];
+                let m = [[m00, 0.0, 0.0, 0.0], [0.0, m11, 0.0, 0.0], [0.0, 0.0, m22, m23], [0.0, 0.0, m32, 0.0]];
 
                 m.into()
             }

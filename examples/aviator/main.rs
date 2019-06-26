@@ -44,10 +44,7 @@ fn main() {
 
     let sea = {
         let geo = three::Geometry::cylinder(600.0, 600.0, 800.0, 40);
-        let material = three::material::Lambert {
-            color: COLOR_BLUE,
-            flat: true,
-        };
+        let material = three::material::Lambert { color: COLOR_BLUE, flat: true };
         win.factory.mesh(geo, material)
     };
     let sea_base_q = cgmath::Quaternion::from_angle_x(-cgmath::Rad::turn_div_4());
@@ -59,9 +56,7 @@ fn main() {
     win.scene.add(&sky.group);
 
     let mut airplane = plane::AirPlane::new(&mut win.factory);
-    airplane
-        .group
-        .set_transform([0.0, 100.0, 0.0], [0.0, 0.0, 0.0, 1.0], 0.25);
+    airplane.group.set_transform([0.0, 100.0, 0.0], [0.0, 0.0, 0.0, 1.0], 0.25);
     win.scene.add(&airplane.group);
 
     let timer = three::Timer::new();

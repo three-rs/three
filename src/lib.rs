@@ -51,8 +51,7 @@
 //!
 //! ## Managing the scene
 //!
-//! In order to be rendered by the [`Renderer`], meshes must be placed in the
-//! [`Scene`] within the viewable region. Any marked with the [`Object`] trait
+//! In order to be rendered by the [`Renderer`], meshes must be placed in the [`Scene`] within the viewable region. Any marked with the [`Object`] trait
 //! may be placed into the scene heirarchy, including user-defined structs.
 //!
 //! ```rust,no_run
@@ -252,6 +251,7 @@ extern crate froggy;
 extern crate genmesh;
 #[macro_use]
 extern crate gfx;
+extern crate gfx_core;
 extern crate gfx_glyph;
 #[cfg(feature = "gltf")]
 extern crate gltf;
@@ -277,6 +277,11 @@ extern crate gfx_window_glutin;
 #[cfg(feature = "opengl")]
 extern crate glutin;
 
+#[cfg(feature = "nuklear")]
+extern crate nuklear;
+#[cfg(feature = "nuklear")]
+extern crate nuklear_backend_gfx;
+
 #[macro_use]
 mod macros;
 
@@ -291,6 +296,7 @@ pub mod custom;
 mod data;
 mod factory;
 mod geometry;
+pub mod gui;
 mod hub;
 mod input;
 pub mod light;
@@ -317,7 +323,7 @@ pub use color::Color;
 pub use controls::{AXIS_DOWN_UP, AXIS_LEFT_RIGHT, KEY_ESCAPE, KEY_SPACE, MOUSE_LEFT, MOUSE_RIGHT};
 
 #[doc(inline)]
-pub use controls::{Button, MouseButton, Input, Timer};
+pub use controls::{Button, Input, MouseButton, Timer};
 
 #[doc(inline)]
 pub use factory::Factory;
@@ -339,7 +345,7 @@ pub use material::Material;
 pub use mesh::{DynamicMesh, Mesh};
 
 #[doc(inline)]
-pub use node::{Node, Transform, Local, World};
+pub use node::{Local, Node, Transform, World};
 
 #[doc(inline)]
 pub use object::{Group, Object};

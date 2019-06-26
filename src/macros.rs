@@ -46,13 +46,17 @@ macro_rules! three_object {
         impl $crate::Object for $name {
             type Data = ();
 
-            fn resolve_data(&self, _: & $crate::scene::SyncGuard) -> Self::Data {}
+            fn resolve_data(
+                &self,
+                _: &$crate::scene::SyncGuard,
+            ) -> Self::Data {
+            }
         }
     };
 
     ($name:ident) => {
-        three_object!($name ::object);
-    }
+        three_object!($name::object);
+    };
 }
 
 macro_rules! derive_DowncastObject {
@@ -60,10 +64,10 @@ macro_rules! derive_DowncastObject {
         impl ::object::DowncastObject for $type {
             fn downcast(object: ::object::ObjectType) -> Option<Self> {
                 match object {
-                    $pattern (inner) => Some(inner),
+                    $pattern(inner) => Some(inner),
                     _ => None,
                 }
             }
         }
-    }
+    };
 }

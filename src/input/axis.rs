@@ -26,12 +26,6 @@ pub struct Raw {
 }
 
 /// Axis for left and right arrow keys.
-pub const AXIS_LEFT_RIGHT: Key = Key {
-    neg: KeyCode::Left,
-    pos: KeyCode::Right,
-};
+pub const AXIS_LEFT_RIGHT: Key = Key { neg: KeyCode::Left, pos: KeyCode::Right };
 /// Axis for up and down arrow keys.
-pub const AXIS_DOWN_UP: Key = Key {
-    neg: KeyCode::Down,
-    pos: KeyCode::Up,
-};
+pub const AXIS_DOWN_UP: Key = Key { neg: KeyCode::Down, pos: KeyCode::Up };

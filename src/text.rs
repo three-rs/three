@@ -2,8 +2,8 @@ use std::cell::RefCell;
 use std::fmt;
 use std::rc::Rc;
 
-use gfx::Encoder;
 use gfx::handle::{DepthStencilView, RenderTargetView};
+use gfx::Encoder;
 use gfx_glyph as g;
 use mint;
 use object;
@@ -69,16 +69,8 @@ impl From<Align> for g::HorizontalAlign {
 impl From<Layout> for g::Layout<g::BuiltInLineBreaker> {
     fn from(layout: Layout) -> g::Layout<g::BuiltInLineBreaker> {
         match layout {
-            Layout::Wrap(a) => g::Layout::Wrap {
-                line_breaker: g::BuiltInLineBreaker::UnicodeLineBreaker,
-                h_align: a.into(),
-                v_align: g::VerticalAlign::Top,
-            },
-            Layout::SingleLine(a) => g::Layout::SingleLine {
-                line_breaker: g::BuiltInLineBreaker::UnicodeLineBreaker,
-                h_align: a.into(),
-                v_align: g::VerticalAlign::Top,
-            },
+            Layout::Wrap(a) => g::Layout::Wrap { line_breaker: g::BuiltInLineBreaker::UnicodeLineBreaker, h_align: a.into(), v_align: g::VerticalAlign::Top },
+            Layout::SingleLine(a) => g::Layout::SingleLine { line_breaker: g::BuiltInLineBreaker::UnicodeLineBreaker, h_align: a.into(), v_align: g::VerticalAlign::Top },
         }
     }
 }
@@ -96,12 +88,7 @@ impl Font {
         id: String,
         factory: BackendFactory,
     ) -> Font {
-        Font {
-            brush: Rc::new(RefCell::new(
-                g::GlyphBrushBuilder::using_font_bytes(buf).build(factory),
-            )),
-            id: id,
-        }
+        Font { brush: Rc::new(RefCell::new(g::GlyphBrushBuilder::using_font_bytes(buf).build(factory))), id: id }
     }
 
     pub(crate) fn queue(
@@ -119,9 +106,7 @@ impl Font {
         depth: &DepthStencilView<BackendResources, DepthFormat>,
     ) {
         let mut brush = self.brush.borrow_mut();
-        brush
-            .draw_queued(encoder, out, depth)
-            .expect("Error while drawing text");
+        brush.draw_queued(encoder, out, depth).expect("Error while drawing text");
     }
 }
 
@@ -145,19 +130,7 @@ impl TextData {
         font: &Font,
         text: S,
     ) -> Self {
-        TextData {
-            section: g::OwnedVariedSection {
-                text: vec![
-                    g::OwnedSectionText {
-                        color: [1.0, 1.0, 1.0, 1.0],
-                        text: text.into(),
-                        ..g::OwnedSectionText::default()
-                    },
-                ],
-                ..Default::default()
-            },
-            font: font.clone(),
-        }
+        TextData { section: g::OwnedVariedSection { text: vec![g::OwnedSectionText { color: [1.0, 1.0, 1.0, 1.0], text: text.into(), ..g::OwnedSectionText::default() }], ..Default::default() }, font: font.clone() }
     }
 }
 

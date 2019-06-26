@@ -41,11 +41,7 @@ fn main() {
     win.scene.add(&mbox);
 
     let mline = {
-        let geometry = three::Geometry::with_vertices(vec![
-            [-2.0, -1.0, 0.0].into(),
-            [0.0, 1.0, 0.0].into(),
-            [2.0, -1.0, 0.0].into(),
-        ]);
+        let geometry = three::Geometry::with_vertices(vec![[-2.0, -1.0, 0.0].into(), [0.0, 1.0, 0.0].into(), [2.0, -1.0, 0.0].into()]);
         let material = three::material::Line { color: 0x0000FF };
         win.factory.mesh(geometry, material)
     };

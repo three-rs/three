@@ -17,6 +17,7 @@ exclude = ["doc/*", "bors.toml", ".travis.yml", "test_data/*"]
 [features]
 default = ["opengl", "audio"]
 opengl = ["gfx_device_gl", "gfx_window_glutin", "glutin"]
+nuklear = ["nuklear-rust", "nuklear-backend-gfx"]
 audio = ["rodio"]
 
 [build-dependencies]
@@ -30,6 +31,7 @@ derivative = "1.0"
 froggy = "0.4.4"
 genmesh = "0.6"
 gfx = "0.17.1"
+gfx_core = "^0.8"
 gfx_glyph = "0.13"
 gltf = { features = ["names", "utils", "import"], optional = true, version = "0.11.1" }
 image = "0.20"
@@ -42,6 +44,10 @@ quick-error = "1.2"
 rodio = { version = "0.8", optional = true }
 mint = "0.5"
 vec_map = "0.8"
+
+# Nuklear
+nuklear-rust = {version = "0.6", features = ["rust_allocator"], optional = true}
+nuklear-backend-gfx = {version = "0.8", optional = true}
 
 # OpenGL
 gfx_device_gl = { version = "0.15", optional = true }
@@ -105,3 +111,7 @@ required-features = ["gltf"]
 [[example]]
 name = "gltf-morph-targets"
 required-features = ["gltf"]
+
+[[example]]
+name = "gui"
+required-features = ["gltf", "nuklear"]

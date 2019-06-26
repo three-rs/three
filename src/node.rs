@@ -56,14 +56,7 @@ impl NodeInternal {
 
 impl From<SubNode> for NodeInternal {
     fn from(sub: SubNode) -> Self {
-        NodeInternal {
-            visible: true,
-            name: None,
-            transform: cgmath::Transform::one(),
-            world_transform: cgmath::Transform::one(),
-            next_sibling: None,
-            sub_node: sub,
-        }
+        NodeInternal { visible: true, name: None, transform: cgmath::Transform::one(), world_transform: cgmath::Transform::one(), next_sibling: None, sub_node: sub }
     }
 }
 
@@ -95,22 +88,14 @@ impl Transform {
 
 impl Default for Transform {
     fn default() -> Self {
-        Transform {
-            position: [0.0, 0.0, 0.0].into(),
-            orientation: [0.0, 0.0, 0.0, 1.0].into(),
-            scale: 1.0,
-        }
+        Transform { position: [0.0, 0.0, 0.0].into(), orientation: [0.0, 0.0, 0.0, 1.0].into(), scale: 1.0 }
     }
 }
 
 impl From<TransformInternal> for Transform {
     fn from(tf: TransformInternal) -> Self {
         let pos: mint::Vector3<f32> = tf.disp.into();
-        Transform {
-            position: pos.into(),
-            orientation: tf.rot.into(),
-            scale: tf.scale,
-        }
+        Transform { position: pos.into(), orientation: tf.rot.into(), scale: tf.scale }
     }
 }
 

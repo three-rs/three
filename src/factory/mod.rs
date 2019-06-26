@@ -1,14 +1,14 @@
 #[cfg(feature = "gltf")]
 mod load_gltf;
 
-use std::{cmp, fs, io, iter, ops};
 use std::borrow::Cow;
-use std::collections::HashSet;
 use std::collections::hash_map::{Entry, HashMap};
+use std::collections::HashSet;
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::{cmp, fs, io, iter, ops};
 
-use cgmath::{Vector3};
+use cgmath::Vector3;
 use gfx;
 use gfx::format::I8Norm;
 use gfx::traits::{Factory as Factory_, FactoryExt};
@@ -23,55 +23,25 @@ use audio;
 
 use animation;
 use camera::{Camera, Projection, ZRange};
-use color::{BLACK, Color};
+use color::{Color, BLACK};
 use geometry::Geometry;
 use hub::{Hub, HubPtr, LightData, SubLight, SubNode};
 use light::{Ambient, Directional, Hemisphere, Point, ShadowMap};
 use material::{self, Material};
 use mesh::{DynamicMesh, Mesh};
 use object::{self, Group, Object};
-use render::{basic_pipe,
-    BackendFactory, BackendResources, BasicPipelineState, DisplacementContribution,
-    DynamicData, GpuData, Instance, InstanceCacheKey, PipelineCreationError, ShadowFormat, Source, Vertex,
-    DEFAULT_VERTEX, VECS_PER_BONE, ZEROED_DISPLACEMENT_CONTRIBUTION,
-};
+use render::{basic_pipe, BackendFactory, BackendResources, BasicPipelineState, DisplacementContribution, DynamicData, GpuData, Instance, InstanceCacheKey, PipelineCreationError, ShadowFormat, Source, Vertex, DEFAULT_VERTEX, VECS_PER_BONE, ZEROED_DISPLACEMENT_CONTRIBUTION};
 use scene::{Background, Scene};
-use sprite::Sprite;
 use skeleton::{Bone, InverseBindMatrix, Skeleton};
-use template::{
-    InstancedGeometry,
-    LightTemplate,
-    SubLightTemplate,
-    Template,
-};
+use sprite::Sprite;
+use template::{InstancedGeometry, LightTemplate, SubLightTemplate, Template};
 use text::{Font, Text, TextData};
 use texture::{CubeMap, CubeMapPath, FilterMethod, Sampler, Texture, WrapMode};
 
 const TANGENT_X: [I8Norm; 4] = [I8Norm(1), I8Norm(0), I8Norm(0), I8Norm(1)];
 const NORMAL_Z: [I8Norm; 4] = [I8Norm(0), I8Norm(0), I8Norm(1), I8Norm(0)];
 
-const QUAD: [Vertex; 4] = [
-    Vertex {
-        pos: [-1.0, -1.0, 0.0, 1.0],
-        uv: [0.0, 0.0],
-        .. DEFAULT_VERTEX
-    },
-    Vertex {
-        pos: [1.0, -1.0, 0.0, 1.0],
-        uv: [1.0, 0.0],
-        .. DEFAULT_VERTEX
-    },
-    Vertex {
-        pos: [-1.0, 1.0, 0.0, 1.0],
-        uv: [0.0, 1.0],
-        .. DEFAULT_VERTEX
-    },
-    Vertex {
-        pos: [1.0, 1.0, 0.0, 1.0],
-        uv: [1.0, 1.0],
-        .. DEFAULT_VERTEX
-    },
-];
+const QUAD: [Vertex; 4] = [Vertex { pos: [-1.0, -1.0, 0.0, 1.0], uv: [0.0, 0.0], ..DEFAULT_VERTEX }, Vertex { pos: [1.0, -1.0, 0.0, 1.0], uv: [1.0, 0.0], ..DEFAULT_VERTEX }, Vertex { pos: [-1.0, 1.0, 0.0, 1.0], uv: [0.0, 1.0], ..DEFAULT_VERTEX }, Vertex { pos: [1.0, 1.0, 0.0, 1.0], uv: [1.0, 1.0], ..DEFAULT_VERTEX }];
 
 /// Mapping writer.
 pub type MapVertices<'a> = gfx::mapping::Writer<'a, BackendResources, Vertex>;
@@ -92,24 +62,19 @@ fn f2i(x: f32) -> I8Norm {
 impl Factory {
     fn create_instance_buffer(&mut self) -> gfx::handle::Buffer<BackendResources, Instance> {
         // TODO: Better error handling
-        self.backend
-            .create_buffer(
-                1,
-                gfx::buffer::Role::Vertex,
-                gfx::memory::Usage::Dynamic,
-                gfx::memory::Bind::TRANSFER_DST,
-            )
-            .unwrap()
+        self.backend.create_buffer(1, gfx::buffer::Role::Vertex, gfx::memory::Usage::Dynamic, gfx::memory::Bind::TRANSFER_DST).unwrap()
     }
 
-    fn create_gpu_data(&mut self, geometry: Geometry) -> GpuData {
+    fn create_gpu_data(
+        &mut self,
+        geometry: Geometry,
+    ) -> GpuData {
         let vertices = Self::mesh_vertices(&geometry);
         let (vbuf, mut slice) = if geometry.faces.is_empty() {
             self.backend.create_vertex_buffer_with_slice(&vertices, ())
         } else {
             let faces: &[u32] = gfx::memory::cast_slice(&geometry.faces);
-            self.backend
-                .create_vertex_buffer_with_slice(&vertices, faces)
+            self.backend.create_vertex_buffer_with_slice(&vertices, faces)
         };
         slice.instances = Some((1, 0));
         let num_shapes = geometry.shapes.len();
@@ -141,54 +106,26 @@ impl Factory {
                 displacement_contributions.push(contribution);
             }
 
-            let texture_and_view = self.backend
-                .create_texture_immutable::<[f32; 4]>(
-                    gfx::texture::Kind::D2(
-                        num_vertices as _,
-                        3 * num_shapes as gfx::texture::Size,
-                        gfx::texture::AaMode::Single,
-                    ),
-                    gfx::texture::Mipmap::Provided,
-                    &[gfx::memory::cast_slice(&contents)],
-                )
-                .unwrap();
+            let texture_and_view = self.backend.create_texture_immutable::<[f32; 4]>(gfx::texture::Kind::D2(num_vertices as _, 3 * num_shapes as gfx::texture::Size, gfx::texture::AaMode::Single), gfx::texture::Mipmap::Provided, &[gfx::memory::cast_slice(&contents)]).unwrap();
             Some(texture_and_view)
         } else {
             None
         };
 
-        GpuData {
-            slice,
-            vertices: vbuf,
-            instances,
-            displacements,
-            pending: None,
-            instance_cache_key: None,
-            displacement_contributions,
-        }
+        GpuData { slice, vertices: vbuf, instances, displacements, pending: None, instance_cache_key: None, displacement_contributions }
     }
 
     pub(crate) fn new(mut backend: BackendFactory) -> Self {
         let quad_buf = backend.create_vertex_buffer(&QUAD);
         let default_sampler = backend.create_sampler_linear();
-        Factory {
-            backend: backend,
-            hub: Hub::new(),
-            quad_buf,
-            texture_cache: HashMap::new(),
-            default_sampler: default_sampler,
-        }
+        Factory { backend: backend, hub: Hub::new(), quad_buf, texture_cache: HashMap::new(), default_sampler: default_sampler }
     }
 
     /// Create new empty [`Scene`](struct.Scene.html).
     pub fn scene(&mut self) -> Scene {
         let hub = self.hub.clone();
         let background = Background::Color(BLACK);
-        Scene {
-            hub,
-            first_child: None,
-            background,
-        }
+        Scene { hub, first_child: None, background }
     }
 
     /// Creates an instance of all the objects described in the template.
@@ -215,7 +152,10 @@ impl Factory {
     /// [`Group`]: ./struct.Group.html
     /// [`template`]: ./template/index.html
     /// [`Factory::group`]: #method.group
-    pub fn instantiate_template(&mut self, template: &Template) -> (Group, Vec<animation::Clip>) {
+    pub fn instantiate_template(
+        &mut self,
+        template: &Template,
+    ) -> (Group, Vec<animation::Clip>) {
         // Create group to act as the root node of the instantiated hierarchy.
         let root = self.group();
 
@@ -257,18 +197,7 @@ impl Factory {
             .iter()
             .enumerate()
             .map(|(index, &object)| {
-                let bones = template
-                    .bones
-                    .iter()
-                    .zip(bones.iter())
-                    .filter_map(|(template, bone)| {
-                        if template.skeleton == index {
-                            Some(bone.clone())
-                        } else {
-                            None
-                        }
-                    })
-                    .collect();
+                let bones = template.bones.iter().zip(bones.iter()).filter_map(|(template, bone)| if template.skeleton == index { Some(bone.clone()) } else { None }).collect();
                 let skeleton = self.skeleton(bones);
                 objects.insert(object, skeleton.upcast());
                 skeleton_objects.insert(object);
@@ -277,10 +206,7 @@ impl Factory {
             .collect();
 
         for template in &template.meshes {
-            let mesh = self.create_instanced_mesh(
-                &template.geometry,
-                template.material.clone(),
-            );
+            let mesh = self.create_instanced_mesh(&template.geometry, template.material.clone());
 
             if let Some(skeleton_index) = template.skeleton {
                 mesh.set_skeleton(skeletons[skeleton_index].clone())
@@ -297,14 +223,10 @@ impl Factory {
         for &template in &template.lights {
             let LightTemplate { object, color, intensity, sub_light } = template;
             let light = match sub_light {
-                SubLightTemplate::Ambient =>
-                    self.ambient_light(color, intensity).upcast(),
-                SubLightTemplate::Directional =>
-                    self.directional_light(color, intensity).upcast(),
-                SubLightTemplate::Hemisphere { ground } =>
-                    self.hemisphere_light(color, ground, intensity).upcast(),
-                SubLightTemplate::Point =>
-                    self.point_light(color, intensity).upcast(),
+                SubLightTemplate::Ambient => self.ambient_light(color, intensity).upcast(),
+                SubLightTemplate::Directional => self.directional_light(color, intensity).upcast(),
+                SubLightTemplate::Hemisphere { ground } => self.hemisphere_light(color, ground, intensity).upcast(),
+                SubLightTemplate::Point => self.point_light(color, intensity).upcast(),
             };
             objects.insert(object, light.clone());
         }
@@ -313,11 +235,7 @@ impl Factory {
         for (&index, base) in &objects {
             let template = &template.objects[index];
 
-            base.set_transform(
-                template.transform.position,
-                template.transform.orientation,
-                template.transform.scale,
-            );
+            base.set_transform(template.transform.position, template.transform.orientation, template.transform.scale);
 
             if let Some(name) = template.name.clone() {
                 base.set_name(name);
@@ -325,7 +243,9 @@ impl Factory {
 
             // HACK: We need to add any `Skeleton` objects to their parent group *last*, so
             // we skip them. See note above for more details.
-            if skeleton_objects.contains(&index) { continue; }
+            if skeleton_objects.contains(&index) {
+                continue;
+            }
 
             match template.parent {
                 Some(parent) => groups[parent].add(base),
@@ -349,16 +269,9 @@ impl Factory {
             .animations
             .iter()
             .map(|animation| {
-                let tracks = animation
-                    .tracks
-                    .iter()
-                    .map(|&(ref track, target)| (track.clone(), objects[&target].clone()))
-                    .collect();
+                let tracks = animation.tracks.iter().map(|&(ref track, target)| (track.clone(), objects[&target].clone())).collect();
 
-                animation::Clip {
-                    name: template.name.clone(),
-                    tracks,
-                }
+                animation::Clip { name: template.name.clone(), tracks }
             })
             .collect();
 
@@ -389,17 +302,8 @@ impl Factory {
         &mut self,
         bones: Vec<Bone>,
     ) -> Skeleton {
-        let gpu_buffer = self.backend
-            .create_buffer(
-                bones.len() * VECS_PER_BONE,
-                gfx::buffer::Role::Constant,
-                gfx::memory::Usage::Dynamic,
-                gfx::memory::Bind::SHADER_RESOURCE,
-            )
-            .expect("create GPU target buffer");
-        let gpu_buffer_view = self.backend
-            .view_buffer_as_shader_resource(&gpu_buffer)
-            .expect("create shader resource view for GPU target buffer");
+        let gpu_buffer = self.backend.create_buffer(bones.len() * VECS_PER_BONE, gfx::buffer::Role::Constant, gfx::memory::Usage::Dynamic, gfx::memory::Bind::SHADER_RESOURCE).expect("create GPU target buffer");
+        let gpu_buffer_view = self.backend.view_buffer_as_shader_resource(&gpu_buffer).expect("create shader resource view for GPU target buffer");
         let data = hub::SkeletonData { bones, gpu_buffer, gpu_buffer_view };
         let object = self.hub.lock().unwrap().spawn_skeleton(data);
         Skeleton { object }
@@ -411,11 +315,11 @@ impl Factory {
     /// e.g. load projection data from a file and don't necessarily know ahead of time what type
     /// of projection the camera uses. If you're manually creating a camera, you should use
     /// [`perspective_camera`] or [`orthographic_camera`].
-    pub fn camera<P: Into<Projection>>(&mut self, projection: P) -> Camera {
-        Camera::new(
-            &mut *self.hub.lock().unwrap(),
-            projection.into(),
-        )
+    pub fn camera<P: Into<Projection>>(
+        &mut self,
+        projection: P,
+    ) -> Camera {
+        Camera::new(&mut *self.hub.lock().unwrap(), projection.into())
     }
 
     /// Create new [Orthographic] Camera.
@@ -428,10 +332,7 @@ impl Factory {
         extent_y: f32,
         range: ops::Range<f32>,
     ) -> Camera {
-        Camera::new(
-            &mut *self.hub.lock().unwrap(),
-            Projection::orthographic(center, extent_y, range),
-        )
+        Camera::new(&mut *self.hub.lock().unwrap(), Projection::orthographic(center, extent_y, range))
     }
 
     /// Create new [Perspective] Camera.
@@ -462,10 +363,7 @@ impl Factory {
         fov_y: f32,
         range: R,
     ) -> Camera {
-        Camera::new(
-            &mut *self.hub.lock().unwrap(),
-            Projection::perspective(fov_y, range),
-        )
+        Camera::new(&mut *self.hub.lock().unwrap(), Projection::perspective(fov_y, range))
     }
 
     /// Create empty [`Group`](struct.Group.html).
@@ -475,61 +373,19 @@ impl Factory {
 
     fn mesh_vertices(geometry: &Geometry) -> Vec<Vertex> {
         let position_iter = geometry.base.vertices.iter();
-        let normal_iter = if geometry.base.normals.is_empty() {
-            Either::Left(iter::repeat(NORMAL_Z))
-        } else {
-            Either::Right(
-                geometry.base.normals
-                    .iter()
-                    .map(|n| [f2i(n.x), f2i(n.y), f2i(n.z), I8Norm(0)]),
-            )
-        };
-        let uv_iter = if geometry.tex_coords.is_empty() {
-            Either::Left(iter::repeat([0.0, 0.0]))
-        } else {
-            Either::Right(geometry.tex_coords.iter().map(|uv| [uv.x, uv.y]))
-        };
+        let normal_iter = if geometry.base.normals.is_empty() { Either::Left(iter::repeat(NORMAL_Z)) } else { Either::Right(geometry.base.normals.iter().map(|n| [f2i(n.x), f2i(n.y), f2i(n.z), I8Norm(0)])) };
+        let uv_iter = if geometry.tex_coords.is_empty() { Either::Left(iter::repeat([0.0, 0.0])) } else { Either::Right(geometry.tex_coords.iter().map(|uv| [uv.x, uv.y])) };
         let tangent_iter = if geometry.base.tangents.is_empty() {
             // TODO: Generate tangents if texture coordinates are provided.
             // (Use mikktspace algorithm or otherwise.)
             Either::Left(iter::repeat(TANGENT_X))
         } else {
-            Either::Right(
-                geometry.base.tangents
-                    .iter()
-                    .map(|t| [f2i(t.x), f2i(t.y), f2i(t.z), f2i(t.w)]),
-            )
+            Either::Right(geometry.base.tangents.iter().map(|t| [f2i(t.x), f2i(t.y), f2i(t.z), f2i(t.w)]))
         };
-        let joint_indices_iter = if geometry.joints.indices.is_empty() {
-            Either::Left(iter::repeat([0, 0, 0, 0]))
-        } else {
-            Either::Right(geometry.joints.indices.iter().cloned())
-        };
-        let joint_weights_iter = if geometry.joints.weights.is_empty() {
-            Either::Left(iter::repeat([1.0, 1.0, 1.0, 1.0]))
-        } else {
-            Either::Right(geometry.joints.weights.iter().cloned())
-        };
+        let joint_indices_iter = if geometry.joints.indices.is_empty() { Either::Left(iter::repeat([0, 0, 0, 0])) } else { Either::Right(geometry.joints.indices.iter().cloned()) };
+        let joint_weights_iter = if geometry.joints.weights.is_empty() { Either::Left(iter::repeat([1.0, 1.0, 1.0, 1.0])) } else { Either::Right(geometry.joints.weights.iter().cloned()) };
 
-        izip!(
-            position_iter,
-            normal_iter,
-            tangent_iter,
-            uv_iter,
-            joint_indices_iter,
-            joint_weights_iter,
-        )
-            .map(|(pos, normal, tangent, uv, joint_indices, joint_weights)| {
-                Vertex {
-                    pos: [pos.x, pos.y, pos.z, 1.0],
-                    normal,
-                    uv,
-                    tangent,
-                    joint_indices,
-                    joint_weights,
-                }
-            })
-            .collect()
+        izip!(position_iter, normal_iter, tangent_iter, uv_iter, joint_indices_iter, joint_weights_iter,).map(|(pos, normal, tangent, uv, joint_indices, joint_weights)| Vertex { pos: [pos.x, pos.y, pos.z, 1.0], normal, uv, tangent, joint_indices, joint_weights }).collect()
     }
 
     /// Uploads geometry data to the GPU so that it can be reused for instanced rendering.
@@ -581,13 +437,7 @@ impl Factory {
     ) -> Mesh {
         let gpu_data = self.create_gpu_data(geometry);
 
-        Mesh {
-            object: self.hub.lock().unwrap().spawn_visual(
-                material.into(),
-                gpu_data,
-                None,
-            ),
-        }
+        Mesh { object: self.hub.lock().unwrap().spawn_visual(material.into(), gpu_data, None) }
     }
 
     /// Creates a [`Mesh`] using geometry that has already been loaded to the GPU.
@@ -634,18 +484,9 @@ impl Factory {
         let material = material.into();
 
         // Setup the GPU data for instanced rendering.
-        gpu_data.instance_cache_key = Some(InstanceCacheKey {
-            geometry: gpu_data.vertices.clone(),
-            material: material.clone(),
-        });
+        gpu_data.instance_cache_key = Some(InstanceCacheKey { geometry: gpu_data.vertices.clone(), material: material.clone() });
 
-        Mesh {
-            object: self.hub.lock().unwrap().spawn_visual(
-                material,
-                gpu_data,
-                None,
-            ),
-        }
+        Mesh { object: self.hub.lock().unwrap().spawn_visual(material, gpu_data, None) }
     }
 
     /// Create a new `DynamicMesh` with desired `Geometry` and `Material`.
@@ -656,51 +497,21 @@ impl Factory {
     ) -> DynamicMesh {
         let slice = {
             let data: &[u32] = gfx::memory::cast_slice(&geometry.faces);
-            gfx::Slice {
-                start: 0,
-                end: data.len() as u32,
-                base_vertex: 0,
-                instances: Some((1, 0)),
-                buffer: self.backend.create_index_buffer(data),
-            }
+            gfx::Slice { start: 0, end: data.len() as u32, base_vertex: 0, instances: Some((1, 0)), buffer: self.backend.create_index_buffer(data) }
         };
         let (num_vertices, vertices, upload_buf) = {
             let data = Self::mesh_vertices(&geometry);
-            let dest_buf = self.backend
-                .create_buffer_immutable(&data, gfx::buffer::Role::Vertex, gfx::memory::Bind::TRANSFER_DST)
-                .unwrap();
+            let dest_buf = self.backend.create_buffer_immutable(&data, gfx::buffer::Role::Vertex, gfx::memory::Bind::TRANSFER_DST).unwrap();
             let upload_buf = self.backend.create_upload_buffer(data.len()).unwrap();
             // TODO: Workaround for not having a 'write-to-slice' capability.
             // Reason: The renderer copies the entire staging buffer upon updates.
             {
-                self.backend
-                    .write_mapping(&upload_buf)
-                    .unwrap()
-                    .copy_from_slice(&data);
+                self.backend.write_mapping(&upload_buf).unwrap().copy_from_slice(&data);
             }
             (data.len(), dest_buf, upload_buf)
         };
         let instances = self.create_instance_buffer();
-        DynamicMesh {
-            object: self.hub.lock().unwrap().spawn_visual(
-                material.into(),
-                GpuData {
-                    slice,
-                    vertices,
-                    instances,
-                    displacements: None,
-                    pending: None,
-                    instance_cache_key: None,
-                    displacement_contributions: ZEROED_DISPLACEMENT_CONTRIBUTION.to_vec(),
-                },
-                None,
-            ),
-            geometry,
-            dynamic: DynamicData {
-                num_vertices,
-                buffer: upload_buf,
-            },
-        }
+        DynamicMesh { object: self.hub.lock().unwrap().spawn_visual(material.into(), GpuData { slice, vertices, instances, displacements: None, pending: None, instance_cache_key: None, displacement_contributions: ZEROED_DISPLACEMENT_CONTRIBUTION.to_vec() }, None), geometry, dynamic: DynamicData { num_vertices, buffer: upload_buf } }
     }
 
     /// Create a `Mesh` sharing the geometry with another one.
@@ -713,21 +524,10 @@ impl Factory {
         let instances = self.create_instance_buffer();
         let mut hub = self.hub.lock().unwrap();
         let (material, gpu_data) = match hub[template].sub_node {
-            SubNode::Visual(ref mat, ref gpu, _) => {
-                (mat.clone(), GpuData {
-                    instances,
-                    instance_cache_key: Some(InstanceCacheKey {
-                        material: mat.clone(),
-                        geometry: gpu.vertices.clone(),
-                    }),
-                    ..gpu.clone()
-                })
-            }
+            SubNode::Visual(ref mat, ref gpu, _) => (mat.clone(), GpuData { instances, instance_cache_key: Some(InstanceCacheKey { material: mat.clone(), geometry: gpu.vertices.clone() }), ..gpu.clone() }),
             _ => unreachable!(),
         };
-        Mesh {
-            object: hub.spawn_visual(material, gpu_data, None),
-        }
+        Mesh { object: hub.spawn_visual(material, gpu_data, None) }
     }
 
     /// Create a `Mesh` sharing the geometry with another one but with a different material.
@@ -741,19 +541,10 @@ impl Factory {
         let material = material.into();
         let mut hub = self.hub.lock().unwrap();
         let gpu_data = match hub[template].sub_node {
-            SubNode::Visual(_, ref gpu, _) => GpuData {
-                instances,
-                instance_cache_key: Some(InstanceCacheKey {
-                    material: material.clone(),
-                    geometry: gpu.vertices.clone(),
-                }),
-                ..gpu.clone()
-            },
+            SubNode::Visual(_, ref gpu, _) => GpuData { instances, instance_cache_key: Some(InstanceCacheKey { material: material.clone(), geometry: gpu.vertices.clone() }), ..gpu.clone() },
             _ => unreachable!(),
         };
-        Mesh {
-            object: hub.spawn_visual(material, gpu_data, None),
-        }
+        Mesh { object: hub.spawn_visual(material, gpu_data, None) }
     }
 
     /// Create new sprite from `Material`.
@@ -765,19 +556,7 @@ impl Factory {
         let mut slice = gfx::Slice::new_match_vertex_buffer(&self.quad_buf);
         slice.instances = Some((1, 0));
         let material = Material::from(material);
-        Sprite::new(self.hub.lock().unwrap().spawn_visual(
-            material,
-            GpuData {
-                slice,
-                vertices: self.quad_buf.clone(),
-                instances,
-                displacements: None,
-                pending: None,
-                instance_cache_key: None,
-                displacement_contributions: ZEROED_DISPLACEMENT_CONTRIBUTION.to_vec(),
-            },
-            None,
-        ))
+        Sprite::new(self.hub.lock().unwrap().spawn_visual(material, GpuData { slice, vertices: self.quad_buf.clone(), instances, displacements: None, pending: None, instance_cache_key: None, displacement_contributions: ZEROED_DISPLACEMENT_CONTRIBUTION.to_vec() }, None))
     }
 
     /// Create a `Sprite` sharing the material with another one.
@@ -789,16 +568,7 @@ impl Factory {
         let instances = self.create_instance_buffer();
         let mut hub = self.hub.lock().unwrap();
         let (material, gpu_data) = match hub[template].sub_node {
-            SubNode::Visual(ref mat, ref gpu, _) => {
-                (mat.clone(), GpuData {
-                    instances,
-                    instance_cache_key: Some(InstanceCacheKey {
-                        material: mat.clone(),
-                        geometry: self.quad_buf.clone(),
-                    }),
-                    ..gpu.clone()
-                })
-            }
+            SubNode::Visual(ref mat, ref gpu, _) => (mat.clone(), GpuData { instances, instance_cache_key: Some(InstanceCacheKey { material: mat.clone(), geometry: self.quad_buf.clone() }), ..gpu.clone() }),
             _ => unreachable!(),
         };
         Sprite::new(hub.spawn_visual(material, gpu_data, None))
@@ -810,12 +580,7 @@ impl Factory {
         color: Color,
         intensity: f32,
     ) -> Ambient {
-        Ambient::new(self.hub.lock().unwrap().spawn_light(LightData {
-            color,
-            intensity,
-            sub_light: SubLight::Ambient,
-            shadow: None,
-        }))
+        Ambient::new(self.hub.lock().unwrap().spawn_light(LightData { color, intensity, sub_light: SubLight::Ambient, shadow: None }))
     }
 
     /// Create new `DirectionalLight`.
@@ -824,12 +589,7 @@ impl Factory {
         color: Color,
         intensity: f32,
     ) -> Directional {
-        Directional::new(self.hub.lock().unwrap().spawn_light(LightData {
-            color,
-            intensity,
-            sub_light: SubLight::Directional,
-            shadow: None,
-        }))
+        Directional::new(self.hub.lock().unwrap().spawn_light(LightData { color, intensity, sub_light: SubLight::Directional, shadow: None }))
     }
 
     /// Create new `HemisphereLight`.
@@ -839,14 +599,7 @@ impl Factory {
         ground_color: Color,
         intensity: f32,
     ) -> Hemisphere {
-        Hemisphere::new(self.hub.lock().unwrap().spawn_light(LightData {
-            color: sky_color,
-            intensity,
-            sub_light: SubLight::Hemisphere {
-                ground: ground_color,
-            },
-            shadow: None,
-        }))
+        Hemisphere::new(self.hub.lock().unwrap().spawn_light(LightData { color: sky_color, intensity, sub_light: SubLight::Hemisphere { ground: ground_color }, shadow: None }))
     }
 
     /// Create new `PointLight`.
@@ -855,12 +608,7 @@ impl Factory {
         color: Color,
         intensity: f32,
     ) -> Point {
-        Point::new(self.hub.lock().unwrap().spawn_light(LightData {
-            color,
-            intensity,
-            sub_light: SubLight::Point,
-            shadow: None,
-        }))
+        Point::new(self.hub.lock().unwrap().spawn_light(LightData { color, intensity, sub_light: SubLight::Point, shadow: None }))
     }
 
     /// Create a `Sampler` with default properties.
@@ -879,14 +627,7 @@ impl Factory {
         vertical_wrap_mode: WrapMode,
     ) -> Sampler {
         use gfx::texture::Lod;
-        let info = gfx::texture::SamplerInfo {
-            filter: filter_method,
-            wrap_mode: (horizontal_wrap_mode, vertical_wrap_mode, WrapMode::Clamp),
-            lod_bias: Lod::from(0.0),
-            lod_range: (Lod::from(-8000.0), Lod::from(8000.0)),
-            comparison: None,
-            border: gfx::texture::PackedColor(0),
-        };
+        let info = gfx::texture::SamplerInfo { filter: filter_method, wrap_mode: (horizontal_wrap_mode, vertical_wrap_mode, WrapMode::Clamp), lod_bias: Lod::from(0.0), lod_range: (Lod::from(-8000.0), Lod::from(8000.0)), comparison: None, border: gfx::texture::PackedColor(0) };
         let inner = self.backend.create_sampler(info);
         Sampler(inner)
     }
@@ -897,9 +638,7 @@ impl Factory {
         width: u16,
         height: u16,
     ) -> ShadowMap {
-        let (_, resource, target) = self.backend
-            .create_depth_stencil::<ShadowFormat>(width, height)
-            .unwrap();
+        let (_, resource, target) = self.backend.create_depth_stencil::<ShadowFormat>(width, height).unwrap();
         ShadowMap { resource, target }
     }
 
@@ -917,15 +656,9 @@ impl Factory {
     ) -> Result<BasicPipelineState, PipelineCreationError> {
         let vs = Source::user(&dir, name, "vs")?;
         let ps = Source::user(&dir, name, "ps")?;
-        let shaders = self.backend
-            .create_shader_set(vs.0.as_bytes(), ps.0.as_bytes())?;
-        let init = basic_pipe::Init {
-            out_color: ("Target0", color_mask, blend_state),
-            out_depth: (depth_state, stencil_state),
-            ..basic_pipe::new()
-        };
-        let pso = self.backend
-            .create_pipeline_state(&shaders, primitive, rasterizer, init)?;
+        let shaders = self.backend.create_shader_set(vs.0.as_bytes(), ps.0.as_bytes())?;
+        let init = basic_pipe::Init { out_color: ("Target0", color_mask, blend_state), out_depth: (depth_state, stencil_state), ..basic_pipe::new() };
+        let pso = self.backend.create_pipeline_state(&shaders, primitive, rasterizer, init)?;
         Ok(pso)
     }
 
@@ -968,21 +701,15 @@ impl Factory {
 
         let n = mesh.geometry.base.vertices.len();
         for i in 0 .. n {
-            let (mut pos, ksum) = shapes.iter().fold(
-                (Vector3::new(0.0, 0.0, 0.0), 0.0),
-                |(pos, ksum), &(idx, k)| {
-                    let p: [f32; 3] = mesh.geometry.shapes[idx].vertices[i].into();
-                    (pos + k * Vector3::from(p), ksum + k)
-                },
-            );
+            let (mut pos, ksum) = shapes.iter().fold((Vector3::new(0.0, 0.0, 0.0), 0.0), |(pos, ksum), &(idx, k)| {
+                let p: [f32; 3] = mesh.geometry.shapes[idx].vertices[i].into();
+                (pos + k * Vector3::from(p), ksum + k)
+            });
             if ksum != 1.0 {
                 let p: [f32; 3] = mesh.geometry.base.vertices[i].into();
                 pos += (1.0 - ksum) * Vector3::from(p);
             }
-            mapping[i] = Vertex {
-                pos: [pos.x, pos.y, pos.z, 1.0],
-                .. mapping[i]
-            };
+            mapping[i] = Vertex { pos: [pos.x, pos.y, pos.z, 1.0], ..mapping[i] };
         }
     }
 
@@ -995,16 +722,8 @@ impl Factory {
     ) -> Font {
         let file_path = file_path.as_ref();
         let mut buffer = Vec::new();
-        let file = fs::File::open(&file_path).expect(&format!(
-            "Can't open font file:\nFile: {}",
-            file_path.display()
-        ));
-        io::BufReader::new(file)
-            .read_to_end(&mut buffer)
-            .expect(&format!(
-                "Can't read font file:\nFile: {}",
-                file_path.display()
-            ));
+        let file = fs::File::open(&file_path).expect(&format!("Can't open font file:\nFile: {}", file_path.display()));
+        io::BufReader::new(file).read_to_end(&mut buffer).expect(&format!("Can't read font file:\nFile: {}", file_path.display()));
         Font::new(buffer, format!("path: {:?}", file_path), self.backend.clone())
     }
 
@@ -1016,10 +735,7 @@ impl Factory {
 
     fn parse_texture_format(path: &Path) -> image::ImageFormat {
         use image::ImageFormat as F;
-        let extension = path.extension()
-            .expect("no extension for an image?")
-            .to_string_lossy()
-            .to_lowercase();
+        let extension = path.extension().expect("no extension for an image?").to_string_lossy().to_lowercase();
         match extension.as_str() {
             "png" => F::PNG,
             "jpg" | "jpeg" => F::JPEG,
@@ -1044,21 +760,10 @@ impl Factory {
         //TODO: generate mipmaps
         let format = Factory::parse_texture_format(path);
         let file = fs::File::open(path).unwrap_or_else(|e| panic!("Unable to open {}: {:?}", path.display(), e));
-        let img = image::load(io::BufReader::new(file), format)
-            .unwrap_or_else(|e| panic!("Unable to decode {}: {:?}", path.display(), e))
-            .flipv()
-            .to_rgba();
+        let img = image::load(io::BufReader::new(file), format).unwrap_or_else(|e| panic!("Unable to decode {}: {:?}", path.display(), e)).flipv().to_rgba();
         let (width, height) = img.dimensions();
         let kind = t::Kind::D2(width as t::Size, height as t::Size, t::AaMode::Single);
-        let (_, view) = factory
-            .create_texture_immutable_u8::<gfx::format::Srgba8>(kind, t::Mipmap::Provided, &[&img])
-            .unwrap_or_else(|e| {
-                panic!(
-                    "Unable to create GPU texture for {}: {:?}",
-                    path.display(),
-                    e
-                )
-            });
+        let (_, view) = factory.create_texture_immutable_u8::<gfx::format::Srgba8>(kind, t::Mipmap::Provided, &[&img]).unwrap_or_else(|e| panic!("Unable to create GPU texture for {}: {:?}", path.display(), e));
         Texture::new(view, sampler.0, [width, height])
     }
 
@@ -1074,21 +779,15 @@ impl Factory {
             .map(|path| {
                 let format = Factory::parse_texture_format(path.as_ref());
                 let file = fs::File::open(path).unwrap_or_else(|e| panic!("Unable to open {}: {:?}", path.as_ref().display(), e));
-                image::load(io::BufReader::new(file), format)
-                    .unwrap_or_else(|e| panic!("Unable to decode {}: {:?}", path.as_ref().display(), e))
-                    .to_rgba()
+                image::load(io::BufReader::new(file), format).unwrap_or_else(|e| panic!("Unable to decode {}: {:?}", path.as_ref().display(), e)).to_rgba()
             })
             .collect::<Vec<_>>();
-        let data: [&[u8]; 6] = [
-            &images[0], &images[1], &images[2], &images[3], &images[4], &images[5]
-        ];
+        let data: [&[u8]; 6] = [&images[0], &images[1], &images[2], &images[3], &images[4], &images[5]];
         let size = images[0].dimensions().0;
         let kind = t::Kind::Cube(size as t::Size);
-        let (_, view) = factory
-            .create_texture_immutable_u8::<gfx::format::Srgba8>(kind, t::Mipmap::Provided, &data)
-            .unwrap_or_else(|e| {
-                panic!("Unable to create GPU texture for cubemap: {:?}", e);
-            });
+        let (_, view) = factory.create_texture_immutable_u8::<gfx::format::Srgba8>(kind, t::Mipmap::Provided, &data).unwrap_or_else(|e| {
+            panic!("Unable to create GPU texture for cubemap: {:?}", e);
+        });
         CubeMap::new(view, sampler.0)
     }
 
@@ -1114,49 +813,22 @@ impl Factory {
         has_uv: bool,
         obj_dir: Option<&Path>,
     ) -> Material {
-        let cf2u = |c: [f32; 3]| {
-            c.iter()
-                .fold(0, |u, &v| (u << 8) + cmp::min((v * 255.0) as u32, 0xFF))
-        };
+        let cf2u = |c: [f32; 3]| c.iter().fold(0, |u, &v| (u << 8) + cmp::min((v * 255.0) as u32, 0xFF));
         match *mat {
-            obj::Material {
-                kd: Some(color),
-                ns: Some(glossiness),
-                ..
-            } if has_normals =>
-            {
-                material::Phong {
-                    color: cf2u(color),
-                    glossiness,
-                }.into()
-            }
-            obj::Material {
-                kd: Some(color), ..
-            } if has_normals =>
-            {
-                material::Lambert {
-                    color: cf2u(color),
-                    flat: false,
-                }.into()
-            }
-            obj::Material {
-                kd: Some(color),
-                ref map_kd,
-                ..
-            } => material::Basic {
+            obj::Material { kd: Some(color), ns: Some(glossiness), .. } if has_normals => material::Phong { color: cf2u(color), glossiness }.into(),
+            obj::Material { kd: Some(color), .. } if has_normals => material::Lambert { color: cf2u(color), flat: false }.into(),
+            obj::Material { kd: Some(color), ref map_kd, .. } => material::Basic {
                 color: cf2u(color),
                 map: match (has_uv, map_kd) {
                     (true, &Some(ref name)) => {
                         let sampler = self.default_sampler();
                         Some(self.request_texture(&concat_path(obj_dir, name), sampler))
-                    },
+                    }
                     _ => None,
                 },
-            }.into(),
-            _ => material::Basic {
-                color: 0xffffff,
-                map: None,
-            }.into(),
+            }
+            .into(),
+            _ => material::Basic { color: 0xffffff, map: None }.into(),
         }
     }
 
@@ -1170,11 +842,9 @@ impl Factory {
     ) -> Texture<[f32; 4]> {
         use gfx::texture as t;
         let kind = t::Kind::D2(width, height, t::AaMode::Single);
-        let (_, view) = self.backend
-            .create_texture_immutable_u8::<gfx::format::Srgba8>(kind, t::Mipmap::Provided, &[pixels])
-            .unwrap_or_else(|e| {
-                panic!("Unable to create GPU texture from memory: {:?}", e);
-            });
+        let (_, view) = self.backend.create_texture_immutable_u8::<gfx::format::Srgba8>(kind, t::Mipmap::Provided, &[pixels]).unwrap_or_else(|e| {
+            panic!("Unable to create GPU texture from memory: {:?}", e);
+        });
         Texture::new(view, sampler.0, [width as u32, height as u32])
     }
 
@@ -1254,60 +924,25 @@ impl Factory {
                                 }
                                 None => [I8Norm(0), I8Norm(0), I8Norm(0x7f), I8Norm(0)],
                             },
-                            .. DEFAULT_VERTEX
+                            ..DEFAULT_VERTEX
                         });
                     });
 
                     indices.clear();
-                    indices.extend(
-                        gr.polys
-                            .iter()
-                            .cloned()
-                            .triangulate()
-                            .vertices()
-                            .map(|tuple| lru.index(tuple) as u16),
-                    );
+                    indices.extend(gr.polys.iter().cloned().triangulate().vertices().map(|tuple| lru.index(tuple) as u16));
                 };
 
-                info!(
-                    "\tmaterial {} with {} normals and {} uvs",
-                    gr.name, num_normals, num_uvs
-                );
+                info!("\tmaterial {} with {} normals and {} uvs", gr.name, num_normals, num_uvs);
                 let material = match gr.material {
                     Some(ref rc_mat) => self.load_obj_material(&*rc_mat, num_normals != 0, num_uvs != 0, path_parent),
-                    None => material::Basic {
-                        color: 0xFFFFFF,
-                        map: None,
-                    }.into(),
+                    None => material::Basic { color: 0xFFFFFF, map: None }.into(),
                 };
                 info!("\t{:?}", material);
 
-                let (vertices, mut slice) = self.backend
-                    .create_vertex_buffer_with_slice(&vertices, &indices[..]);
+                let (vertices, mut slice) = self.backend.create_vertex_buffer_with_slice(&vertices, &indices[..]);
                 slice.instances = Some((1, 0));
-                let instances = self.backend
-                    .create_buffer(
-                        1,
-                        gfx::buffer::Role::Vertex,
-                        gfx::memory::Usage::Dynamic,
-                        gfx::memory::Bind::TRANSFER_DST,
-                    )
-                    .unwrap();
-                let mesh = Mesh {
-                    object: hub.spawn_visual(
-                        material,
-                        GpuData {
-                            slice,
-                            vertices,
-                            instances,
-                            displacements: None,
-                            pending: None,
-                            instance_cache_key: None,
-                            displacement_contributions: ZEROED_DISPLACEMENT_CONTRIBUTION.to_vec(),
-                        },
-                        None,
-                    ),
-                };
+                let instances = self.backend.create_buffer(1, gfx::buffer::Role::Vertex, gfx::memory::Usage::Dynamic, gfx::memory::Bind::TRANSFER_DST).unwrap();
+                let mesh = Mesh { object: hub.spawn_visual(material, GpuData { slice, vertices, instances, displacements: None, pending: None, instance_cache_key: None, displacement_contributions: ZEROED_DISPLACEMENT_CONTRIBUTION.to_vec() }, None) };
                 group.add(&mesh);
                 meshes.push(mesh);
             }
@@ -1325,14 +960,8 @@ impl Factory {
         path: P,
     ) -> audio::Clip {
         let mut buffer = Vec::new();
-        let mut file = fs::File::open(&path).expect(&format!(
-            "Can't open audio file:\nFile: {}",
-            path.as_ref().display()
-        ));
-        file.read_to_end(&mut buffer).expect(&format!(
-            "Can't read audio file:\nFile: {}",
-            path.as_ref().display()
-        ));
+        let mut file = fs::File::open(&path).expect(&format!("Can't open audio file:\nFile: {}", path.as_ref().display()));
+        file.read_to_end(&mut buffer).expect(&format!("Can't read audio file:\nFile: {}", path.as_ref().display()));
         audio::Clip::new(buffer)
     }
 }
