@@ -3,9 +3,9 @@
 use data;
 use util;
 
-use std::{io, ops, str};
 use std::borrow::Borrow;
 use std::path::Path;
+use std::{io, ops, str};
 
 /// Source code for a single GLSL shader.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]

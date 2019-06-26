@@ -17,10 +17,9 @@ use froggy;
 use gfx;
 use mint;
 
-use std::{mem, ops};
-use std::sync::{Arc, Mutex};
 use std::sync::mpsc;
-
+use std::sync::{Arc, Mutex};
+use std::{mem, ops};
 
 #[derive(Clone, Debug)]
 pub(crate) enum SubLight {
@@ -84,11 +83,7 @@ pub(crate) enum Operation {
     SetVisible(bool),
     SetLight(LightOperation),
     SetText(TextOperation),
-    SetTransform(
-        Option<mint::Point3<f32>>,
-        Option<mint::Quaternion<f32>>,
-        Option<f32>,
-    ),
+    SetTransform(Option<mint::Point3<f32>>, Option<mint::Quaternion<f32>>, Option<f32>),
     SetMaterial(Material),
     SetSkeleton(Skeleton),
     SetShadow(ShadowMap, ShadowProjection),
@@ -108,14 +103,20 @@ pub(crate) struct Hub {
 
 impl<T: AsRef<Base>> ops::Index<T> for Hub {
     type Output = NodeInternal;
-    fn index(&self, i: T) -> &Self::Output {
+    fn index(
+        &self,
+        i: T,
+    ) -> &Self::Output {
         let base: &Base = i.as_ref();
         &self.nodes[&base.node]
     }
 }
 
 impl<T: AsRef<Base>> ops::IndexMut<T> for Hub {
-    fn index_mut(&mut self, i: T) -> &mut Self::Output {
+    fn index_mut(
+        &mut self,
+        i: T,
+    ) -> &mut Self::Output {
         let base: &Base = i.as_ref();
         &mut self.nodes[&base.node]
     }
@@ -124,11 +125,7 @@ impl<T: AsRef<Base>> ops::IndexMut<T> for Hub {
 impl Hub {
     pub(crate) fn new() -> HubPtr {
         let (tx, rx) = mpsc::channel();
-        let hub = Hub {
-            nodes: froggy::Storage::new(),
-            message_tx: tx,
-            message_rx: rx,
-        };
+        let hub = Hub { nodes: froggy::Storage::new(), message_tx: tx, message_rx: rx };
         Arc::new(Mutex::new(hub))
     }
 
@@ -136,10 +133,7 @@ impl Hub {
         &mut self,
         sub: SubNode,
     ) -> Base {
-        Base {
-            node: self.nodes.create(sub.into()),
-            tx: self.message_tx.clone(),
-        }
+        Base { node: self.nodes.create(sub.into()), tx: self.message_tx.clone() }
     }
 
     pub(crate) fn spawn_visual(
@@ -166,11 +160,11 @@ impl Hub {
     }
 
     /// Upgrades a `NodePointer` to a `Base`.
-    pub(crate) fn upgrade_ptr(&self, ptr: NodePointer) -> Base {
-        Base {
-            node: ptr,
-            tx: self.message_tx.clone(),
-        }
+    pub(crate) fn upgrade_ptr(
+        &self,
+        ptr: NodePointer,
+    ) -> Base {
+        Base { node: ptr, tx: self.message_tx.clone() }
     }
 
     pub(crate) fn process_messages(&mut self) {
@@ -185,14 +179,13 @@ impl Hub {
                     if let SubNode::Audio(ref mut data) = self.nodes[&ptr].sub_node {
                         Hub::process_audio(operation, data);
                     }
-                },
+                }
                 Operation::SetVisible(visible) => {
                     self.nodes[&ptr].visible = visible;
                 }
                 Operation::SetTransform(pos, rot, scale) => {
                     let transform = &mut self.nodes[&ptr].transform;
                     if let Some(pos) = pos {
-
                         transform.disp = mint::Vector3::from(pos).into();
                     }
                     if let Some(rot) = rot {
@@ -204,14 +197,12 @@ impl Hub {
                 }
                 Operation::AddChild(child_ptr) => {
                     let sibling = match self.nodes[&ptr].sub_node {
-                        SubNode::Group { ref mut first_child } =>
-                            mem::replace(first_child, Some(child_ptr.clone())),
+                        SubNode::Group { ref mut first_child } => mem::replace(first_child, Some(child_ptr.clone())),
                         _ => unreachable!(),
                     };
                     let child = &mut self.nodes[&child_ptr];
                     if child.next_sibling.is_some() {
-                        error!("Element {:?} is added to a group while still having old parent - {}",
-                            child.sub_node, "discarding siblings");
+                        error!("Element {:?} is added to a group while still having old parent - {}", child.sub_node, "discarding siblings");
                     }
                     child.next_sibling = sibling;
                 }
@@ -226,7 +217,7 @@ impl Hub {
                             }
                             first_child.clone()
                         }
-                        _ => unreachable!()
+                        _ => unreachable!(),
                     };
 
                     //TODO: consolidate the code with `Scene::remove()`
@@ -245,64 +236,49 @@ impl Hub {
                         cur_ptr = node.next_sibling.clone(); //TODO: avoid clone
                     }
                 }
-                Operation::SetLight(operation) => {
-                    match self.nodes[&ptr].sub_node {
-                        SubNode::Light(ref mut data) => {
-                            Hub::process_light(operation, data);
-                        }
-                        _ => unreachable!()
+                Operation::SetLight(operation) => match self.nodes[&ptr].sub_node {
+                    SubNode::Light(ref mut data) => {
+                        Hub::process_light(operation, data);
                     }
-                }
-                Operation::SetText(operation) => {
-                    match self.nodes[&ptr].sub_node {
-                        SubNode::UiText(ref mut data) => {
-                            Hub::process_text(operation, data);
-                        }
-                        _ => unreachable!()
+                    _ => unreachable!(),
+                },
+                Operation::SetText(operation) => match self.nodes[&ptr].sub_node {
+                    SubNode::UiText(ref mut data) => {
+                        Hub::process_text(operation, data);
                     }
-                }
-                Operation::SetMaterial(material) => {
-                    match self.nodes[&ptr].sub_node {
-                        SubNode::Visual(ref mut mat, _, _) => {
-                            *mat = material;
-                        }
-                        _ => unreachable!()
+                    _ => unreachable!(),
+                },
+                Operation::SetMaterial(material) => match self.nodes[&ptr].sub_node {
+                    SubNode::Visual(ref mut mat, _, _) => {
+                        *mat = material;
                     }
-                }
-                Operation::SetSkeleton(sleketon) => {
-                    match self.nodes[&ptr].sub_node {
-                        SubNode::Visual(_, _, ref mut skel) => {
-                            *skel = Some(sleketon);
-                        }
-                        _ => unreachable!()
+                    _ => unreachable!(),
+                },
+                Operation::SetSkeleton(sleketon) => match self.nodes[&ptr].sub_node {
+                    SubNode::Visual(_, _, ref mut skel) => {
+                        *skel = Some(sleketon);
                     }
-                }
-                Operation::SetShadow(map, proj) => {
-                    match self.nodes[&ptr].sub_node {
-                        SubNode::Light(ref mut data) => {
-                            data.shadow = Some((map, proj));
-                        },
-                    _ => unreachable!()
+                    _ => unreachable!(),
+                },
+                Operation::SetShadow(map, proj) => match self.nodes[&ptr].sub_node {
+                    SubNode::Light(ref mut data) => {
+                        data.shadow = Some((map, proj));
                     }
-                }
-                Operation::SetTexelRange(base, size) => {
-                    match self.nodes[&ptr].sub_node {
-                        SubNode::Visual(Material::Sprite(ref mut params), _, _) => {
-                            params.map.set_texel_range(base, size);
-                        }
-                        _ => unreachable!()
+                    _ => unreachable!(),
+                },
+                Operation::SetTexelRange(base, size) => match self.nodes[&ptr].sub_node {
+                    SubNode::Visual(Material::Sprite(ref mut params), _, _) => {
+                        params.map.set_texel_range(base, size);
                     }
-                }
+                    _ => unreachable!(),
+                },
                 Operation::SetWeights(weights) => {
                     fn set_weights(
                         gpu_data: &mut GpuData,
                         weights: &[f32],
                     ) {
                         use std::iter::repeat;
-                        for (out, input) in gpu_data.displacement_contributions
-                            .iter_mut()
-                            .zip(weights.iter().chain(repeat(&0.0)))
-                        {
+                        for (out, input) in gpu_data.displacement_contributions.iter_mut().zip(weights.iter().chain(repeat(&0.0))) {
                             out.weight = *input;
                         }
                     }
@@ -326,14 +302,12 @@ impl Hub {
                 Operation::SetName(name) => {
                     self.nodes[&ptr].name = Some(name);
                 }
-                Operation::SetProjection(projection) => {
-                    match self.nodes[&ptr].sub_node {
-                        SubNode::Camera(ref mut internal_projection) => {
-                            *internal_projection = projection;
-                        }
-                        _ => unreachable!()
+                Operation::SetProjection(projection) => match self.nodes[&ptr].sub_node {
+                    SubNode::Camera(ref mut internal_projection) => {
+                        *internal_projection = projection;
                     }
-                }
+                    _ => unreachable!(),
+                },
             }
         }
 
@@ -396,23 +370,27 @@ impl Hub {
     }
 
     fn walk_impl(
-        &self, base: &Option<NodePointer>, only_visible: bool
+        &self,
+        base: &Option<NodePointer>,
+        only_visible: bool,
     ) -> TreeWalker {
         let default_stack_size = 10;
-        let mut walker = TreeWalker {
-            hub: self,
-            only_visible,
-            stack: Vec::with_capacity(default_stack_size),
-        };
+        let mut walker = TreeWalker { hub: self, only_visible, stack: Vec::with_capacity(default_stack_size) };
         walker.descend(base);
         walker
     }
 
-    pub(crate) fn walk(&self, base: &Option<NodePointer>) -> TreeWalker {
+    pub(crate) fn walk(
+        &self,
+        base: &Option<NodePointer>,
+    ) -> TreeWalker {
         self.walk_impl(base, true)
     }
 
-    pub(crate) fn walk_all(&self, base: &Option<NodePointer>) -> TreeWalker {
+    pub(crate) fn walk_all(
+        &self,
+        base: &Option<NodePointer>,
+    ) -> TreeWalker {
         self.walk_impl(base, false)
     }
 }
@@ -432,7 +410,10 @@ pub(crate) struct TreeWalker<'a> {
 }
 
 impl<'a> TreeWalker<'a> {
-    fn descend(&mut self, base: &Option<NodePointer>) -> Option<&NodeInternal> {
+    fn descend(
+        &mut self,
+        base: &Option<NodePointer>,
+    ) -> Option<&NodeInternal> {
         // Unwrap the base pointer, returning `None` if `base` is `None`.
         let mut ptr = base.as_ref()?;
 
@@ -442,18 +423,8 @@ impl<'a> TreeWalker<'a> {
 
         loop {
             let wn = match self.stack.last() {
-                Some(parent) => WalkedNode {
-                    node_ptr: ptr.clone(),
-                    node,
-                    world_visible: parent.world_visible && node.visible,
-                    world_transform: parent.world_transform.concat(&node.transform),
-                },
-                None => WalkedNode {
-                    node_ptr: ptr.clone(),
-                    node,
-                    world_visible: node.visible,
-                    world_transform: node.transform,
-                },
+                Some(parent) => WalkedNode { node_ptr: ptr.clone(), node, world_visible: parent.world_visible && node.visible, world_transform: parent.world_transform.concat(&node.transform) },
+                None => WalkedNode { node_ptr: ptr.clone(), node, world_visible: node.visible, world_transform: node.transform },
             };
             self.stack.push(wn);
 
@@ -465,7 +436,7 @@ impl<'a> TreeWalker<'a> {
                 SubNode::Group { first_child: Some(ref child_ptr) } => {
                     ptr = child_ptr;
                     node = &self.hub.nodes[&ptr];
-                },
+                }
                 _ => break,
             }
         }
@@ -481,7 +452,7 @@ impl<'a> Iterator for TreeWalker<'a> {
         while let Some(top) = self.stack.pop() {
             self.descend(&top.node.next_sibling);
             if !self.only_visible || top.world_visible {
-                return Some(top)
+                return Some(top);
             }
         }
         None

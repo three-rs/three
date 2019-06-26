@@ -112,7 +112,6 @@ use object::{Base, Object};
 use std::hash::{Hash, Hasher};
 use std::sync::mpsc;
 
-
 /// A target of an animation.
 pub type Target = Base;
 
@@ -434,14 +433,7 @@ impl Mixer {
 
 impl ActionData {
     fn new(clip: Clip) -> Self {
-        ActionData {
-            clip: clip,
-            enabled: true,
-            loop_mode: LoopMode::Repeat { limit: None },
-            paused: false,
-            local_time: 0.0,
-            local_time_scale: 1.0,
-        }
+        ActionData { clip: clip, enabled: true, loop_mode: LoopMode::Repeat { limit: None }, paused: false, local_time: 0.0, local_time_scale: 1.0 }
     }
 
     /// Updates a single animation action.
@@ -475,19 +467,11 @@ impl ActionData {
                 (Binding::Orientation, &Values::Euler(ref values)) => {
                     let frame_start_value = {
                         let euler = values[frame_index];
-                        cgmath::Quaternion::from(cgmath::Euler::new(
-                            cgmath::Rad(euler.a),
-                            cgmath::Rad(euler.b),
-                            cgmath::Rad(euler.c),
-                        ))
+                        cgmath::Quaternion::from(cgmath::Euler::new(cgmath::Rad(euler.a), cgmath::Rad(euler.b), cgmath::Rad(euler.c)))
                     };
                     let frame_end_value = {
                         let euler = values[frame_index + 1];
-                        cgmath::Quaternion::from(cgmath::Euler::new(
-                            cgmath::Rad(euler.a),
-                            cgmath::Rad(euler.b),
-                            cgmath::Rad(euler.c),
-                        ))
+                        cgmath::Quaternion::from(cgmath::Euler::new(cgmath::Rad(euler.a), cgmath::Rad(euler.b), cgmath::Rad(euler.c)))
                     };
                     let update = frame_start_value.slerp(frame_end_value, s);
                     target.set_orientation(update);

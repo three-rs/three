@@ -1,8 +1,8 @@
 extern crate notify;
 extern crate three;
 
-use std::{env, fs, io};
 use std::sync::mpsc;
+use std::{env, fs, io};
 
 use notify::Watcher;
 use std::path::{Path, PathBuf};
@@ -60,34 +60,21 @@ void main() {
 "#;
 
 fn main() {
-    let dir = env::args()
-        .nth(1)
-        .map(PathBuf::from)
-        .or(env::current_dir().ok())
-        .unwrap();
+    let dir = env::args().nth(1).map(PathBuf::from).or(env::current_dir().ok()).unwrap();
 
     use io::Write;
     let _ = fs::create_dir_all(&dir);
-    fs::File::create(dir.join("sprite_vs.glsl"))
-        .unwrap()
-        .write_all(MANDELBROT_VERTEX_SHADER_CODE.as_bytes())
-        .unwrap();
-    fs::File::create(dir.join("sprite_ps.glsl"))
-        .unwrap()
-        .write_all(MANDELBROT_PIXEL_SHADER_CODE.as_bytes())
-        .unwrap();
+    fs::File::create(dir.join("sprite_vs.glsl")).unwrap().write_all(MANDELBROT_VERTEX_SHADER_CODE.as_bytes()).unwrap();
+    fs::File::create(dir.join("sprite_ps.glsl")).unwrap().write_all(MANDELBROT_PIXEL_SHADER_CODE.as_bytes()).unwrap();
 
     println!("Edit sprite_vs.glsl or sprite_ps.glsl and review.");
 
     let mut win = three::Window::new("Three-rs shader reloading example");
-    let cam = win.factory
-        .orthographic_camera([0.0, 0.0], 1.0, -1.0 .. 1.0);
+    let cam = win.factory.orthographic_camera([0.0, 0.0], 1.0, -1.0 .. 1.0);
 
     let (tx, rx) = mpsc::channel();
     let mut watcher = notify::watcher(tx, Duration::from_secs(1)).unwrap();
-    watcher
-        .watch(&dir, notify::RecursiveMode::NonRecursive)
-        .unwrap();
+    watcher.watch(&dir, notify::RecursiveMode::NonRecursive).unwrap();
 
     let map_path = concat!(env!("CARGO_MANIFEST_DIR"), "/test_data/texture.png");
     let map = win.factory.load_texture(map_path);
@@ -107,10 +94,7 @@ fn main() {
         }
         if reload {
             reload = false;
-            let source_set = three::render::source::Set {
-                sprite: three::render::source::Sprite::user(&dir).unwrap(),
-                ..Default::default()
-            };
+            let source_set = three::render::source::Set { sprite: three::render::source::Sprite::user(&dir).unwrap(), ..Default::default() };
             match three::render::PipelineStates::new(&source_set, &mut win.factory) {
                 Ok(pipeline_states) => win.renderer.reload(pipeline_states),
                 Err(err) => println!("{:#?}", err),

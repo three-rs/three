@@ -11,9 +11,7 @@ pub struct Timer {
 impl Timer {
     /// Create new timer based on current system time.
     pub fn new() -> Self {
-        Self {
-            start: time::Instant::now(),
-        }
+        Self { start: time::Instant::now() }
     }
 
     /// Reset time of creation to current time.
@@ -22,9 +20,7 @@ impl Timer {
     }
 
     /// Get period of time since timer creation in seconds.
-    pub fn elapsed(
-        &self,
-    ) -> TimerDuration {
+    pub fn elapsed(&self) -> TimerDuration {
         let dt = self.start.elapsed();
         dt.as_secs() as f32 + 1e-9 * dt.subsec_nanos() as f32
     }

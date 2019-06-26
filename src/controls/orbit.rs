@@ -36,14 +36,7 @@ pub struct Builder {
 impl Builder {
     /// Create new `Builder` with default values.
     pub fn new<T: Object>(object: &T) -> Self {
-        Builder {
-            object: object.upcast(),
-            position: [0.0, 0.0, 0.0].into(),
-            up: [0.0, 0.0, 1.0].into(),
-            target: [0.0, 0.0, 0.0].into(),
-            button: MOUSE_LEFT,
-            speed: 1.0,
-        }
+        Builder { object: object.upcast(), position: [0.0, 0.0, 0.0].into(), up: [0.0, 0.0, 1.0].into(), target: [0.0, 0.0, 0.0].into(), button: MOUSE_LEFT, speed: 1.0 }
     }
 
     /// Set the initial position.
@@ -68,7 +61,7 @@ impl Builder {
         up: P,
     ) -> &mut Self
     where
-        P: Into<mint::Vector3<f32>>
+        P: Into<mint::Vector3<f32>>,
     {
         self.up = up.into();
         self
@@ -113,20 +106,9 @@ impl Builder {
         let q = Quaternion::look_at(dir, up.into()).invert();
         let object = self.object.clone();
         object.set_transform(self.position, q, 1.0);
-        let transform = Decomposed {
-            disp: mint::Vector3::from(self.position).into(),
-            rot: q,
-            scale: 1.0,
-        };
+        let transform = Decomposed { disp: mint::Vector3::from(self.position).into(), rot: q, scale: 1.0 };
 
-        Orbit {
-            object,
-            transform,
-            initial_transform: transform,
-            target: self.target.into(),
-            button: self.button,
-            speed: self.speed,
-        }
+        Orbit { object, transform, initial_transform: transform, target: self.target.into(), button: self.button, speed: self.speed }
     }
 }
 
@@ -141,23 +123,12 @@ impl Orbit {
         &mut self,
         input: &Input,
     ) {
-        let mouse_delta = if input.hit(self.button) {
-            input.mouse_delta_ndc()
-        } else {
-            [0.0, 0.0].into()
-        };
-        let pre = Decomposed {
-            disp: -self.target.to_vec(),
-            ..Decomposed::one()
-        };
+        let mouse_delta = if input.hit(self.button) { input.mouse_delta_ndc() } else { [0.0, 0.0].into() };
+        let pre = Decomposed { disp: -self.target.to_vec(), ..Decomposed::one() };
         let q_ver = Quaternion::from_angle_y(Rad(self.speed * (mouse_delta.x)));
         let axis = self.transform.rot * Vector3::unit_x();
         let q_hor = Quaternion::from_axis_angle(axis, Rad(self.speed * (mouse_delta.y)));
-        let post = Decomposed {
-            scale: 1.0 + input.mouse_wheel() / 1000.0,
-            rot: q_hor * q_ver,
-            disp: self.target.to_vec(),
-        };
+        let post = Decomposed { scale: 1.0 + input.mouse_wheel() / 1000.0, rot: q_hor * q_ver, disp: self.target.to_vec() };
         self.transform = post.concat(&pre.concat(&self.transform));
         let pf: mint::Vector3<f32> = self.transform.disp.into();
         self.object.set_transform(pf, self.transform.rot, 1.0);

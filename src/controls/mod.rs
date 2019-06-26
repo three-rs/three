@@ -32,7 +32,4 @@ pub use self::first_person::FirstPerson;
 #[doc(inline)]
 pub use self::orbit::Orbit;
 
-pub use input::{axis,
-    Button, Delta, Hit, HitCount, Key, Input, Timer, MouseButton,
-    AXIS_DOWN_UP, AXIS_LEFT_RIGHT, KEY_ESCAPE, KEY_SPACE, MOUSE_LEFT, MOUSE_RIGHT,
-};
+pub use input::{axis, Button, Delta, Hit, HitCount, Input, Key, MouseButton, Timer, AXIS_DOWN_UP, AXIS_LEFT_RIGHT, KEY_ESCAPE, KEY_SPACE, MOUSE_LEFT, MOUSE_RIGHT};

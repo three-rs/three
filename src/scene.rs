@@ -1,15 +1,14 @@
 //! `Scene` and `SyncGuard` structures.
 
-use node;
 use color::Color;
 use hub::{Hub, HubPtr, SubNode};
+use node;
 use object::{Base, DowncastObject, Group, Object};
 use texture::{CubeMap, Texture};
 
-use std::mem;
 use std::marker::PhantomData;
+use std::mem;
 use std::sync::MutexGuard;
-
 
 /// Background type.
 #[derive(Clone, Debug, PartialEq)]
@@ -46,8 +45,7 @@ impl Scene {
         let child = &mut hub[child_base];
 
         if child.next_sibling.is_some() {
-            error!("Element {:?} is added to a scene while still having old parent - {}",
-                child.sub_node, "discarding siblings");
+            error!("Element {:?} is added to a scene while still having old parent - {}", child.sub_node, "discarding siblings");
         }
 
         child.next_sibling = mem::replace(&mut self.first_child, Some(node_ptr));
@@ -82,7 +80,6 @@ impl Scene {
         error!("Unable to find child for removal");
     }
 }
-
 
 /// `SyncGuard` is used to obtain information about scene nodes in the most effective way.
 ///
@@ -175,10 +172,7 @@ impl<'a> SyncGuard<'a> {
         object: &T,
     ) -> node::Node<node::World> {
         let internal = &self.hub[object] as *const _;
-        let wn = self.hub
-            .walk_all(&self.scene.first_child)
-            .find(|wn| wn.node as *const _ == internal)
-            .expect("Unable to find objects for world resolve!");
+        let wn = self.hub.walk_all(&self.scene.first_child).find(|wn| wn.node as *const _ == internal).expect("Unable to find objects for world resolve!");
         node::Node {
             visible: wn.world_visible,
             name: wn.node.name.clone(),
@@ -237,13 +231,13 @@ impl<'a> SyncGuard<'a> {
     /// depth-first, and objects are yielded in the order they are visited.
     ///
     /// [`Group`]: ../struct.Group.html
-    pub fn walk_hierarchy(&'a self, root: &Group) -> impl Iterator<Item = Base> + 'a {
+    pub fn walk_hierarchy(
+        &'a self,
+        root: &Group,
+    ) -> impl Iterator<Item = Base> + 'a {
         let root = root.as_ref().node.clone();
         let guard = &*self;
-        self
-            .hub
-            .walk_all(&Some(root))
-            .map(move |walked| guard.hub.upgrade_ptr(walked.node_ptr.clone()))
+        self.hub.walk_all(&Some(root)).map(move |walked| guard.hub.upgrade_ptr(walked.node_ptr.clone()))
     }
 
     /// Finds a node in a group, or any of its children, by name.
@@ -254,7 +248,11 @@ impl<'a> SyncGuard<'a> {
     /// hierarchy, then only the first one discovered will be returned.
     ///
     /// [`Base`]: ../object/struct.Base.html
-    pub fn find_child_by_name(&self, root: &Group, name: &str) -> Option<Base> {
+    pub fn find_child_by_name(
+        &self,
+        root: &Group,
+        name: &str,
+    ) -> Option<Base> {
         self.find_children_by_name(root, name).next()
     }
 
@@ -271,18 +269,7 @@ impl<'a> SyncGuard<'a> {
     ) -> impl Iterator<Item = Base> + 'a {
         let root = root.as_ref().node.clone();
         let guard = &*self;
-        self
-            .hub
-            .walk_all(&Some(root))
-            .filter(move |walked| {
-                walked
-                    .node
-                    .name
-                    .as_ref()
-                    .map(|node_name| node_name == name)
-                    .unwrap_or(false)
-            })
-            .map(move |walked| guard.hub.upgrade_ptr(walked.node_ptr.clone()))
+        self.hub.walk_all(&Some(root)).filter(move |walked| walked.node.name.as_ref().map(|node_name| node_name == name).unwrap_or(false)).map(move |walked| guard.hub.upgrade_ptr(walked.node_ptr.clone()))
     }
 
     /// Finds the first object in a group, or any of its children, of type `T`.
@@ -292,7 +279,10 @@ impl<'a> SyncGuard<'a> {
     /// hierarchy.
     ///
     /// [`Group`]: ../struct.Group.html
-    pub fn find_child_of_type<T: DowncastObject>(&'a self, root: &Group) -> Option<T> {
+    pub fn find_child_of_type<T: DowncastObject>(
+        &'a self,
+        root: &Group,
+    ) -> Option<T> {
         self.find_children_of_type::<T>(root).next()
     }
 
@@ -308,11 +298,7 @@ impl<'a> SyncGuard<'a> {
     ) -> impl Iterator<Item = T> + 'a {
         let root = root.as_ref().node.clone();
         let guard = &*self;
-        self
-            .hub
-            .walk_all(&Some(root))
-            .map(move |walked| guard.hub.upgrade_ptr(walked.node_ptr.clone()))
-            .filter_map(move |base| guard.downcast(&base))
+        self.hub.walk_all(&Some(root)).map(move |walked| guard.hub.upgrade_ptr(walked.node_ptr.clone())).filter_map(move |base| guard.downcast(&base))
     }
 
     /// Attempts to find an object of type `T` in the group or any of its children.
@@ -343,9 +329,7 @@ impl<'a> SyncGuard<'a> {
         name: &'a str,
     ) -> impl Iterator<Item = T> + 'a {
         let guard = &*self;
-        self
-            .find_children_by_name(root, name)
-            .filter_map(move |base| guard.downcast(&base))
+        self.find_children_by_name(root, name).filter_map(move |base| guard.downcast(&base))
     }
 
     /// Attempts to downcast a [`Base`] to its concrete object type.
@@ -354,7 +338,10 @@ impl<'a> SyncGuard<'a> {
     /// downcast fails.
     ///
     /// [`Base`]: ../object/struct.Base.html
-    pub fn downcast<T: DowncastObject>(&self, base: &Base) -> Option<T> {
+    pub fn downcast<T: DowncastObject>(
+        &self,
+        base: &Base,
+    ) -> Option<T> {
         let object_type = self.resolve_data(base);
         T::downcast(object_type)
     }

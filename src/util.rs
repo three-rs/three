@@ -1,7 +1,7 @@
 //! Internal utility functions.
 
-use std::{fs, io, path};
 use std::hash::{Hash, Hasher};
+use std::{fs, io, path};
 
 /// Reads the entire contents of a file into a `String`.
 pub fn read_file_to_string<P: AsRef<path::Path>>(path: P) -> io::Result<String> {

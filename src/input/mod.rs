@@ -5,8 +5,8 @@ use mint;
 use std::collections::HashSet;
 use std::time;
 
-mod timer;
 pub mod axis;
+mod timer;
 
 pub use self::axis::{AXIS_DOWN_UP, AXIS_LEFT_RIGHT};
 
@@ -43,23 +43,8 @@ pub struct Input {
 
 impl Input {
     pub(crate) fn new() -> Self {
-        let state = State {
-            time_moment: time::Instant::now(),
-            is_focused: true,
-            keys_pressed: HashSet::new(),
-            mouse_pressed: HashSet::new(),
-            mouse_pos: [0.0; 2].into(),
-            mouse_pos_ndc: [0.0; 2].into(),
-        };
-        let delta = Diff {
-            time_delta: 0.0,
-            keys_hit: Vec::new(),
-            mouse_moves: Vec::new(),
-            mouse_moves_ndc: Vec::new(),
-            axes_raw: Vec::new(),
-            mouse_hit: Vec::new(),
-            mouse_wheel: Vec::new(),
-        };
+        let state = State { time_moment: time::Instant::now(), is_focused: true, keys_pressed: HashSet::new(), mouse_pressed: HashSet::new(), mouse_pos: [0.0; 2].into(), mouse_pos_ndc: [0.0; 2].into() };
+        let delta = Diff { time_delta: 0.0, keys_hit: Vec::new(), mouse_moves: Vec::new(), mouse_moves_ndc: Vec::new(), axes_raw: Vec::new(), mouse_hit: Vec::new(), mouse_wheel: Vec::new() };
         Input { state, delta }
     }
 
@@ -131,12 +116,7 @@ impl Input {
 
     fn calculate_delta(moves: &[mint::Vector2<f32>]) -> mint::Vector2<f32> {
         use cgmath::Vector2;
-        moves
-            .iter()
-            .cloned()
-            .map(Vector2::from)
-            .sum::<Vector2<f32>>()
-            .into()
+        moves.iter().cloned().map(Vector2::from).sum::<Vector2<f32>>().into()
     }
 
     /// Get summarized mouse movements (the sum of all movements since last frame) in pixels.
@@ -153,20 +133,7 @@ impl Input {
     /// It usually corresponds to mouse movements.
     pub fn mouse_delta_raw(&self) -> mint::Vector2<f32> {
         use cgmath::Vector2;
-        self.delta
-            .axes_raw
-            .iter()
-            .filter(|&&(axis, _)| axis == 0 || axis == 1)
-            .map(|&(axis, value)| {
-                if axis == 0 {
-                    (value, 0.0)
-                } else {
-                    (0.0, value)
-                }
-            })
-            .map(|t| Vector2 { x: t.0, y: t.1 })
-            .sum::<Vector2<f32>>()
-            .into()
+        self.delta.axes_raw.iter().filter(|&&(axis, _)| axis == 0 || axis == 1).map(|&(axis, value)| if axis == 0 { (value, 0.0) } else { (0.0, value) }).map(|t| Vector2 { x: t.0, y: t.1 }).sum::<Vector2<f32>>().into()
     }
 
     /// Return whether [`Window`](struct.Window.html) is in focus or not.
@@ -221,12 +188,8 @@ impl Input {
         pos_ndc: mint::Point2<f32>,
     ) {
         use cgmath::Point2;
-        self.delta
-            .mouse_moves
-            .push((Point2::from(pos) - Point2::from(self.state.mouse_pos)).into());
-        self.delta
-            .mouse_moves_ndc
-            .push((Point2::from(pos_ndc) - Point2::from(self.state.mouse_pos_ndc)).into());
+        self.delta.mouse_moves.push((Point2::from(pos) - Point2::from(self.state.mouse_pos)).into());
+        self.delta.mouse_moves_ndc.push((Point2::from(pos_ndc) - Point2::from(self.state.mouse_pos_ndc)).into());
         self.state.mouse_pos = pos;
         self.state.mouse_pos_ndc = pos_ndc;
     }
@@ -374,12 +337,7 @@ impl Hit for axis::Raw {
         &self,
         input: &Input,
     ) -> bool {
-        input
-            .delta
-            .axes_raw
-            .iter()
-            .filter(|&&(id, _)| id == self.id)
-            .count() > 0
+        input.delta.axes_raw.iter().filter(|&&(id, _)| id == self.id).count() > 0
     }
 }
 
@@ -402,20 +360,8 @@ impl HitCount for Button {
     ) -> Self::Output {
         use std::u8::MAX;
         match *self {
-            Button::Key(button) => input
-                .delta
-                .keys_hit
-                .iter()
-                .filter(|&&key| key == button)
-                .take(MAX as usize)
-                .count() as Self::Output,
-            Button::Mouse(button) => input
-                .delta
-                .mouse_hit
-                .iter()
-                .filter(|&&key| key == button)
-                .take(MAX as usize)
-                .count() as Self::Output,
+            Button::Key(button) => input.delta.keys_hit.iter().filter(|&&key| key == button).take(MAX as usize).count() as Self::Output,
+            Button::Mouse(button) => input.delta.mouse_hit.iter().filter(|&&key| key == button).take(MAX as usize).count() as Self::Output,
         }
     }
 }
@@ -428,20 +374,8 @@ impl HitCount for axis::Key {
         input: &Input,
     ) -> Self::Output {
         use std::u8::MAX;
-        let pos = input
-            .delta
-            .keys_hit
-            .iter()
-            .filter(|&&k| k == self.pos)
-            .take(MAX as usize)
-            .count() as u8;
-        let neg = input
-            .delta
-            .keys_hit
-            .iter()
-            .filter(|&&k| k == self.neg)
-            .take(MAX as usize)
-            .count() as u8;
+        let pos = input.delta.keys_hit.iter().filter(|&&k| k == self.pos).take(MAX as usize).count() as u8;
+        let neg = input.delta.keys_hit.iter().filter(|&&k| k == self.neg).take(MAX as usize).count() as u8;
         (pos, neg)
     }
 }
@@ -487,7 +421,8 @@ impl Delta for axis::Key {
             (true, false) => Some(1),
             (false, true) => Some(-1),
             (false, false) => None,
-        }.map(|delta| delta as TimerDuration * input.delta_time())
+        }
+        .map(|delta| delta as TimerDuration * input.delta_time())
     }
 }
 
@@ -498,13 +433,7 @@ impl Delta for axis::Raw {
         &self,
         input: &Input,
     ) -> Self::Output {
-        let moves = input
-            .delta
-            .axes_raw
-            .iter()
-            .filter(|&&(id, _)| id == self.id)
-            .map(|&(_, value)| value)
-            .collect::<Vec<_>>();
+        let moves = input.delta.axes_raw.iter().filter(|&&(id, _)| id == self.id).map(|&(_, value)| value).collect::<Vec<_>>();
         if moves.len() == 0 {
             None
         } else {
@@ -516,8 +445,7 @@ impl Delta for axis::Raw {
         &self,
         input: &Input,
     ) -> Option<TimerDuration> {
-        self.delta(input)
-            .map(|v| v as TimerDuration * input.delta_time())
+        self.delta(input).map(|v| v as TimerDuration * input.delta_time())
     }
 }
 

@@ -17,17 +17,7 @@ struct Axes {
 
 impl Default for Axes {
     fn default() -> Self {
-        Axes {
-            forward: Some(axis::Key {
-                pos: Key::W,
-                neg: Key::S,
-            }),
-            strafing: Some(axis::Key {
-                pos: Key::D,
-                neg: Key::A,
-            }),
-            vertical: None,
-        }
+        Axes { forward: Some(axis::Key { pos: Key::W, neg: Key::S }), strafing: Some(axis::Key { pos: Key::D, neg: Key::A }), vertical: None }
     }
 }
 
@@ -64,18 +54,7 @@ pub struct Builder {
 impl Builder {
     /// Create new `Builder` with default parameters.
     pub fn new<T: Object>(object: &T) -> Self {
-        Builder {
-            object: object.upcast(),
-            position: [0.0, 0.0, 0.0].into(),
-            yaw: 0.0,
-            pitch: 0.0,
-            pitch_range: Some(-PI / 2.0 .. PI / 2.0),
-            move_speed: 1.0,
-            look_speed: 0.5,
-            axes: Axes::default(),
-            vertical_move: true,
-            vertical_look: true,
-        }
+        Builder { object: object.upcast(), position: [0.0, 0.0, 0.0].into(), yaw: 0.0, pitch: 0.0, pitch_range: Some(-PI / 2.0 .. PI / 2.0), move_speed: 1.0, look_speed: 0.5, axes: Axes::default(), vertical_move: true, vertical_look: true }
     }
 
     /// Set the initial yaw angle in radians.
@@ -205,18 +184,7 @@ impl Builder {
 
     /// Finalize builder and create new `FirstPerson` controls.
     pub fn build(&mut self) -> FirstPerson {
-        FirstPerson {
-            object: self.object.clone(),
-            position: self.position,
-            yaw: self.yaw,
-            pitch: self.pitch,
-            pitch_range: self.pitch_range.clone(),
-            move_speed: self.move_speed,
-            look_speed: self.look_speed,
-            axes: self.axes.clone(),
-            vertical_move: self.vertical_move,
-            vertical_look: self.vertical_look,
-        }
+        FirstPerson { object: self.object.clone(), position: self.position, yaw: self.yaw, pitch: self.pitch, pitch_range: self.pitch_range.clone(), move_speed: self.move_speed, look_speed: self.look_speed, axes: self.axes.clone(), vertical_move: self.vertical_move, vertical_look: self.vertical_look }
     }
 }
 

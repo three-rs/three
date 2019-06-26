@@ -36,14 +36,7 @@ const BIT_COLOR: u16 = 0x40;
 const BIT_VERTEX_COLOR: u16 = 0x80;
 
 fn make_vertices(slice: &[i16]) -> Vec<mint::Point3<f32>> {
-    slice
-        .chunks(3)
-        .map(|v| mint::Point3 {
-            x: v[0] as f32 * SCALE,
-            y: v[1] as f32 * SCALE,
-            z: v[2] as f32 * SCALE,
-        })
-        .collect()
+    slice.chunks(3).map(|v| mint::Point3 { x: v[0] as f32 * SCALE, y: v[1] as f32 * SCALE, z: v[2] as f32 * SCALE }).collect()
 }
 
 fn make_indices(meta: &[u16]) -> Vec<[u32; 3]> {
@@ -88,33 +81,11 @@ fn make_indices(meta: &[u16]) -> Vec<[u32; 3]> {
 fn main() {
     let mut win = three::Window::new("Three-rs mesh blending example");
     let cam = win.factory.perspective_camera(60.0, 1.0 .. 1000.0);
-    cam.look_at(
-        [100.0, 0.0, 100.0],
-        [0.0, 0.0, 30.0],
-        Some([0.0, 1.0, 0.0].into()),
-    );
+    cam.look_at([100.0, 0.0, 100.0], [0.0, 0.0, 30.0], Some([0.0, 1.0, 0.0].into()));
 
-    let geom = three::Geometry {
-        base: three::Shape {
-            vertices: make_vertices(VERTICES),
-            normals: Vec::new(),
-            ..three::Shape::default()
-        },
-        faces: make_indices(INDICES),
-        shapes: V_FLY
-            .iter()
-            .map(|data| {
-                three::Shape {
-                    vertices: make_vertices(data),
-                    .. three::Shape::default()
-                }
-            })
-            .collect(),
-        ..three::Geometry::default()
-    };
+    let geom = three::Geometry { base: three::Shape { vertices: make_vertices(VERTICES), normals: Vec::new(), ..three::Shape::default() }, faces: make_indices(INDICES), shapes: V_FLY.iter().map(|data| three::Shape { vertices: make_vertices(data), ..three::Shape::default() }).collect(), ..three::Geometry::default() };
 
-    let mesh = win.factory
-        .mesh_dynamic(geom, three::material::Wireframe { color: 0xFFFFFF });
+    let mesh = win.factory.mesh_dynamic(geom, three::material::Wireframe { color: 0xFFFFFF });
     win.scene.add(&mesh);
 
     let (mut id0, mut id1) = (0, 1);
@@ -129,11 +100,7 @@ fn main() {
             if id0 == V_FLY.len() {
                 id0 = 0;
             }
-            id1 = if id0 + 1 < V_FLY.len() {
-                id0 + 1
-            } else {
-                0
-            };
+            id1 = if id0 + 1 < V_FLY.len() { id0 + 1 } else { 0 };
             timer.reset();
         }
         win.render(&cam);

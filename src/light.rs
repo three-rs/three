@@ -79,13 +79,18 @@ impl Ambient {
 }
 
 impl AsRef<Base> for Ambient {
-    fn as_ref(&self) -> &Base { &self.object }
+    fn as_ref(&self) -> &Base {
+        &self.object
+    }
 }
 
 impl Object for Ambient {
     type Data = LightData;
 
-    fn resolve_data(&self, sync_guard: &SyncGuard) -> Self::Data {
+    fn resolve_data(
+        &self,
+        sync_guard: &SyncGuard,
+    ) -> Self::Data {
         match &sync_guard.hub[self].sub_node {
             SubNode::Light(ref light_data) => light_data.into(),
             sub_node @ _ => panic!("`Ambient` had a bad sub node type: {:?}", sub_node),
@@ -105,9 +110,7 @@ pub struct Directional {
 
 impl Directional {
     pub(crate) fn new(object: Base) -> Self {
-        Directional {
-            object,
-        }
+        Directional { object }
     }
 
     /// Adds or updates the shadow map for this light source.
@@ -117,24 +120,25 @@ impl Directional {
         extent_y: f32,
         range: ops::Range<f32>,
     ) {
-        let sp = ShadowProjection::Orthographic(Orthographic {
-            center: [0.0; 2].into(),
-            extent_y,
-            range,
-        });
+        let sp = ShadowProjection::Orthographic(Orthographic { center: [0.0; 2].into(), extent_y, range });
         let msg = Operation::SetShadow(map, sp);
         let _ = self.object.tx.send((self.object.node.downgrade(), msg));
     }
 }
 
 impl AsRef<Base> for Directional {
-    fn as_ref(&self) -> &Base { &self.object }
+    fn as_ref(&self) -> &Base {
+        &self.object
+    }
 }
 
 impl Object for Directional {
     type Data = LightData;
 
-    fn resolve_data(&self, sync_guard: &SyncGuard) -> Self::Data {
+    fn resolve_data(
+        &self,
+        sync_guard: &SyncGuard,
+    ) -> Self::Data {
         match &sync_guard.hub[self].sub_node {
             SubNode::Light(ref light_data) => light_data.into(),
             sub_node @ _ => panic!("`Directional` had a bad sub node type: {:?}", sub_node),
@@ -165,13 +169,18 @@ impl Hemisphere {
 }
 
 impl AsRef<Base> for Hemisphere {
-    fn as_ref(&self) -> &Base { &self.object }
+    fn as_ref(&self) -> &Base {
+        &self.object
+    }
 }
 
 impl Object for Hemisphere {
     type Data = HemisphereLightData;
 
-    fn resolve_data(&self, sync_guard: &SyncGuard) -> Self::Data {
+    fn resolve_data(
+        &self,
+        sync_guard: &SyncGuard,
+    ) -> Self::Data {
         match &sync_guard.hub[self].sub_node {
             SubNode::Light(ref light_data) => light_data.into(),
             sub_node @ _ => panic!("`Hemisphere` had a bad sub node type: {:?}", sub_node),
@@ -194,13 +203,18 @@ impl Point {
 }
 
 impl AsRef<Base> for Point {
-    fn as_ref(&self) -> &Base { &self.object }
+    fn as_ref(&self) -> &Base {
+        &self.object
+    }
 }
 
 impl Object for Point {
     type Data = LightData;
 
-    fn resolve_data(&self, sync_guard: &SyncGuard) -> Self::Data {
+    fn resolve_data(
+        &self,
+        sync_guard: &SyncGuard,
+    ) -> Self::Data {
         match &sync_guard.hub[self].sub_node {
             SubNode::Light(ref light_data) => light_data.into(),
             sub_node @ _ => panic!("`Point` had a bad sub node type: {:?}", sub_node),
@@ -226,10 +240,7 @@ pub struct LightData {
 
 impl<'a> From<&'a hub::LightData> for LightData {
     fn from(from: &'a hub::LightData) -> Self {
-        LightData {
-            color: from.color,
-            intensity: from.intensity,
-        }
+        LightData { color: from.color, intensity: from.intensity }
     }
 }
 
@@ -254,10 +265,6 @@ impl<'a> From<&'a hub::LightData> for HemisphereLightData {
             SubLight::Hemisphere { ground } => ground,
             _ => panic!("Bad sub-light for `Hemisphere`: {:?}", from.sub_light),
         };
-        HemisphereLightData {
-            sky_color: from.color,
-            ground_color,
-            intensity: from.intensity,
-        }
+        HemisphereLightData { sky_color: from.color, ground_color, intensity: from.intensity }
     }
 }

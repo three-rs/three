@@ -5,48 +5,16 @@ extern crate three;
 use cgmath::prelude::*;
 use std::f32::consts::PI;
 
-
 fn make_tetrahedron_geometry() -> three::Geometry {
-    let vertices = vec![
-        mint::Point3 {
-            x: 0.0,
-            y: 1.0,
-            z: 0.0,
-        },
-        mint::Point3 {
-            x: 0.0,
-            y: 0.0,
-            z: 1.0,
-        },
-        mint::Point3 {
-            x: (2.0 * PI / 3.0).sin(),
-            y: 0.0,
-            z: (2.0 * PI / 3.0).cos(),
-        },
-        mint::Point3 {
-            x: (4.0 * PI / 3.0).sin(),
-            y: 0.0,
-            z: (4.0 * PI / 3.0).cos(),
-        },
-    ];
+    let vertices = vec![mint::Point3 { x: 0.0, y: 1.0, z: 0.0 }, mint::Point3 { x: 0.0, y: 0.0, z: 1.0 }, mint::Point3 { x: (2.0 * PI / 3.0).sin(), y: 0.0, z: (2.0 * PI / 3.0).cos() }, mint::Point3 { x: (4.0 * PI / 3.0).sin(), y: 0.0, z: (4.0 * PI / 3.0).cos() }];
     let faces = vec![[0, 1, 2], [0, 2, 3], [0, 3, 1], [1, 3, 2]];
-    three::Geometry {
-        faces,
-        base: three::Shape {
-            vertices,
-            ..three::Shape::default()
-        },
-        ..three::Geometry::default()
-    }
+    three::Geometry { faces, base: three::Shape { vertices, ..three::Shape::default() }, ..three::Geometry::default() }
 }
 
 fn main() {
     let mut win = three::Window::new("Three-rs Mesh Update Example");
     let cam = win.factory.perspective_camera(60.0, 1.0 .. 10.0);
-    let mut controls = three::controls::Orbit::builder(&cam)
-        .position([0.0, 2.0, -5.0])
-        .target([0.0, 0.0, 0.0])
-        .build();
+    let mut controls = three::controls::Orbit::builder(&cam).position([0.0, 2.0, -5.0]).target([0.0, 0.0, 0.0]).build();
 
     let geometry = make_tetrahedron_geometry();
     let material = three::material::Wireframe { color: 0xFFFF00 };

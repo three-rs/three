@@ -25,14 +25,7 @@ pub struct Clip {
 
 impl Clip {
     pub(crate) fn new(data: Vec<u8>) -> Self {
-        Clip {
-            data: Rc::new(data),
-            repeat: false,
-            duration: None,
-            delay: None,
-            fade_in: None,
-            speed: 1.0,
-        }
+        Clip { data: Rc::new(data), repeat: false, duration: None, delay: None, fade_in: None, speed: 1.0 }
     }
 
     /// Passing true enforces looping sound. Defaults to `false`.
@@ -101,9 +94,7 @@ impl AudioData {
             panic!("Can't get default audio endpoint, can't play sound");
         };
         let sink = r::Sink::new(&endpoint);
-        AudioData {
-            source: SourceInternal::D2(sink),
-        }
+        AudioData { source: SourceInternal::D2(sink) }
     }
 }
 
