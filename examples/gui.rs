@@ -1,9 +1,9 @@
-extern crate three;
-extern crate nuklear;
-
 //! It's suggested to run this example with
 //! `cargo run --example gui --features="nuklear, gltf" --release`
 //! This example is based on the gltf-vertex-skinning example.
+
+extern crate three;
+extern crate nuklear;
 
 use three::{gui, Object};
 use nuklear::*;
