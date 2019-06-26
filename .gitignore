@@ -6,5 +6,10 @@
 # More information here http://doc.crates.io/guide.html#cargotoml-vs-cargolock
 Cargo.lock
 
+# Ignore Vim configuration files
+*.swp
+*.swo
+*~
+
 # Configuration file for editors using the RLS.
 rls.toml
