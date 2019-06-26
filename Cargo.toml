@@ -106,8 +106,12 @@ required-features = ["gltf"]
 
 [[example]]
 name = "gltf-vertex-skinning"
-required-features = ["gltf", "nuklear"]
+required-features = ["gltf"]
 
 [[example]]
 name = "gltf-morph-targets"
 required-features = ["gltf"]
+
+[[example]]
+name = "gui"
+required-features = ["gltf", "nuklear"]
