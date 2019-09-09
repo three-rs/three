@@ -37,6 +37,7 @@ use material::Material;
 use scene::{Background, Scene};
 use text::Font;
 use texture::Texture;
+use glutin::{ContextCurrentState, NotCurrent, Window, ContextWrapper, PossiblyCurrent};
 
 /// The format of the back buffer color requested from the windowing system.
 pub type ColorFormat = gfx::format::Rgba8;
@@ -538,13 +539,14 @@ impl Renderer {
     #[cfg(feature = "opengl")]
     pub(crate) fn new(
         builder: glutin::WindowBuilder,
-        context: glutin::ContextBuilder,
+        context: glutin::ContextBuilder<NotCurrent>,
         event_loop: &glutin::EventsLoop,
         source: &source::Set,
-    ) -> (Self, glutin::GlWindow, Factory) {
+    ) -> (Self, glutin::WindowedContext<PossiblyCurrent>, Factory) {
         use gfx::texture as t;
 
-        let (window, device, mut gl_factory, out_color, out_depth) = gfx_window_glutin::init(builder, context, event_loop).unwrap();
+        let (_windowedContext, device, mut gl_factory, out_color, out_depth) = gfx_window_glutin::init(builder, context, event_loop).unwrap();
+        let window = _windowedContext.window();
         let (_, srv_white) = gl_factory
             .create_texture_immutable::<gfx::format::Rgba8>(
                 t::Kind::D2(1, 1, t::AaMode::Single),
@@ -638,7 +640,7 @@ impl Renderer {
             dpi: window.get_hidpi_factor(),
         };
         let factory = Factory::new(gl_factory);
-        (renderer, window, factory)
+        (renderer, _windowedContext, factory)
     }
 
     /// Reloads the shaders.
@@ -651,7 +653,7 @@ impl Renderer {
 
     pub(crate) fn resize(
         &mut self,
-        window: &glutin::GlWindow,
+        window: &glutin::WindowedContext<PossiblyCurrent>,
         size: glutin::dpi::LogicalSize,
     ) {
         // skip updating view and self size if some
@@ -666,7 +668,7 @@ impl Renderer {
 
     pub(crate) fn dpi_change(
         &mut self,
-        window: &glutin::GlWindow,
+        window: &glutin::WindowedContext<PossiblyCurrent>,
         dpi: f64,
     ) {
         self.dpi = dpi;

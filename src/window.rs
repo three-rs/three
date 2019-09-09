@@ -10,6 +10,7 @@ use input::Input;
 use render::Renderer;
 use scene::Scene;
 use std::path::PathBuf;
+use glutin::{GlRequest, GlProfile, PossiblyCurrent};
 
 /// `Window` is the core entity of every `three-rs` application.
 ///
@@ -17,7 +18,7 @@ use std::path::PathBuf;
 /// [`Factory`](struct.Factory.html) and [`Renderer`](struct.Renderer.html).
 pub struct Window {
     event_loop: glutin::EventsLoop,
-    window: glutin::GlWindow,
+    windowedContext: glutin::WindowedContext<PossiblyCurrent>,
     dpi: f64,
     /// See [`Input`](struct.Input.html).
     pub input: Input,
@@ -111,6 +112,8 @@ impl Builder {
             .with_title(self.title.clone());
 
         let context = glutin::ContextBuilder::new()
+            .with_gl_profile(GlProfile::Core)
+            .with_gl(GlRequest::Latest)
             .with_vsync(self.vsync)
             .with_multisampling(self.multisampling);
 
@@ -147,12 +150,13 @@ impl Builder {
             try_override!(basic, gouraud, pbr, phong, quad, shadow, skybox, sprite,);
         }
 
-        let (renderer, window, mut factory) = Renderer::new(builder, context, &event_loop, &source_set);
-        let dpi = window.get_hidpi_factor();
+        let (renderer, windowedContext, mut factory) = Renderer::new(builder, context, &event_loop, &source_set);
+        let dpi = windowedContext.window().get_hidpi_factor();
         let scene = factory.scene();
+//        let window = windowedContext.window();
         Window {
             event_loop,
-            window,
+            windowedContext,
             dpi,
             input: Input::new(),
             renderer,
@@ -191,16 +195,17 @@ impl Window {
             input.reset();
         }
 
-        self.window.swap_buffers().unwrap();
-        let window = &self.window;
+//        self.windowedContext.window().swap_buffers().unwrap();
+        let wc = &self.windowedContext;
+        self.windowedContext.swap_buffers().unwrap();
         let dpi = self.dpi;
 
         self.event_loop.poll_events(|event| {
             use glutin::WindowEvent;
             match event {
                 glutin::Event::WindowEvent { event, .. } => match event {
-                    WindowEvent::Resized(size) => renderer.resize(window, size),
-                    WindowEvent::HiDpiFactorChanged(dpi) => renderer.dpi_change(window, dpi),
+                    WindowEvent::Resized(size) => renderer.resize(wc, size),
+                    WindowEvent::HiDpiFactorChanged(dpi) => renderer.dpi_change(wc, dpi),
                     WindowEvent::Focused(state) => input.window_focus(state),
                     WindowEvent::CloseRequested | WindowEvent::Destroyed => running = false,
                     WindowEvent::KeyboardInput {
@@ -242,17 +247,18 @@ impl Window {
 
     /// Get current window size in pixels.
     pub fn size(&self) -> mint::Vector2<f32> {
-        let size = self.window
+        let size = self.windowedContext
+            .window()
             .get_inner_size()
             .expect("Can't get window size")
             .to_physical(self.dpi);
         [size.width as f32, size.height as f32].into()
     }
 
-    /// Returns underlaying `glutin::GlWindow`.
+    /// Returns underlaying `glutin::Window`.
     #[cfg(feature = "opengl")]
-    pub fn glutin_window(&self) -> &glutin::GlWindow {
-        &self.window
+    pub fn glutin_window(&self) -> &glutin::WindowedContext<PossiblyCurrent> {
+        &self.windowedContext
     }
 
     /// Returns the current full screen mode.
@@ -272,7 +278,7 @@ impl Window {
         } else {
             None
         };
-        self.window.set_fullscreen(monitor);
+        self.windowedContext.window().set_fullscreen(monitor);
     }
 
     /// Toggles the full screen mode.
