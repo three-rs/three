@@ -29,8 +29,8 @@ cgmath = { version = "0.16", features = ["mint"] }
 derivative = "1.0"
 froggy = "0.4.4"
 genmesh = "0.6"
-gfx = "0.17.1"
-gfx_glyph = "0.13"
+gfx = "0.18.1"
+gfx_glyph = "0.15.0"
 gltf = { features = ["names", "utils", "import"], optional = true, version = "0.11.1" }
 image = "0.20"
 includedir = "0.5"
@@ -44,9 +44,9 @@ mint = "0.5"
 vec_map = "0.8"
 
 # OpenGL
-gfx_device_gl = { version = "0.15", optional = true }
-gfx_window_glutin = { version = "0.28", optional = true }
-glutin = { version = "0.19", optional = true }
+gfx_device_gl = { version = "0.16.2", optional = true }
+gfx_window_glutin = { version = "0.31.0", optional = true }
+glutin = { version = "0.21.1", optional = true }
 
 [dev-dependencies]
 env_logger = "0.6"
