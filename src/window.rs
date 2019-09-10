@@ -153,7 +153,6 @@ impl Builder {
         let (renderer, windowedContext, mut factory) = Renderer::new(builder, context, &event_loop, &source_set);
         let dpi = windowedContext.window().get_hidpi_factor();
         let scene = factory.scene();
-//        let window = windowedContext.window();
         Window {
             event_loop,
             windowedContext,
@@ -195,7 +194,6 @@ impl Window {
             input.reset();
         }
 
-//        self.windowedContext.window().swap_buffers().unwrap();
         let wc = &self.windowedContext;
         self.windowedContext.swap_buffers().unwrap();
         let dpi = self.dpi;
@@ -255,7 +253,7 @@ impl Window {
         [size.width as f32, size.height as f32].into()
     }
 
-    /// Returns underlaying `glutin::Window`.
+    /// Returns underlaying `glutin::WindowedContext`.
     #[cfg(feature = "opengl")]
     pub fn glutin_window(&self) -> &glutin::WindowedContext<PossiblyCurrent> {
         &self.windowedContext

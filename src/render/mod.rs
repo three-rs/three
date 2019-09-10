@@ -545,8 +545,8 @@ impl Renderer {
     ) -> (Self, glutin::WindowedContext<PossiblyCurrent>, Factory) {
         use gfx::texture as t;
 
-        let (_windowedContext, device, mut gl_factory, out_color, out_depth) = gfx_window_glutin::init(builder, context, event_loop).unwrap();
-        let window = _windowedContext.window();
+        let (windowedContext, device, mut gl_factory, out_color, out_depth) = gfx_window_glutin::init(builder, context, event_loop).unwrap();
+        let window = windowedContext.window();
         let (_, srv_white) = gl_factory
             .create_texture_immutable::<gfx::format::Rgba8>(
                 t::Kind::D2(1, 1, t::AaMode::Single),
@@ -640,7 +640,7 @@ impl Renderer {
             dpi: window.get_hidpi_factor(),
         };
         let factory = Factory::new(gl_factory);
-        (renderer, _windowedContext, factory)
+        (renderer, windowedContext, factory)
     }
 
     /// Reloads the shaders.
