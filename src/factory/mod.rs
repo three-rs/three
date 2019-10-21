@@ -979,10 +979,7 @@ impl Factory {
                 let p: [f32; 3] = mesh.geometry.base.vertices[i].into();
                 pos += (1.0 - ksum) * Vector3::from(p);
             }
-            mapping[i] = Vertex {
-                pos: [pos.x, pos.y, pos.z, 1.0],
-                .. mapping[i]
-            };
+            mapping[i].pos = [pos.x, pos.y, pos.z, 1.0];
         }
     }
 
