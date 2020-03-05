@@ -17,10 +17,9 @@ use froggy;
 use gfx;
 use mint;
 
-use std::{mem, ops};
-use std::sync::{Arc, Mutex};
 use std::sync::mpsc;
-
+use std::sync::{Arc, Mutex};
+use std::{mem, ops};
 
 #[derive(Clone, Debug)]
 pub(crate) enum SubLight {
@@ -68,7 +67,10 @@ pub(crate) enum SubNode {
     /// Lighting information for illumination and shadow casting.
     Light(LightData),
     /// A single bone.
-    Bone { index: usize, inverse_bind_matrix: mint::ColumnMatrix4<f32> },
+    Bone {
+        index: usize,
+        inverse_bind_matrix: mint::ColumnMatrix4<f32>,
+    },
     /// Skeleton root.
     Skeleton(SkeletonData),
 }
@@ -132,10 +134,7 @@ impl Hub {
         Arc::new(Mutex::new(hub))
     }
 
-    pub(crate) fn spawn(
-        &mut self,
-        sub: SubNode,
-    ) -> Base {
+    pub(crate) fn spawn(&mut self, sub: SubNode) -> Base {
         Base {
             node: self.nodes.create(sub.into()),
             tx: self.message_tx.clone(),
@@ -151,17 +150,11 @@ impl Hub {
         self.spawn(SubNode::Visual(mat, gpu_data, skeleton))
     }
 
-    pub(crate) fn spawn_light(
-        &mut self,
-        data: LightData,
-    ) -> Base {
+    pub(crate) fn spawn_light(&mut self, data: LightData) -> Base {
         self.spawn(SubNode::Light(data))
     }
 
-    pub(crate) fn spawn_skeleton(
-        &mut self,
-        data: SkeletonData,
-    ) -> Base {
+    pub(crate) fn spawn_skeleton(&mut self, data: SkeletonData) -> Base {
         self.spawn(SubNode::Skeleton(data))
     }
 
@@ -185,14 +178,13 @@ impl Hub {
                     if let SubNode::Audio(ref mut data) = self.nodes[&ptr].sub_node {
                         Hub::process_audio(operation, data);
                     }
-                },
+                }
                 Operation::SetVisible(visible) => {
                     self.nodes[&ptr].visible = visible;
                 }
                 Operation::SetTransform(pos, rot, scale) => {
                     let transform = &mut self.nodes[&ptr].transform;
                     if let Some(pos) = pos {
-
                         transform.disp = mint::Vector3::from(pos).into();
                     }
                     if let Some(rot) = rot {
@@ -204,14 +196,17 @@ impl Hub {
                 }
                 Operation::AddChild(child_ptr) => {
                     let sibling = match self.nodes[&ptr].sub_node {
-                        SubNode::Group { ref mut first_child } =>
-                            mem::replace(first_child, Some(child_ptr.clone())),
+                        SubNode::Group {
+                            ref mut first_child,
+                        } => mem::replace(first_child, Some(child_ptr.clone())),
                         _ => unreachable!(),
                     };
                     let child = &mut self.nodes[&child_ptr];
                     if child.next_sibling.is_some() {
-                        error!("Element {:?} is added to a group while still having old parent - {}",
-                            child.sub_node, "discarding siblings");
+                        error!(
+                            "Element {:?} is added to a group while still having old parent - {}",
+                            child.sub_node, "discarding siblings"
+                        );
                     }
                     child.next_sibling = sibling;
                 }
@@ -219,14 +214,16 @@ impl Hub {
                     let next_sibling = self.nodes[&child_ptr].next_sibling.clone();
                     let target_maybe = Some(child_ptr);
                     let mut cur_ptr = match self.nodes[&ptr].sub_node {
-                        SubNode::Group { ref mut first_child } => {
+                        SubNode::Group {
+                            ref mut first_child,
+                        } => {
                             if *first_child == target_maybe {
                                 *first_child = next_sibling;
                                 continue;
                             }
                             first_child.clone()
                         }
-                        _ => unreachable!()
+                        _ => unreachable!(),
                     };
 
                     //TODO: consolidate the code with `Scene::remove()`
@@ -245,61 +242,47 @@ impl Hub {
                         cur_ptr = node.next_sibling.clone(); //TODO: avoid clone
                     }
                 }
-                Operation::SetLight(operation) => {
-                    match self.nodes[&ptr].sub_node {
-                        SubNode::Light(ref mut data) => {
-                            Hub::process_light(operation, data);
-                        }
-                        _ => unreachable!()
+                Operation::SetLight(operation) => match self.nodes[&ptr].sub_node {
+                    SubNode::Light(ref mut data) => {
+                        Hub::process_light(operation, data);
                     }
-                }
-                Operation::SetText(operation) => {
-                    match self.nodes[&ptr].sub_node {
-                        SubNode::UiText(ref mut data) => {
-                            Hub::process_text(operation, data);
-                        }
-                        _ => unreachable!()
+                    _ => unreachable!(),
+                },
+                Operation::SetText(operation) => match self.nodes[&ptr].sub_node {
+                    SubNode::UiText(ref mut data) => {
+                        Hub::process_text(operation, data);
                     }
-                }
-                Operation::SetMaterial(material) => {
-                    match self.nodes[&ptr].sub_node {
-                        SubNode::Visual(ref mut mat, _, _) => {
-                            *mat = material;
-                        }
-                        _ => unreachable!()
+                    _ => unreachable!(),
+                },
+                Operation::SetMaterial(material) => match self.nodes[&ptr].sub_node {
+                    SubNode::Visual(ref mut mat, _, _) => {
+                        *mat = material;
                     }
-                }
-                Operation::SetSkeleton(sleketon) => {
-                    match self.nodes[&ptr].sub_node {
-                        SubNode::Visual(_, _, ref mut skel) => {
-                            *skel = Some(sleketon);
-                        }
-                        _ => unreachable!()
+                    _ => unreachable!(),
+                },
+                Operation::SetSkeleton(sleketon) => match self.nodes[&ptr].sub_node {
+                    SubNode::Visual(_, _, ref mut skel) => {
+                        *skel = Some(sleketon);
                     }
-                }
-                Operation::SetShadow(map, proj) => {
-                    match self.nodes[&ptr].sub_node {
-                        SubNode::Light(ref mut data) => {
-                            data.shadow = Some((map, proj));
-                        },
-                    _ => unreachable!()
+                    _ => unreachable!(),
+                },
+                Operation::SetShadow(map, proj) => match self.nodes[&ptr].sub_node {
+                    SubNode::Light(ref mut data) => {
+                        data.shadow = Some((map, proj));
                     }
-                }
-                Operation::SetTexelRange(base, size) => {
-                    match self.nodes[&ptr].sub_node {
-                        SubNode::Visual(Material::Sprite(ref mut params), _, _) => {
-                            params.map.set_texel_range(base, size);
-                        }
-                        _ => unreachable!()
+                    _ => unreachable!(),
+                },
+                Operation::SetTexelRange(base, size) => match self.nodes[&ptr].sub_node {
+                    SubNode::Visual(Material::Sprite(ref mut params), _, _) => {
+                        params.map.set_texel_range(base, size);
                     }
-                }
+                    _ => unreachable!(),
+                },
                 Operation::SetWeights(weights) => {
-                    fn set_weights(
-                        gpu_data: &mut GpuData,
-                        weights: &[f32],
-                    ) {
+                    fn set_weights(gpu_data: &mut GpuData, weights: &[f32]) {
                         use std::iter::repeat;
-                        for (out, input) in gpu_data.displacement_contributions
+                        for (out, input) in gpu_data
+                            .displacement_contributions
                             .iter_mut()
                             .zip(weights.iter().chain(repeat(&0.0)))
                         {
@@ -326,14 +309,12 @@ impl Hub {
                 Operation::SetName(name) => {
                     self.nodes[&ptr].name = Some(name);
                 }
-                Operation::SetProjection(projection) => {
-                    match self.nodes[&ptr].sub_node {
-                        SubNode::Camera(ref mut internal_projection) => {
-                            *internal_projection = projection;
-                        }
-                        _ => unreachable!()
+                Operation::SetProjection(projection) => match self.nodes[&ptr].sub_node {
+                    SubNode::Camera(ref mut internal_projection) => {
+                        *internal_projection = projection;
                     }
-                }
+                    _ => unreachable!(),
+                },
             }
         }
 
@@ -341,10 +322,7 @@ impl Hub {
     }
 
     #[cfg(feature = "audio")]
-    fn process_audio(
-        operation: AudioOperation,
-        data: &mut AudioData,
-    ) {
+    fn process_audio(operation: AudioOperation, data: &mut AudioData) {
         match operation {
             AudioOperation::Append(clip) => data.source.append(clip),
             AudioOperation::Pause => data.source.pause(),
@@ -354,20 +332,14 @@ impl Hub {
         }
     }
 
-    fn process_light(
-        operation: LightOperation,
-        data: &mut LightData,
-    ) {
+    fn process_light(operation: LightOperation, data: &mut LightData) {
         match operation {
             LightOperation::Color(color) => data.color = color,
             LightOperation::Intensity(intensity) => data.intensity = intensity,
         }
     }
 
-    fn process_text(
-        operation: TextOperation,
-        data: &mut TextData,
-    ) {
+    fn process_text(operation: TextOperation, data: &mut TextData) {
         use gfx_glyph::Scale;
         match operation {
             TextOperation::Color(color) => {
@@ -385,19 +357,16 @@ impl Hub {
         }
     }
 
-    pub(crate) fn update_mesh(
-        &mut self,
-        mesh: &DynamicMesh,
-    ) {
+    pub(crate) fn update_mesh(&mut self, mesh: &DynamicMesh) {
         match self[mesh].sub_node {
-            SubNode::Visual(_, ref mut gpu_data, _) => gpu_data.pending = Some(mesh.dynamic.clone()),
+            SubNode::Visual(_, ref mut gpu_data, _) => {
+                gpu_data.pending = Some(mesh.dynamic.clone())
+            }
             _ => unreachable!(),
         }
     }
 
-    fn walk_impl(
-        &self, base: &Option<NodePointer>, only_visible: bool
-    ) -> TreeWalker {
+    fn walk_impl(&self, base: &Option<NodePointer>, only_visible: bool) -> TreeWalker {
         let default_stack_size = 10;
         let mut walker = TreeWalker {
             hub: self,
@@ -462,10 +431,12 @@ impl<'a> TreeWalker<'a> {
             }
 
             match node.sub_node {
-                SubNode::Group { first_child: Some(ref child_ptr) } => {
+                SubNode::Group {
+                    first_child: Some(ref child_ptr),
+                } => {
                     ptr = child_ptr;
                     node = &self.hub.nodes[&ptr];
-                },
+                }
                 _ => break,
             }
         }
@@ -481,7 +452,7 @@ impl<'a> Iterator for TreeWalker<'a> {
         while let Some(top) = self.stack.pop() {
             self.descend(&top.node.next_sibling);
             if !self.only_visible || top.world_visible {
-                return Some(top)
+                return Some(top);
             }
         }
         None

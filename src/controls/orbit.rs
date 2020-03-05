@@ -49,10 +49,7 @@ impl Builder {
     /// Set the initial position.
     ///
     /// Defaults to the world origin.
-    pub fn position<P>(
-        &mut self,
-        position: P,
-    ) -> &mut Self
+    pub fn position<P>(&mut self, position: P) -> &mut Self
     where
         P: Into<mint::Point3<f32>>,
     {
@@ -63,12 +60,9 @@ impl Builder {
     /// Sets the initial up direction.
     ///
     /// Defaults to the unit z axis.
-    pub fn up<P>(
-        &mut self,
-        up: P,
-    ) -> &mut Self
+    pub fn up<P>(&mut self, up: P) -> &mut Self
     where
-        P: Into<mint::Vector3<f32>>
+        P: Into<mint::Vector3<f32>>,
     {
         self.up = up.into();
         self
@@ -77,10 +71,7 @@ impl Builder {
     /// Set the target position.
     ///
     /// Defaults to the world origin.
-    pub fn target<P>(
-        &mut self,
-        target: P,
-    ) -> &mut Self
+    pub fn target<P>(&mut self, target: P) -> &mut Self
     where
         P: Into<mint::Point3<f32>>,
     {
@@ -89,19 +80,13 @@ impl Builder {
     }
 
     /// Setup the speed of the movements. Default value is 1.0
-    pub fn speed(
-        &mut self,
-        speed: f32,
-    ) -> &mut Self {
+    pub fn speed(&mut self, speed: f32) -> &mut Self {
         self.speed = speed;
         self
     }
 
     /// Setup control button. Default is left mouse button (`MOUSE_LEFT`).
-    pub fn button(
-        &mut self,
-        button: Button,
-    ) -> &mut Self {
+    pub fn button(&mut self, button: Button) -> &mut Self {
         self.button = button;
         self
     }
@@ -137,10 +122,7 @@ impl Orbit {
     }
 
     /// Update current position and rotation of the controlled object according to the last frame input.
-    pub fn update(
-        &mut self,
-        input: &Input,
-    ) {
+    pub fn update(&mut self, input: &Input) {
         let mouse_delta = if input.hit(self.button) {
             input.mouse_delta_ndc()
         } else {

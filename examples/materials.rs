@@ -4,7 +4,7 @@ use three::Object;
 
 fn main() {
     let mut win = three::Window::new("Three-rs materials example");
-    let cam = win.factory.perspective_camera(75.0, 1.0 .. 50.0);
+    let cam = win.factory.perspective_camera(75.0, 1.0..50.0);
     cam.set_position([0.0, 0.0, 10.0]);
 
     let light = win.factory.point_light(0xffffff, 0.5);
@@ -17,19 +17,23 @@ fn main() {
         three::material::Basic {
             color: 0xFFFFFF,
             map: None,
-        }.into(),
+        }
+        .into(),
         three::material::Lambert {
             color: 0xFFFFFF,
             flat: true,
-        }.into(),
+        }
+        .into(),
         three::material::Lambert {
             color: 0xFFFFFF,
             flat: false,
-        }.into(),
+        }
+        .into(),
         three::material::Phong {
             color: 0xFFFFFF,
             glossiness: 80.0,
-        }.into(),
+        }
+        .into(),
         three::material::Pbr {
             base_color_factor: 0xFFFFFF,
             base_color_alpha: 1.0,
@@ -43,7 +47,8 @@ fn main() {
             emissive_map: None,
             metallic_roughness_map: None,
             occlusion_map: None,
-        }.into(),
+        }
+        .into(),
     ];
     let count = materials.len();
 

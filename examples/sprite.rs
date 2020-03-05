@@ -21,15 +21,14 @@ impl Animator {
         self.sprite.set_texel_range(base, self.cell_size);
     }
 
-    fn update(
-        &mut self,
-        switch_row: Option<u16>,
-    ) {
+    fn update(&mut self, switch_row: Option<u16>) {
         if let Some(row) = switch_row {
             self.timer.reset();
             self.current = [0, row];
             self.update_uv();
-        } else if self.timer.elapsed() >= self.duration && (self.repeat || self.current[0] < self.cell_counts[0]) {
+        } else if self.timer.elapsed() >= self.duration
+            && (self.repeat || self.current[0] < self.cell_counts[0])
+        {
             self.timer.reset();
             self.current[0] += 1;
             if self.current[0] < self.cell_counts[0] {
@@ -44,8 +43,9 @@ impl Animator {
 
 fn main() {
     let mut win = three::Window::new("Three-rs sprite example");
-    let cam = win.factory
-        .orthographic_camera([0.0, 0.0], 10.0, -10.0 .. 10.0);
+    let cam = win
+        .factory
+        .orthographic_camera([0.0, 0.0], 10.0, -10.0..10.0);
 
     let pikachu_path: String = format!("{}/test_data/pikachu_anim.png", env!("CARGO_MANIFEST_DIR"));
     let pikachu_path_str: &str = pikachu_path.as_str();

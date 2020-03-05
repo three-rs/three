@@ -19,8 +19,10 @@ pub struct Texture<T> {
     view: h::ShaderResourceView<BackendResources, T>,
     sampler: h::Sampler<BackendResources>,
     total_size: [u32; 2],
-    #[derivative(Hash(hash_with = "util::hash_f32_slice"))] tex0: [f32; 2],
-    #[derivative(Hash(hash_with = "util::hash_f32_slice"))] tex1: [f32; 2],
+    #[derivative(Hash(hash_with = "util::hash_f32_slice"))]
+    tex0: [f32; 2],
+    #[derivative(Hash(hash_with = "util::hash_f32_slice"))]
+    tex1: [f32; 2],
 }
 
 impl<T> Texture<T> {
@@ -48,11 +50,7 @@ impl<T> Texture<T> {
     }
 
     /// See [`Sprite::set_texel_range`](struct.Sprite.html#method.set_texel_range).
-    pub fn set_texel_range(
-        &mut self,
-        base: mint::Point2<i16>,
-        size: mint::Vector2<u16>,
-    ) {
+    pub fn set_texel_range(&mut self, base: mint::Point2<i16>, size: mint::Vector2<u16>) {
         self.tex0 = [
             base.x as f32,
             self.total_size[1] as f32 - base.y as f32 - size.y as f32,

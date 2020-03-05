@@ -112,7 +112,6 @@ use object::{Base, Object};
 use std::hash::{Hash, Hasher};
 use std::sync::mpsc;
 
-
 /// A target of an animation.
 pub type Target = Base;
 
@@ -249,10 +248,7 @@ pub struct Action {
 }
 
 impl PartialEq for Action {
-    fn eq(
-        &self,
-        other: &Action,
-    ) -> bool {
+    fn eq(&self, other: &Action) -> bool {
         self.pointer == other.pointer
     }
 }
@@ -260,10 +256,7 @@ impl PartialEq for Action {
 impl Eq for Action {}
 
 impl Hash for Action {
-    fn hash<H: Hasher>(
-        &self,
-        state: &mut H,
-    ) {
+    fn hash<H: Hasher>(&self, state: &mut H) {
         self.pointer.hash(state);
     }
 }
@@ -335,10 +328,7 @@ pub struct Mixer {
 }
 
 impl Action {
-    fn send(
-        &mut self,
-        operation: Operation,
-    ) -> &mut Self {
+    fn send(&mut self, operation: Operation) -> &mut Self {
         let message = (self.pointer.downgrade(), operation);
         let _ = self.tx.send(message);
         self
@@ -365,10 +355,7 @@ impl Action {
     }
 
     /// Sets the animation loop mode.
-    pub fn set_loop_mode(
-        &mut self,
-        loop_mode: LoopMode,
-    ) -> &mut Self {
+    pub fn set_loop_mode(&mut self, loop_mode: LoopMode) -> &mut Self {
         self.send(Operation::SetLoopMode(loop_mode))
     }
 }
@@ -393,10 +380,7 @@ impl Mixer {
         }
     }
 
-    fn update_actions(
-        &mut self,
-        delta_time: f32,
-    ) {
+    fn update_actions(&mut self, delta_time: f32) {
         for action in self.actions.iter_mut() {
             action.update(delta_time);
         }
@@ -412,10 +396,7 @@ impl Mixer {
     /// Spawns a new animation [`Action`] to be updated by this mixer.
     ///
     /// [`Action`]: struct.Action.html
-    pub fn action(
-        &mut self,
-        clip: Clip,
-    ) -> Action {
+    pub fn action(&mut self, clip: Clip) -> Action {
         let action_data = ActionData::new(clip);
         let pointer = self.actions.create(action_data);
         let tx = self.tx.clone();
@@ -423,10 +404,7 @@ impl Mixer {
     }
 
     /// Updates the actions owned by the mixer.
-    pub fn update(
-        &mut self,
-        delta_time: f32,
-    ) {
+    pub fn update(&mut self, delta_time: f32) {
         self.process_messages();
         self.update_actions(delta_time);
     }
@@ -445,10 +423,7 @@ impl ActionData {
     }
 
     /// Updates a single animation action.
-    fn update(
-        &mut self,
-        delta_time: f32,
-    ) {
+    fn update(&mut self, delta_time: f32) {
         if self.paused || !self.enabled {
             return;
         }
@@ -546,10 +521,7 @@ impl ActionData {
 }
 
 impl Track {
-    fn frame_at_time(
-        &self,
-        t: f32,
-    ) -> FrameRef {
+    fn frame_at_time(&self, t: f32) -> FrameRef {
         if t < self.times[0] {
             // The clip hasn't started yet.
             return FrameRef::Unstarted;

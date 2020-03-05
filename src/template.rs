@@ -153,7 +153,9 @@ impl Template {
     /// ```
     ///
     /// [`Factory::group`]: ../struct.Factory.html#method.group
-    pub fn new() -> Template { Default::default() }
+    pub fn new() -> Template {
+        Default::default()
+    }
 }
 
 /// Common data used by all object types.
@@ -356,7 +358,6 @@ impl LightTemplate {
     pub fn ambient(object: usize, color: Color, intensity: f32) -> LightTemplate {
         LightTemplate {
             object,
-
             color,
             intensity,
             sub_light: SubLightTemplate::Ambient,
@@ -384,7 +385,6 @@ impl LightTemplate {
     pub fn directional(object: usize, color: Color, intensity: f32) -> LightTemplate {
         LightTemplate {
             object,
-
             color,
             intensity,
             sub_light: SubLightTemplate::Directional,
@@ -412,7 +412,6 @@ impl LightTemplate {
     pub fn point(object: usize, color: Color, intensity: f32) -> LightTemplate {
         LightTemplate {
             object,
-
             color,
             intensity,
             sub_light: SubLightTemplate::Point,
@@ -446,10 +445,11 @@ impl LightTemplate {
     ) -> LightTemplate {
         LightTemplate {
             object,
-
             color: sky_color,
             intensity,
-            sub_light: SubLightTemplate::Hemisphere { ground: ground_color },
+            sub_light: SubLightTemplate::Hemisphere {
+                ground: ground_color,
+            },
         }
     }
 }

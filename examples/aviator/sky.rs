@@ -7,16 +7,12 @@ use three::{self, Object};
 
 use COLOR_WHITE;
 
-
 pub struct Sky {
     pub group: three::Group,
 }
 
 impl Sky {
-    fn make_cloud<R: Rng>(
-        rng: &mut R,
-        factory: &mut three::Factory,
-    ) -> three::Group {
+    fn make_cloud<R: Rng>(rng: &mut R, factory: &mut three::Factory) -> three::Group {
         let group = factory.group();
         let geo = three::Geometry::cuboid(20.0, 20.0, 20.0);
         let material = three::material::Lambert {
@@ -24,7 +20,7 @@ impl Sky {
             flat: true,
         };
         let template = factory.mesh(geo, material.clone());
-        for i in 0i32 .. rng.gen_range(3, 6) {
+        for i in 0i32..rng.gen_range(3, 6) {
             let m = factory.mesh_instance(&template);
             let rot = cgmath::Quaternion::<f32>::new(rng.gen(), rng.gen(), rng.gen(), rng.gen());
             let q = rot.normalize();
@@ -42,14 +38,11 @@ impl Sky {
         group
     }
 
-    pub fn new<R: Rng>(
-        rng: &mut R,
-        factory: &mut three::Factory,
-    ) -> Self {
+    pub fn new<R: Rng>(rng: &mut R, factory: &mut three::Factory) -> Self {
         let group = factory.group();
         let num = 20i32;
         let step_angle = PI * 2.0 / num as f32;
-        for i in 0 .. num {
+        for i in 0..num {
             let cloud = Self::make_cloud(rng, factory);
             let angle = cgmath::Rad(i as f32 * step_angle);
             let dist = rng.gen_range(750.0, 950.0);

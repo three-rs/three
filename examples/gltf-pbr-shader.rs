@@ -1,9 +1,6 @@
 extern crate three;
 
-use three::{
-    camera::Camera,
-    Object,
-};
+use three::{camera::Camera, Object};
 
 fn main() {
     let mut win = three::Window::new("Three-rs glTF example");
@@ -12,7 +9,10 @@ fn main() {
     win.scene.add(&light);
     win.scene.background = three::Background::Color(0xC6F0FF);
 
-    let default = concat!(env!("CARGO_MANIFEST_DIR"), "/test_data/Lantern/Lantern.gltf");
+    let default = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/test_data/Lantern/Lantern.gltf"
+    );
     let path = std::env::args().nth(1).unwrap_or(default.into());
     println!("Loading {:?} (this may take a while)", path);
 
@@ -33,7 +33,7 @@ fn main() {
 
     // If we didn't find a camera in the glTF scene, create a default one to use.
     let cam = cam.unwrap_or_else(|| {
-        let default = win.factory.perspective_camera(60.0, 0.001 .. 100.0);
+        let default = win.factory.perspective_camera(60.0, 0.001..100.0);
         win.scene.add(&default);
         default
     });
@@ -52,10 +52,7 @@ fn main() {
 
     // Determine the current position of the camera so that we can use it to initialize the
     // camera controller.
-    let init = win.scene
-        .sync_guard()
-        .resolve_world(&cam)
-        .transform;
+    let init = win.scene.sync_guard().resolve_world(&cam).transform;
 
     // Create a first person camera controller, starting at the camera's current position.
     let mut controls = three::controls::FirstPerson::builder(&cam)

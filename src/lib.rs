@@ -317,7 +317,7 @@ pub use color::Color;
 pub use controls::{AXIS_DOWN_UP, AXIS_LEFT_RIGHT, KEY_ESCAPE, KEY_SPACE, MOUSE_LEFT, MOUSE_RIGHT};
 
 #[doc(inline)]
-pub use controls::{Button, MouseButton, Input, Timer};
+pub use controls::{Button, Input, MouseButton, Timer};
 
 #[doc(inline)]
 pub use factory::Factory;
@@ -339,7 +339,7 @@ pub use material::Material;
 pub use mesh::{DynamicMesh, Mesh};
 
 #[doc(inline)]
-pub use node::{Node, Transform, Local, World};
+pub use node::{Local, Node, Transform, World};
 
 #[doc(inline)]
 pub use object::{Group, Object};

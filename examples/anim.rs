@@ -87,7 +87,7 @@ fn make_indices(meta: &[u16]) -> Vec<[u32; 3]> {
 
 fn main() {
     let mut win = three::Window::new("Three-rs mesh blending example");
-    let cam = win.factory.perspective_camera(60.0, 1.0 .. 1000.0);
+    let cam = win.factory.perspective_camera(60.0, 1.0..1000.0);
     cam.look_at(
         [100.0, 0.0, 100.0],
         [0.0, 0.0, 30.0],
@@ -103,17 +103,16 @@ fn main() {
         faces: make_indices(INDICES),
         shapes: V_FLY
             .iter()
-            .map(|data| {
-                three::Shape {
-                    vertices: make_vertices(data),
-                    .. three::Shape::default()
-                }
+            .map(|data| three::Shape {
+                vertices: make_vertices(data),
+                ..three::Shape::default()
             })
             .collect(),
         ..three::Geometry::default()
     };
 
-    let mesh = win.factory
+    let mesh = win
+        .factory
         .mesh_dynamic(geom, three::material::Wireframe { color: 0xFFFFFF });
     win.scene.add(&mesh);
 
@@ -129,11 +128,7 @@ fn main() {
             if id0 == V_FLY.len() {
                 id0 = 0;
             }
-            id1 = if id0 + 1 < V_FLY.len() {
-                id0 + 1
-            } else {
-                0
-            };
+            id1 = if id0 + 1 < V_FLY.len() { id0 + 1 } else { 0 };
             timer.reset();
         }
         win.render(&cam);

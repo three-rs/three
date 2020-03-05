@@ -1,14 +1,14 @@
 #[cfg(feature = "gltf")]
 mod load_gltf;
 
-use std::{cmp, fs, io, iter, ops};
 use std::borrow::Cow;
-use std::collections::HashSet;
 use std::collections::hash_map::{Entry, HashMap};
+use std::collections::HashSet;
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::{cmp, fs, io, iter, ops};
 
-use cgmath::{Vector3};
+use cgmath::Vector3;
 use gfx;
 use gfx::format::I8Norm;
 use gfx::traits::{Factory as Factory_, FactoryExt};
@@ -23,27 +23,22 @@ use audio;
 
 use animation;
 use camera::{Camera, Projection, ZRange};
-use color::{BLACK, Color};
+use color::{Color, BLACK};
 use geometry::Geometry;
 use hub::{Hub, HubPtr, LightData, SubLight, SubNode};
 use light::{Ambient, Directional, Hemisphere, Point, ShadowMap};
 use material::{self, Material};
 use mesh::{DynamicMesh, Mesh};
 use object::{self, Group, Object};
-use render::{basic_pipe,
-    BackendFactory, BackendResources, BasicPipelineState, DisplacementContribution,
-    DynamicData, GpuData, Instance, InstanceCacheKey, PipelineCreationError, ShadowFormat, Source, Vertex,
-    DEFAULT_VERTEX, VECS_PER_BONE, ZEROED_DISPLACEMENT_CONTRIBUTION,
+use render::{
+    basic_pipe, BackendFactory, BackendResources, BasicPipelineState, DisplacementContribution,
+    DynamicData, GpuData, Instance, InstanceCacheKey, PipelineCreationError, ShadowFormat, Source,
+    Vertex, DEFAULT_VERTEX, VECS_PER_BONE, ZEROED_DISPLACEMENT_CONTRIBUTION,
 };
 use scene::{Background, Scene};
-use sprite::Sprite;
 use skeleton::{Bone, InverseBindMatrix, Skeleton};
-use template::{
-    InstancedGeometry,
-    LightTemplate,
-    SubLightTemplate,
-    Template,
-};
+use sprite::Sprite;
+use template::{InstancedGeometry, LightTemplate, SubLightTemplate, Template};
 use text::{Font, Text, TextData};
 use texture::{CubeMap, CubeMapPath, FilterMethod, Sampler, Texture, WrapMode};
 
@@ -54,22 +49,22 @@ const QUAD: [Vertex; 4] = [
     Vertex {
         pos: [-1.0, -1.0, 0.0, 1.0],
         uv: [0.0, 0.0],
-        .. DEFAULT_VERTEX
+        ..DEFAULT_VERTEX
     },
     Vertex {
         pos: [1.0, -1.0, 0.0, 1.0],
         uv: [1.0, 0.0],
-        .. DEFAULT_VERTEX
+        ..DEFAULT_VERTEX
     },
     Vertex {
         pos: [-1.0, 1.0, 0.0, 1.0],
         uv: [0.0, 1.0],
-        .. DEFAULT_VERTEX
+        ..DEFAULT_VERTEX
     },
     Vertex {
         pos: [1.0, 1.0, 0.0, 1.0],
         uv: [1.0, 1.0],
-        .. DEFAULT_VERTEX
+        ..DEFAULT_VERTEX
     },
 ];
 
@@ -118,30 +113,42 @@ impl Factory {
         let displacements = if num_shapes != 0 {
             let num_vertices = geometry.base.vertices.len();
             let mut contents = vec![[0.0; 4]; num_shapes * 3 * num_vertices];
-            for (content_chunk, shape) in contents.chunks_mut(3 * num_vertices).zip(&geometry.shapes) {
+            for (content_chunk, shape) in
+                contents.chunks_mut(3 * num_vertices).zip(&geometry.shapes)
+            {
                 let mut contribution = DisplacementContribution::ZERO;
                 if !shape.vertices.is_empty() {
                     contribution.position = 1.0;
-                    for (out, v) in content_chunk[0 * num_vertices .. 1 * num_vertices].iter_mut().zip(&shape.vertices) {
+                    for (out, v) in content_chunk[0 * num_vertices..1 * num_vertices]
+                        .iter_mut()
+                        .zip(&shape.vertices)
+                    {
                         *out = [v.x, v.y, v.z, 1.0];
                     }
                 }
                 if !shape.normals.is_empty() {
                     contribution.normal = 1.0;
-                    for (out, v) in content_chunk[1 * num_vertices .. 2 * num_vertices].iter_mut().zip(&shape.normals) {
+                    for (out, v) in content_chunk[1 * num_vertices..2 * num_vertices]
+                        .iter_mut()
+                        .zip(&shape.normals)
+                    {
                         *out = [v.x, v.y, v.z, 0.0];
                     }
                 }
                 if !shape.tangents.is_empty() {
                     contribution.tangent = 1.0;
-                    for (out, &v) in content_chunk[2 * num_vertices .. 3 * num_vertices].iter_mut().zip(&shape.tangents) {
+                    for (out, &v) in content_chunk[2 * num_vertices..3 * num_vertices]
+                        .iter_mut()
+                        .zip(&shape.tangents)
+                    {
                         *out = v.into();
                     }
                 }
                 displacement_contributions.push(contribution);
             }
 
-            let texture_and_view = self.backend
+            let texture_and_view = self
+                .backend
                 .create_texture_immutable::<[f32; 4]>(
                     gfx::texture::Kind::D2(
                         num_vertices as _,
@@ -277,10 +284,7 @@ impl Factory {
             .collect();
 
         for template in &template.meshes {
-            let mesh = self.create_instanced_mesh(
-                &template.geometry,
-                template.material.clone(),
-            );
+            let mesh = self.create_instanced_mesh(&template.geometry, template.material.clone());
 
             if let Some(skeleton_index) = template.skeleton {
                 mesh.set_skeleton(skeletons[skeleton_index].clone())
@@ -295,16 +299,19 @@ impl Factory {
         }
 
         for &template in &template.lights {
-            let LightTemplate { object, color, intensity, sub_light } = template;
+            let LightTemplate {
+                object,
+                color,
+                intensity,
+                sub_light,
+            } = template;
             let light = match sub_light {
-                SubLightTemplate::Ambient =>
-                    self.ambient_light(color, intensity).upcast(),
-                SubLightTemplate::Directional =>
-                    self.directional_light(color, intensity).upcast(),
-                SubLightTemplate::Hemisphere { ground } =>
-                    self.hemisphere_light(color, ground, intensity).upcast(),
-                SubLightTemplate::Point =>
-                    self.point_light(color, intensity).upcast(),
+                SubLightTemplate::Ambient => self.ambient_light(color, intensity).upcast(),
+                SubLightTemplate::Directional => self.directional_light(color, intensity).upcast(),
+                SubLightTemplate::Hemisphere { ground } => {
+                    self.hemisphere_light(color, ground, intensity).upcast()
+                }
+                SubLightTemplate::Point => self.point_light(color, intensity).upcast(),
             };
             objects.insert(object, light.clone());
         }
@@ -325,7 +332,9 @@ impl Factory {
 
             // HACK: We need to add any `Skeleton` objects to their parent group *last*, so
             // we skip them. See note above for more details.
-            if skeleton_objects.contains(&index) { continue; }
+            if skeleton_objects.contains(&index) {
+                continue;
+            }
 
             match template.parent {
                 Some(parent) => groups[parent].add(base),
@@ -369,12 +378,11 @@ impl Factory {
     ///
     /// [`Bone`]: ../skeleton/struct.Bone.html
     /// [`Skeleton`]: ../skeleton/struct.Skeleton.html
-    pub fn bone(
-        &mut self,
-        index: usize,
-        inverse_bind_matrix: InverseBindMatrix,
-    ) -> Bone {
-        let data = SubNode::Bone { index, inverse_bind_matrix };
+    pub fn bone(&mut self, index: usize, inverse_bind_matrix: InverseBindMatrix) -> Bone {
+        let data = SubNode::Bone {
+            index,
+            inverse_bind_matrix,
+        };
         let object = self.hub.lock().unwrap().spawn(data);
         Bone { object }
     }
@@ -385,11 +393,9 @@ impl Factory {
     /// * `inverses` is an optional array of inverse bind matrices for each bone.
     /// [`Skeleton`]: ../skeleton/struct.Skeleton.html
     /// [`Bone`]: ../skeleton/struct.Bone.html
-    pub fn skeleton(
-        &mut self,
-        bones: Vec<Bone>,
-    ) -> Skeleton {
-        let gpu_buffer = self.backend
+    pub fn skeleton(&mut self, bones: Vec<Bone>) -> Skeleton {
+        let gpu_buffer = self
+            .backend
             .create_buffer(
                 bones.len() * VECS_PER_BONE,
                 gfx::buffer::Role::Constant,
@@ -397,10 +403,15 @@ impl Factory {
                 gfx::memory::Bind::SHADER_RESOURCE,
             )
             .expect("create GPU target buffer");
-        let gpu_buffer_view = self.backend
+        let gpu_buffer_view = self
+            .backend
             .view_buffer_as_shader_resource(&gpu_buffer)
             .expect("create shader resource view for GPU target buffer");
-        let data = hub::SkeletonData { bones, gpu_buffer, gpu_buffer_view };
+        let data = hub::SkeletonData {
+            bones,
+            gpu_buffer,
+            gpu_buffer_view,
+        };
         let object = self.hub.lock().unwrap().spawn_skeleton(data);
         Skeleton { object }
     }
@@ -412,10 +423,7 @@ impl Factory {
     /// of projection the camera uses. If you're manually creating a camera, you should use
     /// [`perspective_camera`] or [`orthographic_camera`].
     pub fn camera<P: Into<Projection>>(&mut self, projection: P) -> Camera {
-        Camera::new(
-            &mut *self.hub.lock().unwrap(),
-            projection.into(),
-        )
+        Camera::new(&mut *self.hub.lock().unwrap(), projection.into())
     }
 
     /// Create new [Orthographic] Camera.
@@ -457,11 +465,7 @@ impl Factory {
     /// ```
     ///
     /// [Perspective]: https://en.wikipedia.org/wiki/Perspective_(graphical)
-    pub fn perspective_camera<R: Into<ZRange>>(
-        &mut self,
-        fov_y: f32,
-        range: R,
-    ) -> Camera {
+    pub fn perspective_camera<R: Into<ZRange>>(&mut self, fov_y: f32, range: R) -> Camera {
         Camera::new(
             &mut *self.hub.lock().unwrap(),
             Projection::perspective(fov_y, range),
@@ -479,7 +483,9 @@ impl Factory {
             Either::Left(iter::repeat(NORMAL_Z))
         } else {
             Either::Right(
-                geometry.base.normals
+                geometry
+                    .base
+                    .normals
                     .iter()
                     .map(|n| [f2i(n.x), f2i(n.y), f2i(n.z), I8Norm(0)]),
             )
@@ -495,7 +501,9 @@ impl Factory {
             Either::Left(iter::repeat(TANGENT_X))
         } else {
             Either::Right(
-                geometry.base.tangents
+                geometry
+                    .base
+                    .tangents
                     .iter()
                     .map(|t| [f2i(t.x), f2i(t.y), f2i(t.z), f2i(t.w)]),
             )
@@ -519,17 +527,17 @@ impl Factory {
             joint_indices_iter,
             joint_weights_iter,
         )
-            .map(|(pos, normal, tangent, uv, joint_indices, joint_weights)| {
-                Vertex {
-                    pos: [pos.x, pos.y, pos.z, 1.0],
-                    normal,
-                    uv,
-                    tangent,
-                    joint_indices,
-                    joint_weights,
-                }
-            })
-            .collect()
+        .map(
+            |(pos, normal, tangent, uv, joint_indices, joint_weights)| Vertex {
+                pos: [pos.x, pos.y, pos.z, 1.0],
+                normal,
+                uv,
+                tangent,
+                joint_indices,
+                joint_weights,
+            },
+        )
+        .collect()
     }
 
     /// Uploads geometry data to the GPU so that it can be reused for instanced rendering.
@@ -565,28 +573,21 @@ impl Factory {
     /// ```
     ///
     /// [`template`]: ./template/index.html#mesh-instancing
-    pub fn upload_geometry(
-        &mut self,
-        geometry: Geometry,
-    ) -> InstancedGeometry {
+    pub fn upload_geometry(&mut self, geometry: Geometry) -> InstancedGeometry {
         let gpu_data = self.create_gpu_data(geometry);
         InstancedGeometry { gpu_data }
     }
 
     /// Create new `Mesh` with desired `Geometry` and `Material`.
-    pub fn mesh<M: Into<Material>>(
-        &mut self,
-        geometry: Geometry,
-        material: M,
-    ) -> Mesh {
+    pub fn mesh<M: Into<Material>>(&mut self, geometry: Geometry, material: M) -> Mesh {
         let gpu_data = self.create_gpu_data(geometry);
 
         Mesh {
-            object: self.hub.lock().unwrap().spawn_visual(
-                material.into(),
-                gpu_data,
-                None,
-            ),
+            object: self
+                .hub
+                .lock()
+                .unwrap()
+                .spawn_visual(material.into(), gpu_data, None),
         }
     }
 
@@ -640,11 +641,11 @@ impl Factory {
         });
 
         Mesh {
-            object: self.hub.lock().unwrap().spawn_visual(
-                material,
-                gpu_data,
-                None,
-            ),
+            object: self
+                .hub
+                .lock()
+                .unwrap()
+                .spawn_visual(material, gpu_data, None),
         }
     }
 
@@ -666,8 +667,13 @@ impl Factory {
         };
         let (num_vertices, vertices, upload_buf) = {
             let data = Self::mesh_vertices(&geometry);
-            let dest_buf = self.backend
-                .create_buffer_immutable(&data, gfx::buffer::Role::Vertex, gfx::memory::Bind::TRANSFER_DST)
+            let dest_buf = self
+                .backend
+                .create_buffer_immutable(
+                    &data,
+                    gfx::buffer::Role::Vertex,
+                    gfx::memory::Bind::TRANSFER_DST,
+                )
                 .unwrap();
             let upload_buf = self.backend.create_upload_buffer(data.len()).unwrap();
             // TODO: Workaround for not having a 'write-to-slice' capability.
@@ -706,23 +712,21 @@ impl Factory {
     /// Create a `Mesh` sharing the geometry with another one.
     /// Rendering a sequence of meshes with the same geometry is faster.
     /// The material is duplicated from the template.
-    pub fn mesh_instance(
-        &mut self,
-        template: &Mesh,
-    ) -> Mesh {
+    pub fn mesh_instance(&mut self, template: &Mesh) -> Mesh {
         let instances = self.create_instance_buffer();
         let mut hub = self.hub.lock().unwrap();
         let (material, gpu_data) = match hub[template].sub_node {
-            SubNode::Visual(ref mat, ref gpu, _) => {
-                (mat.clone(), GpuData {
+            SubNode::Visual(ref mat, ref gpu, _) => (
+                mat.clone(),
+                GpuData {
                     instances,
                     instance_cache_key: Some(InstanceCacheKey {
                         material: mat.clone(),
                         geometry: gpu.vertices.clone(),
                     }),
                     ..gpu.clone()
-                })
-            }
+                },
+            ),
             _ => unreachable!(),
         };
         Mesh {
@@ -757,10 +761,7 @@ impl Factory {
     }
 
     /// Create new sprite from `Material`.
-    pub fn sprite(
-        &mut self,
-        material: material::Sprite,
-    ) -> Sprite {
+    pub fn sprite(&mut self, material: material::Sprite) -> Sprite {
         let instances = self.create_instance_buffer();
         let mut slice = gfx::Slice::new_match_vertex_buffer(&self.quad_buf);
         slice.instances = Some((1, 0));
@@ -782,34 +783,28 @@ impl Factory {
 
     /// Create a `Sprite` sharing the material with another one.
     /// Rendering a sequence of instanced sprites is much faster.
-    pub fn sprite_instance(
-        &mut self,
-        template: &Sprite,
-    ) -> Sprite {
+    pub fn sprite_instance(&mut self, template: &Sprite) -> Sprite {
         let instances = self.create_instance_buffer();
         let mut hub = self.hub.lock().unwrap();
         let (material, gpu_data) = match hub[template].sub_node {
-            SubNode::Visual(ref mat, ref gpu, _) => {
-                (mat.clone(), GpuData {
+            SubNode::Visual(ref mat, ref gpu, _) => (
+                mat.clone(),
+                GpuData {
                     instances,
                     instance_cache_key: Some(InstanceCacheKey {
                         material: mat.clone(),
                         geometry: self.quad_buf.clone(),
                     }),
                     ..gpu.clone()
-                })
-            }
+                },
+            ),
             _ => unreachable!(),
         };
         Sprite::new(hub.spawn_visual(material, gpu_data, None))
     }
 
     /// Create new `AmbientLight`.
-    pub fn ambient_light(
-        &mut self,
-        color: Color,
-        intensity: f32,
-    ) -> Ambient {
+    pub fn ambient_light(&mut self, color: Color, intensity: f32) -> Ambient {
         Ambient::new(self.hub.lock().unwrap().spawn_light(LightData {
             color,
             intensity,
@@ -819,11 +814,7 @@ impl Factory {
     }
 
     /// Create new `DirectionalLight`.
-    pub fn directional_light(
-        &mut self,
-        color: Color,
-        intensity: f32,
-    ) -> Directional {
+    pub fn directional_light(&mut self, color: Color, intensity: f32) -> Directional {
         Directional::new(self.hub.lock().unwrap().spawn_light(LightData {
             color,
             intensity,
@@ -850,11 +841,7 @@ impl Factory {
     }
 
     /// Create new `PointLight`.
-    pub fn point_light(
-        &mut self,
-        color: Color,
-        intensity: f32,
-    ) -> Point {
+    pub fn point_light(&mut self, color: Color, intensity: f32) -> Point {
         Point::new(self.hub.lock().unwrap().spawn_light(LightData {
             color,
             intensity,
@@ -892,12 +879,9 @@ impl Factory {
     }
 
     /// Create new `ShadowMap`.
-    pub fn shadow_map(
-        &mut self,
-        width: u16,
-        height: u16,
-    ) -> ShadowMap {
-        let (_, resource, target) = self.backend
+    pub fn shadow_map(&mut self, width: u16, height: u16) -> ShadowMap {
+        let (_, resource, target) = self
+            .backend
             .create_depth_stencil::<ShadowFormat>(width, height)
             .unwrap();
         ShadowMap { resource, target }
@@ -917,24 +901,22 @@ impl Factory {
     ) -> Result<BasicPipelineState, PipelineCreationError> {
         let vs = Source::user(&dir, name, "vs")?;
         let ps = Source::user(&dir, name, "ps")?;
-        let shaders = self.backend
+        let shaders = self
+            .backend
             .create_shader_set(vs.0.as_bytes(), ps.0.as_bytes())?;
         let init = basic_pipe::Init {
             out_color: ("Target0", color_mask, blend_state),
             out_depth: (depth_state, stencil_state),
             ..basic_pipe::new()
         };
-        let pso = self.backend
+        let pso = self
+            .backend
             .create_pipeline_state(&shaders, primitive, rasterizer, init)?;
         Ok(pso)
     }
 
     /// Create new UI (on-screen) text. See [`Text`](struct.Text.html) for default settings.
-    pub fn ui_text<S: Into<String>>(
-        &mut self,
-        font: &Font,
-        text: S,
-    ) -> Text {
+    pub fn ui_text<S: Into<String>>(&mut self, font: &Font, text: S) -> Text {
         let sub = SubNode::UiText(TextData::new(font, text));
         let object = self.hub.lock().unwrap().spawn(sub);
         Text::with_object(object)
@@ -949,25 +931,18 @@ impl Factory {
     }
 
     /// Map vertices for updating their data.
-    pub fn map_vertices<'a>(
-        &'a mut self,
-        mesh: &'a mut DynamicMesh,
-    ) -> MapVertices<'a> {
+    pub fn map_vertices<'a>(&'a mut self, mesh: &'a mut DynamicMesh) -> MapVertices<'a> {
         self.hub.lock().unwrap().update_mesh(mesh);
         self.backend.write_mapping(&mesh.dynamic.buffer).unwrap()
     }
 
     /// Interpolate between the shapes of a `DynamicMesh`.
-    pub fn mix(
-        &mut self,
-        mesh: &DynamicMesh,
-        shapes: &[(usize, f32)],
-    ) {
+    pub fn mix(&mut self, mesh: &DynamicMesh, shapes: &[(usize, f32)]) {
         self.hub.lock().unwrap().update_mesh(mesh);
         let mut mapping = self.backend.write_mapping(&mesh.dynamic.buffer).unwrap();
 
         let n = mesh.geometry.base.vertices.len();
-        for i in 0 .. n {
+        for i in 0..n {
             let (mut pos, ksum) = shapes.iter().fold(
                 (Vector3::new(0.0, 0.0, 0.0), 0.0),
                 |(pos, ksum), &(idx, k)| {
@@ -986,10 +961,7 @@ impl Factory {
     /// Load TrueTypeFont (.ttf) from file.
     /// #### Panics
     /// Panics if I/O operations with file fails (e.g. file not found or corrupted)
-    pub fn load_font<P: AsRef<Path>>(
-        &mut self,
-        file_path: P,
-    ) -> Font {
+    pub fn load_font<P: AsRef<Path>>(&mut self, file_path: P) -> Font {
         let file_path = file_path.as_ref();
         let mut buffer = Vec::new();
         let file = fs::File::open(&file_path).expect(&format!(
@@ -1002,18 +974,27 @@ impl Factory {
                 "Can't read font file:\nFile: {}",
                 file_path.display()
             ));
-        Font::new(buffer, format!("path: {:?}", file_path), self.backend.clone())
+        Font::new(
+            buffer,
+            format!("path: {:?}", file_path),
+            self.backend.clone(),
+        )
     }
 
     /// Load the Karla font
     pub fn load_font_karla(&mut self) -> Font {
         let buffer: &'static [u8] = include_bytes!("../../data/fonts/Karla-Regular.ttf");
-        Font::new(buffer, String::from("Embedded Karla-Regular.ttf"), self.backend.clone())
+        Font::new(
+            buffer,
+            String::from("Embedded Karla-Regular.ttf"),
+            self.backend.clone(),
+        )
     }
 
     fn parse_texture_format(path: &Path) -> image::ImageFormat {
         use image::ImageFormat as F;
-        let extension = path.extension()
+        let extension = path
+            .extension()
             .expect("no extension for an image?")
             .to_string_lossy()
             .to_lowercase();
@@ -1040,7 +1021,8 @@ impl Factory {
         use gfx::texture as t;
         //TODO: generate mipmaps
         let format = Factory::parse_texture_format(path);
-        let file = fs::File::open(path).unwrap_or_else(|e| panic!("Unable to open {}: {:?}", path.display(), e));
+        let file = fs::File::open(path)
+            .unwrap_or_else(|e| panic!("Unable to open {}: {:?}", path.display(), e));
         let img = image::load(io::BufReader::new(file), format)
             .unwrap_or_else(|e| panic!("Unable to decode {}: {:?}", path.display(), e))
             .flipv()
@@ -1070,14 +1052,18 @@ impl Factory {
             .iter()
             .map(|path| {
                 let format = Factory::parse_texture_format(path.as_ref());
-                let file = fs::File::open(path).unwrap_or_else(|e| panic!("Unable to open {}: {:?}", path.as_ref().display(), e));
+                let file = fs::File::open(path).unwrap_or_else(|e| {
+                    panic!("Unable to open {}: {:?}", path.as_ref().display(), e)
+                });
                 image::load(io::BufReader::new(file), format)
-                    .unwrap_or_else(|e| panic!("Unable to decode {}: {:?}", path.as_ref().display(), e))
+                    .unwrap_or_else(|e| {
+                        panic!("Unable to decode {}: {:?}", path.as_ref().display(), e)
+                    })
                     .to_rgba()
             })
             .collect::<Vec<_>>();
         let data: [&[u8]; 6] = [
-            &images[0], &images[1], &images[2], &images[3], &images[4], &images[5]
+            &images[0], &images[1], &images[2], &images[3], &images[4], &images[5],
         ];
         let size = images[0].dimensions().0;
         let kind = t::Kind::Cube(size as t::Size);
@@ -1089,11 +1075,7 @@ impl Factory {
         CubeMap::new(view, sampler.0)
     }
 
-    fn request_texture<P: AsRef<Path>>(
-        &mut self,
-        path: P,
-        sampler: Sampler,
-    ) -> Texture<[f32; 4]> {
+    fn request_texture<P: AsRef<Path>>(&mut self, path: P, sampler: Sampler) -> Texture<[f32; 4]> {
         match self.texture_cache.entry(path.as_ref().to_owned()) {
             Entry::Occupied(e) => e.get().clone(),
             Entry::Vacant(e) => {
@@ -1120,22 +1102,18 @@ impl Factory {
                 kd: Some(color),
                 ns: Some(glossiness),
                 ..
-            } if has_normals =>
-            {
-                material::Phong {
-                    color: cf2u(color),
-                    glossiness,
-                }.into()
+            } if has_normals => material::Phong {
+                color: cf2u(color),
+                glossiness,
             }
+            .into(),
             obj::Material {
                 kd: Some(color), ..
-            } if has_normals =>
-            {
-                material::Lambert {
-                    color: cf2u(color),
-                    flat: false,
-                }.into()
+            } if has_normals => material::Lambert {
+                color: cf2u(color),
+                flat: false,
             }
+            .into(),
             obj::Material {
                 kd: Some(color),
                 ref map_kd,
@@ -1146,14 +1124,16 @@ impl Factory {
                     (true, &Some(ref name)) => {
                         let sampler = self.default_sampler();
                         Some(self.request_texture(&concat_path(obj_dir, name), sampler))
-                    },
+                    }
                     _ => None,
                 },
-            }.into(),
+            }
+            .into(),
             _ => material::Basic {
                 color: 0xffffff,
                 map: None,
-            }.into(),
+            }
+            .into(),
         }
     }
 
@@ -1167,8 +1147,13 @@ impl Factory {
     ) -> Texture<[f32; 4]> {
         use gfx::texture as t;
         let kind = t::Kind::D2(width, height, t::AaMode::Single);
-        let (_, view) = self.backend
-            .create_texture_immutable_u8::<gfx::format::Srgba8>(kind, t::Mipmap::Provided, &[pixels])
+        let (_, view) = self
+            .backend
+            .create_texture_immutable_u8::<gfx::format::Srgba8>(
+                kind,
+                t::Mipmap::Provided,
+                &[pixels],
+            )
             .unwrap_or_else(|e| {
                 panic!("Unable to create GPU texture from memory: {:?}", e);
             });
@@ -1177,10 +1162,7 @@ impl Factory {
 
     /// Load texture from file, with default `Sampler`.
     /// Supported file formats are: PNG, JPEG, GIF, WEBP, PPM, TIFF, TGA, BMP, ICO, HDR.
-    pub fn load_texture<P: AsRef<Path>>(
-        &mut self,
-        path_str: P,
-    ) -> Texture<[f32; 4]> {
+    pub fn load_texture<P: AsRef<Path>>(&mut self, path_str: P) -> Texture<[f32; 4]> {
         let sampler = self.default_sampler();
         self.request_texture(path_str, sampler)
     }
@@ -1197,18 +1179,12 @@ impl Factory {
 
     /// Load cubemap from files.
     /// Supported file formats are: PNG, JPEG, GIF, WEBP, PPM, TIFF, TGA, BMP, ICO, HDR.
-    pub fn load_cubemap<P: AsRef<Path>>(
-        &mut self,
-        paths: &CubeMapPath<P>,
-    ) -> CubeMap<[f32; 4]> {
+    pub fn load_cubemap<P: AsRef<Path>>(&mut self, paths: &CubeMapPath<P>) -> CubeMap<[f32; 4]> {
         Factory::load_cubemap_impl(paths, self.default_sampler(), &mut self.backend)
     }
 
     /// Load mesh from Wavefront Obj format.
-    pub fn load_obj(
-        &mut self,
-        path_str: &str,
-    ) -> (HashMap<String, object::Group>, Vec<Mesh>) {
+    pub fn load_obj(&mut self, path_str: &str) -> (HashMap<String, object::Group>, Vec<Mesh>) {
         use genmesh::{Indexer, LruIndexer, Polygon, Triangulate, Vertices};
 
         info!("Loading {}", path_str);
@@ -1230,7 +1206,8 @@ impl Factory {
                 let (mut num_normals, mut num_uvs) = (0, 0);
                 {
                     // separate scope for LruIndexer
-                    let f2i = |x: f32| I8Norm(cmp::min(cmp::max((x * 127.) as isize, -128), 127) as i8);
+                    let f2i =
+                        |x: f32| I8Norm(cmp::min(cmp::max((x * 127.) as isize, -128), 127) as i8);
                     vertices.clear();
                     let mut lru = LruIndexer::new(10, |_, obj::IndexTuple(ipos, iuv, inor)| {
                         let p: [f32; 3] = obj.position[ipos];
@@ -1251,7 +1228,7 @@ impl Factory {
                                 }
                                 None => [I8Norm(0), I8Norm(0), I8Norm(0x7f), I8Norm(0)],
                             },
-                            .. DEFAULT_VERTEX
+                            ..DEFAULT_VERTEX
                         });
                     });
 
@@ -1271,18 +1248,26 @@ impl Factory {
                     gr.name, num_normals, num_uvs
                 );
                 let material = match gr.material {
-                    Some(ref rc_mat) => self.load_obj_material(&*rc_mat, num_normals != 0, num_uvs != 0, path_parent),
+                    Some(ref rc_mat) => self.load_obj_material(
+                        &*rc_mat,
+                        num_normals != 0,
+                        num_uvs != 0,
+                        path_parent,
+                    ),
                     None => material::Basic {
                         color: 0xFFFFFF,
                         map: None,
-                    }.into(),
+                    }
+                    .into(),
                 };
                 info!("\t{:?}", material);
 
-                let (vertices, mut slice) = self.backend
+                let (vertices, mut slice) = self
+                    .backend
                     .create_vertex_buffer_with_slice(&vertices, &indices[..]);
                 slice.instances = Some((1, 0));
-                let instances = self.backend
+                let instances = self
+                    .backend
                     .create_buffer(
                         1,
                         gfx::buffer::Role::Vertex,
@@ -1317,10 +1302,7 @@ impl Factory {
 
     #[cfg(feature = "audio")]
     /// Load audio from file. Supported formats are Flac, Vorbis and WAV.
-    pub fn load_audio<P: AsRef<Path>>(
-        &self,
-        path: P,
-    ) -> audio::Clip {
+    pub fn load_audio<P: AsRef<Path>>(&self, path: P) -> audio::Clip {
         let mut buffer = Vec::new();
         let mut file = fs::File::open(&path).expect(&format!(
             "Can't open audio file:\nFile: {}",
@@ -1334,10 +1316,7 @@ impl Factory {
     }
 }
 
-fn concat_path<'a>(
-    base: Option<&Path>,
-    name: &'a str,
-) -> Cow<'a, Path> {
+fn concat_path<'a>(base: Option<&Path>, name: &'a str) -> Cow<'a, Path> {
     match base {
         Some(base) => Cow::Owned(base.join(name)),
         None => Cow::Borrowed(Path::new(name)),

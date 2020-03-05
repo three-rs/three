@@ -6,11 +6,11 @@ use render;
 
 use camera::Camera;
 use factory::Factory;
+use glutin::{GlProfile, GlRequest, PossiblyCurrent};
 use input::Input;
 use render::Renderer;
 use scene::Scene;
 use std::path::PathBuf;
-use glutin::{GlRequest, GlProfile, PossiblyCurrent};
 
 /// `Window` is the core entity of every `three-rs` application.
 ///
@@ -50,48 +50,32 @@ impl Builder {
     /// Set the size of the viewport (the resolution) in logical pixels.
     /// That is the dpi setting affects the amount of pixels used but the window will
     /// take up the same amount of space regardless of dpi. Defaults to 1024x768.
-    pub fn dimensions(
-        &mut self,
-        width: f64,
-        height: f64,
-    ) -> &mut Self {
+    pub fn dimensions(&mut self, width: f64, height: f64) -> &mut Self {
         self.dimensions = glutin::dpi::LogicalSize::new(width, height);
         self
     }
 
     /// Whether enable fullscreen mode or not. Defauls to `false`.
-    pub fn fullscreen(
-        &mut self,
-        option: bool,
-    ) -> &mut Self {
+    pub fn fullscreen(&mut self, option: bool) -> &mut Self {
         self.fullscreen = option;
         self
     }
 
     /// Sets the multisampling level to request. A value of `0` indicates that multisampling must
     /// not be enabled. Must be the power of 2. Defaults to `0`.
-    pub fn multisampling(
-        &mut self,
-        option: u16,
-    ) -> &mut Self {
+    pub fn multisampling(&mut self, option: u16) -> &mut Self {
         self.multisampling = option;
         self
     }
 
     /// Specifies the user shader directory.
-    pub fn shader_directory<P: Into<PathBuf>>(
-        &mut self,
-        option: P,
-    ) -> &mut Self {
+    pub fn shader_directory<P: Into<PathBuf>>(&mut self, option: P) -> &mut Self {
         self.shader_directory = Some(option.into());
         self
     }
 
     /// Whether to enable vertical synchronization or not. Defaults to `true`.
-    pub fn vsync(
-        &mut self,
-        option: bool,
-    ) -> &mut Self {
+    pub fn vsync(&mut self, option: bool) -> &mut Self {
         self.vsync = option;
         self
     }
@@ -150,7 +134,8 @@ impl Builder {
             try_override!(basic, gouraud, pbr, phong, quad, shadow, skybox, sprite,);
         }
 
-        let (renderer, windowedContext, mut factory) = Renderer::new(builder, context, &event_loop, &source_set);
+        let (renderer, windowedContext, mut factory) =
+            Renderer::new(builder, context, &event_loop, &source_set);
         let dpi = windowedContext.window().get_hidpi_factor();
         let scene = factory.scene();
         Window {
@@ -207,17 +192,23 @@ impl Window {
                     WindowEvent::Focused(state) => input.window_focus(state),
                     WindowEvent::CloseRequested | WindowEvent::Destroyed => running = false,
                     WindowEvent::KeyboardInput {
-                        input: glutin::KeyboardInput {
-                            state,
-                            virtual_keycode: Some(keycode),
-                            ..
-                        },
+                        input:
+                            glutin::KeyboardInput {
+                                state,
+                                virtual_keycode: Some(keycode),
+                                ..
+                            },
                         ..
                     } => input.keyboard_input(state, keycode),
-                    WindowEvent::MouseInput { state, button, .. } => input.mouse_input(state, button),
+                    WindowEvent::MouseInput { state, button, .. } => {
+                        input.mouse_input(state, button)
+                    }
                     WindowEvent::CursorMoved { position, .. } => {
                         let pos = position.to_physical(dpi);
-                        input.mouse_moved([pos.x as f32, pos.y as f32].into(), renderer.map_to_ndc([pos.x as f32, pos.y as f32]));
+                        input.mouse_moved(
+                            [pos.x as f32, pos.y as f32].into(),
+                            renderer.map_to_ndc([pos.x as f32, pos.y as f32]),
+                        );
                     }
                     WindowEvent::MouseWheel { delta, .. } => input.mouse_wheel_input(delta),
                     _ => {}
@@ -236,16 +227,14 @@ impl Window {
     }
 
     /// Render the current scene with specific [`Camera`](struct.Camera.html).
-    pub fn render(
-        &mut self,
-        camera: &Camera,
-    ) {
+    pub fn render(&mut self, camera: &Camera) {
         self.renderer.render(&self.scene, camera);
     }
 
     /// Get current window size in pixels.
     pub fn size(&self) -> mint::Vector2<f32> {
-        let size = self.windowedContext
+        let size = self
+            .windowedContext
             .window()
             .get_inner_size()
             .expect("Can't get window size")

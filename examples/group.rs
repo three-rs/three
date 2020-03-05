@@ -46,13 +46,11 @@ fn create_cubes(
         mat_id: usize,
         lev_id: usize,
     }
-    let mut stack = vec![
-        Stack {
-            parent_id: 0,
-            mat_id: 1,
-            lev_id: 1,
-        },
-    ];
+    let mut stack = vec![Stack {
+        parent_id: 0,
+        mat_id: 1,
+        lev_id: 1,
+    }];
 
     let axis = [
         Vector3::unit_z(),
@@ -61,13 +59,15 @@ fn create_cubes(
         Vector3::unit_y(),
         -Vector3::unit_y(),
     ];
-    let children: Vec<_> = axis.iter()
+    let children: Vec<_> = axis
+        .iter()
         .map(|&axe| {
             Decomposed {
                 disp: Vector3::new(0.0, 0.0, 1.0),
                 rot: Quaternion::from_axis_angle(axe, Rad::turn_div_4()),
                 scale: 1.0,
-            }.concat(&Decomposed {
+            }
+            .concat(&Decomposed {
                 disp: Vector3::new(0.0, 0.0, 1.0),
                 rot: Quaternion::one(),
                 scale: 0.4,
@@ -106,6 +106,7 @@ struct LevelDesc {
     color: three::Color,
     speed: f32, // in radians per second
 }
+#[rustfmt::skip] 
 const LEVELS: &[LevelDesc] = &[
     LevelDesc { color: 0xffff80, speed: 0.7 },
     LevelDesc { color: 0x8080ff, speed: -1.0 },
@@ -120,7 +121,7 @@ fn main() {
     let mut win = three::Window::new("Three-rs group example");
     win.scene.background = three::Background::Color(0x204060);
 
-    let cam = win.factory.perspective_camera(60.0, 1.0 .. 100.0);
+    let cam = win.factory.perspective_camera(60.0, 1.0..100.0);
     cam.look_at([-1.8, -8.0, 7.0], [0.0, 0.0, 3.5], None);
 
     let light = win.factory.point_light(0xffffff, 1.0);
@@ -129,7 +130,10 @@ fn main() {
 
     let materials = LEVELS
         .iter()
-        .map(|l| three::material::Lambert { color: l.color, flat: false })
+        .map(|l| three::material::Lambert {
+            color: l.color,
+            flat: false,
+        })
         .collect::<Vec<_>>();
     let levels = LEVELS
         .iter()
