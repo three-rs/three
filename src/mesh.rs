@@ -95,10 +95,7 @@ pub struct DynamicMesh {
 three_object!(DynamicMesh::object);
 
 impl PartialEq for DynamicMesh {
-    fn eq(
-        &self,
-        other: &DynamicMesh,
-    ) -> bool {
+    fn eq(&self, other: &DynamicMesh) -> bool {
         self.object == other.object
     }
 }
@@ -106,28 +103,19 @@ impl PartialEq for DynamicMesh {
 impl Eq for DynamicMesh {}
 
 impl Hash for DynamicMesh {
-    fn hash<H: Hasher>(
-        &self,
-        state: &mut H,
-    ) {
+    fn hash<H: Hasher>(&self, state: &mut H) {
         self.object.hash(state);
     }
 }
 
 impl Mesh {
     /// Set mesh material.
-    pub fn set_material<M: Into<Material>>(
-        &self,
-        material: M,
-    ) {
+    pub fn set_material<M: Into<Material>>(&self, material: M) {
         self.as_ref().send(Operation::SetMaterial(material.into()));
     }
 
     /// Bind a skeleton to the mesh.
-    pub fn set_skeleton(
-        &self,
-        skeleton: Skeleton,
-    ) {
+    pub fn set_skeleton(&self, skeleton: Skeleton) {
         self.as_ref().send(Operation::SetSkeleton(skeleton));
     }
 }
@@ -139,10 +127,7 @@ impl DynamicMesh {
     }
 
     /// Set mesh material.
-    pub fn set_material<M: Into<Material>>(
-        &mut self,
-        material: M,
-    ) {
+    pub fn set_material<M: Into<Material>>(&mut self, material: M) {
         self.as_ref().send(Operation::SetMaterial(material.into()));
     }
 }

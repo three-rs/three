@@ -40,15 +40,13 @@ pub(crate) struct PbrMapParams {
 }
 
 impl PbrMaps {
-    pub(crate) fn into_params(
-        self,
-        map_default: &Texture<[f32; 4]>,
-    ) -> PbrMapParams {
+    pub(crate) fn into_params(self, map_default: &Texture<[f32; 4]>) -> PbrMapParams {
         PbrMapParams {
             base_color: self.base_color.as_ref().unwrap_or(map_default).to_param(),
             normal: self.normal.as_ref().unwrap_or(map_default).to_param(),
             emissive: self.emissive.as_ref().unwrap_or(map_default).to_param(),
-            metallic_roughness: self.metallic_roughness
+            metallic_roughness: self
+                .metallic_roughness
                 .as_ref()
                 .unwrap_or(map_default)
                 .to_param(),

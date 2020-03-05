@@ -9,7 +9,8 @@ use std::marker::PhantomData;
 
 /// Pointer to a Node
 pub(crate) type NodePointer = froggy::Pointer<NodeInternal>;
-pub(crate) type TransformInternal = cgmath::Decomposed<cgmath::Vector3<f32>, cgmath::Quaternion<f32>>;
+pub(crate) type TransformInternal =
+    cgmath::Decomposed<cgmath::Vector3<f32>, cgmath::Quaternion<f32>>;
 
 // Fat node of the scene graph.
 //

@@ -7,7 +7,7 @@ fn main() {
 
     let center = [0.0, 0.0];
     let yextent = 1.0;
-    let zrange = -1.0 .. 1.0;
+    let zrange = -1.0..1.0;
     let camera = window.factory.orthographic_camera(center, yextent, zrange);
 
     let deja_vu = window.factory.load_font(format!(

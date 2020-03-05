@@ -36,42 +36,27 @@ impl Clip {
     }
 
     /// Passing true enforces looping sound. Defaults to `false`.
-    pub fn repeat(
-        &mut self,
-        enable: bool,
-    ) {
+    pub fn repeat(&mut self, enable: bool) {
         self.repeat = enable;
     }
 
     /// Clip the sound to the desired duration.
-    pub fn take_duration(
-        &mut self,
-        duration: Duration,
-    ) {
+    pub fn take_duration(&mut self, duration: Duration) {
         self.duration = Some(duration);
     }
 
     /// Play sound after desired delay.
-    pub fn delay(
-        &mut self,
-        delay: Duration,
-    ) {
+    pub fn delay(&mut self, delay: Duration) {
         self.delay = Some(delay);
     }
 
     /// Fade in sound in desired duration.
-    pub fn fade_in(
-        &mut self,
-        duration: Duration,
-    ) {
+    pub fn fade_in(&mut self, duration: Duration) {
         self.fade_in = Some(duration);
     }
 
     /// Adjust the playback speed. Defaults to `1.0`.
-    pub fn speed(
-        &mut self,
-        ratio: f32,
-    ) {
+    pub fn speed(&mut self, ratio: f32) {
         self.speed = ratio;
     }
 }
@@ -124,10 +109,7 @@ impl Source {
     }
 
     /// Add clip to the queue.
-    pub fn play(
-        &self,
-        clip: &Clip,
-    ) {
+    pub fn play(&self, clip: &Clip) {
         let msg = hub::Operation::SetAudio(Operation::Append(clip.clone()));
         let _ = self.object.tx.send((self.object.node.downgrade(), msg));
     }
@@ -155,10 +137,7 @@ impl Source {
     /// Adjust playback volume.
     ///
     /// Default value is `1.0`.
-    pub fn set_volume(
-        &self,
-        volume: f32,
-    ) {
+    pub fn set_volume(&self, volume: f32) {
         let msg = hub::Operation::SetAudio(Operation::SetVolume(volume));
         let _ = self.object.tx.send((self.object.node.downgrade(), msg));
     }
@@ -172,10 +151,7 @@ pub(crate) enum SourceInternal {
 }
 
 impl fmt::Debug for SourceInternal {
-    fn fmt(
-        &self,
-        f: &mut fmt::Formatter,
-    ) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             SourceInternal::D2(_) => write!(f, "SourceInternal::D2"),
             SourceInternal::D3(_) => write!(f, "SourceInternal::D3"),
@@ -205,20 +181,14 @@ impl SourceInternal {
         }
     }
 
-    pub(crate) fn set_volume(
-        &mut self,
-        volume: f32,
-    ) {
+    pub(crate) fn set_volume(&mut self, volume: f32) {
         match *self {
             SourceInternal::D2(ref mut sink) => sink.set_volume(volume),
             _ => unimplemented!(),
         }
     }
 
-    pub(crate) fn append(
-        &mut self,
-        clip: Clip,
-    ) {
+    pub(crate) fn append(&mut self, clip: Clip) {
         match *self {
             SourceInternal::D2(ref mut sink) => {
                 let vec: Vec<u8> = (&*clip.data).clone();

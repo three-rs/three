@@ -105,7 +105,9 @@ pub struct Camera {
 }
 
 impl AsRef<Base> for Camera {
-    fn as_ref(&self) -> &Base { &self.object }
+    fn as_ref(&self) -> &Base {
+        &self.object
+    }
 }
 
 impl Object for Camera {
@@ -128,7 +130,8 @@ impl Camera {
 
     /// Sets the projection used by the camera.
     pub fn set_projection<P: Into<Projection>>(&self, projection: P) {
-        self.as_ref().send(Operation::SetProjection(projection.into()));
+        self.as_ref()
+            .send(Operation::SetProjection(projection.into()));
     }
 }
 
@@ -143,11 +146,7 @@ impl DowncastObject for Camera {
 
 impl Projection {
     /// Constructs an orthographic projection.
-    pub fn orthographic<P>(
-        center: P,
-        extent_y: f32,
-        range: ops::Range<f32>,
-    ) -> Self
+    pub fn orthographic<P>(center: P, extent_y: f32, range: ops::Range<f32>) -> Self
     where
         P: Into<mint::Point2<f32>>,
     {
@@ -160,10 +159,7 @@ impl Projection {
     }
 
     /// Constructs a perspective projection.
-    pub fn perspective<R>(
-        fov_y: f32,
-        range: R,
-    ) -> Self
+    pub fn perspective<R>(fov_y: f32, range: R) -> Self
     where
         R: Into<ZRange>,
     {
@@ -174,10 +170,7 @@ impl Projection {
     }
 
     /// Computes the projection matrix representing the camera's projection.
-    pub fn matrix(
-        &self,
-        aspect_ratio: f32,
-    ) -> mint::ColumnMatrix4<f32> {
+    pub fn matrix(&self, aspect_ratio: f32) -> mint::ColumnMatrix4<f32> {
         match *self {
             Projection::Orthographic(ref x) => x.matrix(aspect_ratio),
             Projection::Perspective(ref x) => x.matrix(aspect_ratio),
@@ -199,10 +192,7 @@ pub struct Orthographic {
 
 impl Orthographic {
     /// Computes the projection matrix representing the camera's projection.
-    pub fn matrix(
-        &self,
-        aspect_ratio: f32,
-    ) -> mint::ColumnMatrix4<f32> {
+    pub fn matrix(&self, aspect_ratio: f32) -> mint::ColumnMatrix4<f32> {
         let extent_x = aspect_ratio * self.extent_y;
         cgmath::ortho(
             self.center.x - extent_x,
@@ -211,7 +201,8 @@ impl Orthographic {
             self.center.y + self.extent_y,
             self.range.start,
             self.range.end,
-        ).into()
+        )
+        .into()
     }
 }
 
@@ -227,17 +218,15 @@ pub struct Perspective {
 
 impl Perspective {
     /// Computes the projection matrix representing the camera's projection.
-    pub fn matrix(
-        &self,
-        aspect_ratio: f32,
-    ) -> mint::ColumnMatrix4<f32> {
+    pub fn matrix(&self, aspect_ratio: f32) -> mint::ColumnMatrix4<f32> {
         match self.zrange {
             ZRange::Finite(ref range) => cgmath::perspective(
                 cgmath::Deg(self.fov_y),
                 aspect_ratio,
                 range.start,
                 range.end,
-            ).into(),
+            )
+            .into(),
             ZRange::Infinite(ref range) => {
                 let f = 1.0 / (0.5 * self.fov_y.to_radians()).tan();
 

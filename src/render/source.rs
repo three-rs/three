@@ -3,9 +3,9 @@
 use data;
 use util;
 
-use std::{io, ops, str};
 use std::borrow::Borrow;
 use std::path::Path;
+use std::{io, ops, str};
 
 /// Source code for a single GLSL shader.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -19,25 +19,22 @@ impl ops::Deref for Source {
 }
 
 impl Source {
-    fn preprocess<P: AsRef<Path>>(
-        root: P,
-        code: &str,
-    ) -> io::Result<String> {
+    fn preprocess<P: AsRef<Path>>(root: P, code: &str) -> io::Result<String> {
         let root = root.as_ref();
         let mut new_code = String::new();
         for line in code.lines() {
             if line.starts_with("#include") {
                 if let Some(arg) = line.split_whitespace().skip(1).next() {
                     if arg.starts_with('<') {
-                        if let Some(pos) = arg[1 ..].find('>') {
-                            let name = &arg[1 .. (pos + 1)];
+                        if let Some(pos) = arg[1..].find('>') {
+                            let name = &arg[1..(pos + 1)];
                             let path = format!("data/shaders/{}.glsl", name);
                             let content = &data::FILES.get(&path).unwrap();
                             new_code += str::from_utf8(content.borrow()).unwrap();
                         }
                     } else if arg.starts_with('"') {
-                        if let Some(pos) = arg[1 ..].find('"') {
-                            let relative_path = &arg[1 .. (pos + 1)];
+                        if let Some(pos) = arg[1..].find('"') {
+                            let relative_path = &arg[1..(pos + 1)];
                             let path = root.join(relative_path);
                             let content = util::read_file_to_string(&path)?;
                             let include = Self::preprocess(root, &content)?;
@@ -54,10 +51,7 @@ impl Source {
     }
 
     /// Load the named shader from the default set of shaders.
-    pub fn default(
-        name: &str,
-        suffix: &str,
-    ) -> io::Result<Self> {
+    pub fn default(name: &str, suffix: &str) -> io::Result<Self> {
         let path = format!("data/shaders/{}_{}.glsl", name, suffix);
         let unprocessed = data::FILES.get(&path).unwrap();
         let processed = Self::preprocess("", str::from_utf8(unprocessed.borrow()).unwrap())?;
@@ -65,11 +59,7 @@ impl Source {
     }
 
     /// Load the named shader from the given directory path.
-    pub fn user<P: AsRef<Path>>(
-        root: P,
-        name: &str,
-        suffix: &str,
-    ) -> io::Result<Self> {
+    pub fn user<P: AsRef<Path>>(root: P, name: &str, suffix: &str) -> io::Result<Self> {
         let base_name = format!("{}_{}.glsl", name, suffix);
         let path = root.as_ref().join(&base_name);
         let unprocessed = util::read_file_to_string(Path::new(&path))?;

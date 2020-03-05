@@ -15,13 +15,13 @@ use gfx_window_glutin;
 use glutin;
 use mint;
 
-pub mod source;
 mod pso_data;
+pub mod source;
 
 use color;
 
-use std::{io, str};
 use std::collections::HashMap;
+use std::{io, str};
 
 pub use self::back::CommandBuffer as BackendCommandBuffer;
 pub use self::back::Factory as BackendFactory;
@@ -31,13 +31,13 @@ pub use self::source::Source;
 use self::pso_data::{PbrFlags, PsoData};
 use camera::Camera;
 use factory::Factory;
+use glutin::{ContextCurrentState, ContextWrapper, NotCurrent, PossiblyCurrent, Window};
 use hub::{SubLight, SubNode};
 use light::{ShadowMap, ShadowProjection};
 use material::Material;
 use scene::{Background, Scene};
 use text::Font;
 use texture::Texture;
-use glutin::{ContextCurrentState, NotCurrent, Window, ContextWrapper, PossiblyCurrent};
 
 /// The format of the back buffer color requested from the windowing system.
 pub type ColorFormat = gfx::format::Rgba8;
@@ -250,12 +250,7 @@ pub(crate) struct InstanceCacheKey {
 
 impl Instance {
     #[inline]
-    fn basic(
-        mx_world: mint::RowMatrix4<f32>,
-        color: u32,
-        uv_range: [f32; 4],
-        param: f32,
-    ) -> Self {
+    fn basic(mx_world: mint::RowMatrix4<f32>, color: u32, uv_range: [f32; 4], param: f32) -> Self {
         Instance {
             world0: mx_world.x.into(),
             world1: mx_world.y.into(),
@@ -285,7 +280,12 @@ impl Instance {
 
 impl DisplacementContribution {
     /// Zero displacement contribution.
-    pub const ZERO: Self = DisplacementContribution { position: 0.0, normal: 0.0, tangent: 0.0, weight: 0.0 };
+    pub const ZERO: Self = DisplacementContribution {
+        position: 0.0,
+        normal: 0.0,
+        tangent: 0.0,
+        weight: 0.0,
+    };
 }
 
 //TODO: private fields?
@@ -295,8 +295,7 @@ pub(crate) struct GpuData {
     pub vertices: h::Buffer<back::Resources, Vertex>,
     pub instances: h::Buffer<back::Resources, Instance>,
     pub displacements: Option<(
-        h::Texture<back::Resources,
-        gfx::format::R32_G32_B32_A32>,
+        h::Texture<back::Resources, gfx::format::R32_G32_B32_A32>,
         h::ShaderResourceView<back::Resources, [f32; 4]>,
     )>,
     pub pending: Option<DynamicData>,
@@ -369,17 +368,11 @@ pub struct PipelineStates<R: gfx::Resources> {
 
 impl PipelineStates<back::Resources> {
     /// Creates the set of pipeline states needed by the `three` renderer.
-    pub fn new(
-        src: &source::Set,
-        factory: &mut Factory,
-    ) -> Result<Self, PipelineCreationError> {
+    pub fn new(src: &source::Set, factory: &mut Factory) -> Result<Self, PipelineCreationError> {
         Self::init(src, &mut factory.backend)
     }
 
-    pub(crate) fn pso_by_material<'a>(
-        &'a self,
-        material: &'a Material,
-    ) -> &'a BasicPipelineState {
+    pub(crate) fn pso_by_material<'a>(&'a self, material: &'a Material) -> &'a BasicPipelineState {
         match *material {
             Material::Basic(_) => &self.mesh_basic_fill,
             Material::CustomBasic(ref b) => &b.pipeline,
@@ -457,7 +450,11 @@ impl<R: gfx::Resources> PipelineStates<R> {
             gfx::Primitive::TriangleStrip,
             rast_fill,
             basic_pipe::Init {
-                out_color: ("Target0", gfx::state::ColorMask::all(), gfx::preset::blend::ALPHA),
+                out_color: (
+                    "Target0",
+                    gfx::state::ColorMask::all(),
+                    gfx::preset::blend::ALPHA,
+                ),
                 ..basic_pipe::new()
             },
         )?;
@@ -545,20 +542,23 @@ impl Renderer {
     ) -> (Self, glutin::WindowedContext<PossiblyCurrent>, Factory) {
         use gfx::texture as t;
 
-        let (windowedContext, device, mut gl_factory, out_color, out_depth) = gfx_window_glutin::init(builder, context, event_loop).unwrap();
+        let (windowedContext, device, mut gl_factory, out_color, out_depth) =
+            gfx_window_glutin::init(builder, context, event_loop).unwrap();
         let window = windowedContext.window();
         let (_, srv_white) = gl_factory
             .create_texture_immutable::<gfx::format::Rgba8>(
                 t::Kind::D2(1, 1, t::AaMode::Single),
                 t::Mipmap::Provided,
-                &[&[[0xFF; 4]]]
-            ).unwrap();
+                &[&[[0xFF; 4]]],
+            )
+            .unwrap();
         let (_, srv_shadow) = gl_factory
             .create_texture_immutable::<(gfx::format::R32, gfx::format::Float)>(
                 t::Kind::D2(1, 1, t::AaMode::Single),
                 t::Mipmap::Provided,
                 &[&[0x3F800000]],
-            ).unwrap();
+            )
+            .unwrap();
         let sampler = gl_factory.create_sampler_linear();
         let sampler_shadow = gl_factory.create_sampler(t::SamplerInfo {
             comparison: Some(gfx::state::Comparison::Less),
@@ -644,10 +644,7 @@ impl Renderer {
     }
 
     /// Reloads the shaders.
-    pub fn reload(
-        &mut self,
-        pipeline_states: PipelineStates<back::Resources>,
-    ) {
+    pub fn reload(&mut self, pipeline_states: PipelineStates<back::Resources>) {
         self.pso = pipeline_states;
     }
 
@@ -683,10 +680,7 @@ impl Renderer {
     /// Map screen pixel coordinates to Normalized Display Coordinates.
     /// The lower left corner corresponds to (-1,-1), and the upper right corner
     /// corresponds to (1,1).
-    pub fn map_to_ndc<P: Into<mint::Point2<f32>>>(
-        &self,
-        point: P,
-    ) -> mint::Point2<f32> {
+    pub fn map_to_ndc<P: Into<mint::Point2<f32>>>(&self, point: P) -> mint::Point2<f32> {
         let point = point.into();
         mint::Point2 {
             x: 2.0 * point.x / self.size.to_physical(self.dpi).width as f32 - 1.0,
@@ -695,11 +689,7 @@ impl Renderer {
     }
 
     /// See [`Window::render`](struct.Window.html#method.render).
-    pub fn render(
-        &mut self,
-        scene: &Scene,
-        camera: &Camera,
-    ) {
+    pub fn render(&mut self, scene: &Scene, camera: &Camera) {
         {
             use gfx::Device;
             self.device.cleanup();
@@ -727,11 +717,16 @@ impl Renderer {
                             gpu_buffer: skeleton.gpu_buffer.clone(),
                         });
                     }
-                    SubNode::Bone { index, inverse_bind_matrix } => {
+                    SubNode::Bone {
+                        index,
+                        inverse_bind_matrix,
+                    } => {
                         let skel = skeletons.last_mut().unwrap();
-                        let mx_base = Matrix4::from(skel.inverse_world_transform.concat(&w.world_transform));
+                        let mx_base =
+                            Matrix4::from(skel.inverse_world_transform.concat(&w.world_transform));
                         let mx = (mx_base * Matrix4::from(inverse_bind_matrix)).transpose();
-                        let buf = &mut skel.cpu_buffer[index * VECS_PER_BONE .. (index + 1) * VECS_PER_BONE];
+                        let buf = &mut skel.cpu_buffer
+                            [index * VECS_PER_BONE..(index + 1) * VECS_PER_BONE];
                         buf[0] = mx.x.into();
                         buf[1] = mx.y.into();
                         buf[2] = mx.z.into();
@@ -742,11 +737,7 @@ impl Renderer {
 
             for skel in skeletons {
                 self.encoder
-                    .update_buffer(
-                        &skel.gpu_buffer,
-                        &skel.cpu_buffer,
-                        0,
-                    )
+                    .update_buffer(&skel.gpu_buffer, &skel.cpu_buffer, 0)
                     .expect("upload to GPU target buffer");
             }
         }
@@ -908,7 +899,7 @@ impl Renderer {
         let mx_view = Matrix4::from(mx_camera_transform.inverse_transform().unwrap());
         let projection = match hub[&camera].sub_node {
             SubNode::Camera(ref projection) => projection.clone(),
-            _ => panic!("Camera had incorrect sub node")
+            _ => panic!("Camera had incorrect sub node"),
         };
         let mx_proj = Matrix4::from(projection.matrix(self.aspect_ratio()));
         self.encoder.update_constant_buffer(
@@ -967,30 +958,27 @@ impl Renderer {
                         None => [0.0; 4],
                     };
                     if let Some(ref key) = gpu_data.instance_cache_key {
-                        let data = self.instance_cache
-                            .entry(key.clone())
-                            .or_insert_with(|| InstanceData {
+                        let data = self.instance_cache.entry(key.clone()).or_insert_with(|| {
+                            InstanceData {
                                 slice: gpu_data.slice.clone(),
                                 vertices: gpu_data.vertices.clone(),
                                 material: material.clone(),
                                 list: Vec::new(),
-                            });
-                        data.list.push(Instance::basic(mx_world.into(), color, uv_range, param0));
+                            }
+                        });
+                        data.list
+                            .push(Instance::basic(mx_world.into(), color, uv_range, param0));
                         // Create a new instance and defer the draw call.
                         continue;
                     }
                     Instance::basic(mx_world.into(), color, uv_range, param0)
                 }
-                PsoData::Pbr { .. } => {
-                    Instance::pbr(mx_world.into())
-                }
+                PsoData::Pbr { .. } => Instance::pbr(mx_world.into()),
             };
             let joint_buffer_view = if let Some(ref ptr) = *skeleton {
                 match hub[ptr].sub_node {
-                    SubNode::Skeleton(ref skeleton_data) => {
-                        skeleton_data.gpu_buffer_view.clone()
-                    }
-                    _ => unreachable!()
+                    SubNode::Skeleton(ref skeleton_data) => skeleton_data.gpu_buffer_view.clone(),
+                    _ => unreachable!(),
                 }
             } else {
                 self.default_joint_buffer_view.clone()
@@ -1028,7 +1016,8 @@ impl Renderer {
         // render instanced meshes
         for data in self.instance_cache.values() {
             if data.list.len() > self.inst_buf.len() {
-                self.inst_buf = self.factory
+                self.inst_buf = self
+                    .factory
                     .create_buffer(
                         data.list.len(),
                         gfx::buffer::Role::Vertex,
@@ -1057,7 +1046,10 @@ impl Renderer {
                 &shadow0,
                 &shadow1,
                 &ZEROED_DISPLACEMENT_CONTRIBUTION,
-                (self.default_displacement_buffer_view.clone(), self.map_default.to_param().1),
+                (
+                    self.default_displacement_buffer_view.clone(),
+                    self.map_default.to_param().1,
+                ),
                 self.default_joint_buffer_view.clone(),
                 false,
             );
@@ -1180,7 +1172,10 @@ impl Renderer {
         shadow0: &h::ShaderResourceView<back::Resources, f32>,
         shadow1: &h::ShaderResourceView<back::Resources, f32>,
         displacement_contributions: &[DisplacementContribution],
-        displacements: (h::ShaderResourceView<back::Resources, [f32; 4]>, h::Sampler<back::Resources>),
+        displacements: (
+            h::ShaderResourceView<back::Resources, [f32; 4]>,
+            h::Sampler<back::Resources>,
+        ),
         joint_transform_buffer_view: h::ShaderResourceView<back::Resources, [f32; 4]>,
         displace: bool,
     ) {
@@ -1195,12 +1190,17 @@ impl Renderer {
             PsoData::Pbr { maps, mut params } => {
                 if displace {
                     let data = if displacement_contributions.len() > MAX_TARGETS {
-                        error!("Too many mesh targets ({})!", displacement_contributions.len());
-                        &displacement_contributions[.. MAX_TARGETS]
+                        error!(
+                            "Too many mesh targets ({})!",
+                            displacement_contributions.len()
+                        );
+                        &displacement_contributions[..MAX_TARGETS]
                     } else {
                         displacement_contributions
                     };
-                    encoder.update_buffer(&displacement_contributions_buf, data, 0).unwrap();
+                    encoder
+                        .update_buffer(&displacement_contributions_buf, data, 0)
+                        .unwrap();
                     params.pbr_flags |= PbrFlags::DISPLACEMENT_BUFFER.bits();
                 }
                 encoder.update_constant_buffer(&pbr_buf, &params);

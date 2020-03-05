@@ -69,81 +69,64 @@ pub trait Object: AsRef<Base> {
     }
 
     /// Invisible objects are not rendered by cameras.
-    fn set_visible(
-        &self,
-        visible: bool,
-    ) {
+    fn set_visible(&self, visible: bool) {
         self.as_ref().send(Operation::SetVisible(visible));
     }
 
     /// Sets the name of the object.
-    fn set_name<S: Into<String>>(
-        &self,
-        name: S,
-    ) {
+    fn set_name<S: Into<String>>(&self, name: S) {
         self.as_ref().send(Operation::SetName(name.into()));
     }
 
     /// Set both position, orientation and scale.
-    fn set_transform<P, Q>(
-        &self,
-        pos: P,
-        rot: Q,
-        scale: f32,
-    ) where
+    fn set_transform<P, Q>(&self, pos: P, rot: Q, scale: f32)
+    where
         Self: Sized,
         P: Into<mint::Point3<f32>>,
         Q: Into<mint::Quaternion<f32>>,
     {
-        self.as_ref().send(Operation::SetTransform(Some(pos.into()), Some(rot.into()), Some(scale)));
+        self.as_ref().send(Operation::SetTransform(
+            Some(pos.into()),
+            Some(rot.into()),
+            Some(scale),
+        ));
     }
 
     /// Set position.
-    fn set_position<P>(
-        &self,
-        pos: P,
-    ) where
+    fn set_position<P>(&self, pos: P)
+    where
         Self: Sized,
         P: Into<mint::Point3<f32>>,
     {
-        self.as_ref().send(Operation::SetTransform(Some(pos.into()), None, None));
+        self.as_ref()
+            .send(Operation::SetTransform(Some(pos.into()), None, None));
     }
 
     /// Set orientation.
-    fn set_orientation<Q>(
-        &self,
-        rot: Q,
-    ) where
+    fn set_orientation<Q>(&self, rot: Q)
+    where
         Self: Sized,
         Q: Into<mint::Quaternion<f32>>,
     {
-        self.as_ref().send(Operation::SetTransform(None, Some(rot.into()), None));
+        self.as_ref()
+            .send(Operation::SetTransform(None, Some(rot.into()), None));
     }
 
     /// Set scale.
-    fn set_scale(
-        &self,
-        scale: f32,
-    ) {
-        self.as_ref().send(Operation::SetTransform(None, None, Some(scale)));
+    fn set_scale(&self, scale: f32) {
+        self.as_ref()
+            .send(Operation::SetTransform(None, None, Some(scale)));
     }
 
     /// Set weights.
     //Note: needed for animations
-    fn set_weights(
-        &self,
-        weights: Vec<f32>,
-    ) {
+    fn set_weights(&self, weights: Vec<f32>) {
         self.as_ref().send(Operation::SetWeights(weights));
     }
 
     /// Rotates object in the specific direction of `target`.
-    fn look_at<E, T>(
-        &self,
-        eye: E,
-        target: T,
-        up: Option<mint::Vector3<f32>>,
-    ) where
+    fn look_at<E, T>(&self, eye: E, target: T, up: Option<mint::Vector3<f32>>)
+    where
         Self: Sized,
         E: Into<mint::Point3<f32>>,
         T: Into<mint::Point3<f32>>,
@@ -159,15 +142,13 @@ pub trait Object: AsRef<Base> {
         };
         let q = Quaternion::look_at(dir, up).invert();
 
-        self.as_ref().send(Operation::SetTransform(Some(p[0]), Some(q.into()), None));
+        self.as_ref()
+            .send(Operation::SetTransform(Some(p[0]), Some(q.into()), None));
     }
 }
 
 impl PartialEq for Base {
-    fn eq(
-        &self,
-        other: &Base,
-    ) -> bool {
+    fn eq(&self, other: &Base) -> bool {
         self.node == other.node
     }
 }
@@ -175,28 +156,19 @@ impl PartialEq for Base {
 impl Eq for Base {}
 
 impl Hash for Base {
-    fn hash<H: Hasher>(
-        &self,
-        state: &mut H,
-    ) {
+    fn hash<H: Hasher>(&self, state: &mut H) {
         self.node.hash(state);
     }
 }
 
 impl fmt::Debug for Base {
-    fn fmt(
-        &self,
-        f: &mut fmt::Formatter,
-    ) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.node.fmt(f)
     }
 }
 
 impl Base {
-    pub(crate) fn send(
-        &self,
-        operation: Operation,
-    ) {
+    pub(crate) fn send(&self, operation: Operation) {
         let _ = self.tx.send((self.node.downgrade(), operation));
     }
 }
@@ -335,7 +307,9 @@ pub struct Group {
 }
 
 impl AsRef<Base> for Group {
-    fn as_ref(&self) -> &Base { &self.object }
+    fn as_ref(&self) -> &Base {
+        &self.object
+    }
 }
 
 impl Object for Group {
@@ -372,19 +346,13 @@ impl Group {
     }
 
     /// Add new [`Object`](trait.Object.html) to the group.
-    pub fn add<T: Object>(
-        &self,
-        child: &T,
-    ) {
+    pub fn add<T: Object>(&self, child: &T) {
         let node = child.as_ref().node.clone();
         self.as_ref().send(Operation::AddChild(node));
     }
 
     /// Removes a child [`Object`](trait.Object.html) from the group.
-    pub fn remove<T: Object>(
-        &self,
-        child: &T,
-    ) {
+    pub fn remove<T: Object>(&self, child: &T) {
         let node = child.as_ref().node.clone();
         self.as_ref().send(Operation::RemoveChild(node));
     }

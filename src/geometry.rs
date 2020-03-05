@@ -1,7 +1,7 @@
 //! Structures for creating and storing geometric primitives.
 
-use genmesh::{EmitTriangles, Triangulate, Vertex as GenVertex};
 use genmesh::generators::{self, IndexedPolygon, SharedVertex};
+use genmesh::{EmitTriangles, Triangulate, Vertex as GenVertex};
 use mint;
 
 /// A collection of vertices, their normals, and faces that defines the
@@ -104,17 +104,13 @@ impl Geometry {
         Geometry {
             base: Shape {
                 vertices,
-                .. Shape::default()
+                ..Shape::default()
             },
-            .. Geometry::default()
+            ..Geometry::default()
         }
     }
 
-    fn generate<P, G, Fpos, Fnor>(
-        gen: G,
-        fpos: Fpos,
-        fnor: Fnor,
-    ) -> Self
+    fn generate<P, G, Fpos, Fnor>(gen: G, fpos: Fpos, fnor: Fnor) -> Self
     where
         P: EmitTriangles<Vertex = usize>,
         G: IndexedPolygon<P> + SharedVertex<GenVertex>,
@@ -125,14 +121,15 @@ impl Geometry {
             base: Shape {
                 vertices: gen.shared_vertex_iter().map(fpos).collect(),
                 normals: gen.shared_vertex_iter().map(fnor).collect(),
-                .. Shape::default()
+                ..Shape::default()
             },
             // TODO: Add similar functions for tangents and texture coords
-            faces: gen.indexed_polygon_iter()
+            faces: gen
+                .indexed_polygon_iter()
                 .triangulate()
                 .map(|t| [t.x as u32, t.y as u32, t.z as u32])
                 .collect(),
-            .. Geometry::default()
+            ..Geometry::default()
         }
     }
 
@@ -152,10 +149,7 @@ impl Geometry {
     /// }
     /// # fn main() { let _ = make_square(); }
     /// ```
-    pub fn plane(
-        width: f32,
-        height: f32,
-    ) -> Self {
+    pub fn plane(width: f32, height: f32) -> Self {
         Self::generate(
             generators::Plane::new(),
             |GenVertex { pos, .. }| [pos.x * 0.5 * width, pos.y * 0.5 * height, 0.0].into(),
@@ -179,11 +173,7 @@ impl Geometry {
     /// }
     /// # fn main() { let _ = make_cube(); }
     /// ```
-    pub fn cuboid(
-        width: f32,
-        height: f32,
-        depth: f32,
-    ) -> Self {
+    pub fn cuboid(width: f32, height: f32, depth: f32) -> Self {
         Self::generate(
             generators::Cube::new(),
             |GenVertex { pos, .. }| {
@@ -191,7 +181,8 @@ impl Geometry {
                     pos.x * 0.5 * width,
                     pos.y * 0.5 * height,
                     pos.z * 0.5 * depth,
-                ].into()
+                ]
+                .into()
             },
             |v| v.normal.into(),
         )
@@ -251,11 +242,7 @@ impl Geometry {
     /// }
     /// # fn main() { let _ = make_sphere(); }
     /// ```
-    pub fn uv_sphere(
-        radius: f32,
-        equatorial_segments: usize,
-        meridional_segments: usize,
-    ) -> Self {
+    pub fn uv_sphere(radius: f32, equatorial_segments: usize, meridional_segments: usize) -> Self {
         Self::generate(
             generators::SphereUv::new(equatorial_segments, meridional_segments),
             |GenVertex { pos, .. }| [pos.x * radius, pos.y * radius, pos.z * radius].into(),

@@ -9,7 +9,10 @@ fn main() {
     window.scene.add(&light);
     window.scene.background = three::Background::Color(0xC6F0FF);
 
-    let default = concat!(env!("CARGO_MANIFEST_DIR"), "/test_data/AnimatedMorphCube/AnimatedMorphCube.gltf");
+    let default = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/test_data/AnimatedMorphCube/AnimatedMorphCube.gltf"
+    );
     let path = std::env::args().nth(1).unwrap_or(default.into());
 
     // Load the contents of the glTF files. Scenes loaded from the file are returned as
@@ -28,7 +31,7 @@ fn main() {
 
     // Create a camera with which to render the scene, and control it with the built-in
     // orbit controller, set to orbit the model.
-    let camera = window.factory.perspective_camera(60.0, 0.1 .. 20.0);
+    let camera = window.factory.perspective_camera(60.0, 0.1..20.0);
     let mut controls = three::controls::Orbit::builder(&camera)
         .position([-3.0, 3.0, -3.0])
         .up([0.0, 1.0, 0.0])

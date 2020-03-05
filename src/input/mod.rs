@@ -5,8 +5,8 @@ use mint;
 use std::collections::HashSet;
 use std::time;
 
-mod timer;
 pub mod axis;
+mod timer;
 
 pub use self::axis::{AXIS_DOWN_UP, AXIS_LEFT_RIGHT};
 
@@ -74,7 +74,8 @@ impl Input {
         let now = time::Instant::now();
         let dt = now - self.state.time_moment;
         self.state.time_moment = now;
-        self.delta.time_delta = dt.as_secs() as TimerDuration + 1e-9 * dt.subsec_nanos() as TimerDuration;
+        self.delta.time_delta =
+            dt.as_secs() as TimerDuration + 1e-9 * dt.subsec_nanos() as TimerDuration;
         self.delta.keys_hit.clear();
         self.delta.mouse_moves.clear();
         self.delta.mouse_moves_ndc.clear();
@@ -174,18 +175,11 @@ impl Input {
         self.state.is_focused
     }
 
-    pub(crate) fn window_focus(
-        &mut self,
-        state: bool,
-    ) {
+    pub(crate) fn window_focus(&mut self, state: bool) {
         self.state.is_focused = state;
     }
 
-    pub(crate) fn keyboard_input(
-        &mut self,
-        state: ElementState,
-        key: Key,
-    ) {
+    pub(crate) fn keyboard_input(&mut self, state: ElementState, key: Key) {
         match state {
             ElementState::Pressed => {
                 if !self.state.keys_pressed.contains(&key) {
@@ -199,11 +193,7 @@ impl Input {
         }
     }
 
-    pub(crate) fn mouse_input(
-        &mut self,
-        state: ElementState,
-        button: MouseButton,
-    ) {
+    pub(crate) fn mouse_input(&mut self, state: ElementState, button: MouseButton) {
         match state {
             ElementState::Pressed => {
                 self.state.mouse_pressed.insert(button);
@@ -215,11 +205,7 @@ impl Input {
         }
     }
 
-    pub(crate) fn mouse_moved(
-        &mut self,
-        pos: mint::Point2<f32>,
-        pos_ndc: mint::Point2<f32>,
-    ) {
+    pub(crate) fn mouse_moved(&mut self, pos: mint::Point2<f32>, pos_ndc: mint::Point2<f32>) {
         use cgmath::Point2;
         self.delta
             .mouse_moves
@@ -231,18 +217,11 @@ impl Input {
         self.state.mouse_pos_ndc = pos_ndc;
     }
 
-    pub(crate) fn axis_moved_raw(
-        &mut self,
-        axis: u8,
-        value: f32,
-    ) {
+    pub(crate) fn axis_moved_raw(&mut self, axis: u8, value: f32) {
         self.delta.axes_raw.push((axis, value));
     }
 
-    pub(crate) fn mouse_wheel_input(
-        &mut self,
-        delta: MouseScrollDelta,
-    ) {
+    pub(crate) fn mouse_wheel_input(&mut self, delta: MouseScrollDelta) {
         self.delta.mouse_wheel.push(match delta {
             MouseScrollDelta::LineDelta(_, y) => y * PIXELS_PER_LINE,
             MouseScrollDelta::PixelDelta(delta) => delta.y as f32,
@@ -251,10 +230,7 @@ impl Input {
 
     /// Returns `true` there is any input info from [`Button`](struct.Button.html),
     /// [`axis::Key`](struct.Key.html) or [`axis::Raw`](struct.Raw.html). Otherwise returns `false`.
-    pub fn hit<H: Hit>(
-        &self,
-        hit: H,
-    ) -> bool {
+    pub fn hit<H: Hit>(&self, hit: H) -> bool {
         hit.hit(self)
     }
 
@@ -278,10 +254,7 @@ impl Input {
     /// [`Window::update`]: window/struct.Window.html#method.update
     /// [`axis::Key`]: input/axis/struct.Key.html
     /// [`axis::Raw`]: input/axis/struct.Raw.html
-    pub fn delta<D: Delta>(
-        &self,
-        delta: D,
-    ) -> <D as Delta>::Output {
+    pub fn delta<D: Delta>(&self, delta: D) -> <D as Delta>::Output {
         delta.delta(self)
     }
 
@@ -289,10 +262,7 @@ impl Input {
     ///
     /// [`delta`]: struct.Input.html#method.delta
     /// [`delta_time`]: struct.Input.html#method.delta_time
-    pub fn timed<D: Delta>(
-        &self,
-        delta: D,
-    ) -> Option<TimerDuration> {
+    pub fn timed<D: Delta>(&self, delta: D) -> Option<TimerDuration> {
         delta.timed(self)
     }
 
@@ -302,10 +272,7 @@ impl Input {
     ///
     /// - Hits for [`axis::Key`](struct.Key.html) as `(u8, u8)` where first number is for `positive`
     /// direction and the second one is for `negative`.
-    pub fn hit_count<C: HitCount>(
-        &self,
-        hit_count: C,
-    ) -> <C as HitCount>::Output {
+    pub fn hit_count<C: HitCount>(&self, hit_count: C) -> <C as HitCount>::Output {
         hit_count.hit_count(self)
     }
 }
@@ -322,17 +289,11 @@ pub enum Button {
 /// Trait for [`Buttons`](enum.Button.html).
 pub trait Hit {
     /// See [`Input::hit`](struct.Input.html#method.hit).
-    fn hit(
-        &self,
-        input: &Input,
-    ) -> bool;
+    fn hit(&self, input: &Input) -> bool;
 }
 
 impl Hit for Button {
-    fn hit(
-        &self,
-        input: &Input,
-    ) -> bool {
+    fn hit(&self, input: &Input) -> bool {
         match *self {
             Button::Key(button) => button.hit(input),
             Button::Mouse(button) => button.hit(input),
@@ -341,28 +302,19 @@ impl Hit for Button {
 }
 
 impl Hit for Key {
-    fn hit(
-        &self,
-        input: &Input,
-    ) -> bool {
+    fn hit(&self, input: &Input) -> bool {
         input.state.keys_pressed.contains(self)
     }
 }
 
 impl Hit for MouseButton {
-    fn hit(
-        &self,
-        input: &Input,
-    ) -> bool {
+    fn hit(&self, input: &Input) -> bool {
         input.state.mouse_pressed.contains(self)
     }
 }
 
 impl Hit for axis::Key {
-    fn hit(
-        &self,
-        input: &Input,
-    ) -> bool {
+    fn hit(&self, input: &Input) -> bool {
         let pos_hit = input.state.keys_pressed.contains(&self.pos);
         let neg_hit = input.state.keys_pressed.contains(&self.neg);
         pos_hit || neg_hit
@@ -370,16 +322,14 @@ impl Hit for axis::Key {
 }
 
 impl Hit for axis::Raw {
-    fn hit(
-        &self,
-        input: &Input,
-    ) -> bool {
+    fn hit(&self, input: &Input) -> bool {
         input
             .delta
             .axes_raw
             .iter()
             .filter(|&&(id, _)| id == self.id)
-            .count() > 0
+            .count()
+            > 0
     }
 }
 
@@ -388,18 +338,12 @@ pub trait HitCount {
     /// Output type.
     type Output;
     /// See [`Input::hit_count`](struct.Input.html#method.hit_count).
-    fn hit_count(
-        &self,
-        input: &Input,
-    ) -> Self::Output;
+    fn hit_count(&self, input: &Input) -> Self::Output;
 }
 
 impl HitCount for Button {
     type Output = u8;
-    fn hit_count(
-        &self,
-        input: &Input,
-    ) -> Self::Output {
+    fn hit_count(&self, input: &Input) -> Self::Output {
         use std::u8::MAX;
         match *self {
             Button::Key(button) => input
@@ -423,10 +367,7 @@ impl HitCount for Button {
 impl HitCount for axis::Key {
     type Output = (u8, u8);
 
-    fn hit_count(
-        &self,
-        input: &Input,
-    ) -> Self::Output {
+    fn hit_count(&self, input: &Input) -> Self::Output {
         use std::u8::MAX;
         let pos = input
             .delta
@@ -452,25 +393,19 @@ pub trait Delta {
     type Output;
 
     /// See [`Input::delta`](struct.Input.html#method.delta).
-    fn delta(
-        &self,
-        input: &Input,
-    ) -> Self::Output;
+    fn delta(&self, input: &Input) -> Self::Output;
     /// See [`Input::timed`](struct.Input.html#method.timed).
-    fn timed(
-        &self,
-        input: &Input,
-    ) -> Option<TimerDuration>;
+    fn timed(&self, input: &Input) -> Option<TimerDuration>;
 }
 
 impl Delta for axis::Key {
     type Output = Option<i8>;
 
-    fn delta(
-        &self,
-        input: &Input,
-    ) -> Self::Output {
-        match (input.delta.keys_hit.contains(&self.pos), input.delta.keys_hit.contains(&self.neg)) {
+    fn delta(&self, input: &Input) -> Self::Output {
+        match (
+            input.delta.keys_hit.contains(&self.pos),
+            input.delta.keys_hit.contains(&self.neg),
+        ) {
             (true, true) => Some(0),
             (true, false) => Some(1),
             (false, true) => Some(-1),
@@ -478,26 +413,21 @@ impl Delta for axis::Key {
         }
     }
 
-    fn timed(
-        &self,
-        input: &Input,
-    ) -> Option<TimerDuration> {
+    fn timed(&self, input: &Input) -> Option<TimerDuration> {
         match (self.pos.hit(input), self.neg.hit(input)) {
             (true, true) => Some(0),
             (true, false) => Some(1),
             (false, true) => Some(-1),
             (false, false) => None,
-        }.map(|delta| delta as TimerDuration * input.delta_time())
+        }
+        .map(|delta| delta as TimerDuration * input.delta_time())
     }
 }
 
 impl Delta for axis::Raw {
     type Output = Option<f32>;
 
-    fn delta(
-        &self,
-        input: &Input,
-    ) -> Self::Output {
+    fn delta(&self, input: &Input) -> Self::Output {
         let moves = input
             .delta
             .axes_raw
@@ -512,10 +442,7 @@ impl Delta for axis::Raw {
         }
     }
 
-    fn timed(
-        &self,
-        input: &Input,
-    ) -> Option<TimerDuration> {
+    fn timed(&self, input: &Input) -> Option<TimerDuration> {
         self.delta(input)
             .map(|v| v as TimerDuration * input.delta_time())
     }

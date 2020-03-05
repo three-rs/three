@@ -16,20 +16,15 @@ use std::collections::HashMap;
 use camera::{Orthographic, Perspective, Projection};
 use std::path::Path;
 
-use {Material, Texture};
+use super::Factory;
 use geometry::{Geometry, Shape};
 use image::{DynamicImage, ImageBuffer};
 use node::Transform;
-use super::Factory;
 use template::{
-    AnimationTemplate,
-    BoneTemplate,
-    CameraTemplate,
-    InstancedGeometry,
-    MeshTemplate,
-    ObjectTemplate,
-    Template,
+    AnimationTemplate, BoneTemplate, CameraTemplate, InstancedGeometry, MeshTemplate,
+    ObjectTemplate, Template,
 };
+use {Material, Texture};
 
 fn load_textures(
     factory: &mut Factory,
@@ -41,36 +36,24 @@ fn load_textures(
         let (width, height) = (data.width, data.height);
         let image = match data.format {
             gltf::image::Format::R8 => DynamicImage::ImageLuma8(
-                ImageBuffer::from_raw(
-                    width,
-                    height,
-                    data.pixels,
-                ).expect("incorrect image dimensions")
+                ImageBuffer::from_raw(width, height, data.pixels)
+                    .expect("incorrect image dimensions"),
             ),
             gltf::image::Format::R8G8 => DynamicImage::ImageLumaA8(
-                ImageBuffer::from_raw(
-                    width,
-                    height,
-                    data.pixels,
-                ).expect("incorrect image dimensions")
+                ImageBuffer::from_raw(width, height, data.pixels)
+                    .expect("incorrect image dimensions"),
             ),
             gltf::image::Format::R8G8B8 => DynamicImage::ImageRgb8(
-                ImageBuffer::from_raw(
-                    width,
-                    height,
-                    data.pixels,
-                ).expect("incorrect image dimensions")
+                ImageBuffer::from_raw(width, height, data.pixels)
+                    .expect("incorrect image dimensions"),
             ),
-            gltf::image::Format::R8G8B8A8 => DynamicImage::ImageRgba8(
-                ImageBuffer::from_raw(
-                    width,
-                    height,
-                    data.pixels,
-                ).unwrap()
-            ),
-        }.to_rgba();
-        use {FilterMethod, WrapMode};
+            gltf::image::Format::R8G8B8A8 => {
+                DynamicImage::ImageRgba8(ImageBuffer::from_raw(width, height, data.pixels).unwrap())
+            }
+        }
+        .to_rgba();
         use gltf::texture::{MagFilter, WrappingMode};
+        use {FilterMethod, WrapMode};
         let params = texture.sampler();
         // gfx does not support separate min / mag
         // filters yet, so for now we'll use `mag_filter` for both.
@@ -89,19 +72,18 @@ fn load_textures(
             WrappingMode::Repeat => WrapMode::Tile,
         };
         let sampler = factory.sampler(mag_filter, wrap_s, wrap_t);
-        let texture = factory.load_texture_from_memory(width as u16, height as u16, &image, sampler);
+        let texture =
+            factory.load_texture_from_memory(width as u16, height as u16, &image, sampler);
         textures.push(texture);
     }
     textures
 }
 
-fn load_material<'a>(
-    mat: gltf::Material<'a>,
-    textures: &[Texture<[f32; 4]>],
-) -> Material {
+fn load_material<'a>(mat: gltf::Material<'a>, textures: &[Texture<[f32; 4]>]) -> Material {
     let pbr = mat.pbr_metallic_roughness();
     let mut is_basic_material = true;
-    let base_color_map = pbr.base_color_texture()
+    let base_color_map = pbr
+        .base_color_texture()
         .map(|t| textures[t.as_ref().index()].clone());
     let normal_map = mat.normal_texture().map(|t| {
         is_basic_material = false;
@@ -124,30 +106,29 @@ fn load_material<'a>(
         (color::from_linear_rgb([x[0], x[1], x[2]]), x[3])
     };
 
-    if false {// is_basic_material {
+    if false {
+        // is_basic_material {
         material::Basic {
             color: base_color_factor,
             map: base_color_map,
-        }.into()
+        }
+        .into()
     } else {
         material::Pbr {
             base_color_factor,
             base_color_alpha,
             metallic_factor: pbr.metallic_factor(),
             roughness_factor: pbr.roughness_factor(),
-            occlusion_strength: mat.occlusion_texture().map_or(1.0, |t| {
-                t.strength()
-            }),
+            occlusion_strength: mat.occlusion_texture().map_or(1.0, |t| t.strength()),
             emissive_factor: color::from_linear_rgb(mat.emissive_factor()),
-            normal_scale: mat.normal_texture().map_or(1.0, |t| {
-                t.scale()
-            }),
+            normal_scale: mat.normal_texture().map_or(1.0, |t| t.scale()),
             base_color_map,
             normal_map,
             emissive_map,
             metallic_roughness_map,
             occlusion_map,
-        }.into()
+        }
+        .into()
     }
 }
 
@@ -165,11 +146,8 @@ fn load_primitive<'a>(
     if let Some(iter) = reader.read_indices() {
         faces.extend(iter.into_u32().tuples().map(|(a, b, c)| [a, b, c]));
     }
-    let vertices: Vec<mint::Point3<f32>> = reader
-        .read_positions()
-        .unwrap()
-        .map(|x| x.into())
-        .collect();
+    let vertices: Vec<mint::Point3<f32>> =
+        reader.read_positions().unwrap().map(|x| x.into()).collect();
     let normals = if let Some(iter) = reader.read_normals() {
         iter.map(|x| x.into()).collect()
     } else {
@@ -209,7 +187,12 @@ fn load_primitive<'a>(
                     shape.normals.extend(iter.map(mint::Vector3::<f32>::from));
                 }
                 if let Some(iter) = tangents {
-                    shape.tangents.extend(iter.map(|v| mint::Vector4{ x: v[0], y: v[1], z: v[2], w: 1.0 }));
+                    shape.tangents.extend(iter.map(|v| mint::Vector4 {
+                        x: v[0],
+                        y: v[1],
+                        z: v[2],
+                        w: 1.0,
+                    }));
                 }
                 shape
             })
@@ -254,7 +237,7 @@ fn load_skin<'a>(
     use std::iter::repeat;
 
     let reader = skin.reader(|buffer| Some(&buffers[buffer.index()].0));
-    
+
     let mut ibms = Vec::new();
     if let Some(iter) = reader.read_inverse_bind_matrices() {
         for ibm in iter {
@@ -267,19 +250,15 @@ fn load_skin<'a>(
         [0., 0., 1., 0.],
         [0., 0., 0., 1.],
     ]);
-    let ibm_iter = ibms.
-        into_iter()
-        .chain(repeat(mx_id));
+    let ibm_iter = ibms.into_iter().chain(repeat(mx_id));
 
-    let joint_iter = skin
-        .joints()
-        .map(|joint| joint.index());
+    let joint_iter = skin.joints().map(|joint| joint.index());
     for (index, (joint_index, inverse_bind_matrix)) in joint_iter.zip(ibm_iter).enumerate() {
         // Create a bone node corresponding to the joint.
         let object = objects.len();
         objects.push(ObjectTemplate {
             parent: Some(joint_index),
-            .. Default::default()
+            ..Default::default()
         });
         bones.push(BoneTemplate {
             object,
@@ -293,7 +272,7 @@ fn load_skin<'a>(
     let object = objects.len();
     objects.push(ObjectTemplate {
         parent: skin.skeleton().map(|node| node.index()),
-        .. Default::default()
+        ..Default::default()
     });
 
     object
@@ -323,9 +302,7 @@ fn load_animation<'a>(
         let times: Vec<f32> = reader.read_inputs().unwrap().collect();
         let (binding, values) = match reader.read_outputs().unwrap() {
             gltf::animation::util::ReadOutputs::Translations(iter) => {
-                let values = iter
-                    .map(|v| mint::Vector3::from(v))
-                    .collect::<Vec<_>>();
+                let values = iter.map(|v| mint::Vector3::from(v)).collect::<Vec<_>>();
                 assert_eq!(values.len(), times.len());
                 (Binding::Position, Values::Vector3(values))
             }
@@ -371,16 +348,12 @@ fn load_animation<'a>(
                 times,
                 values,
             },
-
             // Target the object for the group that corresponds to the target node.
             groups[node.index()],
         ));
     }
 
-    AnimationTemplate {
-        name,
-        tracks,
-    }
+    AnimationTemplate { name, tracks }
 }
 
 /// Partially loads a single glTF node and creates template nodes from its data.
@@ -447,7 +420,7 @@ fn load_node<'a>(
             let object = objects.len();
             objects.push(ObjectTemplate {
                 parent: Some(node.index()),
-                .. Default::default()
+                ..Default::default()
             });
             meshes.push(MeshTemplate {
                 object,
@@ -463,7 +436,7 @@ fn load_node<'a>(
         let object = objects.len();
         objects.push(ObjectTemplate {
             parent: Some(node.index()),
-            .. Default::default()
+            ..Default::default()
         });
         cameras.push(CameraTemplate {
             object,
@@ -474,23 +447,25 @@ fn load_node<'a>(
     object_index
 }
 
-fn load_camera<'a>(
-    entry: gltf::Camera<'a>,
-) -> Projection {
+fn load_camera<'a>(entry: gltf::Camera<'a>) -> Projection {
     match entry.projection() {
         gltf::camera::Projection::Orthographic(values) => {
             let center = mint::Point2::<f32>::from([0.0, 0.0]);
             let extent_y = values.ymag();
-            let range = values.znear() .. values.zfar();
-            Projection::Orthographic(Orthographic { center, extent_y, range })
+            let range = values.znear()..values.zfar();
+            Projection::Orthographic(Orthographic {
+                center,
+                extent_y,
+                range,
+            })
         }
 
         gltf::camera::Projection::Perspective(values) => {
             let fov_y = values.yfov().to_degrees();
             let near = values.znear();
             let zrange = match values.zfar() {
-                Some(far) => (near .. far).into(),
-                None => (near ..).into(),
+                Some(far) => (near..far).into(),
+                None => (near..).into(),
             };
             Projection::Perspective(Perspective { fov_y, zrange })
         }
@@ -502,7 +477,7 @@ fn load_scene<'a>(scene: gltf::Scene<'a>, raw: &Template) -> Template {
 
     Template {
         name: scene.name().map(Into::into),
-        .. raw.clone()
+        ..raw.clone()
     }
 }
 
@@ -542,15 +517,11 @@ impl super::Factory {
     /// [`template`]: ./template/index.html
     /// [`Template`]: ./template/struct.Template.html
     /// [`Factory::instantiate_template`]: #method.instantiate_template
-    pub fn load_gltf(
-        &mut self,
-        path_str: &str,
-    ) -> Vec<Template> {
+    pub fn load_gltf(&mut self, path_str: &str) -> Vec<Template> {
         info!("Loading glTF file {}", path_str);
 
         let path = Path::new(path_str);
-        let (gltf, buffers, images) = gltf::import(path)
-            .expect("invalid glTF 2.0");
+        let (gltf, buffers, images) = gltf::import(path).expect("invalid glTF 2.0");
 
         let textures = load_textures(self, &gltf, images);
 
@@ -593,7 +564,14 @@ impl super::Factory {
         let groups: Vec<_> = gltf
             .nodes()
             .map(|node| {
-                load_node(node, &mut objects, &mut meshes, &mut cameras, &mesh_map, &primitives)
+                load_node(
+                    node,
+                    &mut objects,
+                    &mut meshes,
+                    &mut cameras,
+                    &mesh_map,
+                    &primitives,
+                )
             })
             .collect();
 
@@ -605,7 +583,10 @@ impl super::Factory {
             for child_index in gltf_node.children().map(|child| child.index()) {
                 let object = &mut objects[groups[child_index]];
 
-                assert!(object.parent.is_none(), "Object template already had a parent specified");
+                assert!(
+                    object.parent.is_none(),
+                    "Object template already had a parent specified"
+                );
                 object.parent = Some(gltf_node.index());
             }
         }
@@ -639,8 +620,7 @@ impl super::Factory {
             warn!("Mutliple scenes found in {}, glTF loading does not currently work correctly for glTF files with multiple scenes", path.display());
         }
 
-        gltf
-            .scenes()
+        gltf.scenes()
             .map(|scene| load_scene(scene, &raw_template))
             .collect()
     }

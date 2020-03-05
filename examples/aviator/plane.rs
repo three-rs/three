@@ -99,11 +99,7 @@ impl AirPlane {
         }
     }
 
-    pub fn update(
-        &mut self,
-        time: f32,
-        target: mint::Point2<f32>,
-    ) {
+    pub fn update(&mut self, time: f32, target: mint::Point2<f32>) {
         let q = Quaternion::from_angle_x(Rad(0.3 * time));
         self.propeller_group.set_orientation(q);
         self.group
