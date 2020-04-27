@@ -1260,7 +1260,7 @@ impl Factory {
                         gr.polys
                             .iter()
                             .cloned()
-                            .map(obj::SimplePolygon::into_genmesh_poly)
+                            .map(obj::SimplePolygon::into_genmesh)
                             .triangulate()
                             .vertices()
                             .map(|tuple| lru.index(tuple) as u16),
