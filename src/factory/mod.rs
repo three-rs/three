@@ -1214,7 +1214,7 @@ impl Factory {
         info!("Loading {}", path_str);
         let path = Path::new(path_str);
         let path_parent = path.parent();
-        let mut obj: obj::Obj<Polygon<_>> = obj::Obj::load(path).unwrap();
+        let mut obj = obj::Obj::load(path).unwrap();
         obj.load_mtls().unwrap();
 
         let hub_ptr = self.hub.clone();
@@ -1224,7 +1224,7 @@ impl Factory {
         let mut vertices = Vec::new();
         let mut indices = Vec::new();
 
-        for object in &obj.objects {
+        for object in &obj.data.objects {
             let group = object::Group::new(&mut *hub);
             for gr in &object.groups {
                 let (mut num_normals, mut num_uvs) = (0, 0);
@@ -1233,20 +1233,20 @@ impl Factory {
                     let f2i = |x: f32| I8Norm(cmp::min(cmp::max((x * 127.) as isize, -128), 127) as i8);
                     vertices.clear();
                     let mut lru = LruIndexer::new(10, |_, obj::IndexTuple(ipos, iuv, inor)| {
-                        let p: [f32; 3] = obj.position[ipos];
+                        let p: [f32; 3] = obj.data.position[ipos];
                         vertices.push(Vertex {
                             pos: [p[0], p[1], p[2], 1.0],
                             uv: match iuv {
                                 Some(i) => {
                                     num_uvs += 1;
-                                    obj.texture[i]
+                                    obj.data.texture[i]
                                 }
                                 None => [0.0, 0.0],
                             },
                             normal: match inor {
                                 Some(id) => {
                                     num_normals += 1;
-                                    let n: [f32; 3] = obj.normal[id];
+                                    let n: [f32; 3] = obj.data.normal[id];
                                     [f2i(n[0]), f2i(n[1]), f2i(n[2]), I8Norm(0)]
                                 }
                                 None => [I8Norm(0), I8Norm(0), I8Norm(0x7f), I8Norm(0)],
@@ -1260,6 +1260,7 @@ impl Factory {
                         gr.polys
                             .iter()
                             .cloned()
+                            .map(obj::SimplePolygon::into_genmesh_poly)
                             .triangulate()
                             .vertices()
                             .map(|tuple| lru.index(tuple) as u16),
@@ -1271,8 +1272,8 @@ impl Factory {
                     gr.name, num_normals, num_uvs
                 );
                 let material = match gr.material {
-                    Some(ref rc_mat) => self.load_obj_material(&*rc_mat, num_normals != 0, num_uvs != 0, path_parent),
-                    None => material::Basic {
+                    Some(obj::ObjMaterial::Mtl(ref rc_mat)) => self.load_obj_material(&*rc_mat, num_normals != 0, num_uvs != 0, path_parent),
+                    _ => material::Basic {
                         color: 0xFFFFFF,
                         map: None,
                     }.into(),
