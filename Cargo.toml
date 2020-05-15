@@ -31,8 +31,8 @@ froggy = "0.4.4"
 genmesh = "0.6"
 gfx = "0.18.1"
 gfx_glyph = "0.15.0"
-gltf = { features = ["names", "utils", "import"], optional = true, version = "0.11.1" }
-image = "0.20"
+gltf = { features = ["names", "utils", "import"], optional = true, version = "0.15.2" }
+image = "0.23"
 includedir = "0.5"
 itertools = "0.8"
 log = "0.4"
