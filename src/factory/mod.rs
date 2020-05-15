@@ -1018,16 +1018,16 @@ impl Factory {
             .to_string_lossy()
             .to_lowercase();
         match extension.as_str() {
-            "png" => F::PNG,
-            "jpg" | "jpeg" => F::JPEG,
-            "gif" => F::GIF,
-            "webp" => F::WEBP,
-            "ppm" => F::PNM,
-            "tiff" => F::TIFF,
-            "tga" => F::TGA,
-            "bmp" => F::BMP,
-            "ico" => F::ICO,
-            "hdr" => F::HDR,
+            "png" => F::Png,
+            "jpg" | "jpeg" => F::Jpeg,
+            "gif" => F::Gif,
+            "webp" => F::WebP,
+            "ppm" => F::Pnm,
+            "tiff" => F::Tiff,
+            "tga" => F::Tga,
+            "bmp" => F::Bmp,
+            "ico" => F::Ico,
+            "hdr" => F::Hdr,
             _ => panic!("Unrecognized image extension: {}", extension),
         }
     }

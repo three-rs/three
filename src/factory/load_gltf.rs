@@ -47,6 +47,8 @@ fn load_textures(
                     data.pixels,
                 ).expect("incorrect image dimensions")
             ),
+            gltf::image::Format::R16 | gltf::image::Format::R16G16 | gltf::image::Format::R16G16B16
+                | gltf::image::Format::R16G16B16A16 => panic!("16 bit images are unsupported"), 
             gltf::image::Format::R8G8 => DynamicImage::ImageLumaA8(
                 ImageBuffer::from_raw(
                     width,
@@ -62,6 +64,20 @@ fn load_textures(
                 ).expect("incorrect image dimensions")
             ),
             gltf::image::Format::R8G8B8A8 => DynamicImage::ImageRgba8(
+                ImageBuffer::from_raw(
+                    width,
+                    height,
+                    data.pixels,
+                ).unwrap()
+            ),
+            gltf::image::Format::B8G8R8 => DynamicImage::ImageBgr8(
+                ImageBuffer::from_raw(
+                    width,
+                    height,
+                    data.pixels,
+                ).unwrap()
+            ),
+            gltf::image::Format::B8G8R8A8 => DynamicImage::ImageBgra8(
                 ImageBuffer::from_raw(
                     width,
                     height,
