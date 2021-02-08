@@ -27,6 +27,12 @@ Interestingly, you can observe an new trend in rust-gamedev community to mimic e
 
 ## Examples
 
+### Init submodule
+
+```
+git submodule update --init test_data
+```
+
 ### Build
 
 ```
