@@ -25,6 +25,20 @@ We do leave the room for optimization opportunity here. Given the low-level decl
 
 Interestingly, you can observe an new trend in rust-gamedev community to mimic existing libraries: [Amethyst](https://github.com/amethyst/amethyst) was created to be Rust version of Autodesk [Stingray](https://www.autodesk.com/products/stingray/overview) engine (formely Bitsquid), [ggez](https://github.com/ggez/ggez) is a re-interpretation of Love2D engine, and now `three-rs` attempting to capture _Three.JS_ usability. This is not to say that we failed to find [our own path](https://users.rust-lang.org/t/game-engine-design-lego-bricks/9151), I just see the current step inevitable.
 
+## Examples
+
+### Build
+
+```
+cargo build --example <name>
+```
+
+### Run
+```
+cargo run --example <name>
+```
+
+
 ## License
 
 Licensed under either of the following terms at your choice:
@@ -36,3 +50,4 @@ Licensed under either of the following terms at your choice:
 Unless you explicitly state otherwise, any contribution intentionally submitted
 for inclusion in the work by you, as defined in the Apache-2.0 license, shall be
 dual licensed as above, without any additional terms or conditions.
+	
