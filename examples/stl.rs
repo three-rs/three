@@ -43,10 +43,7 @@ fn main() {
     let mut window = three::Window::new("Loading STL...");
 
     // Create multiple meshes with the same GPU data and material.
-    let material = three::material::Basic {
-        color: 0xFFFF00,
-        map: None,
-    };
+    let material = three::material::Wireframe{color: 0xff0000};
 
     let mesh = window.factory.mesh(geometry, material);
     window.scene.add(&mesh);
