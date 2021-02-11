@@ -9,8 +9,7 @@ use froggy::WeakPointer;
 
 fn main() {
     let mut args = env::args();
-    let obj_path = concat!(env!("CARGO_MANIFEST_DIR"), "/test_data/sample.stl");
-    let path = args.nth(1).unwrap_or(obj_path.into());
+    let path = args.nth(1).expect("Please provide STL file path");
     let mut vertices = vec!();
 
     match stlv::parser::load_file(path.as_str()) {
