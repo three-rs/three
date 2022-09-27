@@ -4,6 +4,8 @@
 [![Crates.io](https://img.shields.io/crates/v/three.svg?maxAge=2592000)](https://crates.io/crates/three)
 [![Gitter](https://badges.gitter.im/kvark/three-rs.svg)](https://gitter.im/three-rs/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
 
+NOTE: project is abandoned for being stuck with an old graphics stack (gfx-rs pre-ll). It needs to either be ported to wgpu (see https://github.com/three-rs/three/issues/222), or written anew, like https://github.com/kvark/baryon.
+
 Totally not inspired Rust 3D library! Ok, maybe, just a tiny bit... by [Three.JS](http://threejs.org).
 
 If you a looking for something simple to prototype 3D graphics with, you found it.
